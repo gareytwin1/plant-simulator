@@ -28,11 +28,16 @@ class PlantSimulator:
 
     def start(self):
         self.running = True
-        self.load_target = 1.0
 
     def stop(self):
         self.running = False
         self.load_target = 0.0
+
+    def set_load_target(self, target):
+        self.load_target = max(
+            0.0,
+            min(target, 1.0),
+        )
 
     @property
     def spread(self):
@@ -94,20 +99,24 @@ class PlantSimulator:
         )
 
         if self.running:
-            self.flow = min(
-                self.minimum_running_flow
-                + (
-                    self.flow_target
-                    - self.minimum_running_flow
-                ) * self.load,
-                self.max_flow,
-            )
+            if self.load == 0.0:
+                self.flow = 0.0
+            else:
+                self.flow = min(
+                    self.minimum_running_flow
+                    + (
+                        self.flow_target
+                        - self.minimum_running_flow
+                    ) * self.load,
+                    self.max_flow,
+                )
         else:
             self.flow = min(
                 self.spread * self.passive_flow_coefficient,
                 self.max_flow,
-            ) 
-                
+            )
+
+
     def get_state(self):
         return {
             "running": self.running,
@@ -118,6 +127,7 @@ class PlantSimulator:
             "temperature": self.temperature,
             "flow": self.flow,
             "load": self.load,
+            "load_target": self.load_target,
             "suction_pressure_target": self.suction_pressure_target,
             "discharge_pressure_target": self.discharge_pressure_target,
             "flow_target": self.flow_target,

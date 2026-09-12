@@ -40,6 +40,10 @@ def test_api_start():
 def test_api_stop():
     client = main.app.test_client()
 
+    client.post(
+        "/api/load",
+        json={"load_target": 0.50},
+    )
     client.post("/api/start")
     client.post("/api/step")
 
@@ -49,11 +53,16 @@ def test_api_stop():
     assert response.status_code == 200
     assert state["running"] is False
     assert state["load"] == pytest.approx(0.05)
+    assert state["load_target"] == 0.0
 
 
 def test_api_step():
     client = main.app.test_client()
 
+    client.post(
+        "/api/load",
+        json={"load_target": 0.50},
+    )
     client.post("/api/start")
 
     response = client.post("/api/step")
@@ -69,4 +78,15 @@ def test_api_step():
     assert state["temperature"] == pytest.approx(75.2)
     assert state["flow"] == pytest.approx(52.5)
 
+def test_api_set_load():
+    client = main.app.test_client()
 
+    response = client.post(
+        "/api/load",
+        json={"load_target": 0.60},
+    )
+
+    state = response.get_json()
+
+    assert response.status_code == 200
+    assert state["load_target"] == pytest.approx(0.60)

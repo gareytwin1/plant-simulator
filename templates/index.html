@@ -3,62 +3,119 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
     <title>Plant Simulator</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
+    <link
+        rel="stylesheet"
+        href="{{ url_for('static', filename='style.css') }}"
+    >
 </head>
 
 <body>
-    <h1>Plant Simulator</h1>
+    <main>
+        <h1>Plant Simulator</h1>
 
-    <p>
-        Status:
-        <span id="status">
-            {{ "Running" if state.running else "Stopped" }}
-        </span>
-    </p>
+        <h2>Natural Gas Compressor</h2>
 
-    <p>
-        Compressor Load:
-        <span id="load">{{ (state.load * 100)|round|int }}%</span>
-    </p>
+        <section>
+            <h3>Compressor Status</h3>
 
-    <p>
-        Suction Pressure:
-        <span id="suction-pressure">{{ state.suction_pressure }}</span>
-    </p>
+            <p>
+                Status:
+                <span id="status">
+                    {{ "Running" if state.running else "Stopped" }}
+                </span>
+            </p>
 
-    <p>
-        Discharge Pressure
-        <span id="discharge-pressure">{{ state.discharge_pressure }}</span>
-    </p>
+            <p>
+                Actual Load:
+                <span id="load">
+                    {{ "%.1f"|format(state.load * 100) }}%
+                </span>
+            </p>
 
-    <p>
-        Pressure Spread:
-        <span id="spread">{{ "%.1f"|format(state.spread) }} psi</span>
-    </p>
+            <p>
+                Load Target:
+                <span id="load-target">
+                    {{ "%.1f"|format(state.load_target * 100) }}%
+                </span>
+            </p>
 
-    <p>
-        Temperature:
-        <span id="temperature">{{ state.temperature }}</span>
-    </p>
+            <label for="load-slider">
+                Load Target
+            </label>
 
-    <p>
-        Flow:
-        <span id="flow">{{ state.flow }}</span>
-    </p>
+            <input
+                id="load-slider"
+                type="range"
+                min="0"
+                max="100"
+                step="5"
+                value="{{ state.load_target * 100 }}"
+            >
+        </section>
 
-    <div class="trend-container">
-        <h2>Compressor Pressure Trend</h2>
-        <canvas
-            id="pressure-chart"
-            width="900"
-            height="320">
-        </canvas>
-    </div>
+        <section>
+            <h3>Process State</h3>
+
+            <p>
+                Suction Pressure:
+                <span id="suction-pressure">
+                    {{ "%.1f"|format(state.suction_pressure) }} psi
+                </span>
+            </p>
+
+            <p>
+                Discharge Pressure:
+                <span id="discharge-pressure">
+                    {{ "%.1f"|format(state.discharge_pressure) }} psi
+                </span>
+            </p>
+
+            <p>
+                Pressure Spread:
+                <span id="spread">
+                    {{ "%.1f"|format(state.spread) }} psi
+                </span>
+            </p>
+
+            <p>
+                Flow:
+                <span id="flow">
+                    {{ "%.1f"|format(state.flow) }} MMcfd
+                </span>
+            </p>
+
+            <p>
+                Discharge Temperature:
+                <span id="temperature">
+                    {{ "%.1f"|format(state.temperature) }} °F
+                </span>
+            </p>
+        </section>
 
 
-    <button id="start-button" type="button">Start</button>
-    <button id="stop-button" type="button">Stop</button>
+        <section>
+            <h3>Pressure Trend</h3>
+
+            <canvas
+                id="pressure-chart"
+                width="900"
+                height="300"
+            ></canvas>
+
+            <div class="compressor-buttons">
+                <button id="start-button">
+                    Start Compressor
+                </button>
+
+                <button id="stop-button">
+                    Stop Compressor
+                </button>
+            </div>
+        </section>
+   </main>
 
     <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>

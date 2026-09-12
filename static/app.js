@@ -20,11 +20,41 @@ async function getPlantState() {
 function updatePlantDisplay(state) {
     setText("status", state.running ? "Running" : "Stopped");
     setText("load", `${(state.load * 100).toFixed(1)}%`);
-    setText("suction-pressure", `${state.suction_pressure.toFixed(1)} psi`);
-    setText("discharge-pressure", `${state.discharge_pressure.toFixed(1)} psi`);
-    setText("spread", `${state.spread.toFixed(1)} psi`);
-    setText("flow", `${state.flow.toFixed(1)} MMcfd`);
-    setText("temperature", `${state.temperature.toFixed(1)} °F`);
+    setText(
+        "load-target",
+        `${(state.load_target * 100).toFixed(1)}%`
+    );
+
+    const loadSlider = document.getElementById("load-slider");
+
+    if (loadSlider) {
+        loadSlider.value = state.load_target * 100;
+    }
+
+    setText(
+        "suction-pressure",
+        `${state.suction_pressure.toFixed(1)} psi`
+    );
+
+    setText(
+        "discharge-pressure",
+        `${state.discharge_pressure.toFixed(1)} psi`
+    );
+
+    setText(
+        "spread",
+        `${state.spread.toFixed(1)} psi`
+    );
+
+    setText(
+        "flow",
+        `${state.flow.toFixed(1)} MMcfd`
+    );
+
+    setText(
+        "temperature",
+        `${state.temperature.toFixed(1)} °F`
+    );
 }
 
 function addPressureSample(state) {
@@ -205,29 +235,36 @@ function drawPressureChart() {
 }
 
 async function startPlant() {
-  const response = await fetch(
-    "/api/start",
-    {
-      method: "POST",
-    },
-  );
+    const loadSlider = document.getElementById("load-slider");
+    const loadTarget = Number(loadSlider.value) / 100;
 
-  const state = await response.json();
+    await fetch("/api/load", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+            load_target: loadTarget,
+        }),
+    });
 
-  updatePlantDisplay(state);
+    const response = await fetch("/api/start", {
+        method: "POST",
+    });
+
+    const state = await response.json();
+
+    updatePlantDisplay(state);
 }
 
 async function stopPlant() {
-  const response = await fetch(
-    "/api/stop",
-    {
-      method: "POST",
-    },
-  );
+    const response = await fetch("/api/stop", {
+        method: "POST",
+    });
 
-  const state = await response.json();
+    const state = await response.json();
 
-  updatePlantDisplay(state);
+    updatePlantDisplay(state);
 }
 
 async function stepPlant() {
@@ -247,6 +284,31 @@ const startButton =
 
 const stopButton =
   document.getElementById("stop-button");
+
+const loadSlider = document.getElementById("load-slider");
+
+if (loadSlider) {
+    loadSlider.addEventListener("input", async () => {
+        const loadTarget = Number(loadSlider.value) / 100;
+
+        const response = await fetch("/api/load", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                load_target: loadTarget,
+            }),
+        });
+
+        const state = await response.json();
+
+        setText(
+            "load-target",
+            `${(state.load_target * 100).toFixed(1)}%`
+        );
+    });
+}
 
 if (startButton) {
   startButton.addEventListener(

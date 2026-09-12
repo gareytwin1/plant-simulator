@@ -1,5 +1,27 @@
-<!DOCTYPE html> <html lang="en"> <head> <meta charset="UTF-8"> <meta name="viewport" content="width=device-width, initial-scale=1.0"> <title>Plant Simulator</title> <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}"> </head> <body> <h1>Plant Simulator</h1> <p>Simulator is running.</p>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plant Simulator</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <h1>Plant Simulator</h1>
 
-        <script src="{{ url_for('static', filename='app.js') }}"></script>
+    <p>Status: {{ "Running" if state.running else "Stopped" }}</p>
+    <p>Pressure: {{ state.pressure }} psi</p>
+    <p>Temperature: {{ state.temperature }} °F</p>
+    <p>Flow: {{ state.flow }}</p>
 
-</body></html>
+    <form action="{{ url_for('start') }}" method="post">
+        <button type="submit">Start</button>
+    </form>
+
+    <form action="{{ url_for('stop') }}" method="post">
+        <button type="submit">Stop</button>
+    </form>
+
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

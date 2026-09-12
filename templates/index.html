@@ -6,6 +6,7 @@
     <title>Plant Simulator</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
+
 <body>
     <h1>Plant Simulator</h1>
 
@@ -18,22 +19,38 @@
 
     <p>
         Suction Pressure:
-        <span id="suction-pressure">{{ state.suction_pressure }} psi</span>
+        <span id="suction-pressure">{{ state.suction_pressure }}</span> psi
     </p>
+
     <p>
         Discharge Pressure
-        <span id="discharge-pressure">{{ state.discharge_pressure }} psi</span>
+        <span id="discharge-pressure">{{ state.discharge_pressure }}</span> psi
+    </p>
+
+    <p>
+        Pressure Spread:
+        <span id="spread">{{ state.spread }}</span> psi
     </p>
 
     <p>
         Temperature:
-        <span id="temperature">{{ state.temperature }} °F</span>
+        <span id="temperature">{{ state.temperature }}</span> °F
     </p>
 
     <p>
         Flow:
-        <span id="flow">{{ state.flow }}</span>
+        <span id="flow">{{ state.flow }}</span> MMcfd
     </p>
+
+    <div class="trend-container">
+        <h2>Compressor Pressure Trend</h2>
+        <canvas
+            id="pressure-chart"
+            width="900"
+            height="320">
+        </canvas>
+    </div>
+
 
     <button id="start-button" type="button">Start</button>
     <button id="stop-button" type="button">Stop</button>

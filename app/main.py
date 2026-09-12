@@ -1,6 +1,6 @@
 from flask import Flask, jsonify, redirect, render_template, url_for
 
-from simulator import PlantSimulator
+from .simulator import PlantSimulator
 
 
 app = Flask(

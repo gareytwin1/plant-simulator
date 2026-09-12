@@ -3,7 +3,12 @@ from flask import Flask, jsonify, redirect, render_template, url_for
 from simulator import PlantSimulator
 
 
-app = Flask(__name__)
+app = Flask(
+        __name__,
+        template_folder="../templates",
+        static_folder="../static",
+)
+
 simulator = PlantSimulator()
 
 

@@ -1,64 +1,72 @@
-from app.main import app
+import pytest
+
+from app import main
+from app.simulator import PlantSimulator
+
+
+@pytest.fixture(autouse=True)
+def reset_simulator():
+    main.simulator = PlantSimulator()
 
 
 def test_api_state():
-    client = app.test_client()
+    client = main.app.test_client()
 
     response = client.get("/api/state")
+    state = response.get_json()
 
     assert response.status_code == 200
-    assert response.get_json() == {
-        "running": False,
-        "pressure": 100.0,
-        "suction_pressure": 100.0,
-        "discharge_pressure": 100.0,
-        "temperature": 75.0,
-        "flow": 0.0,
-    }
+    assert state["running"] is False
+    assert state["load"] == 0.0
+    assert state["suction_pressure"] == 750.0
+    assert state["discharge_pressure"] == 750.0
+    assert state["spread"] == 0.0
+    assert state["temperature"] == 75.0
+    assert state["flow"] == 0.0
 
 
 def test_api_start():
-    client = app.test_client()
+    client = main.app.test_client()
 
     response = client.post("/api/start")
     state = response.get_json()
 
     assert response.status_code == 200
     assert state["running"] is True
-    assert state["flow"] == 50.0
-
-    client.post("/api/stop")
-
+    assert state["load"] == 0.0
+    assert state["flow"] == 0.0
 
 
 def test_api_stop():
-    client = app.test_client()
+    client = main.app.test_client()
 
     client.post("/api/start")
+    client.post("/api/step")
+
     response = client.post("/api/stop")
     state = response.get_json()
 
     assert response.status_code == 200
     assert state["running"] is False
-    assert state["flow"] == 0.0
+    assert state["load"] == pytest.approx(0.05)
 
 
 def test_api_step():
-    client = app.test_client()
+    client = main.app.test_client()
 
     client.post("/api/start")
+
     response = client.post("/api/step")
     state = response.get_json()
 
     assert response.status_code == 200
     assert state["running"] is True
-    assert state["pressure"] == 105.0
-    assert state["suction_pressure"] == 100.0
-    assert state["discharge_pressure"] == 105.0
-    assert state["temperature"] == 75.5
-    assert state["flow"] == 55.0
-
-    client.post("/api/stop")
-
+    assert state["load"] == pytest.approx(0.05)
+    assert state["pressure"] == pytest.approx(756.25)
+    assert state["suction_pressure"] == pytest.approx(746.25)
+    assert state["discharge_pressure"] == pytest.approx(756.25)
+    assert state["spread"] == pytest.approx(10.0)
+    assert state["temperature"] == pytest.approx(75.2)
+    assert state["flow"] == pytest.approx(52.5)
 
 

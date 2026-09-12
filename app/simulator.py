@@ -13,6 +13,12 @@ class PlantSimulator:
         self.running = False
         self.flow = 0.0
 
+    def step(self):
+        if self.running:
+            self.pressure += 1.0
+            self.temperature += 0.5
+            self.flow += 2.0
+
     def get_state(self):
         return {
             "running": self.running,

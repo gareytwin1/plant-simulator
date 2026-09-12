@@ -37,6 +37,15 @@ async function stopPlant() {
   updatePlantDisplay(state);
 }
 
+async function stepPlant() {
+  const response = await fetch("/api/step", {
+    method: "POST",
+  });
+
+  const state = await response.json();
+  updatePlantDisplay(state);
+}
+
 document
   .getElementById("start-button")
   .addEventListener("click", startPlant);
@@ -46,3 +55,5 @@ document
   .addEventListener("click", stopPlant);
 
 getPlantState();
+
+setInterval(stepPlant, 1000);

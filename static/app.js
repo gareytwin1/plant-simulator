@@ -9,8 +9,11 @@ function updatePlantDisplay(state) {
   document.getElementById("status").textContent =
     state.running ? "Running" : "Stopped";
 
-  document.getElementById("pressure").textContent =
-    `${state.pressure} psi`;
+  document.getElementById("suction-pressure").textContent =
+    `${state.suction_pressure} psi`;
+
+  document.getElementById("discharge-pressure").textContent =
+    `${state.discharge_pressure} psi`;
 
   document.getElementById("temperature").textContent =
     `${state.temperature} °F`;

@@ -70,3 +70,37 @@ def test_get_state():
             "temperature": 75.0,
             "flow": 0.0,
     }
+
+
+def test_flow_reaches_target():
+    simulator = PlantSimulator()
+    simulator.start()
+
+    simulator.step()
+    simulator.step()
+    simulator.step()
+
+    assert simulator.flow == 60.0
+
+
+def test_flow_decreases_toward_target():
+    simulator = PlantSimulator()
+    simulator.start()
+
+    simulator.flow = 70.0
+    simulator.step()
+
+    assert simulator.flow == 65.0
+
+
+def test_flow_does_not_overshoot_target():
+    simulator = PlantSimulator()
+    simulator.start()
+
+    simulator.flow = 62.0
+    simulator.step()
+
+    assert simulator.flow == 60.0
+
+
+

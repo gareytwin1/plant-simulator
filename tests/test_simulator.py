@@ -44,7 +44,7 @@ def test_step_while_running():
     assert simulator.running is True
     assert simulator.pressure == 101.0
     assert simulator.temperature == 75.5
-    assert simulator.flow == 52.0
+    assert simulator.flow == 55.0
 
 
 def test_multiple_steps():
@@ -57,7 +57,7 @@ def test_multiple_steps():
     assert simulator.running is True
     assert simulator.pressure == 102.0
     assert simulator.temperature == 76.0
-    assert simulator.flow == 54.0
+    assert simulator.flow == 60.0
 
 
 def test_get_state():

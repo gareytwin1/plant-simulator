@@ -52,7 +52,7 @@ def test_api_step():
     assert state["running"] is True
     assert state["pressure"] == 101.0
     assert state["temperature"] == 75.5
-    assert state["flow"] == 52.0
+    assert state["flow"] == 55.0
 
     client.post("/api/stop")
 

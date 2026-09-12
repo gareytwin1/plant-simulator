@@ -33,6 +33,15 @@ def stop():
 def api_state():
     return jsonify(simulator.get_state())
 
+@app.route("/api/start", methods=["POST"])
+def api_start():
+    simulator.start()
+    return jsonify(simulator.get_state())
+
+@app.route("/api/stop", methods=["POST"])
+def api_stop():
+    simulator.stop()
+    return jsonify(simulator.get_state())
 
 if __name__ == "__main__":
     app.run(debug=True)

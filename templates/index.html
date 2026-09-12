@@ -9,18 +9,30 @@
 <body>
     <h1>Plant Simulator</h1>
 
-    <p>Status: <span id="status">{{ "Running" if state.running else "Stopped" }}</span></p>
-    <p>Pressure: <span id="pressure">{{ state.pressure }} psi</span></p>
-    <p>Temperature: <span id="temperature">{{ state.temperature }} °F</span></p>
-    <p>Flow: <span id="flow">{{ state.flow }}</span></p>
+    <p>
+        Status:
+        <span id="status">
+            {{ "Running" if state.running else "Stopped" }}
+        </span>
+    </p>
 
-    <form action="{{ url_for('start') }}" method="post">
-        <button type="submit">Start</button>
-    </form>
+    <p>
+        Pressure:
+        <span id="pressure">{{ state.pressure }} psi</span>
+    </p>
 
-    <form action="{{ url_for('stop') }}" method="post">
-        <button type="submit">Stop</button>
-    </form>
+    <p>
+        Temperature:
+        <span id="temperature">{{ state.temperature }} °F</span>
+    </p>
+
+    <p>
+        Flow:
+        <span id="flow">{{ state.flow }}</span>
+    </p>
+
+    <button id="start-button" type="button">Start</button>
+    <button id="stop-button" type="button">Stop</button>
 
     <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>

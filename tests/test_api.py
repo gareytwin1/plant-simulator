@@ -10,6 +10,8 @@ def test_api_state():
     assert response.get_json() == {
         "running": False,
         "pressure": 100.0,
+        "suction_pressure": 100.0,
+        "discharge_pressure": 100.0,
         "temperature": 75.0,
         "flow": 0.0,
     }
@@ -50,7 +52,9 @@ def test_api_step():
 
     assert response.status_code == 200
     assert state["running"] is True
-    assert state["pressure"] == 101.0
+    assert state["pressure"] == 105.0
+    assert state["suction_pressure"] == 100.0
+    assert state["discharge_pressure"] == 105.0
     assert state["temperature"] == 75.5
     assert state["flow"] == 55.0
 

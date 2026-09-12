@@ -4,7 +4,8 @@ def test_initial_state():
     simulator = PlantSimulator()
 
     assert simulator.running is False
-    assert simulator.pressure == 100.0
+    assert simulator.suction_pressure == 100.0
+    assert simulator.discharge_pressure == 100.0
     assert simulator.temperature == 75.0
     assert simulator.flow == 0.0
 
@@ -31,7 +32,8 @@ def test_step_while_stopped():
     simulator.step()
 
     assert simulator.running is False
-    assert simulator.pressure == 100.0
+    assert simulator.suction_pressure == 100.0
+    assert simulator.discharge_pressure == 100.0
     assert simulator.temperature == 75.0
     assert simulator.flow == 0.0
 
@@ -42,7 +44,8 @@ def test_step_while_running():
     simulator.step()
 
     assert simulator.running is True
-    assert simulator.pressure == 101.0
+    assert simulator.suction_pressure == 100.0
+    assert simulator.discharge_pressure == 105.0
     assert simulator.temperature == 75.5
     assert simulator.flow == 55.0
 
@@ -55,7 +58,8 @@ def test_multiple_steps():
     simulator.step()
 
     assert simulator.running is True
-    assert simulator.pressure == 102.0
+    assert simulator.suction_pressure == 100.0
+    assert simulator.discharge_pressure == 110.0
     assert simulator.temperature == 76.0
     assert simulator.flow == 60.0
 
@@ -67,6 +71,8 @@ def test_get_state():
     assert state == {
             "running": False,
             "pressure": 100.0,
+            "suction_pressure": 100.0,
+            "discharge_pressure": 100.0,
             "temperature": 75.0,
             "flow": 0.0,
     }
@@ -91,6 +97,20 @@ def test_flow_decreases_toward_target():
     simulator.step()
 
     assert simulator.flow == 65.0
+
+
+def  test_discharge_pressure_decreases_while_stopped():
+    simulator = PlantSimulator()
+    simulator.start()
+
+    simulator.discharge_pressure = 120.0
+    simulator.stop()
+    simulator.step()
+
+    assert simulator.running is False
+    assert simulator.flow == 0.0
+    assert simulator.suction_pressure == 100.0
+    assert simulator.discharge_pressure == 115.0
 
 
 def test_flow_does_not_overshoot_target():

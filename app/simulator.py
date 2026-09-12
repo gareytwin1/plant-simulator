@@ -12,7 +12,7 @@ class PlantSimulator:
 
         self.load = 0.0
         self.load_rate = 0.05
-        self.load_target = 1.0
+        self.load_target = 0.0 
 
         self.minimum_running_flow = 50.0
         self.flow = 0.0
@@ -24,12 +24,15 @@ class PlantSimulator:
 
         self.max_spread = 220.0
 
+        self.passive_flow_coefficient = 0.20
+
     def start(self):
         self.running = True
+        self.load_target = 1.0
 
     def stop(self):
         self.running = False
-        self.flow = 0.0
+        self.load_target = 0.0
 
     @property
     def spread(self):
@@ -68,22 +71,11 @@ class PlantSimulator:
                     self.load_target,
                 )
 
-            self.flow = min(
-                self.minimum_running_flow
-                + (
-                    self.flow_target
-                    - self.minimum_running_flow
-                ) * self.load,
-                self.max_flow,
-            )
-
         else:
             self.load = max(
                 self.load - self.load_rate,
                 0.0,
             )
-
-            self.flow = 0.0
 
         self.suction_pressure = (
             self.equalized_pressure
@@ -100,7 +92,22 @@ class PlantSimulator:
                 - self.equalized_pressure
             ) * self.load
         )
-            
+
+        if self.running:
+            self.flow = min(
+                self.minimum_running_flow
+                + (
+                    self.flow_target
+                    - self.minimum_running_flow
+                ) * self.load,
+                self.max_flow,
+            )
+        else:
+            self.flow = min(
+                self.spread * self.passive_flow_coefficient,
+                self.max_flow,
+            ) 
+                
     def get_state(self):
         return {
             "running": self.running,
@@ -110,7 +117,7 @@ class PlantSimulator:
             "spread": self.spread,
             "temperature": self.temperature,
             "flow": self.flow,
-            "load": self.load * 100.0,
+            "load": self.load,
             "suction_pressure_target": self.suction_pressure_target,
             "discharge_pressure_target": self.discharge_pressure_target,
             "flow_target": self.flow_target,

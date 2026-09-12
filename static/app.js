@@ -18,35 +18,13 @@ async function getPlantState() {
 }
 
 function updatePlantDisplay(state) {
-  setText(
-    "status",
-    state.running ? "Running" : "Stopped",
-  );
-
-  setText(
-    "suction-pressure",
-    state.suction_pressure,
-  );
-
-  setText(
-    "discharge-pressure",
-    state.discharge_pressure,
-  );
-
-  setText(
-    "spread",
-    state.spread,
-  );
-
-  setText(
-    "flow",
-    state.flow,
-  );
-
-  setText(
-    "temperature",
-    state.temperature,
-  );
+    setText("status", state.running ? "Running" : "Stopped");
+    setText("load", `${(state.load * 100).toFixed(1)}%`);
+    setText("suction-pressure", `${state.suction_pressure.toFixed(1)} psi`);
+    setText("discharge-pressure", `${state.discharge_pressure.toFixed(1)} psi`);
+    setText("spread", `${state.spread.toFixed(1)} psi`);
+    setText("flow", `${state.flow.toFixed(1)} MMcfd`);
+    setText("temperature", `${state.temperature.toFixed(1)} °F`);
 }
 
 function addPressureSample(state) {
@@ -253,17 +231,15 @@ async function stopPlant() {
 }
 
 async function stepPlant() {
-  const response = await fetch(
-    "/api/step",
-    {
-      method: "POST",
-    },
-  );
+    const response = await fetch("/api/step", {
+        method: "POST",
+    });
 
-  const state = await response.json();
+    const state = await response.json();
 
-  updatePlantDisplay(state);
-  addPressureSample(state);
+    updatePlantDisplay(state);
+    addPressureSample(state);
+    drawPressureChart();
 }
 
 const startButton =

@@ -18,28 +18,33 @@
     </p>
 
     <p>
+        Compressor Load:
+        <span id="load">{{ (state.load * 100)|round|int }}%</span>
+    </p>
+
+    <p>
         Suction Pressure:
-        <span id="suction-pressure">{{ state.suction_pressure }}</span> psi
+        <span id="suction-pressure">{{ state.suction_pressure }}</span>
     </p>
 
     <p>
         Discharge Pressure
-        <span id="discharge-pressure">{{ state.discharge_pressure }}</span> psi
+        <span id="discharge-pressure">{{ state.discharge_pressure }}</span>
     </p>
 
     <p>
         Pressure Spread:
-        <span id="spread">{{ state.spread }}</span> psi
+        <span id="spread">{{ "%.1f"|format(state.spread) }} psi</span>
     </p>
 
     <p>
         Temperature:
-        <span id="temperature">{{ state.temperature }}</span> °F
+        <span id="temperature">{{ state.temperature }}</span>
     </p>
 
     <p>
         Flow:
-        <span id="flow">{{ state.flow }}</span> MMcfd
+        <span id="flow">{{ state.flow }}</span>
     </p>
 
     <div class="trend-container">

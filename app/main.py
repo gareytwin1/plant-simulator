@@ -1,13 +1,9 @@
-from flask import Flask, redirect, render_template, url_for
+from flask import Flask, jsonify, redirect, render_template, url_for
 
 from simulator import PlantSimulator
 
-app = Flask(
-    __name__,
-    template_folder="../templates",
-    static_folder="../static",
-)
 
+app = Flask(__name__)
 simulator = PlantSimulator()
 
 
@@ -16,16 +12,21 @@ def home():
     return render_template("index.html", state=simulator.get_state())
 
 
-@app.route("/start", methods=["POST"])
+@app.route("/start")
 def start():
     simulator.start()
     return redirect(url_for("home"))
 
 
-@app.route("/stop", methods=["POST"])
+@app.route("/stop")
 def stop():
     simulator.stop()
     return redirect(url_for("home"))
+
+
+@app.route("/api/state")
+def api_state():
+    return jsonify(simulator.get_state())
 
 
 if __name__ == "__main__":

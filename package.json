@@ -22,6 +22,6 @@
   },
   "homepage": "https://github.com/gareytwin1/plant-simulator#readme",
   "devDependencies": {
-    "typescript": "^7.0.2"
+    "typescript": "^6.0.3"
   }
 }

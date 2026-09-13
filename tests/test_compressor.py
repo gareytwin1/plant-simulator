@@ -1,9 +1,8 @@
 import pytest
-
-from app.simulator import PlantSimulator
+from app.equipment.compressor import GasCompressor
 
 def test_initial_state():
-    simulator = PlantSimulator()
+    simulator = GasCompressor()
 
     assert simulator.running is False
     assert simulator.load == 0.0
@@ -15,7 +14,7 @@ def test_initial_state():
     assert simulator.flow == 0.0
 
 def test_start():
-    simulator = PlantSimulator()
+    simulator = GasCompressor()
     simulator.set_load_target(0.50)
     simulator.start()
 
@@ -24,7 +23,7 @@ def test_start():
     assert simulator.load_target == pytest.approx(0.50)
 
 def test_stop():
-    simulator = PlantSimulator()
+    simulator = GasCompressor()
     simulator.set_load_target(0.50)
     simulator.start()
     simulator.step()
@@ -35,7 +34,7 @@ def test_stop():
     assert simulator.load_target == 0.0
 
 def test_step_while_stopped():
-    simulator = PlantSimulator()
+    simulator = GasCompressor()
     simulator.step()
 
     assert simulator.running is False
@@ -47,7 +46,7 @@ def test_step_while_stopped():
     assert simulator.flow == 0.0
 
 def test_step_while_running():
-    simulator = PlantSimulator()
+    simulator = GasCompressor()
     simulator.set_load_target(0.50)
     simulator.start()
     simulator.step()
@@ -59,7 +58,7 @@ def test_step_while_running():
     assert simulator.spread == pytest.approx(0.5)
 
 def test_multiple_steps():
-    simulator = PlantSimulator()
+    simulator = GasCompressor()
     simulator.set_load_target(0.50)
     simulator.start()
 
@@ -73,7 +72,7 @@ def test_multiple_steps():
     assert simulator.spread == pytest.approx(2.0)
 
 def test_reaches_normal_operating_target():
-    simulator = PlantSimulator()
+    simulator = GasCompressor()
     simulator.set_load_target(1.0)
     simulator.start()
 
@@ -88,7 +87,7 @@ def test_reaches_normal_operating_target():
     assert simulator.flow == pytest.approx(100.0)
 
 def test_shutdown_reduces_load_and_flow():
-    simulator = PlantSimulator()
+    simulator = GasCompressor()
     simulator.set_load_target(1.0)
     simulator.start()
 
@@ -107,7 +106,7 @@ def test_shutdown_reduces_load_and_flow():
     assert simulator.spread == pytest.approx(180.5) 
 
 def test_get_state():
-    simulator = PlantSimulator()
+    simulator = GasCompressor()
     state = simulator.get_state()
 
     assert state["running"] is False
@@ -120,7 +119,7 @@ def test_get_state():
     assert state["flow"] == 0.0
 
 def test_set_load_target():
-    simulator = PlantSimulator()
+    simulator = GasCompressor()
 
     simulator.set_load_target(0.60)
     assert simulator.load_target == pytest.approx(0.60)
@@ -133,7 +132,7 @@ def test_set_load_target():
 
 
 def test_higher_discharge_header_reduces_flow():
-    simulator = PlantSimulator()
+    simulator = GasCompressor()
 
     simulator.discharge_header_pressure = 775.0
     simulator.set_load_target(1.0)
@@ -149,7 +148,7 @@ def test_higher_discharge_header_reduces_flow():
     assert simulator.spread == pytest.approx(202.2727)
 
 def test_lower_supply_pressure_reduces_flow():
-    simulator = PlantSimulator()
+    simulator = GasCompressor()
     simulator.supply_pressure = 725.0
     simulator.set_load_target(1.0)
     simulator.start()
@@ -164,7 +163,7 @@ def test_lower_supply_pressure_reduces_flow():
     assert simulator.spread == pytest.approx(202.2727)
 
 def test_compressor_pressure_rise_matches_process_spread():
-    simulator = PlantSimulator()
+    simulator = GasCompressor()
     simulator.set_load_target(0.50)
     simulator.start()
 
@@ -180,7 +179,7 @@ def test_compressor_pressure_rise_matches_process_spread():
     )
 
 def test_downstream_restriction_reduces_flow():
-    simulator = PlantSimulator()
+    simulator = GasCompressor()
 
     simulator.downstream_restriction = 0.01
     simulator.set_load_target(1.0)
@@ -196,7 +195,7 @@ def test_downstream_restriction_reduces_flow():
     assert simulator.spread == pytest.approx(206.25)
 
 def test_partially_closed_discharge_valve_reduces_flow():
-    simulator = PlantSimulator()
+    simulator = GasCompressor()
 
     simulator.set_discharge_valve_position(0.50)
     simulator.set_load_target(1.0)
@@ -210,7 +209,7 @@ def test_partially_closed_discharge_valve_reduces_flow():
     assert simulator.flow == pytest.approx(86.3575539)
 
 def test_discharge_valve_pressure_drop():
-    simulator = PlantSimulator()
+    simulator = GasCompressor()
 
     simulator.set_discharge_valve_position(0.50)
     simulator.set_load_target(1.0)
@@ -224,7 +223,7 @@ def test_discharge_valve_pressure_drop():
 
 
 def test_valve_target_stays_fixed_while_valve_moves():
-    simulator = PlantSimulator()
+    simulator = GasCompressor()
 
     simulator.set_load_target(1.0)
     simulator.start()

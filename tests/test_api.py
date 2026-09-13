@@ -1,13 +1,11 @@
 import pytest
 
 from app import main
-from app.simulator import PlantSimulator
-
+from app.equipment.compressor import GasCompressor
 
 @pytest.fixture(autouse=True)
 def reset_simulator():
-    main.simulator = PlantSimulator()
-
+    main.simulator = GasCompressor()
 
 def test_api_state():
     client = main.app.test_client()

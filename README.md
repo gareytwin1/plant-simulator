@@ -1,31 +1,44 @@
 # Plant Simulator
 
-Plant Simulator is a web-based process simulation game built with Python, Flask, HTML, CSS, and JavaScript.
+Plant Simulator is a web-based process simulation application built with Python, Flask, HTML, CSS, and JavaScript.
 
-The current scenario is a natural gas compressor. The project focuses on simple, believable process behavior with clear gameplay and visual feedback.
+The project models individual pieces of process equipment using simple engineering relationships and interactive operator controls.
 
 ## Architecture
 
+```text
 Browser
    ↓
 HTML / CSS / JavaScript
    ↓
 Flask Controller
    ↓
-PlantSimulator
+Equipment Simulator
    ↓
-Process State and Simulation Logic
+Equipment Physics and Process State
+```
 
-## Current Features
+Engineering logic remains separate from Flask and browser code.
 
-- Compressor start and stop controls
-- Load-driven simulation behavior
-- Suction and discharge pressure
-- Pressure spread
-- Flow
-- Discharge temperature
-- Live browser updates
-- Pressure trend chart
-- Flask JSON API
-- Pytest coverage for core simulator and API behavior
+## Current Equipment
+
+### Gas Compressor
+
+The first equipment model includes:
+
+* Start and stop controls
+* Compressor load target and actual load
+* Discharge valve target and actual position
+* Valve actuator timing
+* Suction and discharge pressure
+* Flow
+* Pressure spread
+* Discharge temperature
+* Compressor and system resistance relationships
+* Variable upstream and downstream pressures
+* Valve pressure drop
+* Live pressure trend
+* Configurable simulation timing
+
+The compressor is maintained as its own equipment module.
 

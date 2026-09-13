@@ -1,7 +1,7 @@
 from app import config
 
 
-class PlantSimulator:
+class GasCompressor:
     def __init__(self):
         self.simulation_speed = config.SIMULATION_SPEED
         self.running = False

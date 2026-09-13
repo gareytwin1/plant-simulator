@@ -1,6 +1,6 @@
 from flask import Flask, jsonify, redirect, render_template, request, url_for
 
-from .simulator import PlantSimulator
+from app.equipment.compressor import GasCompressor
 
 
 app = Flask(
@@ -9,7 +9,7 @@ app = Flask(
         static_folder="../static",
 )
 
-simulator = PlantSimulator()
+simulator = GasCompressor()
 
 @app.route("/")
 def home():

@@ -222,3 +222,41 @@ def test_discharge_valve_pressure_drop():
     assert simulator.valve_resistance == pytest.approx(0.0075)
     assert simulator.valve_pressure_drop == pytest.approx(55.9322)
 
+
+def test_valve_target_stays_fixed_while_valve_moves():
+    simulator = PlantSimulator()
+
+    simulator.set_load_target(1.0)
+    simulator.start()
+
+    for _ in range(20):
+        simulator.step()
+
+    simulator.set_discharge_valve_position(0.10)
+
+    for _ in range(18):
+        simulator.step()
+
+    initial_flow = simulator.flow
+
+    assert simulator.discharge_valve_position == pytest.approx(0.10)
+
+    simulator.set_discharge_valve_position(0.70)
+
+    assert simulator.discharge_valve_target == pytest.approx(0.70)
+    assert simulator.discharge_valve_position == pytest.approx(0.10)
+
+    simulator.step()
+
+    first_flow = simulator.flow
+
+    assert simulator.discharge_valve_target == pytest.approx(0.70)
+    assert simulator.discharge_valve_position == pytest.approx(0.15)
+    assert first_flow > initial_flow
+
+    simulator.step()
+
+    assert simulator.discharge_valve_target == pytest.approx(0.70)
+    assert simulator.discharge_valve_position == pytest.approx(0.20)
+    assert simulator.flow > first_flow
+

@@ -105,4 +105,7 @@ def test_api_set_discharge_valve():
     state = response.get_json()
 
     assert response.status_code == 200
-    assert state["discharge_valve_position"] == pytest.approx(0.50)
+    assert state["discharge_valve_target"] == pytest.approx(0.50)
+    assert state["discharge_valve_position"] == pytest.approx(1.0)
+
+

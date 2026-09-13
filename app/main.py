@@ -44,6 +44,14 @@ def api_step():
     simulator.step()
     return jsonify(simulator.get_state())
 
+@app.post("/api/valve")
+def set_valve():
+    data = request.get_json()
+    simulator.set_discharge_valve_position(
+        data["discharge_valve_position"]
+    )
+    return jsonify(simulator.get_state())
+
 @app.post("/api/load")
 def set_load():
     data = request.get_json()

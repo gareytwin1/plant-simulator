@@ -2,7 +2,10 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
 
     <title>Plant Simulator</title>
 
@@ -13,90 +16,138 @@
 </head>
 
 <body>
-    <main>
-        <h1>Plant Simulator</h1>
+    <main class="simulator">
+        <header class="simulator-header">
+            <h1>Plant Simulator</h1>
+            <h2>Natural Gas Compressor</h2>
+        </header>
 
-        <h2>Natural Gas Compressor</h2>
-
-        <section>
+        <section class="panel status-panel">
             <h3>Compressor Status</h3>
 
-            <p>
-                Status:
-                <span id="status">
-                    {{ "Running" if state.running else "Stopped" }}
-                </span>
-            </p>
+            <div class="status-grid">
+                <div class="status-item">
+                    <span class="label">Status</span>
+                    <span id="status" class="value">
+                        {{ "Running" if state.running else "Stopped" }}
+                    </span>
+                </div>
 
-            <p>
-                Actual Load:
-                <span id="load">
-                    {{ "%.1f"|format(state.load * 100) }}%
-                </span>
-            </p>
+                <div class="status-item">
+                    <span class="label">Actual Load</span>
+                    <span id="load" class="value">
+                        {{ "%.1f"|format(state.load * 100) }}%
+                    </span>
+                </div>
 
-            <p>
-                Load Target:
-                <span id="load-target">
-                    {{ "%.1f"|format(state.load_target * 100) }}%
-                </span>
-            </p>
-
-            <label for="load-slider">
-                Load Target
-            </label>
-
-            <input
-                id="load-slider"
-                type="range"
-                min="0"
-                max="100"
-                step="5"
-                value="{{ state.load_target * 100 }}"
-            >
+                <div class="status-item">
+                    <span class="label">Load Target</span>
+                    <span id="load-target" class="value">
+                        {{ "%.1f"|format(state.load_target * 100) }}%
+                    </span>
+                </div>
+            </div>
         </section>
 
-        <section>
+        <section class="panel controls-panel">
+            <h3>Operator Controls</h3>
+
+            <div class="control-group">
+                <div class="control-header">
+                    <label for="load-slider">
+                        Load Target
+                    </label>
+                </div>
+
+                <input
+                    id="load-slider"
+                    class="control-slider"
+                    type="range"
+                    min="0"
+                    max="100"
+                    step="5"
+                    value="{{ state.load_target * 100 }}"
+                >
+            </div>
+
+            <div class="control-group">
+                <div class="control-header">
+                    <label for="discharge-valve-slider">
+                        Discharge Valve
+                    </label>
+
+                    <span
+                        id="discharge-valve-position"
+                        class="control-value"
+                    >
+                        {{ "%.1f"|format(
+                            state.discharge_valve_position * 100
+                        ) }}%
+                    </span>
+                </div>
+
+                <input
+                    id="discharge-valve-slider"
+                    class="control-slider"
+                    type="range"
+                    min="10"
+                    max="100"
+                    step="5"
+                    value="{{ state.discharge_valve_position * 100 }}"
+                >
+
+                <p class="control-detail">
+                    Valve Pressure Drop:
+                    <span id="valve-pressure-drop">
+                        {{ "%.1f"|format(state.valve_pressure_drop) }}
+                    </span>
+                    psi
+                </p>
+            </div>
+        </section>
+
+        <section class="panel process-panel">
             <h3>Process State</h3>
 
-            <p>
-                Suction Pressure:
-                <span id="suction-pressure">
-                    {{ "%.1f"|format(state.suction_pressure) }} psi
-                </span>
-            </p>
+            <div class="process-grid">
+                <div class="process-item">
+                    <span class="label">Suction Pressure</span>
+                    <span id="suction-pressure" class="value">
+                        {{ "%.1f"|format(state.suction_pressure) }} psi
+                    </span>
+                </div>
 
-            <p>
-                Discharge Pressure:
-                <span id="discharge-pressure">
-                    {{ "%.1f"|format(state.discharge_pressure) }} psi
-                </span>
-            </p>
+                <div class="process-item">
+                    <span class="label">Discharge Pressure</span>
+                    <span id="discharge-pressure" class="value">
+                        {{ "%.1f"|format(state.discharge_pressure) }} psi
+                    </span>
+                </div>
 
-            <p>
-                Pressure Spread:
-                <span id="spread">
-                    {{ "%.1f"|format(state.spread) }} psi
-                </span>
-            </p>
+                <div class="process-item">
+                    <span class="label">Pressure Spread</span>
+                    <span id="spread" class="value">
+                        {{ "%.1f"|format(state.spread) }} psi
+                    </span>
+                </div>
 
-            <p>
-                Flow:
-                <span id="flow">
-                    {{ "%.1f"|format(state.flow) }} MMcfd
-                </span>
-            </p>
+                <div class="process-item">
+                    <span class="label">Flow</span>
+                    <span id="flow" class="value">
+                        {{ "%.1f"|format(state.flow) }} MMcfd
+                    </span>
+                </div>
 
-            <p>
-                Discharge Temperature:
-                <span id="temperature">
-                    {{ "%.1f"|format(state.temperature) }} °F
-                </span>
-            </p>
+                <div class="process-item">
+                    <span class="label">Discharge Temperature</span>
+                    <span id="temperature" class="value">
+                        {{ "%.1f"|format(state.temperature) }} °F
+                    </span>
+                </div>
+            </div>
         </section>
 
-
-        <section>
+        <section class="panel trend-panel">
             <h3>Pressure Trend</h3>
 
             <canvas
@@ -104,18 +155,26 @@
                 width="900"
                 height="300"
             ></canvas>
-
-            <div class="compressor-buttons">
-                <button id="start-button">
-                    Start Compressor
-                </button>
-
-                <button id="stop-button">
-                    Stop Compressor
-                </button>
-            </div>
         </section>
-   </main>
+
+        <section class="compressor-controls">
+            <button
+                id="start-button"
+                class="start-button"
+                type="button"
+            >
+                Start Compressor
+            </button>
+
+            <button
+                id="stop-button"
+                class="stop-button"
+                type="button"
+            >
+                Stop Compressor
+            </button>
+        </section>
+    </main>
 
     <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>

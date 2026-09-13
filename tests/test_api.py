@@ -71,12 +71,12 @@ def test_api_step():
     assert response.status_code == 200
     assert state["running"] is True
     assert state["load"] == pytest.approx(0.05)
-    assert state["pressure"] == pytest.approx(756.25)
-    assert state["suction_pressure"] == pytest.approx(746.25)
-    assert state["discharge_pressure"] == pytest.approx(756.25)
-    assert state["spread"] == pytest.approx(10.0)
-    assert state["temperature"] == pytest.approx(75.2)
-    assert state["flow"] == pytest.approx(52.5)
+    assert state["pressure"] == pytest.approx(750.3125)
+    assert state["temperature"] == pytest.approx(75.01) 
+    assert state["flow"] == pytest.approx(5.0)
+    assert state["suction_pressure"] == pytest.approx(749.8125)
+    assert state["discharge_pressure"] == pytest.approx(750.3125)
+    assert state["spread"] == pytest.approx(0.5)
 
 def test_api_set_load():
     client = main.app.test_client()
@@ -90,3 +90,19 @@ def test_api_set_load():
 
     assert response.status_code == 200
     assert state["load_target"] == pytest.approx(0.60)
+
+
+def test_api_set_discharge_valve():
+    client = main.app.test_client()
+
+    response = client.post(
+        "/api/valve",
+        json={
+            "discharge_valve_position": 0.50,
+        },
+    )
+
+    state = response.get_json()
+
+    assert response.status_code == 200
+    assert state["discharge_valve_position"] == pytest.approx(0.50)

@@ -31,18 +31,15 @@ function updatePlantDisplay(state) {
         loadSlider.value = state.load_target * 100;
     }
 
-    const dischargeValveSlider =
-        document.getElementById("discharge-valve-slider");
-
-    if (dischargeValveSlider) {
-        dischargeValveSlider.value =
-            state.discharge_valve_position * 100;
-    }
+    setText(
+        "discharge-valve-target",
+        `${(state.discharge_valve_target * 100).toFixed(1)}%`,
+    );
 
     setText(
         "discharge-valve-position",
         `${(state.discharge_valve_position * 100).toFixed(1)}%`,
-    );
+    ); 
 
     setText(
         "valve-pressure-drop",
@@ -327,7 +324,7 @@ if (loadSlider) {
     });
 }
 
-const dischargeValveSlider = 
+const dischargeValveSlider =
     document.getElementById("discharge-valve-slider");
 
 if (dischargeValveSlider) {
@@ -336,7 +333,12 @@ if (dischargeValveSlider) {
         async () => {
             const position =
                 Number(dischargeValveSlider.value) / 100;
-            
+
+            setText(
+                "discharge-valve-target",
+                `${(position * 100).toFixed(1)}%`,
+            );
+
             const response = await fetch(
                 "/api/valve",
                 {
@@ -349,7 +351,9 @@ if (dischargeValveSlider) {
                     }),
                 },
             );
+
             const state = await response.json();
+
             updatePlantDisplay(state);
         },
     );

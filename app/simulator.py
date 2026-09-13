@@ -32,6 +32,8 @@ class PlantSimulator:
         self.downstream_restriction = 0.0
 
         self.discharge_valve_position = 1.0
+        self.discharge_valve_target = 1.0
+        self.discharge_valve_rate = 0.05
         self.valve_resistance_scale = 0.0025 
 
     def start(self):
@@ -100,6 +102,7 @@ class PlantSimulator:
             - self.supply_pressure
         ) 
 
+  
     def step(self):
         if self.running:
             if self.load < self.load_target:
@@ -118,12 +121,24 @@ class PlantSimulator:
                 0.0,
             )
 
+        if self.discharge_valve_position < self.discharge_valve_target:
+            self.discharge_valve_position = min(
+                self.discharge_valve_position
+                + self.discharge_valve_rate,
+                self.discharge_valve_target,
+            )
+        elif self.discharge_valve_position > self.discharge_valve_target:
+            self.discharge_valve_position = max(
+                self.discharge_valve_position
+                - self.discharge_valve_rate,
+                self.discharge_valve_target,
+            )
+
         (
             self.flow,
             self.suction_pressure,
             self.discharge_pressure,
-        ) = self._calculate_operating_point()    
-    
+        ) = self._calculate_operating_point() 
 
     @property
     def compressor_pressure_rise(self):
@@ -180,6 +195,12 @@ class PlantSimulator:
             discharge_pressure,
         )
 
+    def set_discharge_valve_position(self, position):
+        self.discharge_valve_target = max(
+            0.10,
+            min(position, 1.0),
+        )
+
     def get_state(self):
         return {
             "running": self.running,
@@ -199,5 +220,6 @@ class PlantSimulator:
             "max_temperature": self.max_temperature,
             "compressor_pressure_rise": self.compressor_pressure_rise,
             "discharge_valve_position": self.discharge_valve_position,
+            "discharge_valve_target": self.discharge_valve_target,
             "valve_pressure_drop": self.valve_pressure_drop,
         }

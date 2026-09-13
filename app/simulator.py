@@ -1,5 +1,9 @@
+from app import config
+
+
 class PlantSimulator:
     def __init__(self):
+        self.simulation_speed = config.SIMULATION_SPEED
         self.running = False
 
         self.supply_pressure = 750.0
@@ -13,7 +17,7 @@ class PlantSimulator:
 
         self.load = 0.0
         self.load_target = 0.0
-        self.load_rate = 0.05
+        self.load_rate = config.LOAD_RATE_PER_SECOND
 
         self.flow = 0.0
         self.flow_target = 100.0
@@ -26,15 +30,16 @@ class PlantSimulator:
 
         self.base_temperature = 75.0
         self.max_temperature = 120.0
-
         self.max_spread = 220.0
 
         self.downstream_restriction = 0.0
 
         self.discharge_valve_position = 1.0
         self.discharge_valve_target = 1.0
-        self.discharge_valve_rate = 0.05
-        self.valve_resistance_scale = 0.0025 
+        self.discharge_valve_rate = (
+            config.DISCHARGE_VALVE_RATE_PER_SECOND
+        )
+        self.valve_resistance_scale = 0.0025
 
     def start(self):
         self.running = True
@@ -50,14 +55,17 @@ class PlantSimulator:
         )
 
     def set_discharge_valve_position(self, position):
-        self.discharge_valve_position = max(
+        self.discharge_valve_target = max(
             0.10,
             min(position, 1.0),
         )
 
     @property
     def spread(self):
-        return self.discharge_pressure - self.suction_pressure
+        return (
+            self.discharge_pressure
+            - self.suction_pressure
+        )
 
     @property
     def temperature(self):
@@ -86,7 +94,7 @@ class PlantSimulator:
             + self.discharge_resistance
             + self.downstream_restriction
             + self.valve_resistance
-        ) 
+        )
 
     @property
     def valve_resistance(self):
@@ -94,51 +102,13 @@ class PlantSimulator:
             1.0 / self.discharge_valve_position ** 2
             - 1.0
         )
-     
+
     @property
     def boundary_pressure_difference(self):
         return (
             self.discharge_header_pressure
             - self.supply_pressure
-        ) 
-
-  
-    def step(self):
-        if self.running:
-            if self.load < self.load_target:
-                self.load = min(
-                    self.load + self.load_rate,
-                    self.load_target,
-                )
-            elif self.load > self.load_target:
-                self.load = max(
-                    self.load - self.load_rate,
-                    self.load_target,
-                )
-        else:
-            self.load = max(
-                self.load - self.load_rate,
-                0.0,
-            )
-
-        if self.discharge_valve_position < self.discharge_valve_target:
-            self.discharge_valve_position = min(
-                self.discharge_valve_position
-                + self.discharge_valve_rate,
-                self.discharge_valve_target,
-            )
-        elif self.discharge_valve_position > self.discharge_valve_target:
-            self.discharge_valve_position = max(
-                self.discharge_valve_position
-                - self.discharge_valve_rate,
-                self.discharge_valve_target,
-            )
-
-        (
-            self.flow,
-            self.suction_pressure,
-            self.discharge_pressure,
-        ) = self._calculate_operating_point() 
+        )
 
     @property
     def compressor_pressure_rise(self):
@@ -150,7 +120,60 @@ class PlantSimulator:
 
     @property
     def valve_pressure_drop(self):
-        return self.valve_resistance * self.flow ** 2
+        return (
+            self.valve_resistance
+            * self.flow ** 2
+        )
+
+    @staticmethod
+    def _move_toward(current, target, rate, dt):
+        change = rate * dt
+
+        if current < target:
+            return min(
+                current + change,
+                target,
+            )
+
+        if current > target:
+            return max(
+                current - change,
+                target,
+            )
+
+        return current
+
+    def step(self, dt=None):
+        if dt is None:
+            dt = config.SIMULATION_STEP_SECONDS
+
+        dt *= self.simulation_speed
+
+        load_target = (
+            self.load_target
+            if self.running
+            else 0.0
+        )
+
+        self.load = self._move_toward(
+            self.load,
+            load_target,
+            self.load_rate,
+            dt,
+        )
+
+        self.discharge_valve_position = self._move_toward(
+            self.discharge_valve_position,
+            self.discharge_valve_target,
+            self.discharge_valve_rate,
+            dt,
+        )
+
+        (
+            self.flow,
+            self.suction_pressure,
+            self.discharge_pressure,
+        ) = self._calculate_operating_point()
 
     def _calculate_operating_point(self):
         available_pressure_rise = (
@@ -173,7 +196,10 @@ class PlantSimulator:
             )
         ) ** 0.5
 
-        flow = min(flow, self.max_flow)
+        flow = min(
+            flow,
+            self.max_flow,
+        )
 
         suction_pressure = (
             self.supply_pressure
@@ -193,12 +219,6 @@ class PlantSimulator:
             flow,
             suction_pressure,
             discharge_pressure,
-        )
-
-    def set_discharge_valve_position(self, position):
-        self.discharge_valve_target = max(
-            0.10,
-            min(position, 1.0),
         )
 
     def get_state(self):

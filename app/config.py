@@ -1,0 +1,14 @@
+# Simulation timing
+
+SIMULATION_STEP_SECONDS = 1.0
+SIMULATION_SPEED = 1.0
+
+
+# Compressor timing
+
+LOAD_RATE_PER_SECOND = 0.05
+
+
+# Valve timing
+
+DISCHARGE_VALVE_RATE_PER_SECOND = 0.05

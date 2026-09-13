@@ -13,7 +13,10 @@ simulator = GasCompressor()
 
 @app.route("/")
 def home():
-    return render_template("index.html", state=simulator.get_state())
+    return render_template(
+        "compressor.html",
+        state=simulator.get_state(),
+    )
 
 @app.route("/start")
 def start():

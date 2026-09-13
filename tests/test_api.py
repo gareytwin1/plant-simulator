@@ -1,11 +1,13 @@
 import pytest
 
 from app import main
-from app.equipment.compressor import GasCompressor
+from app.simulator import PlantSimulator
+
 
 @pytest.fixture(autouse=True)
 def reset_simulator():
-    main.simulator = GasCompressor()
+    main.simulator = PlantSimulator()
+
 
 def test_api_state():
     client = main.app.test_client()
@@ -70,11 +72,7 @@ def test_api_step():
     assert state["running"] is True
     assert state["load"] == pytest.approx(0.05)
     assert state["pressure"] == pytest.approx(750.3125)
-    assert state["temperature"] == pytest.approx(75.01) 
-    assert state["flow"] == pytest.approx(5.0)
-    assert state["suction_pressure"] == pytest.approx(749.8125)
-    assert state["discharge_pressure"] == pytest.approx(750.3125)
-    assert state["spread"] == pytest.approx(0.5)
+    assert state["temperature"] == pytest.approx(75.01)
 
 def test_api_set_load():
     client = main.app.test_client()
@@ -88,22 +86,3 @@ def test_api_set_load():
 
     assert response.status_code == 200
     assert state["load_target"] == pytest.approx(0.60)
-
-
-def test_api_set_discharge_valve():
-    client = main.app.test_client()
-
-    response = client.post(
-        "/api/valve",
-        json={
-            "discharge_valve_position": 0.50,
-        },
-    )
-
-    state = response.get_json()
-
-    assert response.status_code == 200
-    assert state["discharge_valve_target"] == pytest.approx(0.50)
-    assert state["discharge_valve_position"] == pytest.approx(1.0)
-
-

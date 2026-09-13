@@ -7,8 +7,9 @@ SIMULATION_SPEED = 1.0
 # Compressor timing
 
 LOAD_RATE_PER_SECOND = 0.05
-
-
-# Valve timing
-
 DISCHARGE_VALVE_RATE_PER_SECOND = 0.05
+
+
+# Pump timing
+
+PUMP_SPEED_RATE_PER_SECOND = 0.10

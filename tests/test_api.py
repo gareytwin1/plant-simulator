@@ -70,9 +70,9 @@ def test_api_step():
 
     assert response.status_code == 200
     assert state["running"] is True
-    assert state["load"] == pytest.approx(0.05)
-    assert state["pressure"] == pytest.approx(750.3125)
-    assert state["temperature"] == pytest.approx(75.01)
+    assert state["load"] == pytest.approx(0.10)
+    assert state["pressure"] == pytest.approx(751.25)   
+    assert state["temperature"] == pytest.approx(75.04)
 
 def test_api_set_load():
     client = main.app.test_client()

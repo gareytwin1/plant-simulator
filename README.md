@@ -1,44 +1,52 @@
 # Plant Simulator
 
-Plant Simulator is a web-based process simulation application built with Python, Flask, HTML, CSS, and JavaScript.
-
-The project models individual pieces of process equipment using simple engineering relationships and interactive operator controls.
-
-## Architecture
-
-```text
-Browser
-   ↓
-HTML / CSS / JavaScript
-   ↓
-Flask Controller
-   ↓
-Equipment Simulator
-   ↓
-Equipment Physics and Process State
-```
-
-Engineering logic remains separate from Flask and browser code.
+Plant Simulator is a Flask-based engineering simulation project for modeling plant equipment and operating behavior.
 
 ## Current Equipment
 
-### Gas Compressor
+- Gas Compressor
 
-The first equipment model includes:
+## Features
 
-* Start and stop controls
-* Compressor load target and actual load
-* Discharge valve target and actual position
-* Valve actuator timing
-* Suction and discharge pressure
-* Flow
-* Pressure spread
-* Discharge temperature
-* Compressor and system resistance relationships
-* Variable upstream and downstream pressures
-* Valve pressure drop
-* Live pressure trend
-* Configurable simulation timing
+- Start and stop equipment
+- Adjustable operating load
+- Simulated pressure, temperature, and flow behavior
+- Flask API endpoints for simulator control and state
+- Browser-based controls and displays
+- Automated tests with pytest
 
-The compressor is maintained as its own equipment module.
+## Project Structure
 
+```text
+plant-simulator/
+├── app/
+│   ├── main.py
+│   └── equipment/
+├── static/
+├── templates/
+├── tests/
+├── README.md
+└── requirements.txt
+```
+
+## Run the Application
+
+Activate the project environment, then run:
+
+```bash
+flask --app app.main run
+```
+
+Open the application in your browser and navigate to the equipment page you want to simulate.
+
+## Run Tests
+
+```bash
+python -m pytest
+```
+
+Current milestone: 26 tests passing.
+
+## Goal
+
+Build a simple, modular plant simulator that can be expanded with additional equipment models and engineering logic over time.

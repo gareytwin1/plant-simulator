@@ -1,7 +1,44 @@
+# Claude Code
+CLAUDE.md
+
+# Python
 __pycache__/
 *.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Virtual environments
 .env
-.DS_Store
+.venv
+env/
+venv/
+ENV/
+
+# pytest / test artifacts
+.pytest_cache/
+.cache/
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+
+# Type checkers / linters
+.mypy_cache/
+.ruff_cache/
+.dmypy.json
+
+# Node
+node_modules/
+npm-debug.log*
+
+# Editors / OS
 .idea/
 .vscode/
-node_modules/
+.DS_Store
+*.swp

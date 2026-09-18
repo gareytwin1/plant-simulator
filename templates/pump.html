@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Plant Simulator</title>
+
+    <link
+        rel="stylesheet"
+        href="{{ url_for('static', filename='style.css') }}"
+    >
+</head>
+
+<body>
+    <main class="simulator">
+        <header class="simulator-header">
+            <h1>Plant Simulator</h1>
+            <h2>Centrifugal Pump</h2>
+        </header>
+
+        <section class="panel status-panel">
+            <h3>Pump Status</h3>
+
+            <div class="status-grid">
+                <div class="status-item">
+                    <span class="label">Status</span>
+
+                    <span id="status" class="value">
+                        {{ "Running" if state.running else "Stopped" }}
+                    </span>
+                </div>
+            </div>
+        </section>
+
+        <section class="panel controls-panel">
+            <h3>Operator Controls</h3>
+                <section class="pump-controls">
+                    <button
+                        id="start-button"
+                        class="start-button"
+                        type="button"
+                    >
+                        Start Pump
+                    </button>
+
+                    <button
+                        id="stop-button"
+                        class="stop-button"
+                        type="button"
+                    >
+                        Stop Pump
+                    </button>
+                </section>
+            <div class="control-group">
+                <h4>Speed</h4>
+
+                <div class="control-values">
+                    <span>
+                        Actual:
+                        <span id="speed">
+                            {{ "%.1f"|format(state.speed * 100) }}%
+                        </span>
+                    </span>
+
+                    <span>
+                        Target:
+                        <span id="speed-target">
+                            {{ "%.1f"|format(state.speed_target * 100) }}%
+                        </span>
+                    </span>
+                </div>
+
+                <input
+                    id="speed-slider"
+                    class="control-slider"
+                    type="range"
+                    min="0"
+                    max="100"
+                    step="5"
+                    value="{{ state.speed_target * 100 }}"
+                >
+            </div>
+        </section>
+
+        <section class="panel process-panel">
+            <h3>Process State</h3>
+
+            <div class="process-grid">
+                <div class="process-item">
+                    <span class="label">
+                        Suction Pressure
+                    </span>
+
+                    <span id="suction-pressure" class="value">
+                        {{ "%.1f"|format(state.suction_pressure) }} psi
+                    </span>
+                </div>
+
+                <div class="process-item">
+                    <span class="label">
+                        Discharge Pressure
+                    </span>
+
+                    <span id="discharge-pressure" class="value">
+                        {{ "%.1f"|format(state.discharge_pressure) }} psi
+                    </span>
+                </div>
+
+                <div class="process-item">
+                    <span class="label">
+                        Pressure Spread
+                    </span>
+
+                    <span id="spread" class="value">
+                        {{ "%.1f"|format(state.spread) }} psi
+                    </span>
+                </div>
+
+                <div class="process-item">
+                    <span class="label">
+                        Flow
+                    </span>
+
+                    <span id="flow" class="value">
+                        {{ "%.1f"|format(state.flow) }} GPM
+                    </span>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+     <script src="{{ url_for('static', filename='pump.js') }}"></script>
+    </body>
+</html>

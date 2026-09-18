@@ -1,0 +1,566 @@
+<title>Plant Simulator Build Plan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;450;500;600&display=swap">
+<style>
+  :root{
+    --bg:#E7EAE9;
+    --surface:#FBFBFA;
+    --surface-2:#F1F3F2;
+    --ink:#14191B;
+    --ink-2:#32403F;
+    --muted:#5C6A6D;
+    --line:#C9D1D0;
+    --line-soft:#DDE3E2;
+    --accent:#00616F;
+    --accent-2:#0A7F8F;
+
+    --st-todo:#6A767E;
+    --st-prog:#9E6A08;
+    --st-block:#A0302B;
+    --st-review:#4A55A2;
+    --st-done:#1F6B44;
+
+    --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+    --sans:"IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    --cond:"IBM Plex Sans Condensed","IBM Plex Sans",-apple-system,sans-serif;
+
+    --r:3px;
+    --shadow:0 1px 2px rgba(10,25,28,.06),0 4px 14px rgba(10,25,28,.05);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#111617;
+      --surface:#191F21;
+      --surface-2:#1F2729;
+      --ink:#E1E7E6;
+      --ink-2:#C2CCCB;
+      --muted:#8B999B;
+      --line:#2B3437;
+      --line-soft:#232B2E;
+      --accent:#54B8C7;
+      --accent-2:#7ACFDB;
+
+      --st-todo:#93A0A7;
+      --st-prog:#D9A24C;
+      --st-block:#E5736B;
+      --st-review:#939DE4;
+      --st-done:#5CBE88;
+      --shadow:0 1px 2px rgba(0,0,0,.3),0 4px 14px rgba(0,0,0,.22);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#111617;
+    --surface:#191F21;
+    --surface-2:#1F2729;
+    --ink:#E1E7E6;
+    --ink-2:#C2CCCB;
+    --muted:#8B999B;
+    --line:#2B3437;
+    --line-soft:#232B2E;
+    --accent:#54B8C7;
+    --accent-2:#7ACFDB;
+
+    --st-todo:#93A0A7;
+    --st-prog:#D9A24C;
+    --st-block:#E5736B;
+    --st-review:#939DE4;
+    --st-done:#5CBE88;
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 4px 14px rgba(0,0,0,.22);
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:var(--sans);
+    font-size:15px;
+    line-height:1.55;
+    margin:0;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1140px;margin:0 auto;padding:0 20px;}
+
+  /* ---------- header ---------- */
+  header.top{
+    position:sticky;
+    top:env(safe-area-inset-top,0px);
+    z-index:40;
+    background:var(--surface);
+    border-bottom:1px solid var(--line);
+  }
+  .top-inner{
+    display:flex;flex-wrap:wrap;gap:18px 28px;
+    align-items:flex-end;justify-content:space-between;
+    padding-block:14px;
+  }
+  .eyebrow{
+    font-family:var(--cond);
+    font-size:11.5px;font-weight:600;
+    letter-spacing:.14em;text-transform:uppercase;
+    color:var(--accent);
+    margin:0 0 1px;
+  }
+  h1{
+    font-family:var(--cond);
+    font-size:clamp(22px,3.4vw,30px);
+    font-weight:700;letter-spacing:-.005em;
+    margin:0;line-height:1.1;text-wrap:balance;
+  }
+  .sub{color:var(--muted);font-size:13px;margin:4px 0 0;max-width:52ch;}
+
+  .meter-block{min-width:270px;flex:1 1 270px;max-width:420px;}
+  .meter{
+    display:flex;height:8px;width:100%;
+    border-radius:99px;overflow:hidden;
+    background:var(--surface-2);
+    border:1px solid var(--line-soft);
+  }
+  .meter span{display:block;height:100%;transition:width .3s ease;}
+  .meter-legend{
+    display:flex;flex-wrap:wrap;gap:4px 14px;
+    margin-top:7px;font-size:11.5px;color:var(--muted);
+    font-family:var(--mono);
+  }
+  .meter-legend b{color:var(--ink);font-weight:500;}
+  .dot{display:inline-block;width:7px;height:7px;border-radius:2px;margin-right:5px;vertical-align:1px;}
+
+  /* ---------- filters ---------- */
+  .filters{
+    position:sticky;
+    top:calc(env(safe-area-inset-top,0px) + 0px);
+    z-index:30;
+    background:var(--surface-2);
+    border-bottom:1px solid var(--line);
+  }
+  .filters-inner{
+    display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;
+    padding-block:10px;
+  }
+  .fgroup{display:flex;flex-wrap:wrap;gap:6px;align-items:center;}
+  .flabel{
+    font-family:var(--cond);font-size:11px;font-weight:600;
+    letter-spacing:.12em;text-transform:uppercase;color:var(--muted);
+    margin-right:2px;
+  }
+  .chip{
+    font-family:var(--mono);font-size:11.5px;
+    padding:3px 9px;border-radius:var(--r);
+    border:1px solid var(--line);
+    background:var(--surface);color:var(--ink-2);
+    cursor:pointer;
+  }
+  .chip[aria-pressed="true"]{
+    background:var(--accent);border-color:var(--accent);
+    color:#fff;font-weight:500;
+  }
+  .chip:focus-visible,select:focus-visible,input:focus-visible,button:focus-visible,summary:focus-visible{
+    outline:2px solid var(--accent);outline-offset:2px;
+  }
+  #search{
+    font-family:var(--mono);font-size:12px;
+    padding:4px 9px;border-radius:var(--r);
+    border:1px solid var(--line);
+    background:var(--surface);color:var(--ink);
+    min-width:170px;flex:1 1 170px;max-width:280px;
+  }
+
+  /* ---------- sections ---------- */
+  section{padding-block:34px;border-top:1px solid var(--line-soft);}
+  section:first-of-type{border-top:none;}
+  .sec-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:6px;}
+  h2{
+    font-family:var(--cond);font-size:20px;font-weight:700;
+    margin:0;letter-spacing:-.003em;
+  }
+  .sec-note{color:var(--muted);font-size:13.5px;max-width:74ch;margin:0 0 20px;}
+  h3{
+    font-family:var(--cond);font-size:15px;font-weight:600;
+    margin:0 0 8px;letter-spacing:.01em;
+  }
+
+  .callout{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-left:3px solid var(--accent);
+    border-radius:var(--r);
+    padding:15px 17px;
+    margin:0 0 18px;
+  }
+  .callout p{margin:0 0 9px;font-size:13.5px;color:var(--ink-2);}
+  .callout p:last-child{margin-bottom:0;}
+  .callout strong{color:var(--ink);font-weight:600;}
+
+  .grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(248px,1fr));gap:14px;}
+  .card{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:var(--r);
+    padding:14px 16px;
+  }
+  .card p{margin:0;font-size:13px;color:var(--ink-2);}
+  .card .kicker{
+    font-family:var(--mono);font-size:11px;font-weight:500;
+    letter-spacing:.06em;text-transform:uppercase;
+    margin:0 0 6px;
+  }
+
+  code,.mono{font-family:var(--mono);font-size:.88em;}
+  .path{
+    font-family:var(--mono);font-size:11.5px;
+    background:var(--surface-2);border:1px solid var(--line-soft);
+    padding:1px 5px;border-radius:2px;color:var(--ink-2);
+    white-space:nowrap;
+  }
+  pre{
+    font-family:var(--mono);font-size:12px;line-height:1.6;
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:var(--r);
+    padding:14px 16px;margin:0;
+    overflow-x:auto;
+    color:var(--ink-2);
+  }
+  pre b{color:var(--accent);font-weight:600;}
+  pre i{color:var(--muted);font-style:normal;}
+
+  /* ---------- contracts ---------- */
+  .contract{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:var(--r);
+    margin-bottom:12px;
+    overflow:hidden;
+  }
+  .contract>summary{
+    cursor:pointer;padding:12px 16px;
+    display:flex;gap:12px;align-items:baseline;flex-wrap:wrap;
+    list-style:none;
+  }
+  .contract>summary::-webkit-details-marker{display:none;}
+  .contract>summary::before{
+    content:"+";font-family:var(--mono);color:var(--accent);
+    font-weight:600;width:11px;flex:none;
+  }
+  .contract[open]>summary::before{content:"–";}
+  .cid{font-family:var(--mono);font-size:12px;color:var(--accent);font-weight:600;flex:none;}
+  .cname{font-family:var(--cond);font-weight:600;font-size:15px;}
+  .cwhere{font-family:var(--mono);font-size:11px;color:var(--muted);margin-left:auto;}
+  .cbody{padding:0 16px 15px;}
+  .cbody p{font-size:13px;color:var(--ink-2);margin:0 0 10px;}
+
+  /* ---------- checkpoints ---------- */
+  .cp{
+    display:grid;
+    grid-template-columns:auto 1fr;
+    gap:0 16px;
+  }
+  .cp-row{display:contents;}
+  .cp-mark{
+    position:relative;
+    font-family:var(--mono);font-size:11.5px;font-weight:600;
+    color:var(--accent);
+    padding-top:14px;
+    text-align:right;
+    white-space:nowrap;
+  }
+  .cp-card{
+    border-left:1px solid var(--line);
+    padding:14px 0 18px 18px;
+    position:relative;
+  }
+  .cp-card::before{
+    content:"";position:absolute;left:-4.5px;top:19px;
+    width:8px;height:8px;border-radius:50%;
+    background:var(--accent);
+  }
+  .cp-card h3{margin-bottom:5px;}
+  .cp-card p{margin:0 0 7px;font-size:13px;color:var(--ink-2);}
+  .cp-card .gate{font-size:12.5px;color:var(--muted);}
+  .cp-card .gate b{color:var(--ink-2);font-weight:500;}
+
+  /* ---------- task board / list ---------- */
+  .board{display:grid;grid-template-columns:repeat(auto-fit,minmax(255px,1fr));gap:14px;}
+  .board .card{padding:0;overflow:hidden;}
+  .board h3{
+    padding:11px 15px 9px;margin:0;
+    border-bottom:1px solid var(--line-soft);
+    display:flex;justify-content:space-between;align-items:baseline;gap:8px;
+  }
+  .board h3 span{font-family:var(--mono);font-size:11px;color:var(--muted);font-weight:400;}
+  .board ul{list-style:none;margin:0;padding:6px 0;}
+  .board li{padding:5px 15px;font-size:12.5px;display:flex;gap:8px;align-items:baseline;}
+  .board li a{color:var(--ink);text-decoration:none;border-bottom:1px solid var(--line);}
+  .board li a:hover{border-color:var(--accent);color:var(--accent);}
+  .board li .tid{font-family:var(--mono);font-size:11px;color:var(--accent);flex:none;}
+  .board .empty{padding:10px 15px;font-size:12.5px;color:var(--muted);}
+
+  .ms{margin-bottom:26px;}
+  .ms-head{
+    display:flex;gap:12px;align-items:baseline;flex-wrap:wrap;
+    padding:10px 0 9px;
+    border-bottom:2px solid var(--line);
+    margin-bottom:2px;
+    position:relative;
+  }
+  .ms-id{
+    font-family:var(--mono);font-size:13px;font-weight:600;
+    color:var(--accent);flex:none;
+  }
+  .ms-name{font-family:var(--cond);font-size:18px;font-weight:700;}
+  .ms-phase{
+    font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;
+    text-transform:uppercase;color:var(--muted);
+    border:1px solid var(--line);border-radius:2px;padding:1px 6px;
+  }
+  .ms-obj{font-size:13px;color:var(--muted);margin:8px 0 12px;max-width:80ch;}
+  .ms-status{margin-left:auto;}
+
+  .task{
+    border-bottom:1px solid var(--line-soft);
+    background:var(--surface);
+  }
+  .task:first-of-type{border-top:1px solid var(--line-soft);}
+  .task>summary{
+    cursor:pointer;list-style:none;
+    display:grid;
+    grid-template-columns:52px minmax(0,1fr) auto;
+    gap:4px 12px;align-items:center;
+    padding:9px 14px;
+  }
+  .task>summary::-webkit-details-marker{display:none;}
+  .task>summary:hover{background:var(--surface-2);}
+  .t-id{font-family:var(--mono);font-size:11.5px;color:var(--accent);font-weight:500;}
+  .t-main{min-width:0;}
+  .t-name{font-size:14px;font-weight:450;display:block;}
+  .t-meta{
+    display:flex;flex-wrap:wrap;gap:4px 10px;
+    margin-top:3px;font-family:var(--mono);font-size:10.5px;color:var(--muted);
+  }
+  .t-branch{color:var(--ink-2);}
+  .t-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end;}
+
+  .pill{
+    font-family:var(--mono);font-size:10.5px;font-weight:500;
+    padding:2px 7px;border-radius:99px;
+    border:1px solid;white-space:nowrap;
+  }
+  .p-ind{color:var(--st-done);border-color:color-mix(in srgb,var(--st-done) 45%,transparent);background:color-mix(in srgb,var(--st-done) 11%,transparent);}
+  .p-dep{color:var(--st-prog);border-color:color-mix(in srgb,var(--st-prog) 45%,transparent);background:color-mix(in srgb,var(--st-prog) 11%,transparent);}
+  .p-core{color:var(--st-review);border-color:color-mix(in srgb,var(--st-review) 45%,transparent);background:color-mix(in srgb,var(--st-review) 11%,transparent);}
+  .p-ready{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 45%,transparent);background:color-mix(in srgb,var(--accent) 11%,transparent);}
+  .p-wait{color:var(--muted);border-color:var(--line);background:transparent;}
+
+  select.status{
+    font-family:var(--mono);font-size:11px;font-weight:500;
+    padding:3px 6px;border-radius:var(--r);
+    border:1px solid var(--line);
+    background:var(--surface-2);
+    color:var(--ink);
+    cursor:pointer;
+    min-width:104px;
+  }
+  select.status:disabled{opacity:.55;cursor:not-allowed;}
+  select.status[data-v="todo"]{color:var(--st-todo);}
+  select.status[data-v="prog"]{color:var(--st-prog);border-color:color-mix(in srgb,var(--st-prog) 50%,var(--line));}
+  select.status[data-v="block"]{color:var(--st-block);border-color:color-mix(in srgb,var(--st-block) 50%,var(--line));}
+  select.status[data-v="review"]{color:var(--st-review);border-color:color-mix(in srgb,var(--st-review) 50%,var(--line));}
+  select.status[data-v="done"]{color:var(--st-done);border-color:color-mix(in srgb,var(--st-done) 50%,var(--line));}
+
+  .t-body{
+    padding:4px 14px 18px 66px;
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(230px,1fr));
+    gap:14px 24px;
+    background:var(--surface-2);
+  }
+  .field{min-width:0;}
+  .field .k{
+    font-family:var(--cond);font-size:10.5px;font-weight:600;
+    letter-spacing:.11em;text-transform:uppercase;
+    color:var(--muted);margin:0 0 4px;
+  }
+  .field p{margin:0;font-size:12.5px;color:var(--ink-2);}
+  .field ul{margin:0;padding-left:15px;font-size:12.5px;color:var(--ink-2);}
+  .field li{margin-bottom:3px;}
+  .field .files{display:flex;flex-wrap:wrap;gap:4px;}
+  .span-all{grid-column:1/-1;}
+  .note-in{
+    font-family:var(--mono);font-size:11.5px;
+    width:100%;padding:4px 8px;border-radius:var(--r);
+    border:1px solid var(--line);background:var(--surface);color:var(--ink);
+  }
+  .dep-chip{
+    font-family:var(--mono);font-size:11px;
+    padding:1px 6px;border-radius:2px;border:1px solid var(--line);
+    color:var(--ink-2);background:var(--surface);text-decoration:none;
+    display:inline-block;margin:0 4px 4px 0;
+  }
+  .dep-chip.met{color:var(--st-done);border-color:color-mix(in srgb,var(--st-done) 40%,transparent);}
+  .dep-chip.unmet{color:var(--st-block);border-color:color-mix(in srgb,var(--st-block) 40%,transparent);}
+
+  .hidden-task{display:none;}
+  .ms.empty-ms{display:none;}
+
+  .banner{
+    font-family:var(--mono);font-size:11.5px;
+    padding:7px 12px;border-radius:var(--r);
+    border:1px solid var(--line);background:var(--surface-2);
+    color:var(--muted);margin-bottom:16px;
+  }
+
+  footer{
+    border-top:1px solid var(--line);
+    padding-block:26px 40px;
+    color:var(--muted);font-size:12.5px;
+  }
+  footer p{margin:0 0 8px;max-width:76ch;}
+
+  @media (max-width:640px){
+    .task>summary{grid-template-columns:44px minmax(0,1fr);}
+    .t-right{grid-column:1/-1;justify-content:flex-start;padding-left:0;margin-top:4px;}
+    .t-body{padding-left:14px;}
+    .cp{grid-template-columns:1fr;}
+    .cp-mark{text-align:left;padding-top:0;padding-bottom:2px;}
+    .cp-card{border-left:none;padding-left:0;}
+    .cp-card::before{display:none;}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *{transition:none!important;animation:none!important;}
+  }
+</style>
+
+<p style="font-size:13px; color:#5C6A6D; margin:0 0 20px;"><strong>Local copy created from the live artifact.</strong> For live status tracking and shared updates, visit the <a href="https://claude.ai/artifact/DXqzpwKxeKZNzZGrC3HkQ9" style="color:#00616F;">live build plan on claude.ai</a>. This local file is a snapshot and will not auto-sync.</p>
+
+<main style="max-width:1140px; margin:0 auto; padding:0 20px;">
+
+<section style="padding-block:34px;">
+  <h2 style="font-family:var(--cond); font-size:20px; margin:0;">How to use this plan during development</h2>
+  <p style="color:#5C6A6D; font-size:13.5px; margin: 0 0 20px;">This is your master checklist for tasks, milestones, and integration points. Reference it constantly while implementing.</p>
+
+  <div style="background:#FBFBFA; border:1px solid #C9D1D0; border-left:3px solid #00616F; border-radius:3px; padding:15px 17px; margin:0 0 18px;">
+    <p style="margin: 0 0 9px; font-size:13.5px; color:#32403F;"><strong>Task ID naming:</strong> Each task has an ID like <code style="font-family:var(--mono);">T0-1</code>, <code style="font-family:var(--mono);">T1-2</code>, etc. Reference these in commit messages, PR descriptions, and branch names so progress is traceable.</p>
+    <p style="margin: 0 0 9px; font-size:13.5px; color:#32403F;"><strong>Branch naming:</strong> Always match the recommended branch name. Example: <code style="font-family:var(--mono);">feature/pid-block</code>, <code style="font-family:var(--mono);">refactor/equipment-contract</code>.</p>
+    <p style="margin: 0; font-size:13.5px; color:#32403F;"><strong>Status tracking:</strong> The live artifact maintains shared status. Update it as work progresses so other agents know what's complete.</p>
+  </div>
+</section>
+
+<section style="padding-block:34px; border-top:1px solid #DDE3E2;">
+  <h2 style="font-family:var(--cond); font-size:20px; margin:0;">Quick reference: spine vs. satellites</h2>
+
+  <table style="width:100%; border-collapse:collapse; margin:16px 0;">
+    <tr style="background:#F1F3F2; border-bottom:1px solid #C9D1D0;">
+      <td style="padding:10px; font-weight:600; color:#14191B;">Spine (Sequential)</td>
+      <td style="padding:10px; color:#32403F; font-size:13px;">Core files that rewrites are one owner at a time: equipment base, engine, topology, solver. One agent, strict left-to-right.</td>
+    </tr>
+    <tr style="border-bottom:1px solid #DDE3E2;">
+      <td style="padding:10px; font-weight:600; color:#14191B;">Satellites (Parallel)</td>
+      <td style="padding:10px; color:#32403F; font-size:13px;">New modules in their own directories, depending only on frozen contracts. Can be developed and merged independently.</td>
+    </tr>
+  </table>
+
+  <p style="color:#5C6A6D; font-size:13px; margin:12px 0;"><strong>13 tasks are startable today</strong> (the pure algorithms with zero plant dependency). Hand them to parallel agents immediately.</p>
+</section>
+
+<section style="padding-block:34px; border-top:1px solid #DDE3E2;">
+  <h2 style="font-family:var(--cond); font-size:20px; margin:0;">Start here if you have 30 minutes</h2>
+
+  <ol style="color:#32403F; font-size:13.5px; line-height:1.8;">
+    <li><strong>Read the "How to read this plan" section</strong> in the full plan to understand the structure (independent, dependent, core).</li>
+    <li><strong>Read the eight interface contracts</strong> (C1–C8). These are what enable parallel development. They are short but load-bearing.</li>
+    <li><strong>Look at the branch map</strong> to see the spine sequence and which satellites can start immediately.</li>
+    <li><strong>Filter for "startable now"</strong> in the live artifact to see what you or another agent can pick up today.</li>
+  </ol>
+</section>
+
+<section style="padding-block:34px; border-top:1px solid #DDE3E2;">
+  <h2 style="font-family:var(--cond); font-size:20px; margin:0;">Integration checkpoints</h2>
+
+  <p style="color:#5C6A6D; font-size:13px; margin:0 0 16px;">When to pause and integrate parallel branches:</p>
+
+  <ul style="color:#32403F; font-size:13.5px; line-height:1.8; padding-left:20px;">
+    <li><strong>Checkpoint A</strong> (M0 + M1): Equipment contract on main → unlock 13 satellite branches.</li>
+    <li><strong>Checkpoint B</strong> (M4): Network solver merged → plant becomes connected.</li>
+    <li><strong>Checkpoint C</strong> (M6): Energy balance closed → physics layer complete.</li>
+    <li><strong>Checkpoint D</strong> (M8): Loop execution live → snapshot is now real, UI/scoring can build against it.</li>
+    <li><strong>Checkpoint E</strong> (M9–M12): Safety layer (envelopes, alarms, trips) → plant is trainable.</li>
+    <li><strong>Checkpoint F</strong> (M13–M14): Scenarios playable → ready for operator training content.</li>
+    <li><strong>Checkpoint G</strong> (M15–M17): Scoring, console, trends → shipping product.</li>
+    <li><strong>Checkpoint H</strong> (M18): Deployed with CI → live.</li>
+  </ul>
+</section>
+
+<section style="padding-block:34px; border-top:1px solid #DDE3E2;">
+  <h2 style="font-family:var(--cond); font-size:20px; margin:0;">Working with dependencies</h2>
+
+  <p style="color:#32403F; font-size:13.5px; margin:0 0 12px;">Every task lists its dependencies. A task is "ready" when all its dependencies are complete ("done" status).</p>
+
+  <p style="color:#32403F; font-size:13.5px; margin:0 0 12px;"><strong>If a task is blocked on a dependency:</strong></p>
+  <ul style="color:#32403F; font-size:13.5px; line-height:1.8; padding-left:20px;">
+    <li>The task's "Blocked" status is visible in the live artifact.</li>
+    <li>Dependency chips in the task details turn green as blockers clear.</li>
+    <li>Use the note field to record why it's blocked (e.g., "waiting on T4-1 to merge").</li>
+  </ul>
+
+  <p style="color:#32403F; font-size:13.5px; margin:12px 0;"><strong>Rebase strategy:</strong> After each checkpoint merges to main, satellite branches rebase onto main. Do not merge main backwards into the spine.</p>
+</section>
+
+<section style="padding-block:34px; border-top:1px solid #DDE3E2;">
+  <h2 style="font-family:var(--cond); font-size:20px; margin:0;">File ownership rules</h2>
+
+  <ul style="color:#32403F; font-size:13.5px; line-height:1.8; padding-left:20px;">
+    <li><code style="font-family:var(--mono);">app/equipment/base.py</code>, <code style="font-family:var(--mono);">app/engine/</code>, <code style="font-family:var(--mono);">app/plant/topology.py</code> — spine-owned. Satellites cannot touch these.</li>
+    <li><code style="font-family:var(--mono);">app/main.py</code> — highest-conflict file. One branch at a time; release it immediately after merging.</li>
+    <li><code style="font-family:var(--mono);">app/config.py</code> — append-only, one section per module. Never reorder.</li>
+    <li><code style="font-family:var(--mono);">config/plants/olefins_lite.yaml</code> — shared config. Own only your milestone's top-level key (nodes, equipment, limits, controllers, interlocks).</li>
+    <li><code style="font-family:var(--mono);">static/compressor.js</code> — frozen, dies at M16. Do not invest in it.</li>
+  </ul>
+</section>
+
+<section style="padding-block:34px; border-top:1px solid #DDE3E2;">
+  <h2 style="font-family:var(--cond); font-size:20px; margin:0;">Commit message conventions</h2>
+
+  <p style="color:#32403F; font-size:13.5px; margin:0 0 12px;">Include the task ID in your commit message so it's traceable:</p>
+
+  <pre style="background:#F1F3F2; border:1px solid #C9D1D0; border-radius:3px; padding:12px; font-family:var(--mono); font-size:12px; color:#32403F; overflow-x:auto;">T0-1: Retire the duplicate simulator module
+
+Remove app/simulator.py, which was a stale copy of GasCompressor.
+API tests now target the real object in main.py.
+
+Co-Authored-By: Claude Haiku 4.5 &lt;noreply@anthropic.com&gt;</pre>
+
+  <p style="color:#32403F; font-size:13.5px; margin:12px 0;">Format: <code style="font-family:var(--mono);">TASK-ID: One-line summary</code>, then a blank line, then details. Include the task ID so progress is findable in git log.</p>
+</section>
+
+<section style="padding-block:34px; border-top:1px solid #DDE3E2;">
+  <h2 style="font-family:var(--cond); font-size:20px; margin:0;">Updating the live artifact</h2>
+
+  <p style="color:#32403F; font-size:13.5px; margin:0 0 12px;">The status dropdowns in the <a href="https://claude.ai/artifact/DXqzpwKxeKZNzZGrC3HkQ9" style="color:#00616F;">live build plan</a> save to a shared database. When you finish a task:</p>
+
+  <ol style="color:#32403F; font-size:13.5px; line-height:1.8;">
+    <li>Open the live artifact.</li>
+    <li>Find your task and expand it.</li>
+    <li>Change the status dropdown to "Complete".</li>
+    <li>Milestone status recalculates automatically.</li>
+  </ol>
+
+  <p style="color:#5C6A6D; font-size:13px; margin:12px 0;">The note field is for owner attribution, branch state, or "why blocked" so information doesn't live in someone's head.</p>
+</section>
+
+<section style="padding-block:34px; border-top:1px solid #DDE3E2;">
+  <h2 style="font-family:var(--cond); font-size:20px; margin:0;">Next steps</h2>
+
+  <ol style="color:#32403F; font-size:13.5px; line-height:1.8;">
+    <li>Read this file.</li>
+    <li>Open the <a href="https://claude.ai/artifact/DXqzpwKxeKZNzZGrC3HkQ9" style="color:#00616F;">live build plan</a> and filter for "startable now".</li>
+    <li>Pick a task and create a branch with the recommended name.</li>
+    <li>Reference the task ID in your commits.</li>
+    <li>Update the status in the live artifact as you progress.</li>
+  </ol>
+</section>
+
+<footer style="border-top:1px solid #C9D1D0; padding-block:26px 40px; color:#5C6A6D; font-size:12.5px;">
+  <p>This local copy can be opened offline and serves as a reference. For live status tracking and the full eight interface contracts, use the live artifact linked above.</p>
+</footer>
+
+</main>

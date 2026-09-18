@@ -86,3 +86,26 @@ def test_api_set_load():
 
     assert response.status_code == 200
     assert state["load_target"] == pytest.approx(0.60)
+
+
+def test_start_redirect():
+    client = main.app.test_client()
+
+    response = client.get("/start", follow_redirects=False)
+
+    assert response.status_code == 302
+    assert main.compressor.running is True
+
+
+def test_stop_redirect():
+    client = main.app.test_client()
+
+    client.post("/api/load", json={"load_target": 0.50})
+    client.post("/api/start")
+    client.post("/api/step")
+
+    response = client.get("/stop", follow_redirects=False)
+
+    assert response.status_code == 302
+    assert main.compressor.running is False
+    assert main.compressor.load_target == 0.0

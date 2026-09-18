@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, redirect, render_template, request
+from flask import Flask, jsonify, redirect, render_template, request, url_for
 
 from app.equipment.compressor import GasCompressor
 

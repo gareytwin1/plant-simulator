@@ -1,12 +1,12 @@
 import pytest
 
 from app import main
-from app.simulator import PlantSimulator
+from app.equipment.compressor import GasCompressor
 
 
 @pytest.fixture(autouse=True)
-def reset_simulator():
-    main.simulator = PlantSimulator()
+def reset_compressor():
+    main.compressor = GasCompressor()
 
 
 def test_api_state():
@@ -70,9 +70,9 @@ def test_api_step():
 
     assert response.status_code == 200
     assert state["running"] is True
-    assert state["load"] == pytest.approx(0.10)
-    assert state["pressure"] == pytest.approx(751.25)   
-    assert state["temperature"] == pytest.approx(75.04)
+    assert state["load"] == pytest.approx(0.05)
+    assert state["pressure"] == pytest.approx(750.3125)
+    assert state["temperature"] == pytest.approx(75.01)
 
 def test_api_set_load():
     client = main.app.test_client()

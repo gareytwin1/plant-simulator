@@ -127,7 +127,7 @@ ownership violation.
 | **Simulated time** | **`SimulationClock`** | **`SimulationClock`** — unchanged | Never `time.time()`. Time enters a model only through injected `dt`. |
 | **Integration cadence** | **`Engine`** | **`Engine`** — unchanged | Engine consults the clock's speed only, never a device's `simulation_speed`. |
 | **Snapshot publication** | **`Engine`** → `Snapshot` | **`Engine`** → `Snapshot` — unchanged | Immutable; the only thing downstream consumers read. |
-| **Plant structure** | `Topology` (built by hand in tests) | `Topology` built by the **plant loader** (T3-3) from validated config (C3) | Adding equipment must stop requiring a code change. |
+| **Plant structure** | `Topology` built by the **plant loader** (`load_plant`, T3-3) from validated config (C3) — in tests only; the app's routes do not use it yet | Same, with the Engine driving it | Adding equipment must stop requiring a code change. |
 
 ## 4. The C1 equipment contract in one page
 
@@ -174,10 +174,13 @@ the golden regression harness all depend on it.
 
 - No wall-clock source anywhere inside a model.
 - Simulated time arrives only through injected `dt`.
-- All randomness must come from one seeded source. **That service does not exist
-  on `main` yet** — T2-2 (`app/engine/rng.py`) is written on an unmerged local
-  branch. Nothing in `app/` currently uses `random`, so the rule is not yet
-  violated, but do not add a bare `import random` in the meantime.
+- All randomness must come from a `SeededRNG` (`app/engine/rng.py`, T2-2).
+  `tests/test_random_source_guard.py` fails if any other module in `app/`
+  imports `random`. There is deliberately no module-level generator: a
+  process-wide stream would be shared by every browser session, and each
+  session owns its own plant. Which object owns a plant's RNG is an open
+  decision for the first task that needs randomness. Nothing in `app/` draws a
+  random number yet.
 - Same config + same seed + same sequence of `step(dt)` calls ⇒ bit-identical
   state, forever.
 - `tests/fixtures/golden/*.json` pin current behaviour at 1e-5 relative /
@@ -200,10 +203,11 @@ app/
     engine.py             Engine: integrate cadence + snapshot
     snapshot.py           C4: immutable Snapshot
     sessions.py           Session / SessionRegistry
-    rng.py                Seeded RNG service
+    rng.py                SeededRNG (required seed; no global stream)
   plant/
     topology.py           C2: Node / Branch / Stream / Topology  [SPINE]
     validate.py           C3 validator
+    loader.py             load_plant(): C3 config → Topology, rejects unsolvable graphs
 config/
   schema/plant.schema.json  C3 schema
 templates/, static/       Per-equipment pages. Frozen; replaced at M16.

@@ -1,7 +1,7 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "2026-09-19",
-  "main_sha": "7d05323d2e246a8325f3704cdcc33f12faf58496",
+  "main_sha": "b6746b4e36e156142a52b82198902ab3c7e89de4",
   "tests_passing_on_main": 336,
   "status_vocabulary": {
     "Not Started": "No work begun",
@@ -115,7 +115,7 @@
   "totals": {
     "tasks": 94,
     "complete": 21,
-    "startable_now": 18
+    "startable_now": 17
   },
   "tasks": [
     {

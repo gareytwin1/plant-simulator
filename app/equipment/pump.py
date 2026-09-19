@@ -1,16 +1,25 @@
 from app import config
+from app.equipment.base import Equipment, INLET, OUTLET
 
 
-class CentrifugalPump:
-    def __init__(self):
+class CentrifugalPump(Equipment):
+    def __init__(self, tag="P-101"):
+        super().__init__(
+            tag,
+            ports={
+                "suction": INLET,
+                "discharge": OUTLET,
+            },
+        )
+
         self.simulation_speed = config.SIMULATION_SPEED
         self.running = False
 
-        self.supply_pressure = 50.0
-        self.discharge_header_pressure = 50.0
+        self.upstream_boundary_pressure = 50.0
+        self.downstream_boundary_pressure = 50.0
 
-        self.suction_pressure = self.supply_pressure
-        self.discharge_pressure = self.discharge_header_pressure
+        self.suction_pressure = self.upstream_boundary_pressure
+        self.discharge_pressure = self.downstream_boundary_pressure
 
         self.speed = 0.0
         self.speed_target = 0.0
@@ -55,42 +64,15 @@ class CentrifugalPump:
     @property
     def boundary_pressure_difference(self):
         return (
-            self.discharge_header_pressure
-            - self.supply_pressure
+            self.downstream_boundary_pressure
+            - self.upstream_boundary_pressure
         )
 
     @property
     def pump_pressure_rise(self):
-        return max(
-            self.shutoff_pressure_rise * self.speed ** 2
-            - self.pump_resistance * self.flow ** 2,
-            0.0,
-        )
+        return self.characteristic(self.flow)
 
-    @staticmethod
-    def _move_toward(current, target, rate, dt):
-        change = rate * dt
-
-        if current < target:
-            return min(
-                current + change,
-                target,
-            )
-
-        if current > target:
-            return max(
-                current - change,
-                target,
-            )
-
-        return current
-
-    def step(self, dt=None):
-        if dt is None:
-            dt = config.SIMULATION_STEP_SECONDS
-
-        dt *= self.simulation_speed
-
+    def integrate(self, dt):
         speed_target = (
             self.speed_target
             if self.running
@@ -104,6 +86,21 @@ class CentrifugalPump:
             dt,
         )
 
+    def characteristic(self, flow):
+        return max(
+            self.shutoff_pressure_rise * self.speed ** 2
+            - self.pump_resistance * flow ** 2,
+            0.0,
+        )
+
+    def step(self, dt=None):
+        if dt is None:
+            dt = config.SIMULATION_STEP_SECONDS
+
+        dt *= self.simulation_speed
+
+        self.integrate(dt)
+
         (
             self.flow,
             self.suction_pressure,
@@ -112,15 +109,15 @@ class CentrifugalPump:
 
     def _calculate_operating_point(self):
         available_pressure_rise = (
-            self.shutoff_pressure_rise * self.speed ** 2
+            self.characteristic(0.0)
             - self.boundary_pressure_difference
         )
 
         if available_pressure_rise <= 0.0:
             return (
                 0.0,
-                self.supply_pressure,
-                self.discharge_header_pressure,
+                self.upstream_boundary_pressure,
+                self.downstream_boundary_pressure,
             )
 
         flow = (
@@ -137,12 +134,12 @@ class CentrifugalPump:
         )
 
         suction_pressure = (
-            self.supply_pressure
+            self.upstream_boundary_pressure
             - self.suction_resistance * flow ** 2
         )
 
         discharge_pressure = (
-            self.discharge_header_pressure
+            self.downstream_boundary_pressure
             + self.discharge_resistance * flow ** 2
         )
 

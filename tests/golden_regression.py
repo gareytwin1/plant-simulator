@@ -152,10 +152,10 @@ def pump_speed_manipulation(pump, step_num):
 def pump_supply_pressure_change(pump, step_num):
     """Ramp speed with elevated supply pressure."""
     if step_num == 0:
-        pump.supply_pressure = 60.0
+        pump.upstream_boundary_pressure = 60.0
         pump.set_speed_target(1.0)
         pump.start()
-        return "supply_pressure = 60.0, set_speed_target(1.0), start()"
+        return "upstream_boundary_pressure = 60.0, set_speed_target(1.0), start()"
     if step_num == 15:
         pump.stop()
         return "stop()"
@@ -169,10 +169,10 @@ def pump_discharge_header_change(pump, step_num):
     speed, so this locks the crossing into and out of the zero-flow branch.
     """
     if step_num == 0:
-        pump.discharge_header_pressure = 75.0
+        pump.downstream_boundary_pressure = 75.0
         pump.set_speed_target(1.0)
         pump.start()
-        return "discharge_header_pressure = 75.0, set_speed_target(1.0), start()"
+        return "downstream_boundary_pressure = 75.0, set_speed_target(1.0), start()"
     if step_num == 15:
         pump.stop()
         return "stop()"

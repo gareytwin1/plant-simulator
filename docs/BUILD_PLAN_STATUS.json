@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "2026-09-19",
-  "main_sha": "57d5c8f0d142bde1914b7427e2b2dbdc97079696",
-  "tests_passing_on_main": 238,
+  "main_sha": "b2656a5f9aa706d27316c61ff2d0381ce2ca6730",
+  "tests_passing_on_main": 266,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -28,7 +28,7 @@
     },
     "M3": {
       "name": "Plant Topology and Streams",
-      "complete": 2,
+      "complete": 3,
       "total": 4
     },
     "M4": {
@@ -114,8 +114,8 @@
   },
   "totals": {
     "tasks": 94,
-    "complete": 18,
-    "startable_now": 18
+    "complete": 19,
+    "startable_now": 19
   },
   "tasks": [
     {
@@ -475,9 +475,9 @@
       "files": [
         "app/plant/loader.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged to main as b2656a5 (PR #7, merge commit from feature/plant-loader, rebased on the T4-1 merge). app/plant/loader.py: load_plant(config) / load_plant_file(path) validate against the C3 schema, build a Topology and return a Plant; a bad config raises one PlantConfigError listing every problem with its config path (duplicate node ids and tags, unknown node references, boundary pressure <= 0 or no boundary, disconnected subgraphs including orphan nodes, unwired ports, device types with no model yet, unknown or wrongly-typed design keys). Plant.to_config() reads design values back off the live devices, so plant -> config -> plant round-trips identically; limits/controllers/interlocks pass through untouched. Only pump and compressor have device classes, so the other C3 type enum values are rejected until their models land. tests/test_plant_loader.py: 27 tests. Full suite 266 passed, mypy clean.\n\nTwo open questions, NOT settled here and needing an owner: (1) Equipment.reset() restores the state captured at the end of __init__, and design values are applied after construction, so a reset device returns to class defaults rather than the configured design. Fixing it needs a design/configure hook on C1 (spine change, Opus decision) before T4-2/T3-4 rely on reset() for loaded plants. (2) C3 has only node_in/node_out, so a device with more than one inlet or outlet (a vessel with a vent) cannot be wired from config; it needs from_port/to_port in the schema, which T3-1 owns. Do it when the first multi-port device (T5-1) lands. Not included: YAML loading (pyyaml is not in requirements.txt; T3-4's olefins_lite.yaml needs it) and cross-checking tags referenced by limits/controllers/interlocks."
     },
     {
       "id": "T3-4",
@@ -493,10 +493,7 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "T3-3"
-      ]
+      "startable": true
     },
     {
       "id": "T4-1",
@@ -531,10 +528,7 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "T3-3"
-      ]
+      "startable": true
     },
     {
       "id": "T4-3",

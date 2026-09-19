@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "2026-09-19",
-  "main_sha": "b2656a5f9aa706d27316c61ff2d0381ce2ca6730",
-  "tests_passing_on_main": 266,
+  "main_sha": "26748e79091366aa2491c5607aa55ad71d160c1c",
+  "tests_passing_on_main": 297,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -23,7 +23,7 @@
     },
     "M2": {
       "name": "Simulation Engine and Clock",
-      "complete": 3,
+      "complete": 4,
       "total": 6
     },
     "M3": {
@@ -114,7 +114,7 @@
   },
   "totals": {
     "tasks": 94,
-    "complete": 19,
+    "complete": 20,
     "startable_now": 19
   },
   "tasks": [
@@ -355,10 +355,9 @@
       "files": [
         "app/engine/rng.py"
       ],
-      "status": "In Progress",
-      "status_key": "prog",
-      "note": "STATUS CORRECTED 19 Sep 2026: previously marked Complete with a note claiming 'Merged feature/seeded-rng ... commit 611c5b6', but app/engine/rng.py and tests/test_rng.py are NOT on main. Commit 611c5b6 exists only on the local-only branch feature/seeded-rng, which was never pushed to origin and never merged; it is also well behind current main. Nothing in app/ imports random today, so no determinism rule is violated yet, but the seeded RNG service does not exist on main. Only T14-5 (deterministic replay) depends on it, and T14-5 is blocked on other dependencies anyway, so no currently-startable task is affected. To finish: rebase feature/seeded-rng onto main, reconcile it with project style (it uses type hints, which this codebase does not), run the full suite, PR and merge.",
-      "status_corrected_during_handoff_refresh": true
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged to main as 26748e7 (PR #9). The earlier claim of a merge at 611c5b6 was false: that commit was local-only, never pushed, and is superseded. This is a rewrite, not a rebase: the draft failed mypy (6 errors), had no lint test, and its independence test would pass with shared state. app/engine/rng.py: SeededRNG (typed; a seed is required, since an unseeded generator is nondeterministic) with random/uniform/gauss/randint/choice/shuffle and reseed(). tests/test_rng.py (10) covers determinism of every draw method, reseed, and stream independence (interleaving draws from a second stream leaves the first bit-identical to drawing it alone). tests/test_random_source_guard.py (21) fails if any app/ module other than rng.py imports random; verified it catches a stray import. Full suite 297 passed, mypy clean.\n\nDELIBERATELY NOT INCLUDED: a module-level global RNG with set_seed()/uniform() free functions (present in the old draft). A process-wide stream would be shared by every browser session, and SessionRegistry gives each session its own plant, so two sessions would see each other's draws and break the same-config/same-seed/same-steps determinism rule. Which object owns a plant's RNG (per session, per engine, or per plant) is an open design decision for the first task that needs randomness; nothing in app/ draws random numbers today."
     },
     {
       "id": "T2-3",
@@ -1450,7 +1449,6 @@
       "startable": false,
       "blocked_by": [
         "T14-4",
-        "T2-2",
         "T15-1"
       ]
     },

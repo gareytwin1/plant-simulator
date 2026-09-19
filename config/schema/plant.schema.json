@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://plant-simulator/config/schema/plant.schema.json",
+  "title": "Plant configuration (contract C3)",
+  "type": "object",
+  "required": ["nodes", "equipment"],
+  "additionalProperties": false,
+  "properties": {
+    "nodes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "boundary", "pressure"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "boundary": {"type": "boolean"},
+          "pressure": {"type": "number"}
+        }
+      }
+    },
+    "equipment": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["tag", "type", "node_in", "node_out", "design"],
+        "additionalProperties": false,
+        "properties": {
+          "tag": {"type": "string", "minLength": 1},
+          "type": {
+            "type": "string",
+            "enum": ["pump", "compressor", "control_valve", "vessel", "heat_exchanger", "furnace"]
+          },
+          "node_in": {"type": "string", "minLength": 1},
+          "node_out": {"type": "string", "minLength": 1},
+          "design": {"type": "object"}
+        }
+      }
+    },
+    "limits": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["tag", "variable"],
+        "additionalProperties": false,
+        "properties": {
+          "tag": {"type": "string", "minLength": 1},
+          "variable": {"type": "string", "minLength": 1},
+          "lo_lo": {"type": "number"},
+          "lo": {"type": "number"},
+          "hi": {"type": "number"},
+          "hi_hi": {"type": "number"},
+          "trip": {"type": "boolean"},
+          "deadband": {"type": "number"}
+        }
+      }
+    },
+    "controllers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["tag", "pv", "sp", "out", "mode", "kp", "ki", "kd"],
+        "additionalProperties": false,
+        "properties": {
+          "tag": {"type": "string", "minLength": 1},
+          "pv": {"type": "string", "minLength": 1},
+          "sp": {"type": "number"},
+          "out": {"type": "string", "minLength": 1},
+          "mode": {"type": "string", "enum": ["AUTO", "MANUAL"]},
+          "kp": {"type": "number"},
+          "ki": {"type": "number"},
+          "kd": {"type": "number"}
+        }
+      }
+    },
+    "interlocks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["tag", "condition", "delay_s", "actions", "reset"],
+        "additionalProperties": false,
+        "properties": {
+          "tag": {"type": "string", "minLength": 1},
+          "condition": {"type": "string", "minLength": 1},
+          "delay_s": {"type": "number", "minimum": 0},
+          "actions": {
+            "type": "array",
+            "minItems": 1,
+            "items": {"type": "string", "minLength": 1}
+          },
+          "reset": {"type": "string", "enum": ["manual", "auto"]}
+        }
+      }
+    }
+  }
+}

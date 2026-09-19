@@ -30,9 +30,10 @@ it — the iteration stops on the residual, not on the step.
 State ownership is C2's, unchanged. The solver writes pressures through
 `Node.set_pressure` and flows through `Branch.set_flow`, and it reads the
 device curve only through `Branch.characteristic` / `Branch.residual`. No
-solved value is written to a device or a port, and a non-converged solve
-writes nothing at all: the plant is left where it was rather than holding a
-guess nobody checked.
+solved value is written to a device or a port, and a solve that does not
+converge — for any reason, including an exception part way through — leaves
+the plant exactly where it found it rather than holding a guess nobody
+checked. See `solve()` for the invariant in full.
 
 This module is the mathematics only. `Engine.step()` does not call it and the
 Flask routes do not reach it — wiring it in, and retiring the devices' own
@@ -41,8 +42,18 @@ T4-3.
 
 Units follow docs/UNITS_CONVENTION.md: pressures and branch residuals in psia,
 flows and mass-balance residuals in the branch's own process-domain unit
-(SCFM gas, GPM liquid). The two are never added together — see
-`SolverResult.residual` for how a mixed-unit system reports one number.
+(SCFM gas, GPM liquid). Pressure and flow are never added together — see
+`SolverResult.residual` for how a system carrying both reports one number.
+
+One solve assumes the topology it is handed is a single compatible
+hydraulic/process domain, because a mass balance sums the flows meeting a
+node and summing GPM with SCFM is meaningless. **That assumption is not
+checked here, and nothing else encodes it either** — C2 and C3 carry no
+flow-domain metadata, so there is nothing for this module to enforce against.
+Whoever builds a topology is responsible for keeping one domain in it. How
+liquid and gas domains get split and coupled — through a separator's
+inventory rather than through a shared flow variable — is decided by the
+reference plant and the vessel work, not here.
 """
 
 from dataclasses import dataclass
@@ -196,10 +207,18 @@ class NetworkSolver:
     def solve(self) -> SolverResult:
         """Drive every residual to zero and write the result to the topology.
 
-        Returns without writing anything if it does not get there: a plant
-        holding the last iterate of a failed solve looks exactly like a
-        plant holding an answer, and there is no way for a caller reading
-        node pressures to tell the difference afterwards.
+        All or nothing: unless this returns a converged result, having
+        committed the solution, every node pressure and every branch flow is
+        exactly what it was when solve() was entered. That covers running out
+        of iterations, a line search that stalls, and any exception raised
+        along the way — a SolverError out of the Jacobian, or a device curve
+        that throws while the iteration is in the middle of a trial.
+
+        The invariant is worth the bookkeeping because a plant holding the
+        last iterate of a failed solve looks exactly like a plant holding an
+        answer. A caller reading node pressures afterwards has no way to tell
+        the two apart, so the only safe thing to leave behind is what was
+        already there.
         """
         if self._size == 0:
             return SolverResult(
@@ -211,33 +230,39 @@ class NetworkSolver:
             )
 
         entry_pressures = [node.pressure for node in self._internal]
+        entry_flows = [branch.flow for branch in self._branches]
 
-        x = [branch.flow for branch in self._branches]
-        x += [node.pressure for node in self._internal]
+        committed = False
 
-        residuals = self._residuals(x)
-        iterations = 0
+        try:
+            x = list(entry_flows) + list(entry_pressures)
 
-        while self._norm(residuals) > 1.0:
-            if iterations == self.max_iterations:
-                self._restore(entry_pressures)
+            residuals = self._residuals(x)
+            iterations = 0
 
-                return self._result(False, iterations, residuals)
+            while self._norm(residuals) > 1.0:
+                if iterations == self.max_iterations:
+                    return self._result(False, iterations, residuals)
 
-            step = self._newton_step(x, residuals)
-            advanced = self._line_search(x, residuals, step)
+                step = self._newton_step(x, residuals)
+                advanced = self._line_search(x, residuals, step)
 
-            if advanced is None:
-                self._restore(entry_pressures)
+                if advanced is None:
+                    return self._result(False, iterations, residuals)
 
-                return self._result(False, iterations, residuals)
+                x, residuals = advanced
+                iterations += 1
 
-            x, residuals = advanced
-            iterations += 1
+            self._commit(x)
+            committed = True
 
-        self._commit(x)
-
-        return self._result(True, iterations, residuals)
+            return self._result(True, iterations, residuals)
+        finally:
+            # Reached on every path out of the try, including an exception
+            # mid-iteration and a return of a non-converged result. Only a
+            # committed solution is allowed to survive.
+            if not committed:
+                self._restore(entry_pressures, entry_flows)
 
     def _residuals(self, x: list[float]) -> list[float]:
         # Branch residuals are read through Branch.residual, which reads the
@@ -353,9 +378,15 @@ class NetworkSolver:
         for i, branch in enumerate(self._branches):
             branch.set_flow(x[i])
 
-    def _restore(self, pressures: list[float]) -> None:
+    def _restore(self, pressures: list[float], flows: list[float]) -> None:
         for node, pressure in zip(self._internal, pressures):
             node.set_pressure(pressure)
+
+        # Only _commit writes a flow, so this is usually a no-op. It is here
+        # so the invariant holds even if _commit itself is interrupted part
+        # way through writing the solution it was handed.
+        for branch, flow in zip(self._branches, flows):
+            branch.set_flow(flow)
 
     def _result(
         self,

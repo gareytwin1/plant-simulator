@@ -55,6 +55,33 @@ class SolverCurve(Equipment):
         }
 
 
+class ProbedCurve(SolverCurve):
+    """A curve that tells the test each time the solver reads it.
+
+    `on_call` is how a test observes — or interrupts — the solve from inside
+    an iteration, which is the only way to reach the window between a trial
+    pressure being written and the result being committed. The device itself
+    stays contract-clean: it reads no node pressure and holds no solved
+    value, and whatever the callback wants to look at, it looks at from the
+    test's own closure.
+    """
+
+    def __init__(self, tag="R-902", shutoff_rise=0.0, resistance=0.01, on_call=None):
+        super().__init__(
+            tag,
+            shutoff_rise=shutoff_rise,
+            resistance=resistance,
+        )
+
+        self.on_call = on_call
+
+    def characteristic(self, flow):
+        if self.on_call is not None:
+            self.on_call()
+
+        return super().characteristic(flow)
+
+
 def single_branch(
     from_pressure=100.0,
     to_pressure=150.0,
@@ -96,8 +123,9 @@ def series_plant(
 
     One internal node, two branch equations, and a mass balance that has to
     make both branches carry the same flow. Liquid throughout, so every flow
-    in it is GPM — docs/UNITS_CONVENTION.md forbids one network spanning two
-    process domains.
+    in it is GPM. Nothing in the solver checks that — see the open issue in
+    docs/UNITS_CONVENTION.md — so keeping one process domain per topology is
+    the test's job here exactly as it is a plant builder's.
     """
     supply = Node("N-SUPPLY", pressure=supply_pressure, is_boundary=True)
     middle = Node("N-MID", pressure=initial_pressure)
@@ -498,6 +526,90 @@ def test_a_solve_that_does_not_converge_leaves_the_plant_untouched():
     assert topology.node("N-MID").pressure == 50.0
     assert topology.branch("B-PUMP").flow == 0.0
     assert topology.branch("B-LINE").flow == 0.0
+
+
+def test_an_exception_mid_iteration_leaves_the_plant_exactly_as_it_was():
+    """The invariant solve() promises, on the path no return statement covers.
+
+    A device curve that throws once the solver has written a trial pressure
+    lands in the window between the plant moving and the solution being
+    committed. Nothing returns from there, so only the transaction around
+    the whole solve puts the plant back.
+    """
+    line = ProbedCurve("FV-101", resistance=0.00005)
+    pump = ramped_pump(speed_target=0.5)
+
+    supply = Node("N-SUPPLY", pressure=50.0, is_boundary=True)
+    middle = Node("N-MID", pressure=50.0)
+    delivery = Node("N-DELIVERY", pressure=50.0, is_boundary=True)
+
+    topology = Topology(
+        [supply, middle, delivery],
+        [
+            Branch("B-PUMP", supply, middle, pump),
+            Branch("B-LINE", middle, delivery, line),
+        ],
+    )
+
+    assert solve_network(topology).converged
+
+    settled_pressure = middle.pressure
+    settled_flows = {
+        branch_id: branch.flow
+        for branch_id, branch in topology.branches.items()
+    }
+
+    assert settled_pressure != 50.0
+    assert all(flow != 0.0 for flow in settled_flows.values())
+
+    # Ramping the pump puts the plant off its curve, so the next solve has
+    # somewhere to move to.
+    pump.set_speed_target(1.0)
+    pump.integrate(100.0)
+
+    trial_pressures = []
+
+    def blow_up_once_the_plant_has_moved():
+        if middle.pressure == settled_pressure:
+            return
+
+        trial_pressures.append(middle.pressure)
+
+        raise RuntimeError("characteristic blew up mid-solve")
+
+    line.on_call = blow_up_once_the_plant_has_moved
+
+    with pytest.raises(RuntimeError, match="blew up mid-solve"):
+        solve_network(topology)
+
+    # The exception really did land after a trial pressure had been written,
+    # which is what makes the restoration below worth asserting.
+    assert trial_pressures
+
+    assert middle.pressure == settled_pressure
+    assert {
+        branch_id: branch.flow
+        for branch_id, branch in topology.branches.items()
+    } == settled_flows
+
+
+def test_a_structural_failure_mid_solve_also_restores_the_plant():
+    # The Jacobian is only assembled once the first residual has been taken,
+    # so a SolverError out of it escapes from inside the transaction too.
+    supply = Node("N-A", pressure=200.0, is_boundary=True)
+    delivery = Node("N-B", pressure=100.0, is_boundary=True)
+    orphan = Node("N-Z", pressure=125.0)
+
+    topology = Topology(
+        [supply, delivery, orphan],
+        [Branch("B-1", supply, delivery, SolverCurve(resistance=0.01))],
+    )
+
+    with pytest.raises(SolverError):
+        solve_network(topology)
+
+    assert orphan.pressure == 125.0
+    assert topology.branch("B-1").flow == 0.0
 
 
 def test_a_plant_the_solver_cannot_move_is_reported_rather_than_looped_on():

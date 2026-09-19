@@ -8,10 +8,10 @@ Refresh this file whenever a task merges to `main`.
 
 ---
 
-**Last refreshed:** 19 September 2026 (handoff refresh after T3-3 and T2-2)
-**Current `main`:** `1de0e75a0fb8ac26c11032422f8990088327ccde` — *Merge docs: Handoff refresh after T3-3 and T2-2*
-**Last code merge:** `26748e7` — *Merge T2-2: Seeded RNG service*
-**Full suite on `main`:** **297 passed** (`conda activate plant-simulator && python -m pytest -q`); `python -m mypy` clean
+**Last refreshed:** 19 September 2026 (post-merge cleanup after T4-2)
+**Current `main`:** `7d05323d2e246a8325f3704cdcc33f12faf58496` — *Merge T4-2: Newton-Raphson network solver*
+**Last code merge:** `7d05323` — *Merge T4-2: Newton-Raphson network solver*
+**Full suite on `main`:** **336 passed** (`conda activate plant-simulator && python -m pytest -q`); `python -m mypy` clean
 
 ---
 
@@ -22,11 +22,11 @@ Refresh this file whenever a task merges to `main`.
 | **M0** Baseline Cleanup | **7/7 Complete** |
 | **M1** Equipment Model Contract | **5/5 Complete** — Checkpoint A reached |
 | **M2** Simulation Engine and Clock | 4/6 (T2-5 startable) |
-| **M3** Plant Topology and Streams | 3/4 (T3-4 startable) |
-| **M4** Pressure-Flow Network Solver | 1/5 — T4-1 Complete; **T4-2 startable** (T3-3 merged) |
+| **M3** Plant Topology and Streams | 3/4 (T3-4 startable but parked) |
+| **M4** Pressure-Flow Network Solver | 2/5 — T4-1, T4-2 Complete; **T4-3 startable** |
 | M5–M19 | Not started |
 
-Overall: **20 of 94 tasks Complete.**
+Overall: **21 of 94 tasks Complete.**
 
 ### Completed and merged to `main`
 
@@ -40,7 +40,9 @@ Overall: **20 of 94 tasks Complete.**
 - **M3** — `T3-1` plant config schema + validator (C3) ·
   `T3-2` node/branch/stream (C2) · `T3-3` plant loader (`app/plant/loader.py`).
 - **M4** — `T4-1` branch characteristic interface (sign convention,
-  `signed_square`, `Branch.characteristic()` / `Branch.residual()`).
+  `signed_square`, `Branch.characteristic()` / `Branch.residual()`) · `T4-2`
+  Newton-Raphson network solver (`NetworkSolver`, standalone, not yet wired
+  into the engine).
 
 ### Seeded RNG: what shipped and what did not (T2-2)
 
@@ -69,6 +71,7 @@ now genuinely merged.)
 | `Engine` | `app/engine/engine.py` | Integrates all devices, publishes snapshot |
 | `Snapshot` (C4) | `app/engine/snapshot.py` | Immutable; shape frozen |
 | `SessionRegistry` / `Session` | `app/engine/sessions.py` | Per-browser plant isolation |
+| `NetworkSolver` | `app/engine/network.py` | Newton-Raphson solver for plant-wide flows and pressures; standalone, not yet on the request path |
 | Topology (C2) | `app/plant/topology.py` | `Node`, `Branch`, `Stream`, `Topology`; `Branch.characteristic()` / `residual()` as of T4-1 |
 | Plant config schema (C3) + validator | `config/schema/plant.schema.json`, `app/plant/validate.py` | |
 | Golden regression harness | `tests/golden_regression.py`, `tests/fixtures/golden/` | |
@@ -76,17 +79,18 @@ now genuinely merged.)
 
 ### What intentionally does not exist yet
 
-- **Plant-wide network solver (T4-2) and its engine wiring (T4-4).** No
-  plant-wide pressure/flow solution.
+- **The network solver is not wired into the engine (T4-4).** `NetworkSolver`
+  (T4-2) is complete and tested but standalone — nothing calls it from
+  `Engine.step()` or the Flask request path. Device-owned operating-point
+  solving and interim `*_boundary_pressure` attributes remain until T4-4.
 - **A reference plant file (T3-4).** The loader exists, but no
   `config/plants/*.yaml` file does, and the loader reads JSON only — `pyyaml`
-  is not in `requirements.txt`.
+  is not in `requirements.txt`. T3-4 is startable but parked.
 - **Single action endpoint (C5).** Routes are still per-equipment.
 - **Controllers (PID), envelopes, alarms, trips, scenarios, scoring, historian,
   console.** All specified in the build plan, none implemented.
 - `Snapshot`'s `nodes` / `streams` / `controllers` / `envelope` / `alarms`
-  sections are deliberately empty, and `solver` is a trivial converged
-  placeholder.
+  sections are deliberately empty.
 
 ## Branch characteristic convention (T4-1)
 
@@ -215,25 +219,25 @@ is the build plan's own assignment.
 
 ### Critical path to Checkpoint B
 
-`T4-2` (solver) -> `T4-3` (diagnostics) -> `T4-4` (wire into engine, **spine**,
-freezes other merges) -> `T4-5` (cause-and-effect suite).
+**T4-2 (Complete)** -> **T4-3 (startable)** -> **T4-4 (wire into engine, spine,
+freezes other merges)** -> T4-5 (cause-and-effect suite).
 
-**T4-2 is startable now (Opus, `feature/network-solver`).** It builds the solver
-as a standalone module. It does **not** wire it into `Engine.step()`, remove the
-legacy device `step()` / `_calculate_operating_point()`, remove the
-`*_boundary_pressure` attributes, or change the Flask request path — all of that
-is T4-4. Two things to know before it starts:
+**T4-2 is Complete** — `NetworkSolver` is in `app/engine/network.py`, fully
+tested, but not yet called from `Engine.step()` or the Flask request path. T4-4
+wires it into the engine and retires the legacy device `step()` /
+`_calculate_operating_point()` path; T4-3 owns solver diagnostics and failure
+handling.
 
-- Its acceptance criteria say "converges on the reference plant", but the
-  reference plant file is **T3-4**, which is not done. Either run T3-4 first or
-  in parallel, or build T4-2 against small hand-built configs through
-  `load_plant()` and add the reference-plant convergence test when T3-4 lands.
-- The `reset()` open question below affects any solver test that resets a
-  loaded plant.
+**T4-3 is startable now (Sonnet, `feature/solver-diagnostics`).** It owns the
+failure policy for non-converging solves and records diagnostic fields in the
+snapshot. `SolverResult` already provides `converged`, `iterations`,
+`residual`, `pressure_residual`, `flow_residual`, and a failed solve is atomic
+on every path. See T4-3 details below.
 
-**T3-4 (Sonnet, `feature/reference-plant`) is the natural companion.** It needs
+**T3-4 (Sonnet, `feature/reference-plant`) is startable but parked.** It needs
 YAML, and the loader reads JSON only: adding `pyyaml` to `requirements.txt` and a
-`.yaml` branch in `load_plant_file` is part of that task, not an accident.
+`.yaml` branch in `load_plant_file` is part of that task. T4-2 reference-plant
+convergence test waits on T3-4 landing.
 
 ### Open questions carried from T3-3
 
@@ -258,17 +262,19 @@ Neither has a task yet; both need an owner (an Opus decision each).
 "Seeded RNG" above. `SeededRNG` also has no state save/restore, which T12-1
 (snapshot save and restore) and T14-5 (deterministic replay) will need.
 
-### Startable now (19 tasks)
+### Startable now (18 tasks)
 
 All dependencies are Complete, and none of these edits an existing spine file.
-T4-3 (`snapshot.py`) and T4-4 (`engine.py`) will, and are not startable yet.
-Three of them (T2-5, T4-2, T12-1) add a *new* module under `app/engine/`, which
-is satellite work under the **`app/engine/` rule** in CLAUDE.md. If any of them
-finds it must edit an existing spine module there, it stops and escalates.
+T4-3 (edits `snapshot.py`) and T4-4 (edits `engine.py`) will, and are not
+startable yet. Three of them (T2-5, T12-1, and non-critical T4-3 additions beyond
+the snapshot work) add *new* isolated modules under `app/engine/`, which is
+satellite work under the **`app/engine/` rule** in CLAUDE.md. T4-3 is the
+exception: it edits existing spine files (`snapshot.py`) so it is spine work and
+takes the lock.
 
 | Task | Name | Model | Branch |
 |---|---|---|---|
-| **T4-2** | Newton-Raphson network solver | Opus | `feature/network-solver` |
+| **T4-3** | Solver diagnostics and failure handling | Sonnet | `feature/solver-diagnostics` |
 | **T3-4** | Reference plant configuration | Sonnet | `feature/reference-plant` |
 | **T5-1** | Vessel model (likely hits the C3 multi-port gap) | Sonnet | `feature/vessel-model` |
 | **T6-1** | Stream enthalpy and mixing | Opus | `feature/stream-enthalpy` |
@@ -286,7 +292,6 @@ finds it must edit an existing spine module there, it stops and escalates.
 | **T13-5** | Physics isolation guard | Haiku | `test/import-direction-guard` |
 | **T15-4** | Score persistence | Haiku | `feature/score-store` |
 | **T17-1** | Ring-buffer historian | Haiku | `feature/historian` |
-| **T18-2** | CI pipeline (should run `python -m mypy` too) | Haiku | `chore/ci-pipeline` |
 
 Working rules for every one of them: one worktree per task branched from
 `origin/main`; full suite **and** `python -m mypy` green before review; small
@@ -294,7 +299,26 @@ commits led by the task ID; **Ready for Review** at PR time and **Complete** onl
 with the merge SHA. `tests/test_random_source_guard.py` shows the AST-scan style
 a layering guard like T13-5 can follow.
 
-## Test suite composition (297 tests)
+## Solver and snapshot state
+
+**`SolverResult` (`app/engine/network.SolverResult`)**:
+- `converged`: bool — whether the solver converged
+- `iterations`: int — number of Newton-Raphson iterations
+- `residual`: float — maximum of all residuals (branch equations + mass balance)
+- `pressure_residual`: float — maximum pressure equation residual
+- `flow_residual`: float — maximum mass-balance equation residual
+
+**Non-convergence** returns `converged=False`; a failed solve is atomic and
+restores the pressures/flows to their pre-solve state. `Snapshot.solver`
+currently holds a placeholder `converged: true`; T4-3 will populate it with the
+full result.
+
+**Process-domain caveat (recorded, unenforced)**:
+A `Topology` must be a single hydraulic domain (gas or liquid, not both). Nothing
+enforces this — C2/C3/`NetworkSolver` carry no flow-domain metadata. T3-4 (YAML)
+and T5-1 (vessel) will decide the liquid/gas architecture.
+
+## Test suite composition (336 tests)
 
 | File | Tests | File | Tests |
 |---|---|---|---|
@@ -306,8 +330,10 @@ a layering guard like T13-5 can follow.
 | `test_plant_config_validation.py` | 13 | `test_session_isolation.py` | 6 |
 | `test_engine.py` | 13 | `test_clock.py` | 13 |
 | `test_snapshot.py` | 11 | `test_random_source_guard.py` | 21 |
-| `test_rng.py` | 10 | | |
+| `test_rng.py` | 10 | `test_network_solver.py` | 36 |
 
 `test_equipment_contract.py` and `test_registry.py` discover device classes
 dynamically, so a new `Equipment` subclass is swept into the contract tests
 automatically — adding one raises the total by more than the tests you wrote.
+(T4-2 added `test_network_solver.py` with 36 tests; the test count rose to 336
+total, +39 from 297 at T2-2.)

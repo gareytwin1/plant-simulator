@@ -978,7 +978,7 @@
     "commands": [
       {
         "step": 0,
-        "command": "supply_pressure = 60.0, set_speed_target(1.0), start()"
+        "command": "upstream_boundary_pressure = 60.0, set_speed_target(1.0), start()"
       },
       {
         "step": 15,
@@ -1225,7 +1225,7 @@
     "commands": [
       {
         "step": 0,
-        "command": "discharge_header_pressure = 75.0, set_speed_target(1.0), start()"
+        "command": "downstream_boundary_pressure = 75.0, set_speed_target(1.0), start()"
       },
       {
         "step": 15,

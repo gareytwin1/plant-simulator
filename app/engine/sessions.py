@@ -13,31 +13,31 @@ from app.equipment.pump import CentrifugalPump
 
 
 class Session:
-    def __init__(self):
+    def __init__(self) -> None:
         self.compressor = GasCompressor()
         self.pump = CentrifugalPump()
 
 
 class SessionRegistry:
-    def __init__(self):
-        self._sessions = {}
+    def __init__(self) -> None:
+        self._sessions: dict[str, Session] = {}
 
-    def create(self, session_id):
+    def create(self, session_id: str) -> Session:
         session = Session()
         self._sessions[session_id] = session
         return session
 
-    def get(self, session_id):
+    def get(self, session_id: str) -> Session | None:
         return self._sessions.get(session_id)
 
-    def get_or_create(self, session_id):
+    def get_or_create(self, session_id: str) -> Session:
         session = self._sessions.get(session_id)
         if session is None:
             session = self.create(session_id)
         return session
 
-    def end(self, session_id):
+    def end(self, session_id: str) -> None:
         self._sessions.pop(session_id, None)
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self._sessions)

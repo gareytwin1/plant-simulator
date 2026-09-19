@@ -6,31 +6,41 @@ schema-only change (new equipment type, new limit field) never requires a
 validator change. Supports the subset of JSON Schema the plant config
 actually uses: type, enum, properties, required, additionalProperties,
 items, minItems, minLength, minimum.
+
+Both the schema and the config it checks are decoded JSON of a shape
+nothing knows until it is walked — discovering that shape is the whole
+job — so they are typed as Any rather than pretending otherwise. The
+errors list is the typed part, because that is what callers read.
 """
 
 import json
 from pathlib import Path
+from typing import Any
 
+
+Schema = dict[str, Any]
 
 SCHEMA_PATH = Path(__file__).resolve().parent.parent.parent / "config" / "schema" / "plant.schema.json"
 
 
-def load_schema():
+def load_schema() -> Schema:
     with open(SCHEMA_PATH) as f:
-        return json.load(f)
+        schema: Schema = json.load(f)
+
+    return schema
 
 
-def validate(config, schema=None):
+def validate(config: Any, schema: Schema | None = None) -> list[str]:
     """Return a list of error strings, each naming the offending path. Empty means valid."""
     if schema is None:
         schema = load_schema()
 
-    errors = []
+    errors: list[str] = []
     _check(config, schema, "$", errors)
     return errors
 
 
-def _check(value, schema, path, errors):
+def _check(value: Any, schema: Schema, path: str, errors: list[str]) -> None:
     expected_type = schema.get("type")
 
     if expected_type and not _type_matches(value, expected_type):
@@ -53,7 +63,7 @@ def _check(value, schema, path, errors):
             errors.append(f"{path}: {value} is below the minimum of {schema['minimum']}")
 
 
-def _check_object(value, schema, path, errors):
+def _check_object(value: Any, schema: Schema, path: str, errors: list[str]) -> None:
     for key in schema.get("required", []):
         if key not in value:
             errors.append(f"{path}: missing required property {key!r}")
@@ -70,7 +80,7 @@ def _check_object(value, schema, path, errors):
             _check(value[key], subschema, f"{path}.{key}", errors)
 
 
-def _check_array(value, schema, path, errors):
+def _check_array(value: Any, schema: Schema, path: str, errors: list[str]) -> None:
     if "minItems" in schema and len(value) < schema["minItems"]:
         errors.append(f"{path}: has {len(value)} items, fewer than the minimum of {schema['minItems']}")
 
@@ -80,7 +90,7 @@ def _check_array(value, schema, path, errors):
             _check(item, items_schema, f"{path}[{i}]", errors)
 
 
-def _type_matches(value, expected):
+def _type_matches(value: Any, expected: str) -> bool:
     if expected == "object":
         return isinstance(value, dict)
     if expected == "array":
@@ -96,7 +106,7 @@ def _type_matches(value, expected):
     return True
 
 
-def _type_name(value):
+def _type_name(value: Any) -> str:
     if isinstance(value, bool):
         return "boolean"
     if isinstance(value, dict):

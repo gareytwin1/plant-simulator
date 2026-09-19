@@ -512,9 +512,10 @@
         "app/equipment/base.py",
         "app/plant/topology.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true
+      "status": "Ready for Review",
+      "status_key": "review",
+      "startable": false,
+      "note": "Sign convention for characteristic(flow) is outlet minus inlet, positive inlet to outlet, defined for every real flow including negative, and non-increasing in flow everywhere. signed_square(q)=|q|*q in app/equipment/base.py is the primitive that makes reverse flow well defined; both devices now write their quadratic term against it. Branch gains characteristic() and residual() (the branch equation T4-2 drives to zero). The max(...,0) clamp is removed from both device curves. One golden value moves: pump supply_pressure_change step 1 pump_pressure_rise 0.0 to -1.4, which agrees with the spread recorded on the same row; edited by hand, not regenerated. compressor.py and pump.py are touched beyond the listed files because reverse flow cannot be defined in base.py alone. 238 tests green, mypy clean. Holds the spine lock until merged. PR open, not merged."
     },
     {
       "id": "T4-2",

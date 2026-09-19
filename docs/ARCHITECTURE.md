@@ -4,7 +4,10 @@ How Plant Simulator is put together — what runs today, what it is being built
 toward, and who owns which piece of state.
 
 The two are kept strictly separate in this document. Blurring them has already
-misled sessions into assuming the network solver exists. **It does not.**
+misled sessions into assuming the plant solves as a network. **It does not.**
+The solver module exists as of T4-2, but nothing calls it: `Engine.step()` and
+the Flask routes reach no part of it, and the running application still has
+each device solving its own operating point.
 
 For current status and task-level detail see
 [PROJECT_STATE.md](PROJECT_STATE.md); for the rules that constrain changes see
@@ -51,6 +54,9 @@ Equipment (C1)    app/equipment/base.py    the interface both devices implement
 EquipmentRegistry app/equipment/registry.py tag → device
 Topology (C2)     app/plant/topology.py    Node / Branch / Stream / Topology
 Plant config (C3) config/schema/plant.schema.json + app/plant/validate.py
+Plant loader      app/plant/loader.py      C3 config → solvable Topology
+NetworkSolver     app/engine/network.py    the plant-wide pressure-flow solve
+SeededRNG         app/engine/rng.py        the only allowed random source
 ```
 
 `Engine` works and is fully tested, but nothing in the Flask request path calls
@@ -71,13 +77,13 @@ empty.
 
 ## 2. Target architecture
 
-Where this is going once milestone M4 is done. **None of the solver path below
-exists today.** Two separate tasks get it there, and only the second changes
-what the application does:
+Where this is going once milestone M4 is done. **No part of the solver path
+below is reached at runtime today.** Two separate tasks get it there, and only
+the second changes what the application does:
 
 | Task | What it does | What changes at runtime |
 |---|---|---|
-| **T4-2** | Builds the network solver (`app/engine/network.py`) as a standalone module | **Nothing.** The solver exists but nothing calls it. |
+| **T4-2** | Builds the network solver (`app/engine/network.py`) as a standalone module. **Done** — `NetworkSolver` solves a `Topology` and writes the result through `Node.set_pressure` / `Branch.set_flow` | **Nothing.** The solver exists but nothing calls it. |
 | **T4-4** | Wires the solver into `Engine.step()`, makes the topology the live owner of solved pressure and flow, and retires the legacy device operating-point path | The plant becomes connected (Checkpoint B). |
 
 T4-2 does **not** wire the solver into `Engine.step()`, remove `step()` or

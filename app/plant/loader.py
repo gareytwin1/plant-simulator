@@ -179,11 +179,16 @@ def _read_config(path: Path) -> Any:
             if suffix == ".json":
                 return json.load(f)
 
-            return yaml.safe_load(f)
+            document = yaml.safe_load(f)
         except (json.JSONDecodeError, yaml.YAMLError) as error:
             raise PlantConfigError(
                 [f"{path}: not parseable as {suffix[1:].upper()}: {error}"],
             ) from error
+
+    if document is None:
+        raise PlantConfigError([f"{path}: plant file is empty"])
+
+    return document
 
 
 def _reference_errors(

@@ -134,11 +134,16 @@ def test_an_unsupported_suffix_is_rejected(tmp_path):
     assert "unsupported plant file type" in errors[0]
 
 
-def test_an_empty_yaml_file_is_rejected_by_the_validator(tmp_path):
-    path = tmp_path / "plant.yaml"
+@pytest.mark.parametrize("name", ["plant.yaml", "plant.yml"])
+def test_an_empty_yaml_file_is_rejected_naming_the_file(tmp_path, name):
+    path = tmp_path / name
     path.write_text("")
 
-    assert rejected_file(path)
+    errors = rejected_file(path)
+
+    assert len(errors) == 1
+    assert str(path) in errors[0]
+    assert "empty" in errors[0]
 
 
 def test_a_yaml_schema_violation_gets_the_same_errors_as_json(tmp_path):

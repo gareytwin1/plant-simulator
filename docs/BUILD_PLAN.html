@@ -1,3 +1,4 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
 <title>Plant Simulator Build Plan</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -416,6 +417,145 @@
   }
   footer p{margin:0 0 8px;max-width:76ch;}
 
+  /* ---------- release target ---------- */
+  .tgt{
+    font-family:var(--mono);font-size:11px;color:var(--muted);
+    flex:0 0 auto;text-align:right;line-height:1.35;
+  }
+  .tgt b{
+    display:block;font-family:var(--cond);font-size:18px;font-weight:700;
+    color:var(--accent);letter-spacing:.005em;
+  }
+  .tgt span{display:block;}
+
+  /* ---------- schedule tags ---------- */
+  .tag{
+    font-family:var(--mono);font-size:10px;font-weight:500;
+    letter-spacing:.05em;text-transform:uppercase;
+    padding:1px 6px;border-radius:2px;border:1px solid;white-space:nowrap;
+  }
+  .tg-core{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 45%,transparent);background:color-mix(in srgb,var(--accent) 10%,transparent);}
+  .tg-par{color:var(--st-done);border-color:color-mix(in srgb,var(--st-done) 45%,transparent);background:color-mix(in srgb,var(--st-done) 10%,transparent);}
+  .tg-blk{color:var(--st-prog);border-color:color-mix(in srgb,var(--st-prog) 45%,transparent);background:color-mix(in srgb,var(--st-prog) 10%,transparent);}
+  .tg-int{color:var(--st-review);border-color:color-mix(in srgb,var(--st-review) 45%,transparent);background:color-mix(in srgb,var(--st-review) 10%,transparent);}
+  .tg-crit{color:var(--st-block);border-color:color-mix(in srgb,var(--st-block) 55%,transparent);background:color-mix(in srgb,var(--st-block) 10%,transparent);font-weight:600;}
+  .tg-defer{color:var(--muted);border-color:var(--line);background:transparent;}
+  .tg-date{color:var(--ink-2);border-color:var(--line);background:var(--surface-2);text-transform:none;letter-spacing:0;}
+  .tg-ag{color:var(--ink-2);border-color:var(--line);background:var(--surface);text-transform:none;letter-spacing:.01em;}
+  .tg-ag b{font-weight:600;color:var(--ink);}
+  .ms-head .tag{align-self:center;}
+  .ms-sched{display:flex;flex-wrap:wrap;gap:5px 7px;align-items:center;margin:-4px 0 10px;}
+
+  /* ---------- agent assignment table ---------- */
+  .atab{width:100%;border-collapse:collapse;font-size:12.5px;}
+  .atab th,.atab td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line-soft);vertical-align:top;}
+  .atab th{
+    font-family:var(--cond);font-size:10.5px;font-weight:600;
+    letter-spacing:.11em;text-transform:uppercase;color:var(--muted);
+    border-bottom:1px solid var(--line);white-space:nowrap;
+  }
+  .atab td.b{font-family:var(--mono);font-size:11.5px;color:var(--ink-2);white-space:nowrap;}
+  .atab tr:last-child td{border-bottom:none;}
+  .tw{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r);background:var(--surface);}
+
+  /* ---------- critical path ---------- */
+  .cpath{
+    display:flex;flex-wrap:wrap;gap:6px;align-items:center;
+    font-family:var(--mono);font-size:11.5px;margin:0 0 16px;
+  }
+  .cpath .n{
+    padding:3px 8px;border-radius:2px;
+    border:1px solid color-mix(in srgb,var(--st-block) 45%,transparent);
+    background:color-mix(in srgb,var(--st-block) 9%,transparent);
+    color:var(--ink);
+  }
+  .cpath .n b{color:var(--st-block);font-weight:600;}
+  .cpath .ar{color:var(--muted);}
+
+  /* ---------- gantt ---------- */
+  .g-scroll{
+    overflow-x:auto;border:1px solid var(--line);
+    border-radius:var(--r);background:var(--surface);
+  }
+  .gantt{--gl:210px;min-width:940px;position:relative;font-family:var(--mono);}
+  .g-head{
+    display:grid;grid-template-columns:var(--gl) 1fr;
+    border-bottom:1px solid var(--line);background:var(--surface-2);
+  }
+  .g-head .g-label{font-family:var(--cond);font-size:10.5px;font-weight:600;letter-spacing:.11em;text-transform:uppercase;color:var(--muted);}
+  .g-weeks{display:grid;grid-template-columns:repeat(14,1fr);}
+  .g-wk{
+    font-size:9.5px;color:var(--muted);text-align:center;
+    padding:7px 0;border-left:1px solid var(--line-soft);line-height:1.3;
+  }
+  .g-wk b{display:block;color:var(--ink-2);font-weight:600;font-size:10px;}
+
+  .g-row{display:grid;grid-template-columns:var(--gl) 1fr;align-items:center;border-top:1px solid var(--line-soft);}
+  .g-group{background:var(--surface-2);border-top:1px solid var(--line);}
+  .g-group .g-label{
+    font-family:var(--cond);font-size:10.5px;font-weight:700;
+    letter-spacing:.12em;text-transform:uppercase;color:var(--muted);
+  }
+  .g-group .g-track{height:22px;}
+  .g-label{padding:6px 10px;font-size:11.5px;color:var(--ink);display:flex;gap:7px;align-items:baseline;min-width:0;}
+  .g-label .gid{color:var(--accent);font-weight:600;flex:none;font-size:11px;}
+  .g-label .gnm{font-family:var(--sans);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .g-label .gcr{color:var(--st-block);font-weight:700;flex:none;}
+  .g-track{
+    position:relative;height:30px;
+    background-image:repeating-linear-gradient(to right,var(--line-soft) 0 1px,transparent 1px 7.142857%);
+  }
+
+  .g-bar{
+    position:absolute;top:6px;height:18px;border-radius:2px;
+    border:1px solid;display:flex;align-items:center;overflow:hidden;min-width:3px;
+  }
+  .g-fill{position:absolute;left:0;top:0;bottom:0;opacity:.5;}
+  .g-txt{position:relative;font-size:9.5px;padding:0 5px;white-space:nowrap;font-weight:500;}
+  .b-core{background:color-mix(in srgb,var(--accent) 20%,transparent);border-color:var(--accent);color:var(--ink);}
+  .b-core .g-fill{background:var(--accent);}
+  .b-par{background:color-mix(in srgb,var(--st-done) 20%,transparent);border-color:var(--st-done);color:var(--ink);}
+  .b-par .g-fill{background:var(--st-done);}
+  .b-test{background:color-mix(in srgb,var(--st-review) 18%,transparent);border-color:var(--st-review);color:var(--ink);}
+  .b-docs{background:color-mix(in srgb,var(--muted) 18%,transparent);border-color:var(--muted);color:var(--ink);}
+  .b-harden{background:color-mix(in srgb,var(--st-prog) 20%,transparent);border-color:var(--st-prog);color:var(--ink);}
+  .b-deploy{background:color-mix(in srgb,var(--st-done) 26%,transparent);border-color:var(--st-done);color:var(--ink);}
+  .b-defer{background:transparent;border-color:var(--line);border-style:dashed;color:var(--muted);}
+  .g-bar.crit{box-shadow:inset 3px 0 0 var(--st-block);}
+
+  .g-lead{position:absolute;top:14px;height:0;border-top:1px dashed color-mix(in srgb,var(--st-prog) 80%,transparent);}
+  .g-lead::after{
+    content:"";position:absolute;right:-1px;top:-3.5px;
+    border-left:5px solid color-mix(in srgb,var(--st-prog) 80%,transparent);
+    border-top:3.5px solid transparent;border-bottom:3.5px solid transparent;
+  }
+
+  .g-cprow .g-track{height:38px;}
+  .g-cpm{position:absolute;top:4px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;width:64px;}
+  .g-cpd{width:9px;height:9px;background:var(--st-review);transform:rotate(45deg);border-radius:1px;}
+  .g-cpl{font-size:9px;color:var(--st-review);margin-top:3px;font-weight:600;letter-spacing:.04em;}
+
+  .g-overlay{position:absolute;left:var(--gl);right:0;top:0;bottom:0;pointer-events:none;z-index:1;}
+  .g-cpline{position:absolute;top:0;bottom:0;width:0;border-left:1px dashed color-mix(in srgb,var(--st-review) 60%,transparent);}
+  .g-rel{position:absolute;top:0;bottom:0;width:0;border-left:2px solid var(--st-block);}
+  .g-now{position:absolute;top:0;bottom:0;width:0;border-left:1px dotted var(--accent-2);}
+  .g-now::after{
+    content:"today";position:absolute;bottom:3px;left:4px;
+    font-size:9px;color:var(--accent-2);font-weight:600;letter-spacing:.06em;
+  }
+  .g-relm{position:absolute;top:3px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;width:76px;}
+  .g-relm .d{width:11px;height:11px;background:var(--st-block);transform:rotate(45deg);border-radius:1px;}
+  .g-relm .l{font-size:9px;color:var(--st-block);margin-top:3px;font-weight:700;letter-spacing:.06em;white-space:nowrap;}
+
+  .g-legend{
+    display:flex;flex-wrap:wrap;gap:7px 16px;align-items:center;
+    margin-top:12px;font-family:var(--mono);font-size:11px;color:var(--muted);
+  }
+  .g-legend i{
+    display:inline-block;width:18px;height:9px;border-radius:2px;
+    border:1px solid;margin-right:5px;vertical-align:-1px;
+  }
+
   @media (max-width:640px){
     .task>summary{grid-template-columns:44px minmax(0,1fr);}
     .t-right{grid-column:1/-1;justify-content:flex-start;padding-left:0;margin-top:4px;}
@@ -430,137 +570,1993 @@
   }
 </style>
 
-<p style="font-size:13px; color:#5C6A6D; margin:0 0 20px;"><strong>Local copy created from the live artifact.</strong> For live status tracking and shared updates, visit the <a href="https://claude.ai/artifact/DXqzpwKxeKZNzZGrC3HkQ9" style="color:#00616F;">live build plan on claude.ai</a>. This local file is a snapshot and will not auto-sync.</p>
+<header class="top">
+  <div class="wrap top-inner">
+    <div>
+      <p class="eyebrow">Master development plan</p>
+      <h1>Plant Simulator Build Plan</h1>
+      <p class="sub">From two standalone equipment models to a connected, playable operator training simulator. Version&nbsp;1 ships a small complete plant, not a complete olefins plant. Status is shared &mdash; edits are visible to everyone with the link.</p>
+    </div>
+    <div class="meter-block">
+      <div class="meter" id="meter" role="img" aria-label="Overall task status"></div>
+      <div class="meter-legend" id="legend"></div>
+    </div>
+    <div class="tgt" id="tgt"></div>
+  </div>
+</header>
 
-<main style="max-width:1140px; margin:0 auto; padding:0 20px;">
+<div class="filters">
+  <div class="wrap filters-inner">
+    <div class="fgroup">
+      <span class="flabel">Category</span>
+      <button class="chip" data-f="cat" data-v="all" aria-pressed="true">all</button>
+      <button class="chip" data-f="cat" data-v="ind" aria-pressed="false">independent</button>
+      <button class="chip" data-f="cat" data-v="dep" aria-pressed="false">dependent</button>
+      <button class="chip" data-f="cat" data-v="core" aria-pressed="false">core</button>
+    </div>
+    <div class="fgroup">
+      <span class="flabel">Show</span>
+      <button class="chip" data-f="view" data-v="all" aria-pressed="true">everything</button>
+      <button class="chip" data-f="view" data-v="ready" aria-pressed="false">startable now</button>
+      <button class="chip" data-f="view" data-v="waiting" aria-pressed="false">blocked</button>
+      <button class="chip" data-f="view" data-v="open" aria-pressed="false">not complete</button>
+    </div>
+    <div class="fgroup">
+      <span class="flabel">Scope</span>
+      <button class="chip" data-f="scope" data-v="all" aria-pressed="true">all</button>
+      <button class="chip" data-f="scope" data-v="v1" aria-pressed="false">v1 only</button>
+      <button class="chip" data-f="scope" data-v="crit" aria-pressed="false">critical path</button>
+      <button class="chip" data-f="scope" data-v="defer" aria-pressed="false">deferred</button>
+    </div>
+    <input id="search" type="search" placeholder="filter by name, branch, file…" aria-label="Search tasks">
+  </div>
+</div>
 
-<section style="padding-block:34px;">
-  <h2 style="font-family:var(--cond); font-size:20px; margin:0;">How to use this plan during development</h2>
-  <p style="color:#5C6A6D; font-size:13.5px; margin: 0 0 20px;">This is your master checklist for tasks, milestones, and integration points. Reference it constantly while implementing.</p>
+<main class="wrap">
 
-  <div style="background:#FBFBFA; border:1px solid #C9D1D0; border-left:3px solid #00616F; border-radius:3px; padding:15px 17px; margin:0 0 18px;">
-    <p style="margin: 0 0 9px; font-size:13.5px; color:#32403F;"><strong>Task ID naming:</strong> Each task has an ID like <code style="font-family:var(--mono);">T0-1</code>, <code style="font-family:var(--mono);">T1-2</code>, etc. Reference these in commit messages, PR descriptions, and branch names so progress is traceable.</p>
-    <p style="margin: 0 0 9px; font-size:13.5px; color:#32403F;"><strong>Branch naming:</strong> Always match the recommended branch name. Example: <code style="font-family:var(--mono);">feature/pid-block</code>, <code style="font-family:var(--mono);">refactor/equipment-contract</code>.</p>
-    <p style="margin: 0; font-size:13.5px; color:#32403F;"><strong>Status tracking:</strong> The live artifact maintains shared status. Update it as work progresses so other agents know what's complete.</p>
+<section>
+  <div class="sec-head"><h2>How to read this plan</h2></div>
+  <p class="sec-note">This page is the source of truth for what gets built, in what order, on which branch, and by whom. Set a status on any task and it persists for everyone.</p>
+
+  <div class="callout">
+    <p><strong>The organizing idea: one spine, many satellites.</strong> A handful of tasks rewrite the same central files &mdash; the equipment base class, the simulation engine, the plant topology, the network solver. Those are the <em>spine</em>. They must run sequentially, owned by one agent at a time, because two agents cannot independently redesign the same core architecture without producing an unmergeable mess.</p>
+    <p>Everything else is a <em>satellite</em>: a new module in its own directory that depends only on a written contract, never on the spine's internals. A PID block, an alarm state machine, a ring-buffer historian, an envelope evaluator &mdash; each is a pure algorithm that can be built and fully tested against a fake process before the real plant exists. Satellites parallelize freely.</p>
+    <p><strong>The gate for parallel work is contracts, not code.</strong> The eight interface contracts below must be written down and merged before satellite branches open. Once they exist, thirteen branches can start on day one.</p>
+  </div>
+
+  <div class="grid3">
+    <div class="card">
+      <p class="kicker" style="color:var(--st-done)">Independent</p>
+      <p>New module, own directory, depends only on a frozen contract. Hand to an agent immediately. Merges without coordination.</p>
+    </div>
+    <div class="card">
+      <p class="kicker" style="color:var(--st-prog)">Dependent</p>
+      <p>Also isolated, but waits on a specific upstream task. The dependency chips on each task turn green as blockers clear.</p>
+    </div>
+    <div class="card">
+      <p class="kicker" style="color:var(--st-review)">Core</p>
+      <p>Touches shared architecture, plant state, or plant-wide physics. Stays on the main development path. One owner at a time.</p>
+    </div>
   </div>
 </section>
 
-<section style="padding-block:34px; border-top:1px solid #DDE3E2;">
-  <h2 style="font-family:var(--cond); font-size:20px; margin:0;">Quick reference: spine vs. satellites</h2>
+<section id="v1">
+  <div class="sec-head"><h2>Version 1 scope</h2><span class="ms-phase">ships 18 December 2026</span></div>
+  <p class="sec-note">Thirteen weeks buys one small plant built properly, not one large plant built badly. Version&nbsp;1 exists to prove the architecture and the gameplay loop end to end; the olefins plant is then grown by adding equipment and sections to a foundation that already works.</p>
 
-  <table style="width:100%; border-collapse:collapse; margin:16px 0;">
-    <tr style="background:#F1F3F2; border-bottom:1px solid #C9D1D0;">
-      <td style="padding:10px; font-weight:600; color:#14191B;">Spine (Sequential)</td>
-      <td style="padding:10px; color:#32403F; font-size:13px;">Core files that rewrites are one owner at a time: equipment base, engine, topology, solver. One agent, strict left-to-right.</td>
-    </tr>
-    <tr style="border-bottom:1px solid #DDE3E2;">
-      <td style="padding:10px; font-weight:600; color:#14191B;">Satellites (Parallel)</td>
-      <td style="padding:10px; color:#32403F; font-size:13px;">New modules in their own directories, depending only on frozen contracts. Can be developed and merged independently.</td>
-    </tr>
-  </table>
+  <div class="callout">
+    <p><strong>The V1 bet: a complete small plant beats a partial large one.</strong> Every architectural idea in this plan &mdash; the equipment contract, the network solver, envelopes, alarms, trips, scenarios, scoring &mdash; is exercised by a seven-device train just as thoroughly as by a cracking complex. What a bigger plant adds is more <em>instances</em>, not more <em>mechanisms</em>. Instances are cheap to add after the release; mechanisms are not.</p>
+    <p>So the V1 cut line is drawn by mechanism, not by equipment count: anything that proves a new mechanism is in, and anything that is a second example of a mechanism already proven is deferred.</p>
+  </div>
 
-  <p style="color:#5C6A6D; font-size:13px; margin:12px 0;"><strong>13 tasks are startable today</strong> (the pure algorithms with zero plant dependency). Hand them to parallel agents immediately.</p>
+  <h3>The Version 1 process train</h3>
+  <p class="sec-note" style="margin-bottom:12px">Small enough to finish, connected enough that every upset propagates somewhere the operator can see it.</p>
+<pre>  <b>N-01</b>  boundary <i>· feed header, pressure held</i>
+    │
+    ├─ <b>P-101</b>   centrifugal pump     <i>speed, head curve, min-flow protection</i>
+    ├─ <b>E-101</b>   feed heater          <i>duty, utility side, foulable</i>
+    ├─ <b>V-101</b>   separator            <i>LEVEL — integrated state, the slow variable</i>
+    ├─ <b>K-101</b>   gas compressor       <i>load, head curve, discharge temperature</i>
+    ├─ <b>FV-101</b>  discharge valve      <i>characteristic, stroke rate, fail-closed</i>
+    │
+  <b>N-06</b>  boundary <i>· product header, pressure held</i>
+
+  <i>utility</i>     CW-01 cooling water to E-101   <i>← the "loss of cooling" handle</i>
+  <i>control</i>     LIC-101  V-101 level    → letdown valve
+              PIC-101  K-101 discharge → FV-101
+  <i>protection</i>  K-101 trip on discharge PSHH · P-101 trip on suction PSLL
+              V-101 LSHH → K-101 trip <b>(cross-equipment consequence)</b></pre>
+
+  <div class="grid3" style="margin-top:18px">
+    <div class="card">
+      <p class="kicker" style="color:var(--accent)">Architecture proven</p>
+      <p>One equipment contract driving devices the engine has never seen. Plant loaded from configuration, not code. Server-owned clock, fixed timestep, bit-identical replay from a seed.</p>
+    </div>
+    <div class="card">
+      <p class="kicker" style="color:var(--accent)">Process proven</p>
+      <p>One plant-wide pressure-flow solution. Level that accumulates and pushes back on hydraulics. Temperature that propagates. Mass balance that closes over ten thousand steps.</p>
+    </div>
+    <div class="card">
+      <p class="kicker" style="color:var(--accent)">Operator layer proven</p>
+      <p>Envelopes with tracked excursion time, alarms that name symptoms, at least one real trip with a recovery window, two PID loops with auto/manual and bumpless transfer, trends to diagnose from.</p>
+    </div>
+    <div class="card">
+      <p class="kicker" style="color:var(--accent)">Game loop proven</p>
+      <p>Six or more authored upsets with hidden causes, objectives, recovery detection, deterministic replay, a scored debrief &mdash; and a structural test proving the game layer cannot reach into the physics.</p>
+    </div>
+    <div class="card">
+      <p class="kicker" style="color:var(--accent)">Shipping proven</p>
+      <p>Running on a machine that is not yours, behind CI, with validated input, structured logs, a health endpoint and documentation someone else can follow.</p>
+    </div>
+    <div class="card">
+      <p class="kicker" style="color:var(--st-done)">The release test</p>
+      <p>A person who has never seen the code loads a scenario, misdiagnoses it, trips the plant, reads the debrief, and wants to try again. If that works, V1 is done.</p>
+    </div>
+  </div>
+
+  <h3 style="margin-top:26px">Deferred past Version 1</h3>
+  <p class="sec-note" style="margin-bottom:12px">Not cancelled &mdash; sequenced. Each of these is a second instance of a mechanism V1 already proves, or a feature that only pays off once single-player training is solid. Leaving them out is what makes the date credible.</p>
+  <div class="tw"><table class="atab" id="defer-list"><thead><tr><th>Task</th><th>Deferred item</th><th>Why it waits</th><th>Earliest</th></tr></thead><tbody></tbody></table></div>
 </section>
 
-<section style="padding-block:34px; border-top:1px solid #DDE3E2;">
-  <h2 style="font-family:var(--cond); font-size:20px; margin:0;">Start here if you have 30 minutes</h2>
+<section>
+  <div class="sec-head"><h2>Interface contracts</h2><span class="ms-phase">freeze before parallel work</span></div>
+  <p class="sec-note">These eight definitions are what let separate agents work without reading each other's code. Write them, merge them, then treat them as fixed &mdash; a change to any of them after Checkpoint&nbsp;A invalidates in-flight satellite branches, so changes go through the spine owner.</p>
 
-  <ol style="color:#32403F; font-size:13.5px; line-height:1.8;">
-    <li><strong>Read the "How to read this plan" section</strong> in the full plan to understand the structure (independent, dependent, core).</li>
-    <li><strong>Read the eight interface contracts</strong> (C1–C8). These are what enable parallel development. They are short but load-bearing.</li>
-    <li><strong>Look at the branch map</strong> to see the spine sequence and which satellites can start immediately.</li>
-    <li><strong>Filter for "startable now"</strong> in the live artifact to see what you or another agent can pick up today.</li>
-  </ol>
+  <details class="contract" open>
+    <summary><span class="cid">C1</span><span class="cname">Equipment contract</span><span class="cwhere">app/equipment/base.py</span></summary>
+    <div class="cbody">
+      <p>Every device implements this and nothing more. The critical rule: <strong>equipment never reads or writes node pressures.</strong> Today <code>GasCompressor</code> owns <code>supply_pressure</code> and <code>discharge_header_pressure</code> and solves its own operating point. In a connected plant those are solver outputs. A device publishes a curve; the solver finds where it lands.</p>
+<pre>class Equipment:
+    tag: str                      <i># "K-101", "P-101", "FV-1023"</i>
+    ports: dict[str, Port]        <i># {"suction": Port, "discharge": Port}</i>
+
+    def <b>integrate</b>(self, dt: float) -> None:
+        <i>"""Advance SLOW state only: load ramp, valve stroke,</i>
+<i>        level, metal temperature. Never touches flow/pressure."""</i>
+
+    def <b>characteristic</b>(self, flow: float) -> float:
+        <i>"""Pressure change across the device at this flow.</i>
+<i>        Positive = rise (machine), negative = drop (valve, pipe)."""</i>
+
+    def <b>get_state</b>(self) -> dict:   <i># flat, JSON-safe primitives</i>
+    def <b>reset</b>(self) -> None:       <i># back to construction state</i></pre>
+    </div>
+  </details>
+
+  <details class="contract">
+    <summary><span class="cid">C2</span><span class="cname">Topology: node, branch, stream</span><span class="cwhere">app/plant/topology.py</span></summary>
+    <div class="cbody">
+      <p>The graph the solver walks. A node is a pressure point; a branch carries flow between two nodes and holds exactly one device; a stream is the material state the branch carries.</p>
+<pre>Node(id, pressure, is_boundary, elevation)
+Branch(id, from_node, to_node, device, flow)
+Stream(flow, pressure, temperature, composition)</pre>
+      <p>Boundary nodes hold pressure fixed &mdash; they are the plant's battery limits. Every topology needs at least one.</p>
+    </div>
+  </details>
+
+  <details class="contract">
+    <summary><span class="cid">C3</span><span class="cname">Plant configuration schema</span><span class="cwhere">config/plants/*.yaml</span></summary>
+    <div class="cbody">
+      <p>Adding equipment must stop requiring a code change. This schema is the boundary between "the simulator" and "this particular plant".</p>
+<pre>nodes:       [{id, boundary, pressure}]
+equipment:   [{tag, type, node_in, node_out, design: {...}}]
+limits:      [{tag, variable, lo_lo, lo, hi, hi_hi, trip, deadband}]
+controllers: [{tag, pv, sp, out, mode, kp, ki, kd}]
+interlocks:  [{tag, condition, delay_s, actions, reset}]</pre>
+      <p>Each top-level key is owned by a different milestone, which is deliberate &mdash; two agents editing different keys of the same file conflict only on whitespace.</p>
+    </div>
+  </details>
+
+  <details class="contract">
+    <summary><span class="cid">C4</span><span class="cname">State snapshot</span><span class="cwhere">app/engine/snapshot.py</span></summary>
+    <div class="cbody">
+      <p>The single object every consumer reads. The historian, the console, the trend API, the scoring module and the scenario engine all take this and nothing else. Freezing it is what lets the entire user interface and the whole game layer be built before the physics is finished.</p>
+<pre>{
+  "sim_time": 1830.0, "speed": 1.0, "running": true,
+  "equipment":   {"K-101": {...}, "P-101": {...}},
+  "nodes":       {"N-01": {"pressure": 750.2}},
+  "streams":     {"S-01": {"flow": 98.4, "temperature": 88.1}},
+  "controllers": {"PIC-101": {"pv":..,"sp":..,"out":..,"mode":"AUTO"}},
+  "envelope":    {"K-101.discharge_pressure": {"band":"hi","since":1790.0}},
+  "alarms":      [ <i>Event</i> ],
+  "solver":      {"converged": true, "iterations": 4, "residual": 1.2e-9}
+}</pre>
+    </div>
+  </details>
+
+  <details class="contract">
+    <summary><span class="cid">C5</span><span class="cname">HTTP API</span><span class="cwhere">app/api/</span></summary>
+    <div class="cbody">
+      <p>One action endpoint, not a route per control. This is why it matters: every operator input flows through a single chokepoint, so the action log, replay and scoring get built once instead of per-control, and <span class="path">app/main.py</span> stops being the file every branch has to touch.</p>
+<pre>GET  /api/snapshot                  -> Snapshot
+GET  /api/stream                    -> SSE of Snapshot
+POST /api/action  {target, action, value}
+GET  /api/trend   ?tags=&amp;from=&amp;to=  -> {tag: [[t,v],...]}
+POST /api/alarm/ack  {alarm_id}
+POST /api/scenario/{load|start|abort}
+GET  /api/scenario/result           -> ScenarioResult</pre>
+    </div>
+  </details>
+
+  <details class="contract">
+    <summary><span class="cid">C6</span><span class="cname">Event record</span><span class="cwhere">app/events.py</span></summary>
+    <div class="cbody">
+      <p>One shape for alarms, trips, operator actions and scenario events. A single shape means the debrief, the historian and the scoring module each need one parser, not four.</p>
+<pre>{"id": "...", "sim_time": 1830.0,
+ "type": "alarm" | "trip" | "action" | "scenario",
+ "tag": "K-101", "priority": "critical" | "high" | "low",
+ "message": "K-101 discharge pressure HIHI",
+ "data": {...}}</pre>
+      <p><strong>Alarm messages name symptoms, never causes.</strong> "Discharge pressure HIHI" &mdash; not "discharge valve stuck". This one rule is what makes diagnosis possible later, and it has to hold from the first alarm written.</p>
+    </div>
+  </details>
+
+  <details class="contract">
+    <summary><span class="cid">C7</span><span class="cname">Alarm interface</span><span class="cwhere">app/alarms/</span></summary>
+    <div class="cbody">
+      <p>A pure function of envelope events and time. No plant access, which is what makes it testable in isolation on day one.</p>
+<pre>AlarmManager.evaluate(envelope_events, sim_time) -> list[Event]
+AlarmManager.acknowledge(alarm_id, sim_time) -> None
+AlarmManager.active() -> list[Alarm]
+
+states: NORM -> UNACK_ACTIVE -> ACK_ACTIVE -> NORM
+                            \-> UNACK_CLEARED -> NORM</pre>
+    </div>
+  </details>
+
+  <details class="contract">
+    <summary><span class="cid">C8</span><span class="cname">Malfunction and scenario</span><span class="cwhere">app/disturbances/, app/scenarios/</span></summary>
+    <div class="cbody">
+      <p>The structural guarantee that the game layer cannot bend the physics.</p>
+<pre>Malfunction(target_tag, parameter, value, profile, start_condition)
+Scenario(initial_condition, malfunctions[], triggers[],
+         objectives[], time_limit, difficulty, seed)</pre>
+      <p><strong>A malfunction may only write parameters an engineer could change</strong> &mdash; a valve position limit, a heat transfer coefficient, a line resistance, an instrument bias. It may never write a solver output. A stuck valve sets a position limit; it does not set flow. Task <span class="path">T13-5</span> enforces this with a test.</p>
+    </div>
+  </details>
 </section>
 
-<section style="padding-block:34px; border-top:1px solid #DDE3E2;">
-  <h2 style="font-family:var(--cond); font-size:20px; margin:0;">Integration checkpoints</h2>
-
-  <p style="color:#5C6A6D; font-size:13px; margin:0 0 16px;">When to pause and integrate parallel branches:</p>
-
-  <ul style="color:#32403F; font-size:13.5px; line-height:1.8; padding-left:20px;">
-    <li><strong>Checkpoint A</strong> (M0 + M1): Equipment contract on main → unlock 13 satellite branches.</li>
-    <li><strong>Checkpoint B</strong> (M4): Network solver merged → plant becomes connected.</li>
-    <li><strong>Checkpoint C</strong> (M6): Energy balance closed → physics layer complete.</li>
-    <li><strong>Checkpoint D</strong> (M8): Loop execution live → snapshot is now real, UI/scoring can build against it.</li>
-    <li><strong>Checkpoint E</strong> (M9–M12): Safety layer (envelopes, alarms, trips) → plant is trainable.</li>
-    <li><strong>Checkpoint F</strong> (M13–M14): Scenarios playable → ready for operator training content.</li>
-    <li><strong>Checkpoint G</strong> (M15–M17): Scoring, console, trends → shipping product.</li>
-    <li><strong>Checkpoint H</strong> (M18): Deployed with CI → live.</li>
-  </ul>
+<section>
+  <div class="sec-head"><h2>Startable right now</h2></div>
+  <p class="sec-note">Computed live from task status: every task whose dependencies are all complete and whose own status is still <em>Not Started</em>. Independent tasks can be handed to another agent immediately; core tasks belong on the main path with one owner.</p>
+  <div class="board" id="board"></div>
 </section>
 
-<section style="padding-block:34px; border-top:1px solid #DDE3E2;">
-  <h2 style="font-family:var(--cond); font-size:20px; margin:0;">Working with dependencies</h2>
+<section id="critpath">
+  <div class="sec-head"><h2>Critical path</h2><span class="ms-phase">cannot slip without moving the date</span></div>
+  <p class="sec-note">Everything else in this plan has float. This chain does not. Each link is a piece of shared architecture whose shape every downstream task is written against, so a week lost here is a week lost at the release, not a week absorbed somewhere else.</p>
 
-  <p style="color:#32403F; font-size:13.5px; margin:0 0 12px;">Every task lists its dependencies. A task is "ready" when all its dependencies are complete ("done" status).</p>
+  <div class="cpath" id="cpath"></div>
 
-  <p style="color:#32403F; font-size:13.5px; margin:0 0 12px;"><strong>If a task is blocked on a dependency:</strong></p>
-  <ul style="color:#32403F; font-size:13.5px; line-height:1.8; padding-left:20px;">
-    <li>The task's "Blocked" status is visible in the live artifact.</li>
-    <li>Dependency chips in the task details turn green as blockers clear.</li>
-    <li>Use the note field to record why it's blocked (e.g., "waiting on T4-1 to merge").</li>
-  </ul>
+  <div class="callout">
+    <p><strong>What makes this the critical path rather than just the hard work.</strong> The chain is defined by <em>contract ownership</em>, not by difficulty. Each of these tasks publishes a shape &mdash; a base class, a snapshot, a graph, a solver output, a trip action, a scenario lifecycle &mdash; that other branches import and cannot be written without. A late satellite delays one feature. A late contract delays every branch that was waiting to be written against it.</p>
+    <p><strong>Float in the plan:</strong> the critical chain as scheduled lands its last item at Checkpoint&nbsp;H on 17&nbsp;December, one day before release, but the hardening window from 7&nbsp;December absorbs slip ahead of it. Practical buffer is about <strong>one week</strong>, all of it sitting between Checkpoint&nbsp;G (9&nbsp;December) and the release. Spend it on defects, not on features.</p>
+    <p><strong>The three places this plan is most likely to slip:</strong> the network solver failing to converge on a topology that looks reasonable (T4-2); level-to-hydraulics coupling oscillating once the solver and the integrator disagree about timescale (T5-2); and the console integration at M16, which is the first time every subsystem is exercised together by a human rather than a test. Each of those has been given a wider window than its task count suggests.</p>
+  </div>
 
-  <p style="color:#32403F; font-size:13.5px; margin:12px 0;"><strong>Rebase strategy:</strong> After each checkpoint merges to main, satellite branches rebase onto main. Do not merge main backwards into the spine.</p>
+  <div class="tw"><table class="atab" id="crit-list"><thead><tr><th>Task</th><th>Name</th><th>What it gates</th><th>Target</th><th>Agent</th></tr></thead><tbody></tbody></table></div>
 </section>
 
-<section style="padding-block:34px; border-top:1px solid #DDE3E2;">
-  <h2 style="font-family:var(--cond); font-size:20px; margin:0;">File ownership rules</h2>
+<section>
+  <div class="sec-head"><h2>Branch map</h2></div>
+  <p class="sec-note">The spine runs strictly left to right and is never worked on by two agents at once. Satellites hang off whatever checkpoint they depend on and rebase onto main after each merge.</p>
+<pre>main
+│
+├─ <b>SPINE</b> <i>— sequential, one owner, rewrites core files</i>
+│   └─ chore/retire-duplicate-simulator
+│       └─ refactor/equipment-contract        <i>← Checkpoint A</i>
+│           └─ refactor/simulation-engine
+│               └─ feature/plant-topology
+│                   └─ feature/network-solver <i>← Checkpoint B</i>
+│                       └─ feature/inventory-coupling
+│                           └─ feature/energy-balance  <i>← Checkpoint C</i>
+│
+├─ <b>SATELLITES · start today</b> <i>— no core file overlap, no waiting</i>
+│   ├─ test/golden-regression          <i>locks current numbers before refactor</i>
+│   ├─ feature/pid-block               <i>pure algorithm, fake process</i>
+│   ├─ feature/alarm-state-machine     <i>pure, event-driven</i>
+│   ├─ feature/envelope-evaluator      <i>pure, value + limits -> band</i>
+│   ├─ feature/historian               <i>pure ring buffer</i>
+│   ├─ feature/simulation-clock        <i>pure time/speed/pause</i>
+│   ├─ feature/seeded-rng              <i>pure, determinism service</i>
+│   ├─ feature/plant-config-schema     <i>spec + validator, C3</i>
+│   ├─ test/import-direction-guard     <i>passes today, guards forever</i>
+│   ├─ design/console-system           <i>color + symbol standards</i>
+│   ├─ chore/repo-hygiene
+│   ├─ chore/portable-requirements
+│   └─ docs/units-convention
+│
+├─ <b>SATELLITES · after Checkpoint A</b> <i>— need C1 on main</i>
+│   ├─ feature/control-valve
+│   ├─ feature/vessel-model
+│   ├─ feature/heat-exchanger
+│   ├─ feature/furnace
+│   ├─ feature/action-log
+│   └─ feature/snapshot-transport
+│
+└─ <b>SATELLITES · after Checkpoint D</b> <i>— need C4 + C6 stable</i>
+    ├─ feature/alarm-console
+    ├─ feature/frontend-trends
+    ├─ feature/process-graphic
+    ├─ feature/scoring-metrics
+    └─ feature/scenario-pack</pre>
 
-  <ul style="color:#32403F; font-size:13.5px; line-height:1.8; padding-left:20px;">
-    <li><code style="font-family:var(--mono);">app/equipment/base.py</code>, <code style="font-family:var(--mono);">app/engine/</code>, <code style="font-family:var(--mono);">app/plant/topology.py</code> — spine-owned. Satellites cannot touch these.</li>
-    <li><code style="font-family:var(--mono);">app/main.py</code> — highest-conflict file. One branch at a time; release it immediately after merging.</li>
-    <li><code style="font-family:var(--mono);">app/config.py</code> — append-only, one section per module. Never reorder.</li>
-    <li><code style="font-family:var(--mono);">config/plants/olefins_lite.yaml</code> — shared config. Own only your milestone's top-level key (nodes, equipment, limits, controllers, interlocks).</li>
-    <li><code style="font-family:var(--mono);">static/compressor.js</code> — frozen, dies at M16. Do not invest in it.</li>
-  </ul>
+  <div class="callout" style="margin-top:18px">
+    <p><strong>Ownership rules that keep the merges clean.</strong></p>
+    <p>&bull; No satellite branch may modify <span class="path">app/equipment/base.py</span>, <span class="path">app/engine/</span> or <span class="path">app/plant/topology.py</span>. Those are spine-owned. A satellite that needs a change there raises it with the spine owner instead of making it.</p>
+    <p>&bull; <span class="path">app/main.py</span> is the highest-conflict file in the repo until the single action endpoint (C5) lands. Exactly one branch touches it at a time.</p>
+    <p>&bull; <span class="path">app/config.py</span> is append-only, one clearly-headed section per module. Never reorder it.</p>
+    <p>&bull; <span class="path">static/compressor.js</span> is frozen &mdash; it is replaced wholesale at M16. Do not invest in it.</p>
+    <p>&bull; Satellites rebase onto main after every checkpoint. Main is never merged backwards into the spine.</p>
+  </div>
 </section>
 
-<section style="padding-block:34px; border-top:1px solid #DDE3E2;">
-  <h2 style="font-family:var(--cond); font-size:20px; margin:0;">Commit message conventions</h2>
+<section id="agents">
+  <div class="sec-head"><h2>Parallel agent assignments</h2></div>
+  <p class="sec-note">Which branches can be handed to a separate agent, when each is allowed to start, and where it must merge. Model level is a judgement about blast radius and ambiguity, not about task size &mdash; a small task that redefines a shared shape is an Opus task, and a large task with a written spec and a test list is not.</p>
 
-  <p style="color:#32403F; font-size:13.5px; margin:0 0 12px;">Include the task ID in your commit message so it's traceable:</p>
+  <div class="grid3" style="margin-bottom:18px">
+    <div class="card">
+      <p class="kicker" style="color:var(--st-block)">Opus</p>
+      <p>Work where the <em>shape</em> is the deliverable and getting it wrong is expensive to undo: the equipment contract, the snapshot, the solver, level&ndash;hydraulics coupling, the malfunction boundary, integration reviews at each checkpoint.</p>
+    </div>
+    <div class="card">
+      <p class="kicker" style="color:var(--accent)">Sonnet</p>
+      <p>Feature work against a contract that already exists: equipment models, PID and modes, alarm management, the HTTP layer, the console, trends, scenario authoring. Most of the project.</p>
+    </div>
+    <div class="card">
+      <p class="kicker" style="color:var(--st-done)">Haiku</p>
+      <p>Narrow, fully-specified work with an obvious done condition: the clock, the RNG, the ring buffer, the isolation guard, CI wiring, hygiene, requirements, documentation.</p>
+    </div>
+  </div>
 
-  <pre style="background:#F1F3F2; border:1px solid #C9D1D0; border-radius:3px; padding:12px; font-family:var(--mono); font-size:12px; color:#32403F; overflow-x:auto;">T0-1: Retire the duplicate simulator module
+  <div class="tw">
+    <table class="atab">
+      <thead><tr><th>Branch</th><th>Scope</th><th>Agent</th><th>Can start</th><th>Merges by</th></tr></thead>
+      <tbody>
+        <tr><td colspan="5" style="background:var(--surface-2);font-family:var(--cond);font-size:10.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)">Wave 1 &middot; no gate, hand out today</td></tr>
+        <tr><td class="b">test/golden-regression</td><td>Lock current numbers before the spine moves</td><td class="b">Sonnet</td><td class="b">now</td><td class="b">CP-A</td></tr>
+        <tr><td class="b">feature/simulation-clock</td><td>Sim time, speed, pause &mdash; pure arithmetic</td><td class="b">Haiku</td><td class="b">now</td><td class="b">CP-A</td></tr>
+        <tr><td class="b">feature/seeded-rng</td><td>One seeded source; determinism service</td><td class="b">Haiku</td><td class="b">now</td><td class="b">CP-A</td></tr>
+        <tr><td class="b">feature/plant-config-schema</td><td>Contract C3 as JSON Schema plus validator</td><td class="b">Sonnet</td><td class="b">now</td><td class="b">CP-A</td></tr>
+        <tr><td class="b">feature/pid-block</td><td>PID with anti-windup against a fake process</td><td class="b">Sonnet</td><td class="b">now</td><td class="b">CP-D</td></tr>
+        <tr><td class="b">feature/envelope-evaluator</td><td>Value + limits + time &rarr; band. No plant.</td><td class="b">Sonnet</td><td class="b">now</td><td class="b">CP-E</td></tr>
+        <tr><td class="b">feature/alarm-state-machine</td><td>Contract C7 states, pure and event-driven</td><td class="b">Sonnet</td><td class="b">now</td><td class="b">CP-E</td></tr>
+        <tr><td class="b">feature/historian</td><td>Ring buffer, fixed memory, tag-keyed</td><td class="b">Haiku</td><td class="b">now</td><td class="b">CP-G</td></tr>
+        <tr><td class="b">test/import-direction-guard</td><td>Passes today, guards the layering forever</td><td class="b">Haiku</td><td class="b">now</td><td class="b">CP-A</td></tr>
+        <tr><td class="b">chore/portable-requirements</td><td>Unblocks CI and deployment entirely</td><td class="b">Haiku</td><td class="b">now</td><td class="b">CP-A</td></tr>
+        <tr><td class="b">chore/repo-hygiene</td><td>Untrack caches, clean diffs</td><td class="b">Haiku</td><td class="b">now</td><td class="b">CP-A</td></tr>
+        <tr><td class="b">docs/units-convention</td><td>Freeze units before constants multiply</td><td class="b">Haiku</td><td class="b">now</td><td class="b">CP-A</td></tr>
+        <tr><td class="b">feature/ci-pipeline</td><td>Green build on every push</td><td class="b">Haiku</td><td class="b">after requirements</td><td class="b">CP-H</td></tr>
 
-Remove app/simulator.py, which was a stale copy of GasCompressor.
-API tests now target the real object in main.py.
+        <tr><td colspan="5" style="background:var(--surface-2);font-family:var(--cond);font-size:10.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)">Wave 2 &middot; after Checkpoint A &mdash; the equipment contract is on main</td></tr>
+        <tr><td class="b">feature/control-valve</td><td>Valve as a first-class device with a characteristic</td><td class="b">Sonnet</td><td class="b">CP-A &middot; 2 Oct</td><td class="b">CP-C</td></tr>
+        <tr><td class="b">feature/vessel-model</td><td>Separator with real integrated level</td><td class="b">Sonnet</td><td class="b">CP-A &middot; 2 Oct</td><td class="b">CP-C</td></tr>
+        <tr><td class="b">feature/heat-exchanger</td><td>Duty, utility side, foulable &mdash; the E-101 heater</td><td class="b">Sonnet</td><td class="b">CP-A &middot; 2 Oct</td><td class="b">CP-C</td></tr>
+        <tr><td class="b">feature/equipment-registry</td><td>Stable tags everything else refers to</td><td class="b">Sonnet</td><td class="b">CP-A &middot; 2 Oct</td><td class="b">CP-B</td></tr>
+        <tr><td class="b">design/console-system</td><td>Colour and symbol standards before screens exist</td><td class="b">Sonnet</td><td class="b">CP-A &middot; 2 Oct</td><td class="b">CP-G</td></tr>
 
-Co-Authored-By: Claude Haiku 4.5 &lt;noreply@anthropic.com&gt;</pre>
+        <tr><td colspan="5" style="background:var(--surface-2);font-family:var(--cond);font-size:10.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)">Wave 3 &middot; after Checkpoint B &mdash; the plant is connected and solving</td></tr>
+        <tr><td class="b">test/cause-and-effect</td><td>Asserts disturbances propagate the right way</td><td class="b">Opus</td><td class="b">CP-B &middot; 30 Oct</td><td class="b">CP-C</td></tr>
+        <tr><td class="b">feature/scenario-schema</td><td>Contract C8 scenario file format</td><td class="b">Sonnet</td><td class="b">CP-B &middot; 30 Oct</td><td class="b">CP-F</td></tr>
+        <tr><td class="b">feature/interlock-evaluator</td><td>Conditions, delays, actions from config</td><td class="b">Sonnet</td><td class="b">CP-B &middot; 30 Oct</td><td class="b">CP-E</td></tr>
 
-  <p style="color:#32403F; font-size:13.5px; margin:12px 0;">Format: <code style="font-family:var(--mono);">TASK-ID: One-line summary</code>, then a blank line, then details. Include the task ID so progress is findable in git log.</p>
+        <tr><td colspan="5" style="background:var(--surface-2);font-family:var(--cond);font-size:10.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)">Wave 4 &middot; after Checkpoint D &mdash; snapshot and events carry real data</td></tr>
+        <tr><td class="b">feature/process-graphic</td><td>The P&amp;ID-style plant overview</td><td class="b">Sonnet</td><td class="b">CP-D &middot; 17 Nov</td><td class="b">CP-G</td></tr>
+        <tr><td class="b">feature/frontend-trends</td><td>Trend display over the trend API</td><td class="b">Sonnet</td><td class="b">CP-D &middot; 17 Nov</td><td class="b">CP-G</td></tr>
+        <tr><td class="b">feature/alarm-console</td><td>Banner, list, acknowledge</td><td class="b">Sonnet</td><td class="b">CP-D &middot; 17 Nov</td><td class="b">CP-G</td></tr>
+        <tr><td class="b">feature/container-wsgi</td><td>Production serving, not the dev server</td><td class="b">Sonnet</td><td class="b">CP-D &middot; 17 Nov</td><td class="b">CP-H</td></tr>
+        <tr><td class="b">feature/scoring-metrics</td><td>Reads recorded state only, never the plant</td><td class="b">Sonnet</td><td class="b">CP-E &middot; 24 Nov</td><td class="b">CP-G</td></tr>
+        <tr><td class="b">feature/scenario-pack</td><td>The six authored V1 upsets</td><td class="b">Sonnet</td><td class="b">CP-F &middot; 2 Dec</td><td class="b">CP-G</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout" style="margin-top:18px">
+    <p><strong>Thirteen branches can be handed out on day one</strong> &mdash; before a single line of the new architecture exists &mdash; because every one of them is a pure algorithm with a written specification and no plant dependency. That is the whole return on writing the contracts first.</p>
+    <p><strong>The limit on parallelism is review, not branches.</strong> Every satellite eventually merges into a spine one person owns. Running more than roughly five or six live branches at once means the integration queue, not the implementation, becomes the bottleneck &mdash; and integration is the part that cannot be parallelised.</p>
+  </div>
 </section>
 
-<section style="padding-block:34px; border-top:1px solid #DDE3E2;">
-  <h2 style="font-family:var(--cond); font-size:20px; margin:0;">Updating the live artifact</h2>
-
-  <p style="color:#32403F; font-size:13.5px; margin:0 0 12px;">The status dropdowns in the <a href="https://claude.ai/artifact/DXqzpwKxeKZNzZGrC3HkQ9" style="color:#00616F;">live build plan</a> save to a shared database. When you finish a task:</p>
-
-  <ol style="color:#32403F; font-size:13.5px; line-height:1.8;">
-    <li>Open the live artifact.</li>
-    <li>Find your task and expand it.</li>
-    <li>Change the status dropdown to "Complete".</li>
-    <li>Milestone status recalculates automatically.</li>
-  </ol>
-
-  <p style="color:#5C6A6D; font-size:13px; margin:12px 0;">The note field is for owner attribution, branch state, or "why blocked" so information doesn't live in someone's head.</p>
+<section>
+  <div class="sec-head"><h2>Integration checkpoints</h2></div>
+  <p class="sec-note">Points where open branches merge and are tested together before further work branches off. A checkpoint is not reached until its gate is green on main.</p>
+  <div class="cp" id="cps"></div>
 </section>
 
-<section style="padding-block:34px; border-top:1px solid #DDE3E2;">
-  <h2 style="font-family:var(--cond); font-size:20px; margin:0;">Next steps</h2>
-
-  <ol style="color:#32403F; font-size:13.5px; line-height:1.8;">
-    <li>Read this file.</li>
-    <li>Open the <a href="https://claude.ai/artifact/DXqzpwKxeKZNzZGrC3HkQ9" style="color:#00616F;">live build plan</a> and filter for "startable now".</li>
-    <li>Pick a task and create a branch with the recommended name.</li>
-    <li>Reference the task ID in your commits.</li>
-    <li>Update the status in the live artifact as you progress.</li>
-  </ol>
+<section>
+  <div class="sec-head"><h2>Milestones and tasks</h2></div>
+  <p class="sec-note">Milestone status is derived from its tasks. Open any task for purpose, dependencies, affected files, merge criteria, required tests and known conflict points.</p>
+  <div class="banner"><b>Repository snapshot.</b> This is the durable copy of the master build plan, committed so the plan survives if the live artifact becomes unavailable. Opened from the repository it cannot reach the shared status database, so every task below renders at its default status. For per-task status as of the last refresh read <code>docs/BUILD_PLAN_STATUS.json</code>; for live interactive status tracking open the live artifact linked from <code>DEVELOPMENT.md</code>.</div>
+  <div class="banner" id="db-banner" hidden></div>
+  <div id="milestones"></div>
 </section>
 
-<footer style="border-top:1px solid #C9D1D0; padding-block:26px 40px; color:#5C6A6D; font-size:12.5px;">
-  <p>This local copy can be opened offline and serves as a reference. For live status tracking and the full eight interface contracts, use the live artifact linked above.</p>
-</footer>
+<section id="schedule">
+  <div class="sec-head"><h2>Schedule</h2><span class="ms-phase">18 September &rarr; 18 December 2026</span></div>
+  <p class="sec-note">Thirteen weeks, drawn from the same milestone data as the checklist above &mdash; the solid portion of each bar is real completed work, so the chart reports progress rather than intent. Dashed arrows are dependencies: where one exists, the bar cannot start until the arrow lands.</p>
+
+  <div class="g-scroll"><div class="gantt" id="gantt"></div></div>
+  <div class="g-legend" id="glegend"></div>
+
+  <div class="callout" style="margin-top:22px">
+    <p><strong>Reading the overlaps.</strong> Bars that overlap are not a scheduling error &mdash; they are the plan working. M9 envelopes, M10 alarms, M16 console and M17 trends all begin weeks before the physics they display is finished, because each starts as a pure module built against a frozen contract and only needs the plant at the end. That overlap is the difference between thirteen weeks and twenty-five.</p>
+    <p><strong>Reading the gaps.</strong> Where a bar starts later than its dependency ends, the gap is deliberate float. Where a bar starts before its dependency ends, the early portion is contract-only work that does not touch the dependency's output.</p>
+    <p><strong>Where the plan protects itself.</strong> Two windows carry no new features: hardening from 7&nbsp;December and deployment from 14&nbsp;December. If work slips, it eats those windows and the release still happens on a smaller feature set. If features are added into those windows instead, the date is gone &mdash; that is the single most likely way this schedule fails.</p>
+  </div>
+</section>
 
 </main>
+
+<footer>
+  <div class="wrap">
+    <p><strong>Keeping this current:</strong> change a task's status from the dropdown and it saves for everyone immediately. Use the note field inside a task to record who owns the branch or why it is blocked. Milestone and overall progress recalculate on their own.</p>
+    <p>A task marked <em>Blocked</em> still shows its dependency chips, so the real blocker stays visible rather than living in someone's head.</p>
+    <p><strong>Schedule and checklist are one dataset.</strong> Milestone dates, the critical path, agent assignments, the deferred list and every bar in the Gantt chart are generated from the same milestone and task definitions as the checklist above. Change a status and the chart moves with it; there is no second copy of the plan to fall out of date.</p>
+  </div>
+</footer>
+
+<script>
+(function(){
+  "use strict";
+
+  var STATUSES = [
+    {k:"todo",   label:"Not Started",     v:"--st-todo"},
+    {k:"prog",   label:"In Progress",     v:"--st-prog"},
+    {k:"block",  label:"Blocked",         v:"--st-block"},
+    {k:"review", label:"Ready for Review",v:"--st-review"},
+    {k:"done",   label:"Complete",        v:"--st-done"}
+  ];
+  var SMAP = {}; STATUSES.forEach(function(s){ SMAP[s.k]=s; });
+
+  var PHASES = {
+    core:"Core foundation", phys:"Plant physics", ctrl:"Controls",
+    train:"Operator training", game:"Game and scenarios",
+    ui:"User interface", dep:"Deployment"
+  };
+
+  var MILESTONES = [
+    {id:"M0",  name:"Baseline Cleanup", phase:["core"],
+     obj:"Remove the dead code, broken routes and misleading tests in the current tree so every later refactor starts from one honest source of truth."},
+    {id:"M1",  name:"Equipment Model Contract", phase:["core"],
+     obj:"One interface every device implements, so the engine can drive equipment it has never seen. Devices stop owning their boundary pressures and start publishing a curve."},
+    {id:"M2",  name:"Simulation Engine and Clock", phase:["core"],
+     obj:"The server owns time. The browser stops driving physics, and the simulation becomes deterministic and headless-testable."},
+    {id:"M3",  name:"Plant Topology and Streams", phase:["core","phys"],
+     obj:"Describe the plant as a connected graph loaded from configuration, so adding equipment stops requiring a code change."},
+    {id:"M4",  name:"Pressure-Flow Network Solver", phase:["phys"],
+     obj:"One plant-wide hydraulic solution replacing per-equipment operating points. This is where the simulator stops being a collection of gauges and becomes a plant."},
+    {id:"M5",  name:"Inventory and Mass Balance", phase:["phys"],
+     obj:"Vessels accumulate. Level becomes real integrated state with real consequences upstream and downstream."},
+    {id:"M6",  name:"Energy Balance and Temperature", phase:["phys"],
+     obj:"Temperature becomes a propagating process variable rather than a per-machine lookup table."},
+    {id:"M7",  name:"Control Valves and Final Elements", phase:["ctrl","phys"],
+     obj:"Valves become first-class devices with characteristics, stroke rates, fail positions and fault modes, instead of attributes buried inside a compressor."},
+    {id:"M8",  name:"PID Controllers and Modes", phase:["ctrl"],
+     obj:"The plant can hold itself steady, and the operator can take it off auto."},
+    {id:"M9",  name:"Operating Envelopes", phase:["train"],
+     obj:"Every important process variable knows what normal means, and how long it has been outside it."},
+    {id:"M10", name:"Alarm System", phase:["train","ui"],
+     obj:"The plant tells the operator something is wrong without telling them what failed."},
+    {id:"M11", name:"Interlocks, Trips and Shutdown", phase:["train"],
+     obj:"The plant protects itself, and the operator gets a window in which to prevent that."},
+    {id:"M12", name:"Startup and Shutdown Sequences", phase:["train"],
+     obj:"The plant can be brought up from cold and taken down safely, which is the deepest form of process learning."},
+    {id:"M13", name:"Disturbance and Malfunction Layer", phase:["game"],
+     obj:"A clean mechanism for breaking things that never reaches inside the physics to force an outcome."},
+    {id:"M14", name:"Scenario Engine", phase:["game"],
+     obj:"Packaged exercises with objectives, triggers, hidden causes and deterministic replay."},
+    {id:"M15", name:"Action Log and Scoring", phase:["game"],
+     obj:"Measure performance purely by reading recorded state. Scoring imports from the simulation; the simulation never imports scoring."},
+    {id:"M16", name:"Operator Console", phase:["ui"],
+     obj:"One integrated console with a process graphic, faceplates and an alarm banner, replacing per-equipment pages."},
+    {id:"M17", name:"Historian and Trends", phase:["ui","train"],
+     obj:"Operators diagnose from trends, not instantaneous values. Diagnosis is impossible without history."},
+    {id:"M18", name:"Deployment and Operations", phase:["dep"],
+     obj:"Runnable by someone other than you, on a machine that is not yours, with CI guarding every merge."},
+    {id:"M19", name:"Shared Features", phase:["game","dep"],
+     obj:"Conditional. Only pursue once single-player training is genuinely solid and a shared mode adds real value."}
+  ];
+
+  // cat: ind = independent | dep = dependent | core = core/integration
+  var TASKS = [
+  // ---------------- M0 ----------------
+  {id:"T0-1",m:"M0",cat:"core",n:"Retire the duplicate simulator module",
+   p:"app/simulator.py is a stale copy of GasCompressor, and the API tests import it while the app runs a different object. Deleting it removes the only ambiguity about which model is real.",
+   d:[],f:["app/simulator.py","tests/test_api.py"],b:"chore/retire-duplicate-simulator",
+   w:["app/simulator.py deleted","No module imports PlantSimulator","API tests target the object main.py actually serves"],
+   t:["Full suite green (26 tests)","API tests pass run in isolation and in reverse order","grep for PlantSimulator returns nothing"],
+   x:"tests/test_api.py is shared with T0-3. Do this one first; it is the head of the spine."},
+
+  {id:"T0-2",m:"M0",cat:"ind",n:"Fix the broken start and stop routes",
+   p:"/start and /stop call url_for but main.py never imports it, so both routes raise NameError. Nothing catches this because only the /api routes are tested.",
+   d:[],f:["app/main.py"],b:"fix/url-for-import",
+   w:["Both routes redirect correctly","Import added, not worked around"],
+   t:["GET /start returns 302 and sets running true","GET /stop returns 302 and clears load_target"],
+   x:"app/main.py is the highest-conflict file in the repo. Take it, merge it, release it before T0-3 starts."},
+
+  {id:"T0-3",m:"M0",cat:"dep",n:"Expose the pump through API and page",
+   p:"CentrifugalPump is fully modelled and completely unreachable from the web app, so the pump physics has never been exercised end to end.",
+   d:["T0-2"],f:["app/main.py","templates/pump.html","static/pump.js"],b:"feature/pump-endpoints",
+   w:["Pump start, stop, speed and state endpoints live","Page renders and controls the pump"],
+   t:["Pump API tests mirroring the compressor API tests","Speed target clamps at 0 and 1"],
+   x:"app/main.py — must wait for T0-2 to merge. Treat the new template and js as throwaway; M16 replaces them."},
+
+  {id:"T0-4",m:"M0",cat:"ind",n:"Freeze the unit convention",
+   p:"Pressures, flows and temperatures are currently unitless magic numbers. Every model constant added from here on inherits whatever is decided now, so decide it explicitly and in writing.",
+   d:[],f:["docs/units.md"],b:"docs/units-convention",
+   w:["One unit per quantity, stated and justified","Existing constants audited against it and annotated"],
+   t:["No test needed; reviewed by reading. Optional: a constants audit test asserting documented ranges."],
+   x:"None. Pure new file."},
+
+  {id:"T0-5",m:"M0",cat:"ind",n:"Repo hygiene",
+   p:"__pycache__ and .pytest_cache directories are committed, including one nested inside app/equipment/, which adds noise to every diff.",
+   d:[],f:[".gitignore"],b:"chore/repo-hygiene",
+   w:["Caches untracked and ignored","git status clean after a test run"],
+   t:["Run the suite, confirm git status stays clean"],
+   x:"None."},
+
+  {id:"T0-6",m:"M0",cat:"ind",n:"Make the environment portable",
+   p:"requirements.txt pins packaging to a local conda build path, so the project cannot be installed on any other machine. This blocks CI and deployment entirely.",
+   d:[],f:["requirements.txt","environment.yml"],b:"chore/portable-requirements",
+   w:["Clean install succeeds in a fresh environment","Python version pinned"],
+   t:["Fresh venv install then full suite green"],
+   x:"None. Unblocks T18-3 and T18-4."},
+
+  // ---------------- M1 ----------------
+  {id:"T1-1",m:"M1",cat:"ind",n:"Golden-value regression harness",
+   p:"Lock the current simulated numbers before anything is refactored. Without this the M1 to M4 rewrites have no way to prove they preserved behaviour, and silent numerical drift becomes undetectable.",
+   d:[],f:["tests/test_golden.py","tests/golden/*.json"],b:"test/golden-regression",
+   w:["Compressor and pump traces captured over a scripted run","Tolerances set deliberately, not copied from float noise"],
+   t:["Golden traces reproduce exactly against current code","Harness fails loudly on an injected 1% change"],
+   x:"None. Write this before the spine moves — it is the safety net for everything after."},
+
+  {id:"T1-2",m:"M1",cat:"core",n:"Equipment base class and Port",
+   p:"Contract C1. Everything downstream depends on this shape, so it is the single most consequential file in the project.",
+   d:["T0-1"],f:["app/equipment/base.py"],b:"refactor/equipment-contract",
+   w:["C1 implemented exactly as published","No device reads a node pressure","Docstring states the integrate versus characteristic split"],
+   t:["Contract test parameterised over every registered class","integrate(0) is a no-op","reset() restores construction state exactly","get_state() is JSON-serialisable"],
+   x:"Spine-owned file. No satellite may edit it. Publishing this reaches Checkpoint A."},
+
+  {id:"T1-3",m:"M1",cat:"dep",n:"Refactor the compressor onto the contract",
+   p:"Move GasCompressor to the base class and strip its self-owned boundary pressures, replacing its internal operating-point solve with a published characteristic.",
+   d:["T1-2","T1-1"],f:["app/equipment/compressor.py"],b:"refactor/compressor-onto-base",
+   w:["No behaviour change","supply_pressure and discharge_header_pressure no longer device attributes"],
+   t:["Golden traces unchanged","All 17 compressor tests green"],
+   x:"Runs in parallel with T1-4 — different file, same base class. Both rebase on T1-2."},
+
+  {id:"T1-4",m:"M1",cat:"dep",n:"Refactor the pump onto the contract",
+   p:"Same move for CentrifugalPump. It shares _move_toward and the shutoff-rise structure with the compressor, and that duplication becomes shared base behaviour.",
+   d:["T1-2","T1-1"],f:["app/equipment/pump.py"],b:"refactor/pump-onto-base",
+   w:["No behaviour change","Duplicated helpers removed in favour of the base"],
+   t:["Golden traces unchanged","All 4 pump tests green"],
+   x:"Parallel with T1-3. Both touch base.py only by importing it."},
+
+  {id:"T1-5",m:"M1",cat:"dep",n:"Equipment registry and tag naming",
+   p:"Devices need stable tags (K-101, P-101) so config, alarms, trends, scoring and the console can all refer to the same thing by name rather than by object reference.",
+   d:["T1-2"],f:["app/equipment/registry.py","app/config.py"],b:"feature/equipment-registry",
+   w:["Registry resolves tag to device","Duplicate tag registration rejected","Naming convention documented"],
+   t:["Duplicate tag raises","Unknown tag lookup raises with a useful message","Registry round-trips every built-in type"],
+   x:"Appends a section to app/config.py. Append only, never reorder."},
+
+  // ---------------- M2 ----------------
+  {id:"T2-1",m:"M2",cat:"ind",n:"Simulation clock",
+   p:"Sim time, wall time, speed multiplier, pause and resume as a self-contained object. Pure arithmetic with no plant dependency, so it can be built and finished today.",
+   d:[],f:["app/engine/clock.py"],b:"feature/simulation-clock",
+   w:["Speed and pause work","No reference to real time inside any model"],
+   t:["100 steps at 1x and at 10x give identical step counts","Pause freezes sim time and resume continues it","Speed change mid-run does not skip or repeat a step"],
+   x:"None. New directory."},
+
+  {id:"T2-2",m:"M2",cat:"ind",n:"Seeded RNG service",
+   p:"Every random draw in the project must come from one seeded source, or scenario replay and repeatable scoring are impossible later. Cheap now, very expensive to retrofit.",
+   d:[],f:["app/engine/rng.py"],b:"feature/seeded-rng",
+   w:["Single seeded source","No module-level use of random anywhere in app/"],
+   t:["Same seed gives identical sequences","Independent streams do not interfere","Lint test: no bare import random outside this module"],
+   x:"None."},
+
+  {id:"T2-3",m:"M2",cat:"core",n:"Engine step loop and snapshot publisher",
+   p:"Contract C4. Integrate all equipment, solve the algebraic state, publish one immutable snapshot. This object becomes the only thing the rest of the system reads.",
+   d:["T1-2","T2-1"],f:["app/engine/engine.py","app/engine/snapshot.py"],b:"refactor/simulation-engine",
+   w:["Fixed timestep, injected dt, never time.time() inside a model","Snapshot matches C4 exactly"],
+   t:["Determinism: same config, same seed, N steps, bit-identical twice","Snapshot schema validation test","Golden traces still reproduce through the engine"],
+   x:"Spine-owned. Blocks most of M4 onward."},
+
+  {id:"T2-4",m:"M2",cat:"dep",n:"Session and plant registry",
+   p:"main.py currently holds one module-global compressor, so every browser shares one plant. Multi-user, scenario isolation and testing all need per-session plant instances.",
+   d:["T2-3"],f:["app/engine/sessions.py","app/main.py"],b:"feature/session-registry",
+   w:["Plant instance per session","No module-global equipment remains"],
+   t:["Two sessions run independent plants with no cross-talk","Session teardown releases the plant"],
+   x:"app/main.py — serialise with any other branch touching it."},
+
+  {id:"T2-5",m:"M2",cat:"dep",n:"Background scheduler",
+   p:"Physics must advance on its own clock whether or not a browser is asking, which is the precondition for gradual upsets and unattended trips.",
+   d:["T2-3","T2-4"],f:["app/engine/scheduler.py"],b:"feature/engine-scheduler"
+   ,w:["Steps at a stable rate under load","Clean shutdown, no orphan threads"],
+   t:["Step rate holds within tolerance over a sustained run","Stop joins cleanly","Slow step logs a warning rather than silently drifting"],
+   x:"None, but it is the first concurrency in the codebase — review carefully for shared-state races against the snapshot."},
+
+  {id:"T2-6",m:"M2",cat:"dep",n:"Frontend stops driving physics",
+   p:"static/compressor.js currently POSTs /api/step to advance the simulation. Once the server owns time the browser becomes a pure consumer of snapshots.",
+   d:["T2-5"],f:["static/compressor.js"],b:"refactor/frontend-read-only",
+   w:["No step calls from the client","Display driven by polled snapshots"],
+   t:["Manual browser check: values advance with no client stepping","Closing the tab does not stop the plant"],
+   x:"This file is frozen otherwise and dies at M16 — do the minimum."},
+
+  // ---------------- M3 ----------------
+  {id:"T3-1",m:"M3",cat:"ind",n:"Plant config schema and validator",
+   p:"Contract C3 written as a real JSON Schema plus a validator. Producing it early unblocks limits, controllers and interlocks work that would otherwise queue behind the solver.",
+   d:[],f:["config/schema/plant.schema.json","app/plant/validate.py"],b:"feature/plant-config-schema",
+   w:["Schema covers nodes, equipment, limits, controllers, interlocks","Validation errors name the offending path"],
+   t:["Valid fixture passes","Each malformed fixture fails with a specific message","Unknown keys rejected, not ignored"],
+   x:"None. Landing this early is what makes M8 to M11 parallelisable."},
+
+  {id:"T3-2",m:"M3",cat:"core",n:"Node, branch and stream structures",
+   p:"Contract C2. The graph the solver walks and the material state it carries.",
+   d:["T1-2"],f:["app/plant/topology.py"],b:"feature/plant-topology",
+   w:["C2 implemented","Graph is inspectable and printable for debugging"],
+   t:["Graph construction from a fixture","Port-to-node binding correct","Stream defaults sane at zero flow"],
+   x:"Spine-owned file."},
+
+  {id:"T3-3",m:"M3",cat:"dep",n:"Plant loader and topology validation",
+   p:"Build a Plant from a config file and reject topologies that cannot be solved, at load time rather than at step time where the failure is unreadable.",
+   d:["T3-1","T3-2"],f:["app/plant/loader.py"],b:"feature/plant-loader",
+   w:["Loads the reference plant","Rejects unsolvable topologies with a clear reason"],
+   t:["Dangling port rejected","Duplicate tag rejected","Zero pressure boundaries rejected","Disconnected subgraph rejected","Round trip: plant to config to plant is identical"],
+   x:"None beyond the schema, which T3-1 owns."},
+
+  {id:"T3-4",m:"M3",cat:"dep",n:"Reference plant configuration",
+   p:"The smallest topology that exercises real interaction: supply header, feed pump, separator, compressor, discharge header. Becomes the fixture for every later test.",
+   d:["T3-3"],f:["config/plants/olefins_lite.yaml"],b:"feature/reference-plant",
+   w:["Loads and solves","Design values reviewed against docs/units.md"],
+   t:["Loads without warnings","Reaches a plausible steady state from cold"],
+   x:"Shared config file from here on. One owner per top-level key."},
+
+  // ---------------- M4 ----------------
+  {id:"T4-1",m:"M4",cat:"core",n:"Branch characteristic interface",
+   p:"Formalise how a device reports pressure change versus flow, including sign convention and reverse flow. Get the sign convention wrong here and every device is wrong.",
+   d:["T1-2","T3-2"],f:["app/equipment/base.py","app/plant/topology.py"],b:"feature/branch-characteristic",
+   w:["Sign convention documented and applied uniformly","Reverse flow defined for every device type"],
+   t:["Each device type returns the expected sign at positive, zero and negative flow","Monotonic where physically expected"],
+   x:"Spine-owned, touches two core files. Publishing this unblocks T4-2 as a satellite."},
+
+  {id:"T4-2",m:"M4",cat:"dep",n:"Newton-Raphson network solver",
+   p:"Solve all node pressures and branch flows simultaneously so that mass balances everywhere and every branch sits on its own curve. Self-contained maths once T4-1 exists, so it can be developed off the spine.",
+   d:["T4-1","T3-3"],f:["app/engine/network.py"],b:"feature/network-solver",
+   w:["Converges on the reference plant from cold and from ramped states","Damping and iteration cap in place"],
+   t:["Sum of flows is zero at every internal node across a randomised sweep","Converges at extreme valve positions","Closed valve does not divide by zero","Single-branch case matches the golden analytic answer"],
+   x:"New file, but it is the heart of the physics. Review as core work even though it merges as a satellite."},
+
+  {id:"T4-3",m:"M4",cat:"dep",n:"Solver diagnostics and failure handling",
+   p:"Non-convergence must be visible, never silently wrong. A simulator that quietly returns garbage teaches operators the wrong lessons.",
+   d:["T4-2"],f:["app/engine/network.py","app/engine/snapshot.py"],b:"feature/solver-diagnostics",
+   w:["Iterations, residual and converged flag in the snapshot","Non-convergence raises or flags, never returns a guess"],
+   t:["Deliberately unsolvable topology raises","Diagnostics appear in the snapshot","Residual falls below tolerance on the reference plant"],
+   x:"snapshot.py is spine-owned. Coordinate the field addition."},
+
+  {id:"T4-4",m:"M4",cat:"core",n:"Wire the solver into the engine",
+   p:"Retire per-equipment operating points. This is the moment the plant becomes connected, and the moment the old single-device behaviour formally ends.",
+   d:["T4-2","T2-3"],f:["app/engine/engine.py","app/equipment/compressor.py","app/equipment/pump.py"],b:"refactor/solver-integration",
+   w:["_calculate_operating_point removed from both devices","Golden traces reconciled, with any intentional differences explained in the PR"],
+   t:["Full suite green","Golden traces reproduce or the delta is documented and justified"],
+   x:"Touches three core files at once. This is Checkpoint B — freeze other merges while it lands."},
+
+  {id:"T4-5",m:"M4",cat:"dep",n:"Cause-and-effect assertion suite",
+   p:"The project's stated goal is believable cause and effect. This suite is the executable statement of what that means, and it guards every later physics change.",
+   d:["T4-4"],f:["tests/test_cause_effect.py"],b:"test/cause-and-effect",
+   w:["Each documented behaviour has an assertion"],
+   t:["Closing a downstream valve lowers flow and raises upstream pressure","More compressor load raises flow and discharge pressure","Two parallel pumps raise flow by less than 2x","Added restriction raises upstream pressure"],
+   x:"None. Can be written against the contract before T4-4 lands."},
+
+  // ---------------- M5 ----------------
+  {id:"T5-1",m:"M5",cat:"dep",n:"Vessel model",
+   p:"Separators and knockout drums with integrated level. New file against C1, so it parallelises cleanly with the energy work.",
+   d:["T1-2"],f:["app/equipment/vessel.py"],b:"feature/vessel-model",
+   w:["Level integrates from net flow","Clamps at 0 and 100 percent without instability"],
+   t:["Level rises with inlet above outlet and falls with the reverse","Clamping is stable over long runs","Residence time correct for a known geometry"],
+   x:"None."},
+
+  {id:"T5-2",m:"M5",cat:"core",n:"Level to hydraulics coupling",
+   p:"Level must affect the network — liquid head on the outlet, loss of suction when empty, carryover when full. Without this a vessel is just a number on a screen.",
+   d:["T5-1","T4-4"],f:["app/engine/engine.py","app/equipment/vessel.py"],b:"feature/inventory-coupling",
+   w:["Low level reduces downstream pump suction pressure","High level raises a carryover flag"],
+   t:["Draining a vessel drops pump suction pressure and flow","Carryover flag fires at the configured level","No solver instability as level crosses zero"],
+   x:"Spine-owned engine file."},
+
+  {id:"T5-3",m:"M5",cat:"dep",n:"Gas-phase pressure accumulation",
+   p:"Vessels where pressure builds from net molar flow. This is what makes drum and column pressure upsets feel real rather than instantaneous.",
+   d:["T5-1"],f:["app/equipment/vessel.py"],b:"feature/gas-inventory",
+   w:["dP/dt from net molar flow","Time constant is plausible for the vessel size"],
+   t:["Blocked outlet raises pressure at the expected rate","Pressure falls on venting","Conserves mass over a closed cycle"],
+   x:"Same file as T5-1 — sequence them, do not run both at once."},
+
+  {id:"T5-4",m:"M5",cat:"dep",n:"Mass balance conservation suite",
+   p:"Prove nothing is created or destroyed, which is the single most effective guard against solver regressions.",
+   d:["T5-2"],f:["tests/test_mass_balance.py"],b:"test/mass-balance",
+   w:["Closes to tolerance across all reference topologies"],
+   t:["In equals out plus accumulation over a long run","10,000 steps at steady state with no drift","Balance holds through a transient"],
+   x:"None."},
+
+  // ---------------- M6 ----------------
+  {id:"T6-1",m:"M6",cat:"dep",n:"Stream enthalpy and mixing",
+   p:"Temperature needs somewhere to live and a rule for what happens when streams meet at a node.",
+   d:["T3-2"],f:["app/plant/thermo.py"],b:"feature/stream-enthalpy",
+   w:["Cp model per component","Flow-weighted mixing at nodes"],
+   t:["Mixing two streams gives a correctly weighted intermediate temperature","Energy closes across a mixing node","Zero-flow case does not divide by zero"],
+   x:"None. Unblocks T6-2 through T6-4, which then run in parallel."},
+
+  {id:"T6-2",m:"M6",cat:"dep",n:"Polytropic compression temperature",
+   p:"Replace the three-branch piecewise temperature table in compressor.py with the real relation. One line of thermodynamics removes three magic constants and starts responding to actual pressure ratio.",
+   d:["T6-1"],f:["app/equipment/compressor.py"],b:"feature/polytropic-temperature",
+   w:["Piecewise table removed","Efficiency is a named design parameter, not a literal"],
+   t:["Ratio of 1.0 gives zero rise","Discharge temperature rises monotonically with ratio","Golden traces updated deliberately, with the change explained"],
+   x:"compressor.py is also touched by M7. Sequence M6 then M7, or expect a conflict."},
+
+  {id:"T6-3",m:"M6",cat:"dep",n:"Heat exchanger model",
+   p:"UA-based duty with an integrated metal temperature lag, so cooling loss ramps rather than stepping.",
+   d:["T6-1"],f:["app/equipment/exchanger.py"],b:"feature/heat-exchanger",
+   w:["Duty from UA and approach temperature","Metal thermal inertia integrated"],
+   t:["Energy balance closes across the exchanger","Cutting duty raises downstream temperature on a plausible time constant","Fouling reduces UA and reduces duty"],
+   x:"None. Parallel with T6-2 and T6-4."},
+
+  {id:"T6-4",m:"M6",cat:"dep",n:"Furnace model",
+   p:"Fired duty with a setpoint, a firing ramp rate and thermal inertia. The cracking section's heart, and the source of the plant's most dramatic upsets.",
+   d:["T6-1"],f:["app/equipment/furnace.py"],b:"feature/furnace",
+   w:["Duty setpoint with a ramp rate","Outlet temperature responds with inertia"],
+   t:["Step in duty produces a first-order outlet response","Trip to zero firing cools at the expected rate","Duty limits clamp"],
+   x:"None. Parallel with T6-2 and T6-3."},
+
+  {id:"T6-5",m:"M6",cat:"core",n:"Energy propagation through the network",
+   p:"Wire enthalpy transport into the engine step so temperature moves with flow across the whole plant, in the right direction, including on reversal.",
+   d:["T6-1","T4-4"],f:["app/engine/engine.py"],b:"feature/energy-balance",
+   w:["Temperature propagates downstream","Reverse flow carries energy the right way"],
+   t:["Cooling loss raises temperature at every downstream point","Plant-wide energy balance closes","Flow reversal does not invert the temperature field"],
+   x:"Spine-owned. This is Checkpoint C."},
+
+  // ---------------- M7 ----------------
+  {id:"T7-1",m:"M7",cat:"dep",n:"Control valve model",
+   p:"Cv, inherent characteristic, stroke rate and fail position as a proper device. Currently this logic lives inside the compressor, where no other equipment can use it.",
+   d:["T1-2","T4-1"],f:["app/equipment/valve.py"],b:"feature/control-valve",
+   w:["Linear and equal-percentage characteristics","Stroke rate limited, travel bounded","Fail-closed and fail-open supported"],
+   t:["Characteristics produce the expected flow curves","Stroke never exceeds the rate limit","Fail position reached on signal loss","Minimum position does not divide by zero"],
+   x:"None. New file — a strong candidate for an independent agent once C1 is on main."},
+
+  {id:"T7-2",m:"M7",cat:"core",n:"Extract valve logic from the compressor",
+   p:"Remove discharge_valve_position, its target, its rate and valve_resistance from GasCompressor and replace them with a real valve on the discharge branch.",
+   d:["T7-1","T4-4"],f:["app/equipment/compressor.py","config/plants/olefins_lite.yaml"],b:"refactor/extract-compressor-valve",
+   w:["No valve attributes remain on the compressor","Reference plant updated to place the valve explicitly"],
+   t:["Behaviour preserved against golden traces","Valve API tests still pass against the new tag"],
+   x:"compressor.py again — conflicts with T6-2. Do not run these two concurrently."},
+
+  {id:"T7-3",m:"M7",cat:"dep",n:"Valve fault modes",
+   p:"Stuck, slow, reversed and passing-through as device properties, which is what M13 will reach for rather than inventing its own mechanism.",
+   d:["T7-1"],f:["app/equipment/valve.py"],b:"feature/valve-faults",
+   w:["Each fault expressed purely as a parameter change","No fault writes a flow or pressure"],
+   t:["Stuck valve ignores commands and holds position","Slow valve strokes at the reduced rate","Passing valve leaks at minimum position"],
+   x:"Same file as T7-1 — sequence them."},
+
+  {id:"T7-4",m:"M7",cat:"core",n:"Command arbitration",
+   p:"One place decides between operator, controller and interlock demands, with a fixed precedence. Without this, three subsystems fight over the same output and the winner depends on execution order.",
+   d:["T7-1"],f:["app/controls/arbitration.py"],b:"feature/command-arbitration",
+   w:["Precedence is interlock, then operator, then controller","Every final element routes through it"],
+   t:["Interlock demand overrides an operator command","Operator override beats the controller in manual","Precedence is stable regardless of arrival order"],
+   x:"Shared by M8 and M11. Define it once, here, before either needs it."},
+
+  // ---------------- M8 ----------------
+  {id:"T8-1",m:"M8",cat:"ind",n:"PID block",
+   p:"A standalone PID with anti-windup, output clamping and derivative on measurement. Depends on no plant code whatsoever and is fully testable against a fake first-order process, which makes it the single best candidate for immediate parallel work.",
+   d:[],f:["app/controls/pid.py"],b:"feature/pid-block",
+   w:["Anti-windup and clamping present","Derivative on measurement, not on error"],
+   t:["Step response reaches setpoint with no sustained offset","Saturate then release produces no windup overshoot","Setpoint change produces no derivative kick","Deliberately bad tuning oscillates as expected"],
+   x:"None. New directory, zero plant dependency. Start today."},
+
+  {id:"T8-2",m:"M8",cat:"dep",n:"Control modes and bumpless transfer",
+   p:"Auto, Manual and Cascade with no output step on a mode change. Operators will switch modes constantly during upsets, and a bump on every transfer would make manual intervention worse than doing nothing.",
+   d:["T8-1"],f:["app/controls/modes.py"],b:"feature/control-modes",
+   w:["Bumpless in both directions","Cascade slave tracks when the master is off auto"],
+   t:["Auto to Manual to Auto produces no output step","Integral preloaded correctly on transfer","Cascade slave tracks while the master is in manual"],
+   x:"None."},
+
+  {id:"T8-3",m:"M8",cat:"dep",n:"Loop configuration and tag wiring",
+   p:"Define loops in plant config against real tags, so adding a controller is a config change rather than a code change.",
+   d:["T3-1","T8-2","T1-5"],f:["app/controls/loader.py","config/plants/olefins_lite.yaml"],b:"feature/loop-config",
+   w:["Loops load from the controllers key","Unknown PV or output tag fails at load"],
+   t:["Loop loads and binds to real tags","Unresolvable tag rejected at load with a clear message"],
+   x:"Shares the reference plant config. Owns only the controllers key."},
+
+  {id:"T8-4",m:"M8",cat:"core",n:"Loop execution in the engine step",
+   p:"Controllers read the previous snapshot and write before the solve, with a defined order. Ambiguity here produces one-step lags that are nearly impossible to debug later.",
+   d:["T8-3","T2-3"],f:["app/engine/engine.py"],b:"feature/loop-execution",
+   w:["Execution order defined and documented","No controller reads a mid-solve value"],
+   t:["Loop holds setpoint through an injected upstream disturbance","Execution order is deterministic","No one-step lag between PV and controller response"],
+   x:"Spine-owned. This is Checkpoint D."},
+
+  {id:"T8-5",m:"M8",cat:"dep",n:"Cascade control",
+   p:"Level to flow cascade, the standard structure for vessel control and a prerequisite for realistic separator scenarios.",
+   d:["T8-4"],f:["app/controls/cascade.py"],b:"feature/cascade-control",
+   w:["Master writes slave setpoint","Slave mode changes handled safely"],
+   t:["Cascade holds level against an inlet flow disturbance","Breaking the cascade leaves the slave in a safe mode"],
+   x:"None."},
+
+  // ---------------- M9 ----------------
+  {id:"T9-1",m:"M9",cat:"ind",n:"Envelope evaluator",
+   p:"Classify a value against normal, warning, alarm and trip bands with deadband and on-delay. Pure function of value, limits and time — buildable and finishable today with no plant at all.",
+   d:[],f:["app/envelope/evaluator.py"],b:"feature/envelope-evaluator",
+   w:["Deadband and on-delay implemented","Behaviour exactly on a boundary is defined, not accidental"],
+   t:["Correct classification at every band boundary including exactly on the limit","Deadband prevents chatter for a PV hovering at a threshold","On-delay suppresses a brief transient"],
+   x:"None. New directory. Start today."},
+
+  {id:"T9-2",m:"M9",cat:"dep",n:"Limit definitions in plant config",
+   p:"Limits belong beside the tag in configuration, never hardcoded in an equipment model where they cannot be tuned per plant.",
+   d:["T3-1","T9-1"],f:["config/plants/olefins_lite.yaml","app/envelope/loader.py"],b:"feature/envelope-limits",
+   w:["Limits load from the limits key","Inconsistent ordering rejected at load"],
+   t:["Limits load and bind","lo_lo above lo is rejected","Missing limits for a tag is a clear warning, not a crash"],
+   x:"Owns only the limits key of the reference plant config."},
+
+  {id:"T9-3",m:"M9",cat:"dep",n:"Time-in-band and excursion tracking",
+   p:"Track how long each variable has been outside normal and how far it went. This is the raw material for both the trip delay window and the entire scoring system.",
+   d:["T9-1"],f:["app/envelope/tracker.py"],b:"feature/excursion-tracking",
+   w:["Accumulates per tag per band","Peak excursion captured with its timestamp"],
+   t:["Accumulated time matches injected step counts exactly","Peak captured across a transient","Counters reset correctly on scenario reset"],
+   x:"None."},
+
+  {id:"T9-4",m:"M9",cat:"dep",n:"Envelope status in the snapshot",
+   p:"Expose band status so the console, the alarm manager and scoring all read the same classification rather than each re-deriving it.",
+   d:["T9-2","T9-3","T2-3"],f:["app/engine/snapshot.py"],b:"feature/envelope-in-snapshot",
+   w:["Envelope block matches C4","Adds no measurable per-step cost"],
+   t:["Snapshot schema test covers the envelope block","Status matches the evaluator for every tag"],
+   x:"snapshot.py is spine-owned. Coordinate."},
+
+  // ---------------- M10 ----------------
+  {id:"T10-1",m:"M10",cat:"ind",n:"Alarm state machine",
+   p:"Contract C7. The full ISA-style lifecycle as a pure state machine, including the awkward clear-before-acknowledge path that is usually where these go wrong.",
+   d:[],f:["app/alarms/state.py"],b:"feature/alarm-state-machine",
+   w:["All transitions implemented","Clear-before-acknowledge handled explicitly"],
+   t:["Full transition coverage","Cleared but unacknowledged persists until acknowledged","Re-alarm before acknowledgement does not duplicate"],
+   x:"None. New directory. Start today."},
+
+  {id:"T10-2",m:"M10",cat:"dep",n:"Alarm manager over envelope events",
+   p:"Turn band changes into prioritised alarm events in the C6 shape.",
+   d:["T9-1","T10-1"],f:["app/alarms/manager.py"],b:"feature/alarm-manager",
+   w:["Priorities assigned from config","Messages name symptoms only, never causes"],
+   t:["Band change produces the right alarm and priority","Message-content test asserting no causal language","Clearing the condition clears the alarm"],
+   x:"None."},
+
+  {id:"T10-3",m:"M10",cat:"dep",n:"Alarm history and acknowledge",
+   p:"Persist the alarm record for the debrief and expose acknowledgement through the API.",
+   d:["T10-2"],f:["app/alarms/history.py","app/api/alarms.py"],b:"feature/alarm-history",
+   w:["History retained per scenario run","Acknowledge endpoint live"],
+   t:["History survives a full scenario","Acknowledge transitions state and is recorded","History bounded, with oldest pruned first"],
+   x:"Adds an API module. Follows C5 so it does not touch main.py."},
+
+  {id:"T10-4",m:"M10",cat:"dep",n:"Flood suppression and first-out",
+   p:"One upset must not produce a hundred entries, and the operator needs to know which alarm came first. Without this, a real cascade is unreadable and therefore untrainable.",
+   d:["T10-2"],f:["app/alarms/manager.py"],b:"feature/alarm-flood-control",
+   w:["Related alarms grouped or suppressed","First-out flagged on a cascade"],
+   t:["Large upset produces a bounded prioritised list","First-out identifies the earliest alarm in a cascade","Suppression never hides a critical alarm"],
+   x:"Same file as T10-2 — sequence them."},
+
+  {id:"T10-5",m:"M10",cat:"dep",n:"Alarm banner and summary",
+   p:"The console surface for alarms. Frontend work against the C4 and C6 contracts, so it needs no backend code to exist.",
+   d:["T10-3"],f:["static/js/alarms.js","static/css/alarms.css"],b:"feature/alarm-console",
+   w:["Priority-coloured banner","Summary page with acknowledge, sortable"],
+   t:["Renders correctly against recorded snapshot fixtures","Acknowledge round-trips","Colours legible in both themes"],
+   x:"None. Fully parallel with backend alarm work once the contracts are frozen."},
+
+  // ---------------- M11 ----------------
+  {id:"T11-1",m:"M11",cat:"dep",n:"Interlock definitions and evaluator",
+   p:"Condition, delay, actions and reset requirements, in config. The delay is the operator's recovery window, which is the central training mechanic of the whole simulator.",
+   d:["T3-1","T9-1"],f:["app/safety/interlocks.py","config/plants/olefins_lite.yaml"],b:"feature/interlock-evaluator",
+   w:["Interlocks load from config","Delay timers accurate to the step"],
+   t:["Trip fires exactly at the limit after exactly the configured delay","Recovery inside the window prevents the trip","Timer resets when the condition clears"],
+   x:"Owns only the interlocks key of the reference plant config."},
+
+  {id:"T11-2",m:"M11",cat:"core",n:"Trip actions on equipment",
+   p:"Trips must manipulate real devices through the arbitration layer: stop the machine, drive valves to fail position, open recycle.",
+   d:["T11-1","T7-4"],f:["app/safety/actions.py"],b:"feature/trip-actions",
+   w:["All actions route through command arbitration","Equipment left in the configured safe state"],
+   t:["Each trip action leaves the configured state","Trip overrides an operator command","Cascade trip propagates through the network from the physics, not from a script"],
+   x:"Depends on arbitration. Do not bypass it for convenience."},
+
+  {id:"T11-3",m:"M11",cat:"dep",n:"Permissives and reset",
+   p:"What must be true before equipment can restart. This is what makes recovery a skill rather than a button.",
+   d:["T11-2"],f:["app/safety/permissives.py"],b:"feature/permissives",
+   w:["Start blocked until permissives satisfied","Reset required after a trip"],
+   t:["Restart blocked with an unsatisfied permissive and the reason is reported","Reset clears the trip","Reset without clearing the condition re-trips"],
+   x:"None."},
+
+  {id:"T11-4",m:"M11",cat:"dep",n:"First-out trip capture",
+   p:"Record which trip fired first in a cascade, which is almost always the diagnostic key in the debrief.",
+   d:["T11-2"],f:["app/safety/firstout.py"],b:"feature/first-out-capture",
+   w:["First-out recorded per shutdown event"],
+   t:["Cascade records the correct first-out","Simultaneous trips resolve deterministically"],
+   x:"None."},
+
+  // ---------------- M12 ----------------
+  {id:"T12-1",m:"M12",cat:"ind",n:"Plant snapshot save and restore",
+   p:"Serialise and restore complete plant state. Useful far earlier than M12 — it is the fastest way to build test fixtures and to debug an upset by replaying it, so consider pulling it forward.",
+   d:["T2-3"],f:["app/engine/persistence.py"],b:"feature/state-persistence",
+   w:["Every integrated state captured, including controller integrals","Restore is exact"],
+   t:["Snapshot, restore, step gives state identical to not having snapshotted","Round trip through JSON is lossless","Missing field in an old save fails loudly"],
+   x:"None. High leverage for everything after it."},
+
+  {id:"T12-2",m:"M12",cat:"dep",n:"Named initial conditions library",
+   p:"Cold, hot standby, normal operation, upset-in-progress. Scenarios need to start anywhere, and these double as the fixture library for the whole test suite.",
+   d:["T12-1"],f:["config/initial_conditions/*.json"],b:"feature/initial-conditions",
+   w:["At least four named conditions","Each loads to a stable state"],
+   t:["Each condition loads and holds steady","No condition starts in alarm unless intended"],
+   x:"None."},
+
+  {id:"T12-3",m:"M12",cat:"dep",n:"Plant state machine",
+   p:"Cold, purged, pressurised, circulating, on-spec, shutting down, as a layer above equipment.",
+   d:["T11-3"],f:["app/plant/states.py"],b:"feature/plant-state-machine",
+   w:["Transitions gated by real plant conditions, not by a button"],
+   t:["Each transition requires its real conditions","Illegal transitions rejected"],
+   x:"None."},
+
+  {id:"T12-4",m:"M12",cat:"dep",n:"Startup and shutdown sequences",
+   p:"Step-by-step startup with hold points, plus normal and emergency shutdown paths.",
+   d:["T12-3","T12-2"],f:["config/sequences/*.yaml","app/plant/sequences.py"],b:"feature/startup-sequence",
+   w:["Cold start reaches normal operation","Emergency shutdown distinct from normal"],
+   t:["Full cold start with no alarm or trip","Out-of-order step blocked by permissives","Normal shutdown ends restartable"],
+   x:"None."},
+
+  // ---------------- M13 ----------------
+  {id:"T13-1",m:"M13",cat:"dep",n:"Malfunction model and registry",
+   p:"Contract C8. Target, parameter, magnitude, profile, start condition — and the hard structural rule that only engineer-changeable parameters may be written.",
+   d:["T1-5","T3-1"],f:["app/disturbances/malfunction.py"],b:"feature/malfunction-model",
+   w:["C8 implemented","Writable parameters explicitly allowlisted per device type"],
+   t:["Malfunction applies and reverts cleanly","Attempting to write a solver output raises","Registry resolves every catalogued type"],
+   x:"None."},
+
+  {id:"T13-2",m:"M13",cat:"core",n:"Split true and indicated values",
+   p:"Every measurement gains a true value and an indicated value. This is what makes instrument failure possible and diagnosis genuinely hard — and it touches every model's state output, so it must be done once, deliberately, by one owner.",
+   d:["T13-1","T2-3"],f:["app/equipment/base.py","app/engine/snapshot.py"],b:"refactor/true-vs-indicated",
+   w:["Controllers and alarms read indicated, never true","Scoring and tests may read true"],
+   t:["Instrument bias makes indicated diverge while true stays correct","Controller reacts to indicated, which is the entire point","No consumer accidentally reads true"],
+   x:"Spine-owned, touches two core files, changes the snapshot shape. Schedule it as a deliberate breaking change."},
+
+  {id:"T13-3",m:"M13",cat:"dep",n:"Injection profiles",
+   p:"Step, ramp, and condition-triggered onset. Gradual faults are what force operators to read trends rather than wait for an alarm.",
+   d:["T13-1"],f:["app/disturbances/profiles.py"],b:"feature/malfunction-profiles",
+   w:["Step and ramp both supported","Onset can be time or condition based"],
+   t:["Ramp produces a gradual trend, not a step","Step applies within one tick","Condition trigger fires once when configured one-shot"],
+   x:"None."},
+
+  {id:"T13-4",m:"M13",cat:"dep",n:"Malfunction catalogue",
+   p:"The concrete fault library: compressor trip, pump trip, loss of feed, fouled exchanger, restricted line, stuck valve, cooling loss, instrument drift, controller left in manual.",
+   d:["T13-1","T13-2","T7-3"],f:["config/malfunctions/*.yaml"],b:"feature/malfunction-catalogue",
+   w:["Each fault produces a physically correct response through the solver","Each documented with its expected symptoms"],
+   t:["Every catalogued fault produces the expected response direction","Fouling raises downstream temperature","Instrument drift does not change the true process value"],
+   x:"None. Good work for a separate agent — it is content authoring once the mechanism exists."},
+
+  {id:"T13-5",m:"M13",cat:"ind",n:"Physics isolation guard",
+   p:"A structural test that the disturbance layer never writes a solver output. The rule is easy to state and easy to violate accidentally under deadline pressure, so enforce it in CI.",
+   d:[],f:["tests/test_layer_isolation.py"],b:"test/import-direction-guard",
+   w:["Test passes today and fails on a deliberate violation"],
+   t:["No physics module imports from disturbances or scoring","Malfunctions write only allowlisted parameters","Deliberate violation is caught"],
+   x:"None. Write it now, while it trivially passes, so the boundary is guarded from the first day it exists."},
+
+  // ---------------- M14 ----------------
+  {id:"T14-1",m:"M14",cat:"ind",n:"Scenario file schema",
+   p:"Authoring a scenario must require zero Python. Writing the schema early lets scenario content be authored in parallel with the engine that runs it.",
+   d:[],f:["config/schema/scenario.schema.json"],b:"feature/scenario-schema",
+   w:["Covers initial condition, malfunctions, triggers, objectives, limit, difficulty, seed"],
+   t:["Valid fixture passes","Each malformed fixture fails with a specific message"],
+   x:"None. Start today."},
+
+  {id:"T14-2",m:"M14",cat:"dep",n:"Trigger evaluator",
+   p:"Time, condition and operator-action triggers evaluated each step.",
+   d:["T14-1","T2-3"],f:["app/scenarios/triggers.py"],b:"feature/scenario-triggers",
+   w:["All three trigger types","One-shot honoured"],
+   t:["Each type fires under the right conditions","One-shot fires exactly once","Trigger evaluation adds no measurable step cost"],
+   x:"None."},
+
+  {id:"T14-3",m:"M14",cat:"dep",n:"Objective evaluator",
+   p:"Express goals like return discharge pressure to normal and hold it for five minutes without a trip.",
+   d:["T14-1","T9-3"],f:["app/scenarios/objectives.py"],b:"feature/scenario-objectives",
+   w:["Success, failure and timeout paths all evaluated","Hold-duration objectives supported"],
+   t:["Success path evaluates correctly","Failure and timeout paths evaluate correctly","Hold duration resets if the variable leaves the band"],
+   x:"None."},
+
+  {id:"T14-4",m:"M14",cat:"dep",n:"Scenario lifecycle and API",
+   p:"Load, arm, run, complete, debrief — plus the endpoints from C5.",
+   d:["T14-2","T14-3","T12-2"],f:["app/scenarios/runner.py","app/api/scenario.py"],b:"feature/scenario-runner",
+   w:["Full lifecycle","Arming disturbs no physics"],
+   t:["Scenario loads and arms with no state change","Ignored scenario reaches the expected trip","Correctly recovered scenario reaches the expected success","Abort restores a clean state"],
+   x:"None. This is Checkpoint F."},
+
+  {id:"T14-5",m:"M14",cat:"dep",n:"Deterministic replay",
+   p:"Scenario plus seed plus recorded actions must reproduce an identical outcome. Without it, scores are not comparable and no bug in a scenario is reproducible.",
+   d:["T14-4","T2-2","T15-1"],f:["app/scenarios/replay.py"],b:"feature/scenario-replay",
+   w:["Replay reproduces final state and every result metric"],
+   t:["Same scenario, seed and action log gives identical final state","Identical result metrics","Replay is faster than real time"],
+   x:"None, but it exercises every layer — expect it to surface latent nondeterminism elsewhere."},
+
+  {id:"T14-6",m:"M14",cat:"dep",n:"Authored scenario pack",
+   p:"Five to eight real exercises: compressor trip, cooling loss, blocked discharge, separator high level, stuck control valve, gradual fouling.",
+   d:["T14-4","T13-4"],f:["config/scenarios/*.yaml"],b:"feature/scenario-pack",
+   w:["Each scenario playable start to finish","Each has a documented intended diagnosis path"],
+   t:["Each loads, runs and completes","Each is solvable by a scripted correct response","Each fails on no response"],
+   x:"None. Pure content authoring — ideal for a separate agent."},
+
+  // ---------------- M15 ----------------
+  {id:"T15-1",m:"M15",cat:"dep",n:"Operator action log",
+   p:"Every operator input, timestamped in sim time. The single record of intent, and the input to both replay and scoring.",
+   d:["T2-3"],f:["app/scoring/actionlog.py","app/api/action.py"],b:"feature/action-log",
+   w:["Every action captured through the single C5 action endpoint","Log is append-only"],
+   t:["Every action type is captured","Timestamps are sim time, never wall time","Log survives a full scenario"],
+   x:"Implements the C5 action endpoint. Coordinate with whoever owns the API module."},
+
+  {id:"T15-2",m:"M15",cat:"dep",n:"Result metrics calculator",
+   p:"Time to recognise, time to stabilise, peak excursions, time outside envelope, alarm count, trip count, production lost, unnecessary actions.",
+   d:["T15-1","T9-3","T10-3"],f:["app/scoring/metrics.py"],b:"feature/scoring-metrics",
+   w:["Every metric computed only from the action log, alarm history and envelope tracker"],
+   t:["Each metric correct against a hand-checked synthetic run","Time to recognise is first alarm to first relevant action","Unnecessary action is one that moved no relevant variable toward target"],
+   x:"None. Can be built against the contracts before the scenario engine exists."},
+
+  {id:"T15-3",m:"M15",cat:"dep",n:"Weighted scoring",
+   p:"Reward safe, stable operation over speed. The explicit requirement: someone who stabilises slowly without a further alarm must outscore someone who acts fast and causes a trip.",
+   d:["T15-2"],f:["app/scoring/score.py","config/scoring.yaml"],b:"feature/weighted-scoring",
+   w:["Weights in config, tunable without code changes"],
+   t:["Slow-and-stable outscores fast-and-trippy on two recorded runs","Weight changes move scores in the expected direction","Score is stable across replays of the same run"],
+   x:"None."},
+
+  {id:"T15-4",m:"M15",cat:"ind",n:"Score persistence",
+   p:"Store results and personal bests. SQLite is sufficient and adds no operational burden.",
+   d:[],f:["app/scoring/store.py"],b:"feature/score-store",
+   w:["Results persist across restarts","Schema versioned"],
+   t:["Write then read round-trips","Personal best query correct","Schema migration path tested"],
+   x:"None. Buildable today against the metric shape."},
+
+  // ---------------- M16 ----------------
+  {id:"T16-1",m:"M16",cat:"ind",n:"Console design system",
+   p:"Colour, symbol and state standards: alarm priority colours, envelope band shading, running, stopped and tripped indication. Deciding this once prevents every later UI branch from inventing its own.",
+   d:[],f:["static/css/tokens.css","docs/console-standards.md"],b:"design/console-system",
+   w:["Tokens defined for both light and dark","Alarm colours meet contrast guidance"],
+   t:["Contrast checked in both themes","Colour-blind check on the alarm palette"],
+   x:"None. Start today — it unblocks every frontend branch."},
+
+  {id:"T16-2",m:"M16",cat:"dep",n:"Snapshot push transport",
+   p:"Server-sent events replacing polling, so the console reflects the plant without a request loop.",
+   d:["T2-5"],f:["app/api/stream.py"],b:"feature/snapshot-transport",
+   w:["SSE stream of snapshots","Backpressure handled, slow clients dropped cleanly"],
+   t:["Client receives snapshots at the configured rate","Disconnect and reconnect recovers","Slow consumer does not stall the engine"],
+   x:"None."},
+
+  {id:"T16-3",m:"M16",cat:"dep",n:"Process graphic",
+   p:"An SVG overview with live values bound by tag, so new equipment appears on the graphic without new JavaScript.",
+   d:["T16-1","T16-2"],f:["static/js/graphic.js","static/graphics/*.svg"],b:"feature/process-graphic",
+   w:["Values bound by tag name","New equipment needs no code change"],
+   t:["Renders correctly against normal, alarm and tripped snapshot fixtures","Unknown tag degrades gracefully","Legible at phone width"],
+   x:"None. Replaces templates/compressor.html."},
+
+  {id:"T16-4",m:"M16",cat:"dep",n:"Controller faceplates",
+   p:"PV, SP, OUT, mode switching and tuning access, in the standard faceplate layout operators already know.",
+   d:["T16-1","T8-2"],f:["static/js/faceplate.js"],b:"feature/faceplates",
+   w:["Mode switching works","Tuning editable where permitted"],
+   t:["Faceplate reflects loop state","Mode change round-trips to the engine","Manual output entry is bounded"],
+   x:"None."},
+
+  {id:"T16-5",m:"M16",cat:"dep",n:"Stale connection handling",
+   p:"A frozen console showing confident numbers is worse than an obviously broken one, because the operator keeps trusting it.",
+   d:["T16-2"],f:["static/js/connection.js"],b:"feature/stale-detection",
+   w:["Stale state visible within a bounded time","Values visually de-emphasised when stale"],
+   t:["Connection loss shows stale within the bound","Recovery clears it","No silently frozen values"],
+   x:"None."},
+
+  // ---------------- M17 ----------------
+  {id:"T17-1",m:"M17",cat:"ind",n:"Ring-buffer historian",
+   p:"Fixed-size per-tag history at a configurable rate. Pure data structure with no plant dependency — another strong candidate to start immediately.",
+   d:[],f:["app/historian/buffer.py"],b:"feature/historian",
+   w:["Fixed memory footprint","Oldest evicted first"],
+   t:["Retains exactly N samples and evicts correctly","Memory bounded over a simulated multi-hour run","Concurrent read during write is safe"],
+   x:"None. New directory. Start today."},
+
+  {id:"T17-2",m:"M17",cat:"dep",n:"Peak-preserving decimation",
+   p:"Zooming out must never hide an excursion. A decimation that averages away a pressure spike destroys exactly the evidence an operator needs to diagnose.",
+   d:["T17-1"],f:["app/historian/decimate.py"],b:"feature/trend-decimation",
+   w:["Min and max preserved per bucket"],
+   t:["A single-sample spike survives maximum decimation","Bucket boundaries do not shift peaks","Output length matches the request"],
+   x:"None."},
+
+  {id:"T17-3",m:"M17",cat:"dep",n:"Trend API",
+   p:"The C5 trend endpoint with tag list and time range.",
+   d:["T17-1","T17-2"],f:["app/api/trend.py"],b:"feature/trend-api",
+   w:["Matches C5","Range partially outside the buffer handled"],
+   t:["Correct data for arbitrary ranges","Range outside the buffer returns what exists, not an error","Large request is bounded"],
+   x:"None."},
+
+  {id:"T17-4",m:"M17",cat:"dep",n:"Trend display",
+   p:"Multi-pen trends with envelope bands and alarm markers overlaid, which is the surface operators will actually diagnose from.",
+   d:["T17-3","T16-1"],f:["static/js/trends.js"],b:"feature/frontend-trends",
+   w:["Multi-pen with selectable tags and spans","Bands and alarm markers overlaid"],
+   t:["Renders against recorded fixtures","Band overlay aligns with the axis","Readable in both themes","Usable at phone width"],
+   x:"None. Fully parallel with backend trend work once C5 is frozen."},
+
+  // ---------------- M18 ----------------
+  {id:"T18-1",m:"M18",cat:"ind",n:"Container and WSGI serving",
+   p:"Gunicorn behind a container image. Buildable today against the current app and it stays valid as the app grows.",
+   d:["T0-6"],f:["Dockerfile","docker-compose.yml"],b:"chore/container-and-ci",
+   w:["Image builds clean and starts","No dev server in production config"],
+   t:["Container builds and serves","Suite runs inside the image"],
+   x:"None. Start today, right after T0-6."},
+
+  {id:"T18-2",m:"M18",cat:"ind",n:"CI pipeline",
+   p:"Run the suite on every push and block merges on failure. With many parallel branches this stops being optional.",
+   d:["T0-6"],f:[".github/workflows/ci.yml"],b:"chore/ci-pipeline",
+   w:["Suite runs from a clean checkout","Merge blocked on failure"],
+   t:["CI green from clean checkout","A deliberately failing test blocks the merge"],
+   x:"None. The earlier this lands, the safer every parallel branch is."},
+
+  {id:"T18-3",m:"M18",cat:"dep",n:"API input validation",
+   p:"The current handlers trust data[...] directly, so a malformed body is a 500. Every endpoint needs validation at the boundary.",
+   d:["T15-1"],f:["app/api/validate.py"],b:"feature/api-validation",
+   w:["Every endpoint validates","Errors are 4xx with a useful message"],
+   t:["Malformed, missing, wrong-type and out-of-range bodies all return 4xx","No endpoint returns 500 for bad input","Rate limiting active"],
+   x:"Touches every API module. Land it after the API surface settles."},
+
+  {id:"T18-4",m:"M18",cat:"dep",n:"Structured logging and health",
+   p:"Sim-time-correlated logs, separate engine and request streams, and health endpoints exposing solver convergence rate.",
+   d:["T2-5","T4-3"],f:["app/logging.py","app/api/health.py"],b:"feature/observability",
+   w:["Structured output","Health reports engine liveness and convergence"],
+   t:["Health responds while the engine runs","Engine stall is visible in health","Logs carry sim time"],
+   x:"None."},
+
+  {id:"T18-5",m:"M18",cat:"dep",n:"Session lifecycle and config versioning",
+   p:"Reclaim abandoned plants, and version plant and scenario configs so saved scores stay interpretable after the plant changes.",
+   d:["T2-4","T14-1"],f:["app/engine/sessions.py","config/VERSION"],b:"feature/lifecycle-versioning",
+   w:["Idle sessions reclaimed","Configs carry a semantic version"],
+   t:["Idle session is reclaimed and memory released","Version mismatch is detected on load","Load test: N concurrent sessions stay within the step budget"],
+   x:"None."},
+
+  // ---------------- M19 ----------------
+  {id:"T19-1",m:"M19",cat:"dep",n:"Leaderboards",
+   p:"Asynchronous, low cost, high replay value. The only shared feature clearly worth building on its own merits.",
+   d:["T15-4"],f:["app/api/leaderboard.py","static/js/leaderboard.js"],b:"feature/leaderboards",
+   w:["Per-scenario boards","Personal best tracked"],
+   t:["Ranking correct","Ties resolved deterministically","Scores from a different config version are separated"],
+   x:"None."},
+
+  {id:"T19-2",m:"M19",cat:"dep",n:"Instructor observation and injection",
+   p:"An instructor watches a trainee's plant live and injects malfunctions into the running session. This is how real operator training simulators work, and it is the highest-value shared feature.",
+   d:["T16-2","T13-1"],f:["app/api/instructor.py"],b:"feature/instructor-mode",
+   w:["Read-only observation works","Injection is authorised and audited"],
+   t:["Observer sees live state with no ability to control","Injection is recorded in the event log","Trainee cannot observe the instructor"],
+   x:"None. Gate on Checkpoint G being genuinely complete."},
+
+  {id:"T19-3",m:"M19",cat:"dep",n:"Multi-operator control",
+   p:"Two operators on different unit areas of one plant. Highest cost by far: authority conflicts, action arbitration, latency. Deliberately deferred until there is real demand.",
+   d:["T19-2"],f:["app/engine/sessions.py"],b:"feature/multi-operator",
+   w:["Only start on explicit demand, with an area-authority design agreed first"],
+   t:["Area authority enforced","Conflicting commands resolve deterministically","Latency does not desynchronise views"],
+   x:"Touches session and arbitration architecture. Treat as core work if it ever starts."}
+  ];
+
+  var CHECKPOINTS = [
+    {id:"CP-A",name:"Contracts frozen",
+     after:"M0 complete, T1-2 through T1-5 merged, T3-1 merged",
+     what:"The equipment contract, the config schema and the golden regression harness are on main. This is the gate that opens parallel development: from here, satellite branches can be handed out without any risk of two agents redesigning the same architecture.",
+     gate:"All 26 legacy tests green, golden traces reproduce, contract test passes for every registered device."},
+    {id:"CP-B",name:"Plant-wide physics",
+     after:"M2, M3 and M4 complete",
+     what:"The network solver replaces per-equipment operating points and the plant becomes connected. Disturbances propagate for the first time. Freeze other merges while T4-4 lands.",
+     gate:"Conservation suite green at every node, cause-and-effect suite green, determinism test green."},
+    {id:"CP-C",name:"Process complete",
+     after:"M5, M6 and M7 complete",
+     what:"Inventory, energy and final elements are in. The plant now has every mechanism an upset needs in order to propagate realistically.",
+     gate:"Mass balance closes over 10,000 steps, energy balance closes across every exchanger, valve extraction preserves golden behaviour."},
+    {id:"CP-D",name:"Controls live",
+     after:"M8 complete",
+     what:"Loops hold the plant steady, and the operator can take them off auto. The snapshot and event contracts are now exercised end to end, so frontend and scoring branches can build against real data.",
+     gate:"Loops reject an injected disturbance, bumpless transfer verified, execution order deterministic."},
+    {id:"CP-E",name:"Safety layer",
+     after:"M9, M10, M11 and M12 complete",
+     what:"Envelopes, alarms, trips and sequences. The plant can now be operated, violated and recovered, which is the point at which it becomes genuinely useful for training even with no game layer at all.",
+     gate:"Recovery inside the trip delay prevents the trip, cold start completes with no alarm, alarm flood stays bounded."},
+    {id:"CP-F",name:"Scenarios playable",
+     after:"M13 and M14 complete",
+     what:"Malfunctions, triggers, objectives and replay. Scenarios run start to finish with hidden causes.",
+     gate:"Layer isolation guard green, replay determinism green, every authored scenario both solvable and failable."},
+    {id:"CP-G",name:"Training product",
+     after:"M15, M16 and M17 complete",
+     what:"Scoring, console and trends. The simulator is now something a person would choose to use.",
+     gate:"Import-direction test green, slow-and-stable outscores fast-and-trippy, console verified manually in a browser for every scenario."},
+    {id:"CP-H",name:"Deployed",
+     after:"M18 complete",
+     what:"Running somewhere other than a laptop, with CI guarding every merge.",
+     gate:"Clean-checkout CI green, container serves, load test within the step budget, no endpoint 500s on bad input."}
+  ];
+
+  // ---------- schedule ----------
+  var DOM0="2026-09-14", WEEKS=14, SPAN=WEEKS*7, RELEASE="2026-12-18";
+  var MON=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+  function D(s){ var p=s.split("-"); return Date.UTC(+p[0],+p[1]-1,+p[2]); }
+  function idx(s){ return Math.round((D(s)-D(DOM0))/864e5); }
+  function left(s){ return idx(s)/SPAN*100; }
+  function width(s,e){ return (idx(e)-idx(s)+1)/SPAN*100; }
+  function days(s,e){ return idx(e)-idx(s)+1; }
+  function fmt(s){ var p=s.split("-"); return (+p[2])+" "+MON[+p[1]-1]; }
+
+  // track: CORE = shared architecture, sequential, one owner
+  //        PARALLEL = can be handed to a separate agent on its own branch
+  var SCHED={
+    M0 :{s:"2026-09-18",e:"2026-09-25",track:"CORE",    dep:[]},
+    M1 :{s:"2026-09-21",e:"2026-10-02",track:"CORE",    dep:["M0"]},
+    M2 :{s:"2026-09-28",e:"2026-10-12",track:"CORE",    dep:["M1"]},
+    M3 :{s:"2026-10-05",e:"2026-10-16",track:"CORE",    dep:["M1"]},
+    M4 :{s:"2026-10-14",e:"2026-10-30",track:"CORE",    dep:["M2","M3"]},
+    M5 :{s:"2026-10-26",e:"2026-11-06",track:"CORE",    dep:["M4"]},
+    M6 :{s:"2026-10-26",e:"2026-11-10",track:"PARALLEL",dep:["M4"]},
+    M7 :{s:"2026-10-19",e:"2026-11-06",track:"PARALLEL",dep:["M4"]},
+    M8 :{s:"2026-11-02",e:"2026-11-17",track:"CORE",    dep:["M7"]},
+    M9 :{s:"2026-10-12",e:"2026-11-13",track:"PARALLEL",dep:["M2"]},
+    M10:{s:"2026-10-19",e:"2026-11-20",track:"PARALLEL",dep:["M9"]},
+    M11:{s:"2026-11-09",e:"2026-11-24",track:"CORE",    dep:["M8","M10"]},
+    M12:{s:"2026-11-09",e:"2026-11-20",track:"PARALLEL",dep:["M2"]},
+    M13:{s:"2026-11-09",e:"2026-11-24",track:"CORE",    dep:["M8"]},
+    M14:{s:"2026-11-16",e:"2026-12-02",track:"CORE",    dep:["M13"]},
+    M15:{s:"2026-11-23",e:"2026-12-08",track:"PARALLEL",dep:["M14"]},
+    M16:{s:"2026-11-09",e:"2026-12-09",track:"PARALLEL",dep:["M8"]},
+    M17:{s:"2026-10-26",e:"2026-12-04",track:"PARALLEL",dep:["M2"]},
+    M18:{s:"2026-11-02",e:"2026-12-17",track:"CORE",    dep:["M0"]},
+    M19:{defer:true,track:"DEFER",dep:["M18"]}
+  };
+
+  var BANDS=[
+    {n:"Golden regression and CI, continuous", s:"2026-09-18", e:"2026-12-11", k:"test",
+     d:"Runs from day one. The golden traces are what prove the M1–M4 rewrites preserved behaviour."},
+    {n:"Scenario QA and difficulty balance",   s:"2026-12-02", e:"2026-12-12", k:"test",
+     d:"Every authored scenario played to both a pass and a fail. Balance is tuned here, not during authoring."},
+    {n:"Documentation, README, release notes", s:"2026-11-30", e:"2026-12-15", k:"docs",
+     d:"Written while the systems are still fresh, not compressed into the last weekend."},
+    {n:"Release hardening — no new features",  s:"2026-12-07", e:"2026-12-15", k:"harden",
+     d:"Regression, failure handling, performance, browser checks, security review. Feature work stops."},
+    {n:"Deployment and final validation",      s:"2026-12-14", e:"2026-12-17", k:"deploy",
+     d:"Production config, smoke tests, logging and monitoring verification, release tagging."}
+  ];
+
+  var CPDATE={"CP-A":"2026-10-02","CP-B":"2026-10-30","CP-C":"2026-11-10","CP-D":"2026-11-17",
+              "CP-E":"2026-11-24","CP-F":"2026-12-02","CP-G":"2026-12-09","CP-H":"2026-12-17"};
+
+  // tasks outside the Version 1 cut line
+  var DEFERRED={
+    "T6-4" :{w:"A second heat-addition device once E-101 already proves the mechanism. The cracking furnace is the first thing the next release adds.", v:"V1.1"},
+    "T8-5" :{w:"V1 proves single-loop PID with modes and bumpless transfer. Cascade is a second control structure over a mechanism already working.", v:"V1.1"},
+    "T10-4":{w:"Flood suppression matters at dozens of simultaneous alarms. A seven-device train cannot generate a flood worth suppressing.", v:"V1.1"},
+    "T11-4":{w:"A diagnostic convenience once several trips compete to be the cause. V1 has few enough that the event log answers the question.", v:"V1.1"},
+    "T12-3":{w:"Formalises plant states that V1 only has two of. Adds coordination cost without adding observable behaviour.", v:"V1.2"},
+    "T12-4":{w:"The deepest training content in the whole plan, and the largest single build. It deserves its own release rather than a rushed corner of this one.", v:"V1.2"},
+    "T15-4":{w:"V1 scores a scenario and shows the debrief immediately. Keeping scores across sessions is a storage feature, not a simulation one.", v:"V1.1"},
+    "T17-2":{w:"Decimation only pays off on long runs. V1 trend windows fit in the raw ring buffer with room to spare.", v:"V1.1"},
+    "T19-1":{w:"Conditional on single-player training being genuinely good first. Ranking a weak experience does not improve it.", v:"V2"},
+    "T19-2":{w:"A second class of user with its own screens and permissions. Worth building only once the operator experience is proven.", v:"V2"},
+    "T19-3":{w:"Shared control of one plant is a concurrency project in its own right, not a feature of this one.", v:"V2"}
+  };
+
+  // the chain that cannot slip — value is what the task gates
+  var CRIT={
+    "T0-1" :"Removes the ambiguity about which model is real. Every refactor after it would otherwise be done twice.",
+    "T1-2" :"Contract C1. Thirteen satellite branches are written against this shape.",
+    "T2-3" :"Contract C4. The snapshot is the only thing console, trends, scoring and scenarios read.",
+    "T3-2" :"Contract C2. The graph the solver walks.",
+    "T3-3" :"Turns a config file into a plant. Every later test fixture loads through it.",
+    "T4-1" :"The sign convention. Get it wrong here and every device is wrong.",
+    "T4-2" :"The plant-wide hydraulic solution. Nothing propagates until this converges.",
+    "T4-4" :"Solver into the engine — the moment the simulator stops being gauges and becomes a plant.",
+    "T5-2" :"Level pushes back on hydraulics. The first true coupling of slow state to fast state.",
+    "T7-2" :"Valve logic leaves the compressor and becomes a device the solver can see.",
+    "T8-4" :"Loop execution order inside the step. Determinism depends on it.",
+    "T9-4" :"Envelope state reaches the snapshot, which is what alarms and scoring both read.",
+    "T10-2":"Alarms over envelope events — the operator's only channel for knowing something is wrong.",
+    "T11-2":"Trip actions on equipment. The recovery window is what makes the training loop work.",
+    "T13-2":"True versus indicated values. Hidden causes are impossible without this split.",
+    "T14-4":"Scenario lifecycle and API. The entire gameplay loop runs through it.",
+    "T16-3":"The process graphic. First time a human operates the whole plant rather than a test doing it.",
+    "T18-1":"Production serving. Nothing ships from the development server.",
+    "T18-4":"Structured logging and health. Without it a deployed failure is invisible."
+  };
+
+  var CRITMS=["M0","M1","M2","M3","M4","M5","M7","M8","M11","M13","M14","M16","M18"];
+
+  // which integration checkpoint each milestone must be merged and green for
+  var MSCP={M0:"CP-A",M1:"CP-A",M2:"CP-B",M3:"CP-B",M4:"CP-B",M5:"CP-C",M6:"CP-C",M7:"CP-C",
+            M8:"CP-D",M9:"CP-E",M10:"CP-E",M11:"CP-E",M12:"CP-E",M13:"CP-F",M14:"CP-F",
+            M15:"CP-G",M16:"CP-G",M17:"CP-G",M18:"CP-H"};
+
+  // model level — judged on blast radius and ambiguity, not size.
+  // default: core tasks -> Opus, everything else -> Sonnet
+  var AGENT={
+    "T0-2":"Haiku","T0-4":"Haiku","T0-5":"Haiku","T0-6":"Haiku",
+    "T2-1":"Haiku","T2-2":"Haiku",
+    "T4-2":"Opus","T4-5":"Opus",
+    "T6-1":"Opus",
+    "T13-1":"Opus","T13-5":"Haiku",
+    "T14-5":"Opus",
+    "T15-4":"Haiku",
+    "T16-5":"Haiku",
+    "T17-1":"Haiku",
+    "T18-2":"Haiku"
+  };
+  function agentOf(t){ return AGENT[t.id] || (t.cat==="core" ? "Opus" : "Sonnet"); }
+  function isDeferred(id){ return !!DEFERRED[id]; }
+  function isCrit(id){ return !!CRIT[id]; }
+
+  // ---------- state ----------
+  var state = {};          // id -> {status, note}
+  var db = null;
+  var canWrite = true;
+  var filters = {cat:"all", view:"all", scope:"all", q:""};
+
+  var TMAP = {}; TASKS.forEach(function(t){ TMAP[t.id]=t; });
+
+  function statusOf(id){ return (state[id] && state[id].status) || "todo"; }
+  function noteOf(id){ return (state[id] && state[id].note) || ""; }
+  function isDone(id){ return statusOf(id)==="done"; }
+  function unmetDeps(t){ return t.d.filter(function(x){ return !isDone(x); }); }
+  function isReady(t){ return unmetDeps(t).length===0; }
+
+  function msStatus(mid){
+    var ts = TASKS.filter(function(t){ return t.m===mid; });
+    if(!ts.length) return "todo";
+    if(ts.every(function(t){ return isDone(t.id); })) return "done";
+    if(ts.some(function(t){ return statusOf(t.id)==="block"; })) return "block";
+    if(ts.every(function(t){ return ["done","review"].indexOf(statusOf(t.id))>-1; })) return "review";
+    if(ts.some(function(t){ return ["prog","review","done"].indexOf(statusOf(t.id))>-1; })) return "prog";
+    return "todo";
+  }
+
+  var CATLABEL = {ind:"independent", dep:"dependent", core:"core"};
+  var CATCLASS = {ind:"p-ind", dep:"p-dep", core:"p-core"};
+
+  function el(tag, cls, text){
+    var e=document.createElement(tag);
+    if(cls) e.className=cls;
+    if(text!=null) e.textContent=text;
+    return e;
+  }
+
+  // ---------- build static sections ----------
+  function buildCheckpoints(){
+    var host=document.getElementById("cps");
+    CHECKPOINTS.forEach(function(c){
+      var row=el("div","cp-row");
+      var mark=el("div","cp-mark",c.id);
+      if(CPDATE[c.id]){
+        var dt=el("div",null,fmt(CPDATE[c.id]));
+        dt.style.fontWeight="400"; dt.style.color="var(--muted)";
+        mark.appendChild(dt);
+      }
+      var card=el("div","cp-card");
+      card.appendChild(el("h3",null,c.name));
+      var after=el("p");
+      var b=el("b",null,"Reached after: "); b.style.fontWeight="600";
+      after.appendChild(b); after.appendChild(document.createTextNode(c.after));
+      card.appendChild(after);
+      card.appendChild(el("p",null,c.what));
+      var g=el("p","gate");
+      var gb=el("b",null,"Gate: "); g.appendChild(gb);
+      g.appendChild(document.createTextNode(c.gate));
+      card.appendChild(g);
+      row.appendChild(mark); row.appendChild(card);
+      host.appendChild(row);
+    });
+  }
+
+  function buildMilestones(){
+    var host=document.getElementById("milestones");
+    MILESTONES.forEach(function(m){
+      var sec=el("div","ms"); sec.dataset.ms=m.id;
+
+      var head=el("div","ms-head");
+      head.appendChild(el("span","ms-id",m.id));
+      head.appendChild(el("span","ms-name",m.name));
+      m.phase.forEach(function(p){ head.appendChild(el("span","ms-phase",PHASES[p])); });
+      var st=el("span","ms-status"); st.dataset.msStatus=m.id;
+      head.appendChild(st);
+      sec.appendChild(head);
+
+      var sc=SCHED[m.id]||{};
+      var row=el("div","ms-sched");
+      if(sc.defer){
+        row.appendChild(el("span","tag tg-defer","deferred past V1"));
+      } else {
+        row.appendChild(el("span","tag tg-date",fmt(sc.s)+" – "+fmt(sc.e)+" · "+days(sc.s,sc.e)+"d"));
+        row.appendChild(el("span","tag "+(sc.track==="CORE"?"tg-core":"tg-par"),sc.track));
+      }
+      if(CRITMS.indexOf(m.id)>-1) row.appendChild(el("span","tag tg-crit","critical path"));
+      if(MSCP[m.id]) row.appendChild(el("span","tag tg-int","merges by "+MSCP[m.id]+" · "+fmt(CPDATE[MSCP[m.id]])));
+      if(sc.dep && sc.dep.length) row.appendChild(el("span","tag tg-blk","after "+sc.dep.join(" + ")));
+      sec.appendChild(row);
+
+      sec.appendChild(el("p","ms-obj",m.obj));
+
+      TASKS.filter(function(t){ return t.m===m.id; }).forEach(function(t){
+        sec.appendChild(buildTask(t));
+      });
+      host.appendChild(sec);
+    });
+  }
+
+  function buildTask(t){
+    var d=el("details","task"); d.id=t.id; d.dataset.task=t.id;
+
+    var s=el("summary");
+    s.appendChild(el("span","t-id",t.id));
+
+    var main=el("div","t-main");
+    main.appendChild(el("span","t-name",t.n));
+    var meta=el("div","t-meta");
+    meta.appendChild(el("span","t-branch",t.b));
+    meta.appendChild(el("span",null,t.f.length+(t.f.length===1?" file":" files")));
+    meta.appendChild(el("span",null,"agent "+agentOf(t)));
+    if(isCrit(t.id)){
+      var cm=el("span",null,"critical path");
+      cm.style.color="var(--st-block)"; cm.style.fontWeight="600";
+      meta.appendChild(cm);
+    }
+    if(isDeferred(t.id)){
+      var dm=el("span",null,"deferred → "+DEFERRED[t.id].v);
+      dm.style.color="var(--muted)";
+      meta.appendChild(dm);
+    }
+    main.appendChild(meta);
+    s.appendChild(main);
+
+    var right=el("div","t-right");
+    right.appendChild(el("span","pill "+CATCLASS[t.cat],CATLABEL[t.cat]));
+    var rd=el("span","pill"); rd.dataset.ready=t.id; right.appendChild(rd);
+
+    var sel=el("select","status");
+    sel.setAttribute("aria-label","Status for "+t.id);
+    sel.id="st-"+t.id;
+    STATUSES.forEach(function(o){
+      var op=el("option",null,o.label); op.value=o.k; sel.appendChild(op);
+    });
+    sel.addEventListener("click",function(e){ e.stopPropagation(); });
+    sel.addEventListener("change",function(){ setStatus(t.id, sel.value); });
+    right.appendChild(sel);
+    s.appendChild(right);
+    d.appendChild(s);
+
+    var body=el("div","t-body");
+
+    body.appendChild(field("Purpose", function(f){ f.appendChild(el("p",null,t.p)); }, true));
+
+    body.appendChild(field("Dependencies", function(f){
+      if(!t.d.length){ f.appendChild(el("p",null,"None — startable as soon as its contract is on main.")); return; }
+      var wrap=el("div");
+      t.d.forEach(function(id){
+        var a=el("a","dep-chip",id+" "+(TMAP[id]?TMAP[id].n:""));
+        a.href="#"+id; a.dataset.dep=id;
+        wrap.appendChild(a);
+      });
+      f.appendChild(wrap);
+    }));
+
+    body.appendChild(field("Files affected", function(f){
+      var w=el("div","files");
+      t.f.forEach(function(p){ w.appendChild(el("span","path",p)); });
+      f.appendChild(w);
+    }));
+
+    body.appendChild(field("Branch", function(f){
+      var p=el("p"); p.appendChild(el("span","path",t.b)); f.appendChild(p);
+    }));
+
+    body.appendChild(field("Assignment", function(f){
+      var w=el("div"); w.style.display="flex"; w.style.flexWrap="wrap"; w.style.gap="5px";
+      var tk=el("span","tag"); tk.dataset.track=t.id; w.appendChild(tk);
+      var ag=el("span","tag tg-ag");
+      ag.appendChild(document.createTextNode("agent "));
+      ag.appendChild(el("b",null,agentOf(t)));
+      w.appendChild(ag);
+      var sc=SCHED[t.m];
+      if(sc && !sc.defer) w.appendChild(el("span","tag tg-date",fmt(sc.s)+" – "+fmt(sc.e)));
+      f.appendChild(w);
+    }));
+
+    body.appendChild(field("Version 1 scope", function(f){
+      if(isDeferred(t.id)){
+        var d=DEFERRED[t.id];
+        var p=el("p");
+        var b=el("b",null,"Deferred to "+d.v+". "); b.style.color="var(--muted)";
+        p.appendChild(b); p.appendChild(document.createTextNode(d.w));
+        f.appendChild(p);
+      } else if(isCrit(t.id)){
+        var p2=el("p");
+        var b2=el("b",null,"In V1, on the critical path. "); b2.style.color="var(--st-block)";
+        p2.appendChild(b2); p2.appendChild(document.createTextNode(CRIT[t.id]));
+        f.appendChild(p2);
+      } else {
+        f.appendChild(el("p",null,"In Version 1. Has float — it can slip within its milestone window without moving the release date."));
+      }
+    }, true));
+
+    body.appendChild(field("Merge criteria", function(f){
+      var ul=el("ul"); t.w.forEach(function(x){ ul.appendChild(el("li",null,x)); }); f.appendChild(ul);
+    }));
+
+    body.appendChild(field("Tests required before merge", function(f){
+      var ul=el("ul"); t.t.forEach(function(x){ ul.appendChild(el("li",null,x)); }); f.appendChild(ul);
+    }));
+
+    body.appendChild(field("Conflicts and shared components", function(f){
+      f.appendChild(el("p",null,t.x));
+    }, true));
+
+    body.appendChild(field("Working note", function(f){
+      var i=el("input","note-in");
+      i.type="text"; i.id="note-"+t.id;
+      i.placeholder="owner, branch state, why blocked…";
+      i.addEventListener("change",function(){ setNote(t.id,i.value); });
+      f.appendChild(i);
+    }, true));
+
+    d.appendChild(body);
+    return d;
+  }
+
+  function field(label, fill, wide){
+    var f=el("div","field"+(wide?" span-all":""));
+    f.appendChild(el("p","k",label));
+    fill(f);
+    return f;
+  }
+
+  // ---------- render ----------
+  function render(){
+    TASKS.forEach(function(t){
+      var st=statusOf(t.id);
+      var sel=document.getElementById("st-"+t.id);
+      if(sel){ sel.value=st; sel.dataset.v=st; sel.disabled=!canWrite; }
+      var note=document.getElementById("note-"+t.id);
+      if(note && document.activeElement!==note) note.value=noteOf(t.id);
+
+      var rd=document.querySelector('[data-ready="'+t.id+'"]');
+      if(rd){
+        var unmet=unmetDeps(t);
+        if(st==="done"){ rd.hidden=true; }
+        else if(unmet.length===0){ rd.hidden=false; rd.className="pill p-ready"; rd.textContent="ready"; }
+        else { rd.hidden=false; rd.className="pill p-wait"; rd.textContent="waiting on "+unmet.join(", "); }
+      }
+      var tk=document.querySelector('[data-track="'+t.id+'"]');
+      if(tk){
+        var trk = t.cat==="core" ? "CORE" : (unmetDeps(t).length ? "BLOCKED" : "PARALLEL");
+        tk.className="tag "+(trk==="CORE"?"tg-core":(trk==="BLOCKED"?"tg-blk":"tg-par"));
+        tk.textContent=trk;
+      }
+      var host=document.getElementById(t.id);
+      if(host){
+        host.querySelectorAll("[data-dep]").forEach(function(a){
+          a.classList.toggle("met", isDone(a.dataset.dep));
+          a.classList.toggle("unmet", !isDone(a.dataset.dep));
+        });
+      }
+    });
+
+    MILESTONES.forEach(function(m){
+      var host=document.querySelector('[data-ms-status="'+m.id+'"]');
+      if(!host) return;
+      var k=msStatus(m.id);
+      var ts=TASKS.filter(function(t){ return t.m===m.id; });
+      var done=ts.filter(function(t){ return isDone(t.id); }).length;
+      host.innerHTML="";
+      var pill=el("span","pill");
+      pill.style.color="var("+SMAP[k].v+")";
+      pill.style.borderColor="color-mix(in srgb, var("+SMAP[k].v+") 45%, transparent)";
+      pill.textContent=SMAP[k].label+" · "+done+"/"+ts.length;
+      host.appendChild(pill);
+    });
+
+    renderMeter();
+    renderBoard();
+    renderTarget();
+    renderGantt();
+    applyFilters();
+  }
+
+  function renderTarget(){
+    var host=document.getElementById("tgt"); if(!host) return;
+    var v1=TASKS.filter(function(t){ return !isDeferred(t.id); });
+    var done=v1.filter(function(t){ return isDone(t.id); }).length;
+    var wk=Math.ceil((D(RELEASE)-Date.now())/6048e5);
+    host.innerHTML="";
+    host.appendChild(el("span",null,"Version 1 target"));
+    host.appendChild(el("b",null,"18 Dec 2026"));
+    host.appendChild(el("span",null, wk>0 ? wk+(wk===1?" week":" weeks")+" remaining" : "target date reached"));
+    host.appendChild(el("span",null, done+" / "+v1.length+" V1 tasks complete"));
+    host.appendChild(el("span",null, DEFERRED_COUNT+" deferred past V1"));
+  }
+  var DEFERRED_COUNT=Object.keys(DEFERRED).length;
+
+  function renderMeter(){
+    var counts={}; STATUSES.forEach(function(s){ counts[s.k]=0; });
+    TASKS.forEach(function(t){ counts[statusOf(t.id)]++; });
+    var total=TASKS.length;
+
+    var m=document.getElementById("meter"); m.innerHTML="";
+    STATUSES.forEach(function(s){
+      if(!counts[s.k]) return;
+      var span=el("span");
+      span.style.width=(counts[s.k]/total*100)+"%";
+      span.style.background="var("+s.v+")";
+      m.appendChild(span);
+    });
+
+    var lg=document.getElementById("legend"); lg.innerHTML="";
+    STATUSES.forEach(function(s){
+      var w=el("span");
+      var dot=el("span","dot"); dot.style.background="var("+s.v+")";
+      w.appendChild(dot);
+      w.appendChild(el("b",null,String(counts[s.k])));
+      w.appendChild(document.createTextNode(" "+s.label.toLowerCase()));
+      lg.appendChild(w);
+    });
+    var tot=el("span"); tot.appendChild(el("b",null,total+" tasks"));
+    lg.appendChild(tot);
+  }
+
+  function renderBoard(){
+    var host=document.getElementById("board"); host.innerHTML="";
+    var groups=[
+      {k:"ind", title:"Hand to an agent", note:"independent"},
+      {k:"core",title:"Main development path", note:"core"},
+      {k:"dep", title:"Unblocked, isolated", note:"dependent"}
+    ];
+    groups.forEach(function(g){
+      var items=TASKS.filter(function(t){
+        return t.cat===g.k && statusOf(t.id)==="todo" && isReady(t);
+      });
+      var card=el("div","card");
+      var h=el("h3",null,g.title);
+      h.appendChild(el("span",null,items.length+" ready"));
+      card.appendChild(h);
+      if(!items.length){
+        card.appendChild(el("div","empty","Nothing ready in this category."));
+      } else {
+        var ul=el("ul");
+        items.slice(0,14).forEach(function(t){
+          var li=el("li");
+          li.appendChild(el("span","tid",t.id));
+          var a=el("a",null,t.n); a.href="#"+t.id;
+          a.addEventListener("click",function(){
+            var d=document.getElementById(t.id); if(d) d.open=true;
+          });
+          li.appendChild(a);
+          ul.appendChild(li);
+        });
+        card.appendChild(ul);
+        if(items.length>14) card.appendChild(el("div","empty","+"+(items.length-14)+" more"));
+      }
+      host.appendChild(card);
+    });
+  }
+
+  // ---------- gantt ----------
+  function msProgress(mid){
+    var ts=TASKS.filter(function(t){ return t.m===mid; });
+    if(!ts.length) return 0;
+    return ts.filter(function(t){ return isDone(t.id); }).length/ts.length;
+  }
+
+  function gGroup(host,label){
+    var g=el("div","g-row g-group");
+    g.appendChild(el("div","g-label",label));
+    g.appendChild(el("div","g-track"));
+    host.appendChild(g);
+  }
+
+  function renderGantt(){
+    var host=document.getElementById("gantt"); if(!host) return;
+    host.innerHTML="";
+
+    var head=el("div","g-head");
+    head.appendChild(el("div","g-label","Milestone"));
+    var wks=el("div","g-weeks");
+    for(var i=0;i<WEEKS;i++){
+      var dt=new Date(D(DOM0)+i*7*864e5);
+      var c=el("div","g-wk");
+      c.appendChild(el("b",null,String(dt.getUTCDate())));
+      c.appendChild(document.createTextNode(MON[dt.getUTCMonth()]));
+      wks.appendChild(c);
+    }
+    head.appendChild(wks);
+    host.appendChild(head);
+
+    // checkpoints and the release marker
+    var cpr=el("div","g-row g-cprow");
+    cpr.appendChild(el("div","g-label","Integration points"));
+    var cpt=el("div","g-track");
+    CHECKPOINTS.forEach(function(c){
+      if(!CPDATE[c.id]) return;
+      var m=el("div","g-cpm");
+      m.style.left=left(CPDATE[c.id])+"%";
+      m.title=c.id+" — "+c.name+" — "+fmt(CPDATE[c.id])+". Gate: "+c.gate;
+      m.appendChild(el("div","g-cpd"));
+      m.appendChild(el("div","g-cpl",c.id));
+      cpt.appendChild(m);
+    });
+    var rm=el("div","g-relm");
+    rm.style.left=left(RELEASE)+"%";
+    rm.title="Version 1 public release — 18 December 2026";
+    rm.appendChild(el("div","d"));
+    rm.appendChild(el("div","l","V1 · 18 DEC"));
+    cpt.appendChild(rm);
+    cpr.appendChild(cpt);
+    host.appendChild(cpr);
+
+    gGroup(host,"Build milestones");
+    MILESTONES.forEach(function(m){
+      var sc=SCHED[m.id]; if(!sc) return;
+      var row=el("div","g-row");
+      var lab=el("div","g-label");
+      lab.appendChild(el("span","gid",m.id));
+      lab.appendChild(el("span","gnm",m.name));
+      if(CRITMS.indexOf(m.id)>-1){
+        var cr=el("span","gcr","▲"); cr.title="on the critical path";
+        lab.appendChild(cr);
+      }
+      row.appendChild(lab);
+
+      var tr=el("div","g-track");
+      if(sc.defer){
+        var nb=el("div","g-bar b-defer");
+        nb.style.left="72%"; nb.style.width="27%";
+        nb.title=m.id+" "+m.name+" — deferred past Version 1.";
+        nb.appendChild(el("span","g-txt","deferred past V1"));
+        tr.appendChild(nb);
+      } else {
+        var lead=-1;
+        (sc.dep||[]).forEach(function(dd){
+          var ds=SCHED[dd]; if(ds && !ds.defer) lead=Math.max(lead, idx(ds.e));
+        });
+        if(lead>-1 && lead < idx(sc.s)-1){
+          var ln=el("div","g-lead");
+          ln.style.left=((lead+1)/SPAN*100)+"%";
+          ln.style.width=((idx(sc.s)-lead-1)/SPAN*100)+"%";
+          ln.title="float: waits on "+sc.dep.join(", ");
+          tr.appendChild(ln);
+        }
+        var bar=el("div","g-bar "+(sc.track==="CORE"?"b-core":"b-par")+(CRITMS.indexOf(m.id)>-1?" crit":""));
+        bar.style.left=left(sc.s)+"%";
+        bar.style.width=width(sc.s,sc.e)+"%";
+        var pr=msProgress(m.id);
+        bar.title=m.id+" · "+m.name+"\n"+fmt(sc.s)+" – "+fmt(sc.e)+" · "+days(sc.s,sc.e)+" days · "+sc.track
+                 +((sc.dep&&sc.dep.length)?"\nafter "+sc.dep.join(", "):"\nno predecessor")
+                 +(MSCP[m.id]?"\nmerges by "+MSCP[m.id]+" ("+fmt(CPDATE[MSCP[m.id]])+")":"")
+                 +"\n"+Math.round(pr*100)+"% complete";
+        var fill=el("div","g-fill"); fill.style.width=(pr*100)+"%";
+        bar.appendChild(fill);
+        bar.appendChild(el("span","g-txt",m.id));
+        tr.appendChild(bar);
+      }
+      row.appendChild(tr);
+      host.appendChild(row);
+    });
+
+    gGroup(host,"Release track");
+    BANDS.forEach(function(b){
+      var row=el("div","g-row");
+      var lab=el("div","g-label");
+      lab.appendChild(el("span","gnm",b.n));
+      row.appendChild(lab);
+      var tr=el("div","g-track");
+      var bar=el("div","g-bar b-"+b.k);
+      bar.style.left=left(b.s)+"%"; bar.style.width=width(b.s,b.e)+"%";
+      bar.title=b.n+"\n"+fmt(b.s)+" – "+fmt(b.e)+" · "+days(b.s,b.e)+" days\n"+b.d;
+      bar.appendChild(el("span","g-txt",fmt(b.s)+" – "+fmt(b.e)));
+      tr.appendChild(bar);
+      row.appendChild(tr);
+      host.appendChild(row);
+    });
+
+    var ov=el("div","g-overlay");
+    CHECKPOINTS.forEach(function(c){
+      if(!CPDATE[c.id]) return;
+      var l=el("div","g-cpline"); l.style.left=left(CPDATE[c.id])+"%"; ov.appendChild(l);
+    });
+    var rel=el("div","g-rel"); rel.style.left=left(RELEASE)+"%"; ov.appendChild(rel);
+    var nowIdx=Math.round((Date.now()-D(DOM0))/864e5);
+    if(nowIdx>=0 && nowIdx<=SPAN){
+      var nw=el("div","g-now"); nw.style.left=(nowIdx/SPAN*100)+"%"; ov.appendChild(nw);
+    }
+    host.appendChild(ov);
+
+    var lg=document.getElementById("glegend");
+    if(lg && !lg.childNodes.length){
+      [["b-core","core — shared architecture, one owner"],
+       ["b-par","parallel — hand to a separate agent"],
+       ["b-test","testing"],
+       ["b-docs","documentation"],
+       ["b-harden","hardening, no new features"],
+       ["b-deploy","deployment"],
+       ["b-defer","deferred past V1"]].forEach(function(p){
+        var s=el("span");
+        var i2=document.createElement("i"); i2.className=p[0];
+        s.appendChild(i2); s.appendChild(document.createTextNode(p[1]));
+        lg.appendChild(s);
+      });
+      var s1=el("span",null,"▲ critical path   ◇ checkpoint   solid fill = completed");
+      lg.appendChild(s1);
+    }
+  }
+
+  // ---------- derived tables ----------
+  function renderDeferList(){
+    var tb=document.querySelector("#defer-list tbody"); if(!tb) return;
+    tb.innerHTML="";
+    Object.keys(DEFERRED).forEach(function(id){
+      var t=TMAP[id], d=DEFERRED[id];
+      var tr=el("tr");
+      var a=el("a",null,id); a.href="#"+id; a.style.fontFamily="var(--mono)"; a.style.color="var(--accent)";
+      var c1=el("td","b"); c1.appendChild(a); tr.appendChild(c1);
+      tr.appendChild(el("td",null,t?t.n:id));
+      tr.appendChild(el("td",null,d.w));
+      tr.appendChild(el("td","b",d.v));
+      tb.appendChild(tr);
+    });
+  }
+
+  function renderCritList(){
+    var tb=document.querySelector("#crit-list tbody"); if(!tb) return;
+    tb.innerHTML="";
+    Object.keys(CRIT).forEach(function(id){
+      var t=TMAP[id]; if(!t) return;
+      var sc=SCHED[t.m];
+      var tr=el("tr");
+      var a=el("a",null,id); a.href="#"+id; a.style.fontFamily="var(--mono)"; a.style.color="var(--accent)";
+      var c1=el("td","b"); c1.appendChild(a); tr.appendChild(c1);
+      tr.appendChild(el("td",null,t.n));
+      tr.appendChild(el("td",null,CRIT[id]));
+      tr.appendChild(el("td","b", sc&&!sc.defer ? fmt(sc.e) : "—"));
+      tr.appendChild(el("td","b",agentOf(t)));
+      tb.appendChild(tr);
+    });
+  }
+
+  function renderCpath(){
+    var host=document.getElementById("cpath"); if(!host) return;
+    host.innerHTML="";
+    CRITMS.forEach(function(id,i){
+      if(i) host.appendChild(el("span","ar","→"));
+      var m=MILESTONES.filter(function(x){ return x.id===id; })[0];
+      var sc=SCHED[id];
+      var n=el("span","n");
+      n.appendChild(el("b",null,id+" "));
+      n.appendChild(document.createTextNode(m?m.name:id));
+      if(sc&&!sc.defer) n.title=fmt(sc.s)+" – "+fmt(sc.e)+" · "+days(sc.s,sc.e)+" days";
+      host.appendChild(n);
+    });
+    host.appendChild(el("span","ar","→"));
+    var r=el("span","n"); r.appendChild(el("b",null,"RELEASE "));
+    r.appendChild(document.createTextNode("18 Dec"));
+    host.appendChild(r);
+  }
+
+  function applyFilters(){
+    var q=filters.q.toLowerCase();
+    TASKS.forEach(function(t){
+      var node=document.getElementById(t.id);
+      if(!node) return;
+      var st=statusOf(t.id);
+      var ok=true;
+      if(filters.cat!=="all" && t.cat!==filters.cat) ok=false;
+      if(ok && filters.view==="ready") ok = (st==="todo" && isReady(t));
+      if(ok && filters.view==="waiting") ok = (st==="block" || (!isReady(t) && st!=="done"));
+      if(ok && filters.view==="open") ok = (st!=="done");
+      if(ok && filters.scope==="v1")    ok = !isDeferred(t.id);
+      if(ok && filters.scope==="crit")  ok = isCrit(t.id);
+      if(ok && filters.scope==="defer") ok = isDeferred(t.id);
+      if(ok && q){
+        var hay=(t.id+" "+t.n+" "+t.b+" "+t.f.join(" ")+" "+t.p).toLowerCase();
+        ok = hay.indexOf(q)>-1;
+      }
+      node.classList.toggle("hidden-task", !ok);
+    });
+    MILESTONES.forEach(function(m){
+      var sec=document.querySelector('[data-ms="'+m.id+'"]');
+      if(!sec) return;
+      var any=TASKS.some(function(t){
+        if(t.m!==m.id) return false;
+        var n=document.getElementById(t.id);
+        return n && !n.classList.contains("hidden-task");
+      });
+      sec.classList.toggle("empty-ms", !any);
+    });
+  }
+
+  // ---------- persistence ----------
+  function setStatus(id, v){
+    state[id]=state[id]||{};
+    state[id].status=v;
+    render();
+    write(id);
+  }
+  function setNote(id, v){
+    state[id]=state[id]||{};
+    state[id].note=v;
+    write(id);
+  }
+
+  var pending={};
+  function write(id){
+    if(!db || !canWrite) return;
+    if(pending[id]) { pending[id].again=true; return; }
+    pending[id]={again:false};
+    var body={status:statusOf(id), note:noteOf(id), updated:new Date().toISOString()};
+    db.collection("taskStatus").doc(id).set(body).then(function(){
+      var again=pending[id].again; delete pending[id];
+      if(again) write(id);
+    }).catch(function(e){
+      delete pending[id];
+      if(e && e.code==="invalid_argument"){
+        canWrite=false;
+        banner("This view cannot change status — ask the owner for edit access.");
+        render();
+      } else if(e && (e.code==="not_granted"||e.code==="revoked"||e.code==="capability_disabled")){
+        canWrite=false; db=null;
+        banner("Status sharing is unavailable in this view. Everything below still reads correctly.");
+        render();
+      }
+    });
+  }
+
+  function banner(msg){
+    var b=document.getElementById("db-banner");
+    b.textContent=msg; b.hidden=false;
+  }
+
+  function connect(){
+    if(!window.claude || !window.claude.use) return;
+    window.claude.use("db").then(function(x){
+      if(!x){
+        canWrite=false;
+        banner("Status sharing is unavailable in this view — the plan below is complete and readable, but changes will not save.");
+        render();
+        return;
+      }
+      db=x;
+      db.collection("taskStatus").onSnapshot(function(snap){
+        var next={};
+        snap.docs.forEach(function(doc){
+          var v=doc.data()||{};
+          next[doc.id]={status:v.status||"todo", note:v.note||""};
+        });
+        state=next;
+        render();
+      }, function(){
+        canWrite=false;
+        banner("Live status sync stopped. Reload the page to reconnect.");
+        render();
+      });
+    });
+  }
+
+  // ---------- init ----------
+  document.querySelectorAll(".chip").forEach(function(c){
+    c.addEventListener("click",function(){
+      var f=c.dataset.f;
+      document.querySelectorAll('.chip[data-f="'+f+'"]').forEach(function(o){
+        o.setAttribute("aria-pressed", String(o===c));
+      });
+      filters[f]=c.dataset.v;
+      applyFilters();
+    });
+  });
+  document.getElementById("search").addEventListener("input",function(e){
+    filters.q=e.target.value; applyFilters();
+  });
+
+  buildCheckpoints();
+  buildMilestones();
+  renderDeferList();
+  renderCritList();
+  renderCpath();
+  render();
+  connect();
+})();
+</script>
+
+</body></html>

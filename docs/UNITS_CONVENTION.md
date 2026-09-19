@@ -45,6 +45,25 @@ Each equipment type has a characteristic flow dimension:
 
 Do not introduce a "normalized flow" [0–1] separate from the physical units. Actual flow in the equipment's native unit is the canonical state variable.
 
+**Equipment-domain flow and connected networks.** A device's
+`characteristic(flow)` takes flow in that equipment's own process-domain unit —
+SCFM for the gas compressor, GPM for the centrifugal pump — and always returns
+Δp in **psia**. Pressure is the one unit shared across every device, which is
+what lets the solver compare them at all.
+
+Flow is *not* shared across process domains. A connected hydraulic network may
+only solve over branches whose flows are in a compatible domain: a liquid line
+in GPM, a gas line in SCFM. Where the V1 train crosses phase — liquid through
+P-101, gas through K-101, with the V-101 separator between them — those are
+**separate hydraulic problems** coupled through the vessel's inventory, not one
+network with a single flow variable.
+
+No cross-phase flow conversion exists, and none should be invented to make the
+solver or this document simpler. When T4-1/T4-2 define the branch
+characteristic and the network solver, the correct treatment is for the solver
+to work per process domain and for the coupling to happen through mass balance
+at the vessel.
+
 ### Dimensionless
 
 **Load, speed, valve position: [0, 1]**
@@ -87,40 +106,79 @@ suction_pressure_drop = suction_resistance * flow ** 2
 | Isentropic exponent k | dimensionless | ≈ 1.4 for air |
 | Dynamic viscosity | cP (centipoise) | Used in friction correlations; not in state |
 
-## Implicit model structure
+## Model structure and state ownership
 
-Equipment models use the following pattern:
+Equipment models implement the C1 contract (`app/equipment/base.py`). Units
+attach to each category of state, and which *component* owns that state matters
+as much as its unit — see [ARCHITECTURE.md](ARCHITECTURE.md) for the full
+ownership table.
 
 ```python
-class Equipment:
-    def __init__(self):
-        # Boundary conditions (psia)
-        self.supply_pressure = 750.0  # psia
-        self.discharge_header_pressure = 750.0  # psia
-        
-        # Actuator state (dimensionless [0, 1] or normalized)
-        self.load = 0.0  # [0, 1]
-        self.load_target = 0.0  # [0, 1]
-        
-        # Performance curves (psia for shutoff, SCFM/GPM for max flow)
-        self.shutoff_pressure_rise = 220.0  # psia at zero flow
-        self.max_flow = 120.0  # SCFM (gas) or GPM (liquid)
-        
+class GasCompressor(Equipment):
+    def __init__(self, tag="K-101"):
+        super().__init__(
+            tag,
+            ports={
+                "suction": INLET,      # wiring only — a Port never carries
+                "discharge": OUTLET,   # a pressure or a flow
+            },
+        )
+
+        # Actuator / slow state — advanced ONLY by integrate(dt)
+        self.load = 0.0                        # [0, 1]
+        self.load_target = 0.0                 # [0, 1]
+        self.load_rate = config.LOAD_RATE_PER_SECOND   # per second
+
+        # Performance curve
+        self.shutoff_pressure_rise = 220.0     # psia at zero flow
+        self.max_flow = 120.0                  # SCFM (gas) or GPM (liquid)
+
         # Resistance coefficients (dimensioned: Δp = R·Q²)
-        self.suction_resistance = 0.0075  # psia·min²/ft⁶ or psia·min²/gal²
-        
-        # Temperature (°F)
-        self.base_temperature = 75.0  # °F
-        self.max_temperature = 120.0  # °F
-    
+        self.suction_resistance = 0.0075       # psia·min²/ft⁶ or psia·min²/gal²
+
+        # Temperature
+        self.base_temperature = 75.0           # °F
+        self.max_temperature = 120.0           # °F
+
+    def characteristic(self, flow):
+        """Pure: pressure change across the device at this flow, in psia.
+        Positive = rise (machine), negative = drop (valve, pipe)."""
+        return max(
+            self.shutoff_pressure_rise * self.load ** 2
+            - self.compressor_resistance * flow ** 2,
+            0.0,
+        )
+
     def get_state(self):
         return {
-            "pressure": self.discharge_pressure,  # psia
-            "flow": self.flow,  # SCFM or GPM
-            "temperature": self.temperature,  # °F
-            "load": self.load,  # [0, 1]
+            "pressure": self.discharge_pressure,   # psia
+            "flow": self.flow,                     # SCFM or GPM
+            "temperature": self.temperature,       # °F
+            "load": self.load,                     # [0, 1]
         }
 ```
+
+### Boundary pressures are not device state
+
+Before the C1 refactor, devices owned `supply_pressure` and
+`discharge_header_pressure` and solved their own operating point against them.
+**That ownership model is retired.** A pressure at a point in the plant is a
+solver output; it belongs to a `Node` in the topology
+(`app/plant/topology.py`), not to a device.
+
+Both devices currently carry interim `upstream_boundary_pressure` /
+`downstream_boundary_pressure` attributes, in psia, feeding only the legacy
+standalone `step()` path. These are **temporary** and are retired by T4-2 when
+the network solver takes over. Do not add new device attributes that hold a
+plant pressure, and do not treat the interim ones as the pattern to copy.
+
+In the target model:
+
+- Node pressures — **psia**, owned by `Node`, written only by the solver.
+- Stream flow — the branch's process-domain flow unit, owned by `Stream`,
+  written only by the solver.
+- A device publishes `characteristic(flow) -> Δp in psia` and nothing else about
+  the plant's state.
 
 ## Testing and validation
 
@@ -146,12 +204,25 @@ If a future refactor needs to change units (unlikely but possible):
 
 ## References
 
+- **Equipment contract C1:** [app/equipment/base.py](../app/equipment/base.py) — `characteristic(flow)` returns Δp in psia; `integrate(dt)` takes dt in seconds.
 - **Equipment models:** [app/equipment/compressor.py](../app/equipment/compressor.py), [app/equipment/pump.py](../app/equipment/pump.py)
-- **Interface contract C4 (State snapshot):** Defined in the build plan; state dicts are JSON and carry no unit information, so unit must be frozen before the snapshot is finalized.
-- **Configuration schema C3:** Plant config references equipment design parameters; all numeric values in the config respect the same units.
+- **Topology C2:** [app/plant/topology.py](../app/plant/topology.py) — `Node.pressure` in psia, `Stream.flow` in the branch's process-domain unit. These are solver-owned.
+- **State snapshot C4:** [app/engine/snapshot.py](../app/engine/snapshot.py) — state dicts are JSON and carry no unit information, which is exactly why this convention must stay frozen.
+- **Configuration schema C3:** [config/schema/plant.schema.json](../config/schema/plant.schema.json) — all numeric values in plant config respect these units.
+- **State ownership:** [ARCHITECTURE.md](ARCHITECTURE.md)
 
 ---
 
-**Last frozen:** 18 September 2026 (T0-4 merged as commit 55bd80d)
+**Units last frozen:** 18 September 2026 (T0-4, merged as `e1430f4`). The unit
+system itself is unchanged since then and is **not** up for casual revision —
+see the migration path above.
 
-**Next review:** Before T1-2 (Equipment base class) merges; any equipment added after this date must respect these units exactly.
+**Document last reviewed:** 19 September 2026, after T1-4 merged. This revision
+replaced the pre-C1 examples (`supply_pressure`, `discharge_header_pressure`
+owned by a device) with the current contract-based ownership model, and added
+the equipment-domain flow / connected-network note. No unit values changed.
+
+**Next review:** when **T4-1/T4-2** land. The network solver is the first thing
+that reads flows across branches, so it is the point at which the
+process-domain rule above stops being advisory and starts being enforced by
+code. Any equipment added before then must respect these units exactly.

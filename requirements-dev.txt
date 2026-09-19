@@ -1,0 +1,10 @@
+# Development and test dependencies.
+# Runtime dependencies are in requirements.txt; install both to run the suite:
+#
+#   conda activate plant-simulator
+#   pip install -r requirements.txt -r requirements-dev.txt
+#   python -m pytest -q
+
+-r requirements.txt
+
+pytest==9.1.1

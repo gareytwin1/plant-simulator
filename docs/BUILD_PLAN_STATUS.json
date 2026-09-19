@@ -1,0 +1,1859 @@
+{
+  "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
+  "refreshed": "2026-09-19",
+  "main_sha": "5e1a9f0512d9474f04b3fe3a69a252f983eb8415",
+  "tests_passing_on_main": 202,
+  "status_vocabulary": {
+    "Not Started": "No work begun",
+    "In Progress": "Implementation underway; code may exist on a branch",
+    "Blocked": "Waiting on a dependency or decision",
+    "Ready for Review": "Code complete, rebased on current main, suite green, PR open, NOT merged",
+    "Complete": "Merged to main. Nothing else counts."
+  },
+  "milestones": {
+    "M0": {
+      "name": "Baseline Cleanup",
+      "complete": 6,
+      "total": 6
+    },
+    "M1": {
+      "name": "Equipment Model Contract",
+      "complete": 5,
+      "total": 5
+    },
+    "M2": {
+      "name": "Simulation Engine and Clock",
+      "complete": 3,
+      "total": 6
+    },
+    "M3": {
+      "name": "Plant Topology and Streams",
+      "complete": 2,
+      "total": 4
+    },
+    "M4": {
+      "name": "Pressure-Flow Network Solver",
+      "complete": 0,
+      "total": 5
+    },
+    "M5": {
+      "name": "Inventory and Mass Balance",
+      "complete": 0,
+      "total": 4
+    },
+    "M6": {
+      "name": "Energy Balance and Temperature",
+      "complete": 0,
+      "total": 5
+    },
+    "M7": {
+      "name": "Control Valves and Final Elements",
+      "complete": 0,
+      "total": 4
+    },
+    "M8": {
+      "name": "PID Controllers and Modes",
+      "complete": 0,
+      "total": 5
+    },
+    "M9": {
+      "name": "Operating Envelopes",
+      "complete": 0,
+      "total": 4
+    },
+    "M10": {
+      "name": "Alarm System",
+      "complete": 0,
+      "total": 5
+    },
+    "M11": {
+      "name": "Interlocks, Trips and Shutdown",
+      "complete": 0,
+      "total": 4
+    },
+    "M12": {
+      "name": "Startup and Shutdown Sequences",
+      "complete": 0,
+      "total": 4
+    },
+    "M13": {
+      "name": "Disturbance and Malfunction Layer",
+      "complete": 0,
+      "total": 5
+    },
+    "M14": {
+      "name": "Scenario Engine",
+      "complete": 0,
+      "total": 6
+    },
+    "M15": {
+      "name": "Action Log and Scoring",
+      "complete": 0,
+      "total": 4
+    },
+    "M16": {
+      "name": "Operator Console",
+      "complete": 0,
+      "total": 5
+    },
+    "M17": {
+      "name": "Historian and Trends",
+      "complete": 0,
+      "total": 4
+    },
+    "M18": {
+      "name": "Deployment and Operations",
+      "complete": 0,
+      "total": 5
+    },
+    "M19": {
+      "name": "Shared Features",
+      "complete": 0,
+      "total": 3
+    }
+  },
+  "totals": {
+    "tasks": 93,
+    "complete": 16,
+    "startable_now": 18
+  },
+  "tasks": [
+    {
+      "id": "T0-1",
+      "milestone": "M0",
+      "name": "Retire the duplicate simulator module",
+      "category": "core",
+      "branch": "chore/retire-duplicate-simulator",
+      "depends_on": [],
+      "files": [
+        "app/simulator.py",
+        "tests/test_api.py"
+      ],
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged to main as 7b19c31 (ff from chore/retire-duplicate-simulator), 18 Sep. app/simulator.py deleted; grep for PlantSimulator is clean. test_api.py's reset fixture assigned main.simulator, a name main never held \u2014 now builds a fresh GasCompressor on main.compressor. With a real reset, test_api_step's old expectations (load 0.10 / pressure 751.25 / temp 75.04) were exposed as readings of leaked state from test_api_stop; corrected to one clean step (0.05 / 750.3125 / 75.01), which matches test_step_once_with_load in test_compressor.py. Verified: 26 pass full suite, test_api.py passes per-test in isolation and with the whole suite in reverse collection order. Note for T1-1: golden traces must be captured from this tree, not pre-merge main.",
+      "planned_files_not_on_main": [
+        "app/simulator.py"
+      ]
+    },
+    {
+      "id": "T0-2",
+      "milestone": "M0",
+      "name": "Fix the broken start and stop routes",
+      "category": "ind",
+      "branch": "fix/url-for-import",
+      "depends_on": [],
+      "files": [
+        "app/main.py"
+      ],
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Committed directly to main as 7742609 (18 Sep) \u2014 added url_for to the Flask import and two regression tests (test_start_redirect, test_stop_redirect). Full suite 34/34 green. Landed on main rather than fix/url-for-import because a peer session fast-forward-merged docs/units-convention into local main mid-task; harmless, just skipped the intermediate branch."
+    },
+    {
+      "id": "T0-3",
+      "milestone": "M0",
+      "name": "Expose the pump through API and page",
+      "category": "dep",
+      "branch": "feature/pump-endpoints",
+      "depends_on": [
+        "T0-2"
+      ],
+      "files": [
+        "app/main.py",
+        "templates/pump.html",
+        "static/pump.js"
+      ],
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged to main as f8501cb (ff from feature/pump-endpoints, after T0-2 merged as 7742609). Module-level `pump` alongside `compressor` in app/main.py; routes mirror the compressor's shape: GET /pump, GET /api/pump/state, POST /api/pump/{start,stop,step,speed}. templates/pump.html + static/pump.js are new throwaway files per the task note. Tests in new tests/test_pump_api.py: state/start/stop/step/set-speed mirroring test_api.py, plus speed-target clamping above 1 and below 0, plus page render. Full suite 42/42 green."
+    },
+    {
+      "id": "T0-4",
+      "milestone": "M0",
+      "name": "Freeze the unit convention",
+      "category": "ind",
+      "branch": "docs/units-convention",
+      "depends_on": [],
+      "files": [
+        "docs/units.md"
+      ],
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged to main as e1430f4. docs/UNITS_CONVENTION.md freezes pressure (psia), temperature (\u00b0F), flow (SCFM/GPM), load/speed ([0,1]).",
+      "planned_files_not_on_main": [
+        "docs/units.md"
+      ]
+    },
+    {
+      "id": "T0-5",
+      "milestone": "M0",
+      "name": "Repo hygiene",
+      "category": "ind",
+      "branch": "chore/repo-hygiene",
+      "depends_on": [],
+      "files": [
+        ".gitignore"
+      ],
+      "status": "Complete",
+      "status_key": "done",
+      "note": ".gitignore already has __pycache__/ and .pytest_cache/ entries. Full suite 42/42 green, git status clean before and after. No work needed."
+    },
+    {
+      "id": "T0-6",
+      "milestone": "M0",
+      "name": "Make the environment portable",
+      "category": "ind",
+      "branch": "chore/portable-requirements",
+      "depends_on": [],
+      "files": [
+        "requirements.txt",
+        "environment.yml"
+      ],
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged to main as fa2213c. Replaced local conda build path with portable packaging==26.3 version pin and Python 3.12+ requirement. Full suite passes (42 tests).",
+      "planned_files_not_on_main": [
+        "environment.yml"
+      ]
+    },
+    {
+      "id": "T1-1",
+      "milestone": "M1",
+      "name": "Golden-value regression harness",
+      "category": "ind",
+      "branch": "test/golden-regression",
+      "depends_on": [],
+      "files": [
+        "tests/test_golden.py",
+        "tests/golden/*.json"
+      ],
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged to main as 6a1c1f6, then completed in 92286e9 (ff from test/golden-regression-pump), 18 Sep. The first merge covered the compressor only and shipped no proof the harness would fail if the numbers moved, so two of the task's own merge criteria were unmet; both are now closed. Six pump scenarios added in tests/fixtures/golden/pump_traces.json, mirroring the compressor's and chosen to pin the branches a refactor is most likely to break: discharge_header_change crosses into and back out of the dead-headed zero-flow branch, max_flow_clip lands on the max_flow clamp exactly. Replay now drives each run through the same scenario function that captured it \u2014 it previously re-derived the script by substring-matching the recorded command descriptions, so the replay could silently diverge from the run that produced the numbers it was checking. Tolerances documented with their reasoning and pinned from both sides: 1e-5 relative / 1e-7 absolute sits ten orders above double-precision noise and three below the 1% drift the harness exists to catch; tests assert a 1% injected change is caught on both devices (135 field diffs on the compressor, first at step 1, each naming the field, both values and the delta) and that 1e-9 noise is ignored. compressor_traces.json is byte-identical after regeneration, so the restructure moved nothing already locked. Full suite 74 green. Pushed to origin/main.",
+      "planned_files_not_on_main": [
+        "tests/test_golden.py"
+      ]
+    },
+    {
+      "id": "T1-2",
+      "milestone": "M1",
+      "name": "Equipment base class and Port",
+      "category": "core",
+      "branch": "refactor/equipment-contract",
+      "depends_on": [
+        "T0-1"
+      ],
+      "files": [
+        "app/equipment/base.py"
+      ],
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged to main as c82436d + 22066fa (ff from refactor/equipment-contract), 18 Sep, and pushed to origin/main. Branch deleted. Checkpoint A reached \u2014 C1 is frozen. Review found the branch carried a duplicate of T0-2 (55bd80d re-added the url_for fix and both redirect tests, already on main as 7742609); rebased onto main dropping it, so the merge is purely additive: app/equipment/base.py + tests/test_equipment_contract.py, nothing else touched. Added one fix during review (22066fa): Port now has __slots__, because the docstring and C1 both claim there is nowhere on a port to put a pressure or a flow, but Port was a plain object \u2014 the claim was a convention, not a guarantee. Full suite 63 green at merge (74 after T1-1 completion). Two things for the spine owner, deliberately NOT changed since C1 freezes here: (1) every contract test constructs device_class() with no arguments, so zero-arg construction is now implicitly part of C1 and each device must hard-code a default tag \u2014 that collides with T1-5, where the registry is meant to own tags; resolve it as its own task rather than as a side effect. (2) REGISTERED is computed at test-module import time, so an Equipment subclass defined in a module imported later silently escapes the parameterised contract tests. Also note the contract tests currently parameterise over the two test doubles only (Machine, Valve) \u2014 GasCompressor and CentrifugalPump do not subclass Equipment until T1-3/T1-4, at which point the DEVICE_MODULES import hook pulls them in automatically."
+    },
+    {
+      "id": "T1-3",
+      "milestone": "M1",
+      "name": "Refactor the compressor onto the contract",
+      "category": "dep",
+      "branch": "refactor/compressor-onto-base",
+      "depends_on": [
+        "T1-2",
+        "T1-1"
+      ],
+      "files": [
+        "app/equipment/compressor.py"
+      ],
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged to main as a416ff6 (fast-forward from refactor/compressor-onto-base), pushed to origin/main, branch deleted (local + remote). Full suite 93/93 green on main post-merge. GasCompressor now subclasses Equipment: ports suction(inlet)/discharge(outlet), integrate(dt) moves load and valve position only (no flow/pressure touch, satisfies integrate(0) no-op), characteristic(flow) publishes max(shutoff_pressure_rise*load**2 - compressor_resistance*flow**2, 0.0) as a pure function. step() stays as GasCompressor's own method (calls integrate(dt) then _calculate_operating_point()) since no plant-wide solver exists yet to drive devices externally \u2014 that's still M4 (T4-2). supply_pressure/discharge_header_pressure renamed to upstream_boundary_pressure/downstream_boundary_pressure so a fresh device has no attribute matching NODE_PRESSURE_ATTRIBUTES in the contract test; _calculate_operating_point's available_pressure_rise is now derived from characteristic(0.0) instead of duplicating the shutoff/load term, and the duplicate _move_toward static method is dropped in favor of Equipment's. Default tag is 'K-101', matching T1-2's note that zero-arg construction is implicitly part of C1 \u2014 same collision with T1-5's registry ownership of tags applies here too, not resolved as part of this task. Updated tests/test_compressor.py's two boundary-pressure lines and the two compressor scenario functions in tests/golden_regression.py (pump scenarios left for T1-4) to the new attribute names. Golden traces reproduce exactly; regenerating them changed only the two recorded command-description strings that named the old attributes (compressor_traces.json), pump_traces.json byte-identical. Heads up for T1-4 review: GasCompressor kept its own step()/operating-point solve (no plant-wide solver exists yet); a concurrent pump refactor observed in progress appeared to drop step() and the self-solve entirely \u2014 worth reconciling the two approaches so satellites depending on Equipment devices can assume one consistent shape."
+    },
+    {
+      "id": "T1-4",
+      "milestone": "M1",
+      "name": "Refactor the pump onto the contract",
+      "category": "dep",
+      "branch": "refactor/pump-onto-base",
+      "depends_on": [
+        "T1-2",
+        "T1-1"
+      ],
+      "files": [
+        "app/equipment/pump.py"
+      ],
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged to main as 5e1a9f0512d9474f04b3fe3a69a252f983eb8415 (no-ff merge commit of PR #1, from refactor/pump-onto-base @ 4751cc1), 19 Sep. Full suite 202/202 green on main post-merge.\n\nCentrifugalPump is now on the C1 Equipment contract: tag 'P-101', suction(inlet)/discharge(outlet) ports, integrate(dt) owns slow-state speed ramping only, characteristic(flow) is a pure published curve. Renamed supply_pressure/discharge_header_pressure -> upstream_boundary_pressure/downstream_boundary_pressure so no device attribute matches the contract's forbidden node-pressure names. get_state() shape unchanged, so main.py, templates/pump.html, static/pump.js, test_pump_api.py and test_pump.py needed zero changes. Golden trace values are numerically unchanged \u2014 only two recorded command-description strings naming the old attributes moved.\n\nThe pump now works through Engine: Engine.step() drives it via integrate() and Snapshot publishes its state generically by tag, with no pump-specific code in Engine/Snapshot. Closed the coverage gap T2-3 documented ('Pump coverage belongs here once T1-4 merges') by adding test_pump_golden_slow_state_reproduces_through_the_engine to tests/test_engine.py, mirroring the compressor version. CentrifugalPump is also picked up automatically by the parametrized C1 contract tests and the registry round-trip test (+7 tests on merge; 194 -> 201, +1 new engine golden test = 202).\n\nINTENTIONALLY TEMPORARY, do not 'clean up' as a side effect of another task: both GasCompressor and CentrifugalPump retain their own step() plus _calculate_operating_point() standalone solve, and the Flask routes still call that legacy path. T4-2 (network solver) is the task that retires equipment-owned operating-point solving and the interim upstream/downstream_boundary_pressure attributes. Until then Engine deliberately calls integrate() only and does not compute flow/pressure.\n\nRebase history: originally branched from 63b1a0a (pre T1-3/T1-5/T2-3/T3-1/T3-2); rebased cleanly onto current main with zero conflicts before merge, since the branch only ever touched pump.py, golden_regression.py and the pump golden fixture."
+    },
+    {
+      "id": "T1-5",
+      "milestone": "M1",
+      "name": "Equipment registry and tag naming",
+      "category": "dep",
+      "branch": "feature/equipment-registry",
+      "depends_on": [
+        "T1-2"
+      ],
+      "files": [
+        "app/equipment/registry.py",
+        "app/config.py"
+      ],
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged to main as 5ea07cb, pushed to origin/main. Branch feature/equipment-registry deleted locally (was never pushed to origin, so no remote delete needed). Full suite green (98 tracked tests at merge time: 93 pre-existing + 5 new). EquipmentRegistry (app/equipment/registry.py) maps tag -> device instance: register() raises ValueError naming the device already holding a tag instead of silently overwriting it, resolve() raises KeyError naming the missing tag plus every tag that is registered. app/config.py gets an appended TAG_PREFIXES section documenting the ISA-style convention (K/P/E/V/FV) referenced from the registry's docstring. tests/test_registry.py round-trips every class currently in Equipment.registered() (same DEVICE_MODULES/dynamic-discovery idiom as test_equipment_contract.py, so it automatically picks up CentrifugalPump once T1-4 lands) plus duplicate/unknown-tag cases. Not wired into app/main.py or any Plant object yet \u2014 that's for whichever later task actually builds a Plant from config (T3-3) or gives sessions their own registry (T2-4); T1-5 only builds the mechanism. Process note, not a code issue: while committing, this shared working tree's checked-out branch got switched out from under me mid-task (another session created feature/plant-config-schema fresh off main between my `checkout -b` and `commit`), so my first commit attempt (d41949a) landed on THAT branch instead of mine. I cherry-picked it onto the correct feature/equipment-registry branch (now merged as 5ea07cb) but could not clean up the stray d41949a on feature/plant-config-schema \u2014 the sandbox blocked both `reset --hard` and `git revert` on that branch as cross-workload interference, correctly, since another session owns it. By the time I could react, that session had already committed T3-1 on top of it and pushed (5b2ad19). See the note on T3-1 for what that means for their branch."
+    },
+    {
+      "id": "T2-1",
+      "milestone": "M2",
+      "name": "Simulation clock",
+      "category": "ind",
+      "branch": "feature/simulation-clock",
+      "depends_on": [],
+      "files": [
+        "app/engine/clock.py"
+      ],
+      "status": "Complete",
+      "status_key": "done"
+    },
+    {
+      "id": "T2-2",
+      "milestone": "M2",
+      "name": "Seeded RNG service",
+      "category": "ind",
+      "branch": "feature/seeded-rng",
+      "depends_on": [],
+      "files": [
+        "app/engine/rng.py"
+      ],
+      "status": "In Progress",
+      "status_key": "prog",
+      "note": "STATUS CORRECTED 19 Sep 2026: previously marked Complete with a note claiming 'Merged feature/seeded-rng ... commit 611c5b6', but app/engine/rng.py and tests/test_rng.py are NOT on main. Commit 611c5b6 exists only on the local-only branch feature/seeded-rng, which was never pushed to origin and never merged; it is also well behind current main. Nothing in app/ imports random today, so no determinism rule is violated yet, but the seeded RNG service does not exist on main. Only T14-5 (deterministic replay) depends on it, and T14-5 is blocked on other dependencies anyway, so no currently-startable task is affected. To finish: rebase feature/seeded-rng onto main, reconcile it with project style (it uses type hints, which this codebase does not), run the full suite, PR and merge.",
+      "status_corrected_during_handoff_refresh": true
+    },
+    {
+      "id": "T2-3",
+      "milestone": "M2",
+      "name": "Engine step loop and snapshot publisher",
+      "category": "core",
+      "branch": "refactor/simulation-engine",
+      "depends_on": [
+        "T1-2",
+        "T2-1"
+      ],
+      "files": [
+        "app/engine/engine.py",
+        "app/engine/snapshot.py"
+      ],
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged to local main as 1eeb089 + 209662c (ff from refactor/simulation-engine, rebased onto origin/main's 07d4d1d worktree-docs commit \u2014 clean, no code overlap). /code-review high ran 8 finder agents in parallel; 5 independently converged on the same root cause (Engine.running was a second, unsynchronized running flag that step() never checked \u2014 stop() didn't stop anything). Fixed by deleting the flag: start()/stop() now delegate to SimulationClock.pause()/resume(), snapshot's running field reads off clock.paused. Also fixed from review: SimulationClock.step() now returns elapsed sim-time instead of Engine re-deriving it by diffing; Engine's constructor takes an iterable (not a pre-keyed dict) so equipment dict keys can't diverge from device.tag; Snapshot._frozen() now deep-copies (matching base.py's _snapshot() precedent) instead of shallow-copying; alarms entries are now deep-frozen too (previously only the outer tuple was immutable, contradicting the module's own docstring); solver=None vs explicit solver={} are now distinguished. Documented+pinned rather than fixed (would require touching satellite-owned compressor.py/pump.py, out of scope): device.simulation_speed is not consulted by Engine \u2014 a new test proves this explicitly rather than relying on both defaulting to 1.0 by coincidence. Rejected: removing the C4 placeholder sections (violates T2-3's own 'matches C4 exactly' requirement), dropping MappingProxyType immutability (contradicts Port's __slots__ precedent + breaks leak tests), and 6 efficiency suggestions (memoization/parallel-gather) that target throughput problems this 1Hz poll-driven simulator doesn't have. Full suite 130 green. NOT YET PUSHED to origin \u2014 checking with the user first since this is spine work with high blast radius (unblocks feature/plant-topology next)."
+    },
+    {
+      "id": "T2-4",
+      "milestone": "M2",
+      "name": "Session and plant registry",
+      "category": "dep",
+      "branch": "feature/session-registry",
+      "depends_on": [
+        "T2-3"
+      ],
+      "files": [
+        "app/engine/sessions.py",
+        "app/main.py"
+      ],
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged to main (d6879e0)."
+    },
+    {
+      "id": "T2-5",
+      "milestone": "M2",
+      "name": "Background scheduler",
+      "category": "dep",
+      "branch": "feature/engine-scheduler",
+      "depends_on": [
+        "T2-3",
+        "T2-4"
+      ],
+      "files": [
+        "app/engine/scheduler.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": true
+    },
+    {
+      "id": "T2-6",
+      "milestone": "M2",
+      "name": "Frontend stops driving physics",
+      "category": "dep",
+      "branch": "refactor/frontend-read-only",
+      "depends_on": [
+        "T2-5"
+      ],
+      "files": [
+        "static/compressor.js"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T2-5"
+      ]
+    },
+    {
+      "id": "T3-1",
+      "milestone": "M3",
+      "name": "Plant config schema and validator",
+      "category": "ind",
+      "branch": "feature/plant-config-schema",
+      "depends_on": [],
+      "files": [
+        "config/schema/plant.schema.json",
+        "app/plant/validate.py"
+      ],
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged to main (211fa3f). History carries T1-5 twice (d41949a + 5ea07cb, identical content) \u2014 already pushed, not rewritten."
+    },
+    {
+      "id": "T3-2",
+      "milestone": "M3",
+      "name": "Node, branch and stream structures",
+      "category": "core",
+      "branch": "feature/plant-topology",
+      "depends_on": [
+        "T1-2"
+      ],
+      "files": [
+        "app/plant/topology.py"
+      ],
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged to main as 2e56c48 (fast-forward from feature/plant-topology, rebased onto origin/main's T2-3 first), 19 Sep. Pushed to origin/main; feature branch deleted (remote + local worktree). gh's stored PR credentials were invalid (keyring token bad), so this landed as a direct fast-forward push rather than through a GitHub PR \u2014 no GitHub PR record exists for T3-2. Full suite 168 passed on merge (131 at review, +37 from T2-3 landing on main in the interim; rebase was clean, no conflicts). Checkpoint B is now one step closer \u2014 app/plant/topology.py is released from spine claim.\n\nC2 as implemented: Node(id, pressure, is_boundary, elevation), Branch(id, from_node, to_node, device, flow), Stream(flow, pressure, temperature, composition), plus a Topology container. Solver-owned values are read-only properties written only via set_pressure()/set_flow() \u2014 `node.pressure = 800` raises AttributeError, a boundary node refuses set_pressure() entirely, and flow is stored once on the branch's stream (Branch.flow is a property over it).\n\nTwo decisions for T3-3/T4-1/T4-2 to build against:\n(1) Port binding by direction, with explicit from_port/to_port override for devices with more than one inlet or outlet (an exchanger's utility side, a vessel's vent are a second branch on the same device \u2014 duplicate-tag check is identity-based).\n(2) A branch must hold a device \u2014 Branch(..., device=None) is refused; a bare line is a resistance device, not a special case.\n\nDeliberately NOT in this task: characteristic sign convention / reverse flow (T4-1), all solvability checks \u2014 dangling port, disconnected subgraph, zero boundary pressure, duplicate config tag (T3-3's loader, where the error can name the config path). T3-3's primitives: boundary_nodes / internal_nodes, branches_from / branches_to / branches_at, unconnected_ports(), device(tag), identity-checked add_node/add_branch.\n\nFor the snapshot owner (C4): Topology.get_state() returns nodes/branches/streams as flat JSON-safe rows, streams keyed by branch id (remap freely, no identity of their own yet). describe()/str() prints the graph for debugging.\n\nOpen note carried over from review, still true: tests/test_topology.py's Equipment double (Device) lands in REGISTERED and runs through the C1 parameterised contract tests if collected before test_equipment_contract.py \u2014 passes either way, but is a live instance of the import-order gap T1-2 flagged; not fixed here since it's out of scope for C2."
+    },
+    {
+      "id": "T3-3",
+      "milestone": "M3",
+      "name": "Plant loader and topology validation",
+      "category": "dep",
+      "branch": "feature/plant-loader",
+      "depends_on": [
+        "T3-1",
+        "T3-2"
+      ],
+      "files": [
+        "app/plant/loader.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": true
+    },
+    {
+      "id": "T3-4",
+      "milestone": "M3",
+      "name": "Reference plant configuration",
+      "category": "dep",
+      "branch": "feature/reference-plant",
+      "depends_on": [
+        "T3-3"
+      ],
+      "files": [
+        "config/plants/olefins_lite.yaml"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T3-3"
+      ]
+    },
+    {
+      "id": "T4-1",
+      "milestone": "M4",
+      "name": "Branch characteristic interface",
+      "category": "core",
+      "branch": "feature/branch-characteristic",
+      "depends_on": [
+        "T1-2",
+        "T3-2"
+      ],
+      "files": [
+        "app/equipment/base.py",
+        "app/plant/topology.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": true
+    },
+    {
+      "id": "T4-2",
+      "milestone": "M4",
+      "name": "Newton-Raphson network solver",
+      "category": "dep",
+      "branch": "feature/network-solver",
+      "depends_on": [
+        "T4-1",
+        "T3-3"
+      ],
+      "files": [
+        "app/engine/network.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T4-1",
+        "T3-3"
+      ]
+    },
+    {
+      "id": "T4-3",
+      "milestone": "M4",
+      "name": "Solver diagnostics and failure handling",
+      "category": "dep",
+      "branch": "feature/solver-diagnostics",
+      "depends_on": [
+        "T4-2"
+      ],
+      "files": [
+        "app/engine/network.py",
+        "app/engine/snapshot.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T4-2"
+      ]
+    },
+    {
+      "id": "T4-4",
+      "milestone": "M4",
+      "name": "Wire the solver into the engine",
+      "category": "core",
+      "branch": "refactor/solver-integration",
+      "depends_on": [
+        "T4-2",
+        "T2-3"
+      ],
+      "files": [
+        "app/engine/engine.py",
+        "app/equipment/compressor.py",
+        "app/equipment/pump.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T4-2"
+      ]
+    },
+    {
+      "id": "T4-5",
+      "milestone": "M4",
+      "name": "Cause-and-effect assertion suite",
+      "category": "dep",
+      "branch": "test/cause-and-effect",
+      "depends_on": [
+        "T4-4"
+      ],
+      "files": [
+        "tests/test_cause_effect.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T4-4"
+      ]
+    },
+    {
+      "id": "T5-1",
+      "milestone": "M5",
+      "name": "Vessel model",
+      "category": "dep",
+      "branch": "feature/vessel-model",
+      "depends_on": [
+        "T1-2"
+      ],
+      "files": [
+        "app/equipment/vessel.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": true
+    },
+    {
+      "id": "T5-2",
+      "milestone": "M5",
+      "name": "Level to hydraulics coupling",
+      "category": "core",
+      "branch": "feature/inventory-coupling",
+      "depends_on": [
+        "T5-1",
+        "T4-4"
+      ],
+      "files": [
+        "app/engine/engine.py",
+        "app/equipment/vessel.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T5-1",
+        "T4-4"
+      ]
+    },
+    {
+      "id": "T5-3",
+      "milestone": "M5",
+      "name": "Gas-phase pressure accumulation",
+      "category": "dep",
+      "branch": "feature/gas-inventory",
+      "depends_on": [
+        "T5-1"
+      ],
+      "files": [
+        "app/equipment/vessel.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T5-1"
+      ]
+    },
+    {
+      "id": "T5-4",
+      "milestone": "M5",
+      "name": "Mass balance conservation suite",
+      "category": "dep",
+      "branch": "test/mass-balance",
+      "depends_on": [
+        "T5-2"
+      ],
+      "files": [
+        "tests/test_mass_balance.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T5-2"
+      ]
+    },
+    {
+      "id": "T6-1",
+      "milestone": "M6",
+      "name": "Stream enthalpy and mixing",
+      "category": "dep",
+      "branch": "feature/stream-enthalpy",
+      "depends_on": [
+        "T3-2"
+      ],
+      "files": [
+        "app/plant/thermo.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": true
+    },
+    {
+      "id": "T6-2",
+      "milestone": "M6",
+      "name": "Polytropic compression temperature",
+      "category": "dep",
+      "branch": "feature/polytropic-temperature",
+      "depends_on": [
+        "T6-1"
+      ],
+      "files": [
+        "app/equipment/compressor.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T6-1"
+      ]
+    },
+    {
+      "id": "T6-3",
+      "milestone": "M6",
+      "name": "Heat exchanger model",
+      "category": "dep",
+      "branch": "feature/heat-exchanger",
+      "depends_on": [
+        "T6-1"
+      ],
+      "files": [
+        "app/equipment/exchanger.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T6-1"
+      ]
+    },
+    {
+      "id": "T6-4",
+      "milestone": "M6",
+      "name": "Furnace model",
+      "category": "dep",
+      "branch": "feature/furnace",
+      "depends_on": [
+        "T6-1"
+      ],
+      "files": [
+        "app/equipment/furnace.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T6-1"
+      ]
+    },
+    {
+      "id": "T6-5",
+      "milestone": "M6",
+      "name": "Energy propagation through the network",
+      "category": "core",
+      "branch": "feature/energy-balance",
+      "depends_on": [
+        "T6-1",
+        "T4-4"
+      ],
+      "files": [
+        "app/engine/engine.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T6-1",
+        "T4-4"
+      ]
+    },
+    {
+      "id": "T7-1",
+      "milestone": "M7",
+      "name": "Control valve model",
+      "category": "dep",
+      "branch": "feature/control-valve",
+      "depends_on": [
+        "T1-2",
+        "T4-1"
+      ],
+      "files": [
+        "app/equipment/valve.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T4-1"
+      ]
+    },
+    {
+      "id": "T7-2",
+      "milestone": "M7",
+      "name": "Extract valve logic from the compressor",
+      "category": "core",
+      "branch": "refactor/extract-compressor-valve",
+      "depends_on": [
+        "T7-1",
+        "T4-4"
+      ],
+      "files": [
+        "app/equipment/compressor.py",
+        "config/plants/olefins_lite.yaml"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T7-1",
+        "T4-4"
+      ]
+    },
+    {
+      "id": "T7-3",
+      "milestone": "M7",
+      "name": "Valve fault modes",
+      "category": "dep",
+      "branch": "feature/valve-faults",
+      "depends_on": [
+        "T7-1"
+      ],
+      "files": [
+        "app/equipment/valve.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T7-1"
+      ]
+    },
+    {
+      "id": "T7-4",
+      "milestone": "M7",
+      "name": "Command arbitration",
+      "category": "core",
+      "branch": "feature/command-arbitration",
+      "depends_on": [
+        "T7-1"
+      ],
+      "files": [
+        "app/controls/arbitration.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T7-1"
+      ]
+    },
+    {
+      "id": "T8-1",
+      "milestone": "M8",
+      "name": "PID block",
+      "category": "ind",
+      "branch": "feature/pid-block",
+      "depends_on": [],
+      "files": [
+        "app/controls/pid.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": true
+    },
+    {
+      "id": "T8-2",
+      "milestone": "M8",
+      "name": "Control modes and bumpless transfer",
+      "category": "dep",
+      "branch": "feature/control-modes",
+      "depends_on": [
+        "T8-1"
+      ],
+      "files": [
+        "app/controls/modes.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T8-1"
+      ]
+    },
+    {
+      "id": "T8-3",
+      "milestone": "M8",
+      "name": "Loop configuration and tag wiring",
+      "category": "dep",
+      "branch": "feature/loop-config",
+      "depends_on": [
+        "T3-1",
+        "T8-2",
+        "T1-5"
+      ],
+      "files": [
+        "app/controls/loader.py",
+        "config/plants/olefins_lite.yaml"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T8-2"
+      ]
+    },
+    {
+      "id": "T8-4",
+      "milestone": "M8",
+      "name": "Loop execution in the engine step",
+      "category": "core",
+      "branch": "feature/loop-execution",
+      "depends_on": [
+        "T8-3",
+        "T2-3"
+      ],
+      "files": [
+        "app/engine/engine.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T8-3"
+      ]
+    },
+    {
+      "id": "T8-5",
+      "milestone": "M8",
+      "name": "Cascade control",
+      "category": "dep",
+      "branch": "feature/cascade-control",
+      "depends_on": [
+        "T8-4"
+      ],
+      "files": [
+        "app/controls/cascade.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T8-4"
+      ]
+    },
+    {
+      "id": "T9-1",
+      "milestone": "M9",
+      "name": "Envelope evaluator",
+      "category": "ind",
+      "branch": "feature/envelope-evaluator",
+      "depends_on": [],
+      "files": [
+        "app/envelope/evaluator.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": true
+    },
+    {
+      "id": "T9-2",
+      "milestone": "M9",
+      "name": "Limit definitions in plant config",
+      "category": "dep",
+      "branch": "feature/envelope-limits",
+      "depends_on": [
+        "T3-1",
+        "T9-1"
+      ],
+      "files": [
+        "config/plants/olefins_lite.yaml",
+        "app/envelope/loader.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T9-1"
+      ]
+    },
+    {
+      "id": "T9-3",
+      "milestone": "M9",
+      "name": "Time-in-band and excursion tracking",
+      "category": "dep",
+      "branch": "feature/excursion-tracking",
+      "depends_on": [
+        "T9-1"
+      ],
+      "files": [
+        "app/envelope/tracker.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T9-1"
+      ]
+    },
+    {
+      "id": "T9-4",
+      "milestone": "M9",
+      "name": "Envelope status in the snapshot",
+      "category": "dep",
+      "branch": "feature/envelope-in-snapshot",
+      "depends_on": [
+        "T9-2",
+        "T9-3",
+        "T2-3"
+      ],
+      "files": [
+        "app/engine/snapshot.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T9-2",
+        "T9-3"
+      ]
+    },
+    {
+      "id": "T10-1",
+      "milestone": "M10",
+      "name": "Alarm state machine",
+      "category": "ind",
+      "branch": "feature/alarm-state-machine",
+      "depends_on": [],
+      "files": [
+        "app/alarms/state.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": true
+    },
+    {
+      "id": "T10-2",
+      "milestone": "M10",
+      "name": "Alarm manager over envelope events",
+      "category": "dep",
+      "branch": "feature/alarm-manager",
+      "depends_on": [
+        "T9-1",
+        "T10-1"
+      ],
+      "files": [
+        "app/alarms/manager.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T9-1",
+        "T10-1"
+      ]
+    },
+    {
+      "id": "T10-3",
+      "milestone": "M10",
+      "name": "Alarm history and acknowledge",
+      "category": "dep",
+      "branch": "feature/alarm-history",
+      "depends_on": [
+        "T10-2"
+      ],
+      "files": [
+        "app/alarms/history.py",
+        "app/api/alarms.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T10-2"
+      ]
+    },
+    {
+      "id": "T10-4",
+      "milestone": "M10",
+      "name": "Flood suppression and first-out",
+      "category": "dep",
+      "branch": "feature/alarm-flood-control",
+      "depends_on": [
+        "T10-2"
+      ],
+      "files": [
+        "app/alarms/manager.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T10-2"
+      ]
+    },
+    {
+      "id": "T10-5",
+      "milestone": "M10",
+      "name": "Alarm banner and summary",
+      "category": "dep",
+      "branch": "feature/alarm-console",
+      "depends_on": [
+        "T10-3"
+      ],
+      "files": [
+        "static/js/alarms.js",
+        "static/css/alarms.css"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T10-3"
+      ]
+    },
+    {
+      "id": "T11-1",
+      "milestone": "M11",
+      "name": "Interlock definitions and evaluator",
+      "category": "dep",
+      "branch": "feature/interlock-evaluator",
+      "depends_on": [
+        "T3-1",
+        "T9-1"
+      ],
+      "files": [
+        "app/safety/interlocks.py",
+        "config/plants/olefins_lite.yaml"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T9-1"
+      ]
+    },
+    {
+      "id": "T11-2",
+      "milestone": "M11",
+      "name": "Trip actions on equipment",
+      "category": "core",
+      "branch": "feature/trip-actions",
+      "depends_on": [
+        "T11-1",
+        "T7-4"
+      ],
+      "files": [
+        "app/safety/actions.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T11-1",
+        "T7-4"
+      ]
+    },
+    {
+      "id": "T11-3",
+      "milestone": "M11",
+      "name": "Permissives and reset",
+      "category": "dep",
+      "branch": "feature/permissives",
+      "depends_on": [
+        "T11-2"
+      ],
+      "files": [
+        "app/safety/permissives.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T11-2"
+      ]
+    },
+    {
+      "id": "T11-4",
+      "milestone": "M11",
+      "name": "First-out trip capture",
+      "category": "dep",
+      "branch": "feature/first-out-capture",
+      "depends_on": [
+        "T11-2"
+      ],
+      "files": [
+        "app/safety/firstout.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T11-2"
+      ]
+    },
+    {
+      "id": "T12-1",
+      "milestone": "M12",
+      "name": "Plant snapshot save and restore",
+      "category": "ind",
+      "branch": "feature/state-persistence",
+      "depends_on": [
+        "T2-3"
+      ],
+      "files": [
+        "app/engine/persistence.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": true
+    },
+    {
+      "id": "T12-2",
+      "milestone": "M12",
+      "name": "Named initial conditions library",
+      "category": "dep",
+      "branch": "feature/initial-conditions",
+      "depends_on": [
+        "T12-1"
+      ],
+      "files": [
+        "config/initial_conditions/*.json"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T12-1"
+      ]
+    },
+    {
+      "id": "T12-3",
+      "milestone": "M12",
+      "name": "Plant state machine",
+      "category": "dep",
+      "branch": "feature/plant-state-machine",
+      "depends_on": [
+        "T11-3"
+      ],
+      "files": [
+        "app/plant/states.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T11-3"
+      ]
+    },
+    {
+      "id": "T12-4",
+      "milestone": "M12",
+      "name": "Startup and shutdown sequences",
+      "category": "dep",
+      "branch": "feature/startup-sequence",
+      "depends_on": [
+        "T12-3",
+        "T12-2"
+      ],
+      "files": [
+        "config/sequences/*.yaml",
+        "app/plant/sequences.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T12-3",
+        "T12-2"
+      ]
+    },
+    {
+      "id": "T13-1",
+      "milestone": "M13",
+      "name": "Malfunction model and registry",
+      "category": "dep",
+      "branch": "feature/malfunction-model",
+      "depends_on": [
+        "T1-5",
+        "T3-1"
+      ],
+      "files": [
+        "app/disturbances/malfunction.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": true
+    },
+    {
+      "id": "T13-2",
+      "milestone": "M13",
+      "name": "Split true and indicated values",
+      "category": "core",
+      "branch": "refactor/true-vs-indicated",
+      "depends_on": [
+        "T13-1",
+        "T2-3"
+      ],
+      "files": [
+        "app/equipment/base.py",
+        "app/engine/snapshot.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T13-1"
+      ]
+    },
+    {
+      "id": "T13-3",
+      "milestone": "M13",
+      "name": "Injection profiles",
+      "category": "dep",
+      "branch": "feature/malfunction-profiles",
+      "depends_on": [
+        "T13-1"
+      ],
+      "files": [
+        "app/disturbances/profiles.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T13-1"
+      ]
+    },
+    {
+      "id": "T13-4",
+      "milestone": "M13",
+      "name": "Malfunction catalogue",
+      "category": "dep",
+      "branch": "feature/malfunction-catalogue",
+      "depends_on": [
+        "T13-1",
+        "T13-2",
+        "T7-3"
+      ],
+      "files": [
+        "config/malfunctions/*.yaml"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T13-1",
+        "T13-2",
+        "T7-3"
+      ]
+    },
+    {
+      "id": "T13-5",
+      "milestone": "M13",
+      "name": "Physics isolation guard",
+      "category": "ind",
+      "branch": "test/import-direction-guard",
+      "depends_on": [],
+      "files": [
+        "tests/test_layer_isolation.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": true
+    },
+    {
+      "id": "T14-1",
+      "milestone": "M14",
+      "name": "Scenario file schema",
+      "category": "ind",
+      "branch": "feature/scenario-schema",
+      "depends_on": [],
+      "files": [
+        "config/schema/scenario.schema.json"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": true
+    },
+    {
+      "id": "T14-2",
+      "milestone": "M14",
+      "name": "Trigger evaluator",
+      "category": "dep",
+      "branch": "feature/scenario-triggers",
+      "depends_on": [
+        "T14-1",
+        "T2-3"
+      ],
+      "files": [
+        "app/scenarios/triggers.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T14-1"
+      ]
+    },
+    {
+      "id": "T14-3",
+      "milestone": "M14",
+      "name": "Objective evaluator",
+      "category": "dep",
+      "branch": "feature/scenario-objectives",
+      "depends_on": [
+        "T14-1",
+        "T9-3"
+      ],
+      "files": [
+        "app/scenarios/objectives.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T14-1",
+        "T9-3"
+      ]
+    },
+    {
+      "id": "T14-4",
+      "milestone": "M14",
+      "name": "Scenario lifecycle and API",
+      "category": "dep",
+      "branch": "feature/scenario-runner",
+      "depends_on": [
+        "T14-2",
+        "T14-3",
+        "T12-2"
+      ],
+      "files": [
+        "app/scenarios/runner.py",
+        "app/api/scenario.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T14-2",
+        "T14-3",
+        "T12-2"
+      ]
+    },
+    {
+      "id": "T14-5",
+      "milestone": "M14",
+      "name": "Deterministic replay",
+      "category": "dep",
+      "branch": "feature/scenario-replay",
+      "depends_on": [
+        "T14-4",
+        "T2-2",
+        "T15-1"
+      ],
+      "files": [
+        "app/scenarios/replay.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T14-4",
+        "T2-2",
+        "T15-1"
+      ]
+    },
+    {
+      "id": "T14-6",
+      "milestone": "M14",
+      "name": "Authored scenario pack",
+      "category": "dep",
+      "branch": "feature/scenario-pack",
+      "depends_on": [
+        "T14-4",
+        "T13-4"
+      ],
+      "files": [
+        "config/scenarios/*.yaml"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T14-4",
+        "T13-4"
+      ]
+    },
+    {
+      "id": "T15-1",
+      "milestone": "M15",
+      "name": "Operator action log",
+      "category": "dep",
+      "branch": "feature/action-log",
+      "depends_on": [
+        "T2-3"
+      ],
+      "files": [
+        "app/scoring/actionlog.py",
+        "app/api/action.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": true
+    },
+    {
+      "id": "T15-2",
+      "milestone": "M15",
+      "name": "Result metrics calculator",
+      "category": "dep",
+      "branch": "feature/scoring-metrics",
+      "depends_on": [
+        "T15-1",
+        "T9-3",
+        "T10-3"
+      ],
+      "files": [
+        "app/scoring/metrics.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T15-1",
+        "T9-3",
+        "T10-3"
+      ]
+    },
+    {
+      "id": "T15-3",
+      "milestone": "M15",
+      "name": "Weighted scoring",
+      "category": "dep",
+      "branch": "feature/weighted-scoring",
+      "depends_on": [
+        "T15-2"
+      ],
+      "files": [
+        "app/scoring/score.py",
+        "config/scoring.yaml"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T15-2"
+      ]
+    },
+    {
+      "id": "T15-4",
+      "milestone": "M15",
+      "name": "Score persistence",
+      "category": "ind",
+      "branch": "feature/score-store",
+      "depends_on": [],
+      "files": [
+        "app/scoring/store.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": true
+    },
+    {
+      "id": "T16-1",
+      "milestone": "M16",
+      "name": "Console design system",
+      "category": "ind",
+      "branch": "design/console-system",
+      "depends_on": [],
+      "files": [
+        "static/css/tokens.css",
+        "docs/console-standards.md"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": true
+    },
+    {
+      "id": "T16-2",
+      "milestone": "M16",
+      "name": "Snapshot push transport",
+      "category": "dep",
+      "branch": "feature/snapshot-transport",
+      "depends_on": [
+        "T2-5"
+      ],
+      "files": [
+        "app/api/stream.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T2-5"
+      ]
+    },
+    {
+      "id": "T16-3",
+      "milestone": "M16",
+      "name": "Process graphic",
+      "category": "dep",
+      "branch": "feature/process-graphic",
+      "depends_on": [
+        "T16-1",
+        "T16-2"
+      ],
+      "files": [
+        "static/js/graphic.js",
+        "static/graphics/*.svg"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T16-1",
+        "T16-2"
+      ]
+    },
+    {
+      "id": "T16-4",
+      "milestone": "M16",
+      "name": "Controller faceplates",
+      "category": "dep",
+      "branch": "feature/faceplates",
+      "depends_on": [
+        "T16-1",
+        "T8-2"
+      ],
+      "files": [
+        "static/js/faceplate.js"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T16-1",
+        "T8-2"
+      ]
+    },
+    {
+      "id": "T16-5",
+      "milestone": "M16",
+      "name": "Stale connection handling",
+      "category": "dep",
+      "branch": "feature/stale-detection",
+      "depends_on": [
+        "T16-2"
+      ],
+      "files": [
+        "static/js/connection.js"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T16-2"
+      ]
+    },
+    {
+      "id": "T17-1",
+      "milestone": "M17",
+      "name": "Ring-buffer historian",
+      "category": "ind",
+      "branch": "feature/historian",
+      "depends_on": [],
+      "files": [
+        "app/historian/buffer.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": true
+    },
+    {
+      "id": "T17-2",
+      "milestone": "M17",
+      "name": "Peak-preserving decimation",
+      "category": "dep",
+      "branch": "feature/trend-decimation",
+      "depends_on": [
+        "T17-1"
+      ],
+      "files": [
+        "app/historian/decimate.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T17-1"
+      ]
+    },
+    {
+      "id": "T17-3",
+      "milestone": "M17",
+      "name": "Trend API",
+      "category": "dep",
+      "branch": "feature/trend-api",
+      "depends_on": [
+        "T17-1",
+        "T17-2"
+      ],
+      "files": [
+        "app/api/trend.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T17-1",
+        "T17-2"
+      ]
+    },
+    {
+      "id": "T17-4",
+      "milestone": "M17",
+      "name": "Trend display",
+      "category": "dep",
+      "branch": "feature/frontend-trends",
+      "depends_on": [
+        "T17-3",
+        "T16-1"
+      ],
+      "files": [
+        "static/js/trends.js"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T17-3",
+        "T16-1"
+      ]
+    },
+    {
+      "id": "T18-1",
+      "milestone": "M18",
+      "name": "Container and WSGI serving",
+      "category": "ind",
+      "branch": "chore/container-and-ci",
+      "depends_on": [
+        "T0-6"
+      ],
+      "files": [
+        "Dockerfile",
+        "docker-compose.yml"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": true
+    },
+    {
+      "id": "T18-2",
+      "milestone": "M18",
+      "name": "CI pipeline",
+      "category": "ind",
+      "branch": "chore/ci-pipeline",
+      "depends_on": [
+        "T0-6"
+      ],
+      "files": [
+        ".github/workflows/ci.yml"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": true
+    },
+    {
+      "id": "T18-3",
+      "milestone": "M18",
+      "name": "API input validation",
+      "category": "dep",
+      "branch": "feature/api-validation",
+      "depends_on": [
+        "T15-1"
+      ],
+      "files": [
+        "app/api/validate.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T15-1"
+      ]
+    },
+    {
+      "id": "T18-4",
+      "milestone": "M18",
+      "name": "Structured logging and health",
+      "category": "dep",
+      "branch": "feature/observability",
+      "depends_on": [
+        "T2-5",
+        "T4-3"
+      ],
+      "files": [
+        "app/logging.py",
+        "app/api/health.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T2-5",
+        "T4-3"
+      ]
+    },
+    {
+      "id": "T18-5",
+      "milestone": "M18",
+      "name": "Session lifecycle and config versioning",
+      "category": "dep",
+      "branch": "feature/lifecycle-versioning",
+      "depends_on": [
+        "T2-4",
+        "T14-1"
+      ],
+      "files": [
+        "app/engine/sessions.py",
+        "config/VERSION"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T14-1"
+      ]
+    },
+    {
+      "id": "T19-1",
+      "milestone": "M19",
+      "name": "Leaderboards",
+      "category": "dep",
+      "branch": "feature/leaderboards",
+      "depends_on": [
+        "T15-4"
+      ],
+      "files": [
+        "app/api/leaderboard.py",
+        "static/js/leaderboard.js"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T15-4"
+      ]
+    },
+    {
+      "id": "T19-2",
+      "milestone": "M19",
+      "name": "Instructor observation and injection",
+      "category": "dep",
+      "branch": "feature/instructor-mode",
+      "depends_on": [
+        "T16-2",
+        "T13-1"
+      ],
+      "files": [
+        "app/api/instructor.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T16-2",
+        "T13-1"
+      ]
+    },
+    {
+      "id": "T19-3",
+      "milestone": "M19",
+      "name": "Multi-operator control",
+      "category": "dep",
+      "branch": "feature/multi-operator",
+      "depends_on": [
+        "T19-2"
+      ],
+      "files": [
+        "app/engine/sessions.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T19-2"
+      ]
+    }
+  ]
+}

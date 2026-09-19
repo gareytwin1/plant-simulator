@@ -1,98 +1,168 @@
 # Development Guide
 
-This project follows a **spine / satellite** branching model: a small set of
-core files (the spine) are edited sequentially by one branch at a time, while
+Day-to-day workflow: how to pick up a task, work on it, and merge it back.
+
+This project follows a **spine / satellite** branching model: a small set of core
+files (the spine) are edited sequentially by one branch at a time, while
 independent modules (satellites) can be developed in parallel once they only
 depend on frozen interface contracts.
 
-The master plan — milestones, tasks, contracts, and live status — lives in
-the published build plan. Treat it as the source of truth for what's done and
-what's next:
+## Where things live
 
-- Live artifact (status tracking): https://claude.ai/artifact/DXqzpwKxeKZNzZGrC3HkQ9
-- Local copy: [docs/BUILD_PLAN.html](docs/BUILD_PLAN.html)
+| Document | Purpose |
+|---|---|
+| [CLAUDE.md](CLAUDE.md) | Architectural invariants and agent operating rules — **read first** |
+| [docs/PROJECT_STATE.md](docs/PROJECT_STATE.md) | Current `main`, test count, active branches, what to work on next |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Current runtime vs. target architecture; state ownership |
+| [docs/BUILD_PLAN.html](docs/BUILD_PLAN.html) | Full master plan: tasks, milestones, contracts C1–C8, dependencies, schedule |
+| [docs/BUILD_PLAN_STATUS.json](docs/BUILD_PLAN_STATUS.json) | Durable snapshot of per-task status |
+| [Live build plan artifact](https://claude.ai/artifact/DXqzpwKxeKZNzZGrC3HkQ9) | Interactive status tracking, shared across agents |
 
-This file is the day-to-day workflow companion — how to pick up a task, work
-on it, and merge it back.
+The **live artifact is the interactive status authority**; the repository copies
+are the durable, recoverable representation. If the artifact is unavailable,
+`docs/BUILD_PLAN.html` plus `docs/BUILD_PLAN_STATUS.json` are enough to
+reconstruct the plan and where it stands. Refresh both when status changes
+materially.
 
-## Quick Start
+## Environment
 
-1. Open the live artifact and find a task marked **Not Started** whose
-   dependencies are already **Complete**.
-2. If the task depends on an interface contract (C1–C8), read that contract
-   in the build plan before writing any code against it — contracts are
-   frozen once a satellite branch starts depending on them.
-3. Create a branch named after the task (see Naming Conventions below).
-4. When the task is done and tested, open a PR titled with the task ID and
-   update the task's status on the live artifact.
+The project runs in a conda environment named `plant-simulator`. Activate it
+first, then use portable commands — **never write machine-specific interpreter
+paths into documentation, scripts or CI**:
 
-## Task Workflow
+```bash
+conda activate plant-simulator
+pip install -r requirements.txt       # runtime
+pip install -r requirements-dev.txt   # tests
+```
 
-### Starting a Task
+## Status vocabulary
 
-Tasks run in parallel across agents that all share this one clone, so more
-than one `git checkout` can be in flight at the same time. If each task
-checks out its branch in the same working directory, one agent's checkout
-can land between another's `git checkout -b` and its first commit, and the
-commit ends up on the wrong branch. A worktree gives each task its own
-working directory against the same repo, which removes the race entirely.
+These five values mean exactly this, everywhere:
+
+| Status | Meaning |
+|---|---|
+| **Not Started** | No work begun |
+| **In Progress** | Implementation underway; code may exist on a branch |
+| **Blocked** | Waiting on a dependency or decision — record *why* in the note |
+| **Ready for Review** | Code complete, **rebased on current `main`**, full suite green, **PR open, not merged** |
+| **Complete** | **Merged to `main`.** Nothing else counts. |
+
+A task is never **Complete** because code exists on a local or pushed branch.
+The note on a Complete task names the merge SHA. If you find a task marked
+Complete whose files are not on `main`, correct the status — do not build on it.
+
+## Task workflow
+
+### Starting a task
+
+Tasks run in parallel across agents that share one clone, so more than one
+`git checkout` can be in flight at once. If each task checks out its branch in
+the same working directory, one agent's checkout can land between another's
+`git checkout -b` and its first commit, and the commit ends up on the wrong
+branch. **This has already happened in this repository** (T1-5's first commit
+landed on another session's branch). A worktree gives each task its own working
+directory against the same repo, which removes the race entirely.
 
 1. `git fetch origin`
-2. `git worktree add ../plant-simulator-task-name -b feature/task-name origin/main`
-   — do all work for the task inside that directory, not the main checkout.
-3. Re-read the task's fields on the live artifact: objective, required
-   tests, and whether it's Independent, Dependent, or Core-integration.
-4. If it's Core-integration (touches spine files), check the artifact for
-   any other in-progress branch touching the same file before starting.
+2. Read [docs/PROJECT_STATE.md](docs/PROJECT_STATE.md) and the task on the build
+   plan.
+3. Confirm every dependency is **Complete** — merged to `main`, not merely
+   written.
+4. Create the worktree — **do all work inside it, not in the main checkout**:
 
-### During Development
+   ```bash
+   git worktree add ../plant-simulator-<task> -b <type>/<name> origin/main
+   ```
 
-- Build against the interface contract, not against another satellite's
-  in-progress code.
-- Keep commits scoped to the task; unrelated cleanup goes in its own commit.
+5. If the task is Core/spine (touches `app/equipment/base.py`, `app/engine/` or
+   `app/plant/topology.py`), check the build plan for any other in-progress
+   branch touching the same file before starting. Spine files take one branch at
+   a time.
+
+### During development
+
+- Build against the **frozen interface contract**, not against another
+  satellite's in-progress code.
+- Keep commits scoped to the task; unrelated cleanup goes in its own task.
 - If you hit a blocker (a contract seems wrong, a dependency isn't actually
-  ready), note it on the task in the live artifact rather than working around
-  it silently.
+  ready), note it on the task rather than working around it silently.
 
-### Before Merge
+### Before review
 
-- Run the full test suite, not just the new tests:
-  `/home/garey/miniconda3/envs/plant-simulator/bin/python -m pytest -q`
-- Confirm the task's own required tests (listed on the artifact) pass.
-- Update the task status to **Ready for Review**.
+- Run the **full** suite, not just your new tests:
+
+  ```bash
+  python -m pytest -q
+  ```
+
+- Confirm the task's own required tests (listed on the build plan) pass.
+- Rebase onto current `main` and run the full suite again:
+
+  ```bash
+  git fetch origin && git rebase origin/main && python -m pytest -q
+  ```
+
 - Open a PR titled `T{TASK-ID}: Brief description`.
+- Set the task status to **Ready for Review**.
 
-### After Merge
+### Merging
 
-- Update the task status to **Complete** on the live artifact.
-- If other tasks were blocked on this one, they're now unblocked — no need
-  to notify anyone individually, the artifact reflects it.
-- Remove the task's worktree: `git worktree remove ../plant-simulator-task-name`
-  (from the main clone, not from inside the worktree being removed).
+- Merge convention is a **merge commit** titled
+  `Merge T{TASK-ID}: Brief description`:
 
-## File Ownership
+  ```bash
+  gh pr merge <N> --merge --subject "Merge T1-4: Refactor the pump onto the equipment contract"
+  ```
+
+- After the merge, verify on `main`:
+
+  ```bash
+  git switch main && git pull --ff-only origin main && python -m pytest -q
+  ```
+
+- Set the task status to **Complete**, with the merge SHA and the post-merge test
+  count in the note.
+- Delete the merged branch (local and remote) and remove the worktree:
+
+  ```bash
+  git worktree remove ../plant-simulator-<task>
+  git branch -d <type>/<name>
+  git push origin --delete <type>/<name>
+  ```
+
+- Refresh [docs/PROJECT_STATE.md](docs/PROJECT_STATE.md) if the merge changed
+  milestone progress, unblocked tasks, or the recommended next task.
+
+## File ownership
 
 | File / Path | Rule |
 |---|---|
-| `app/equipment/base.py`, `app/engine/`, `app/plant/topology.py` | Spine — one branch at a time, no satellite edits |
-| `app/main.py` | Sequential — one branch at a time |
-| `app/config.py` | Append-only — add a section, don't restructure |
-| `config/plants/olefins_lite.yaml` | Shared — each top-level key has one owner |
-| `static/compressor.js` | Frozen — retired at M16, no new dependents |
+| `app/equipment/base.py` | **Spine** — one branch at a time, no satellite edits |
+| `app/engine/` | **Spine** — one branch at a time |
+| `app/plant/topology.py` | **Spine** — one branch at a time |
+| `app/main.py` | **Highest-conflict file.** One branch at a time until the C5 single action endpoint lands; release it immediately after merging. |
+| `app/config.py` | **Append-only** — add a clearly-headed section, never reorder |
+| `config/schema/plant.schema.json` | Shared — each top-level key has one owner |
+| `config/plants/*.yaml` | Shared — each top-level key has one owner (no plant file exists yet; T3-3 introduces the first) |
+| `tests/fixtures/golden/*.json` | Regenerate only with explicit written justification |
+| `static/compressor.js`, `static/pump.js` | **Frozen** — replaced wholesale at M16. Do not invest in them. |
 
-## Naming Conventions
+## Naming conventions
 
 **Branches:**
-```
-feature/pid-controller
-refactor/remove-duplicate-simulator
-test/alarm-state-machine
-chore/pin-requirements
-docs/update-contracts
+
+```text
+feature/pid-block
+refactor/pump-onto-base
+test/import-direction-guard
+chore/ci-pipeline
+docs/project-handoff-refresh
 ```
 
-**Commits** — reference the task ID, explain why, not what:
-```
+**Commits** — reference the task ID, explain *why*, not *what*:
+
+```text
 T8-1: Add PID block with anti-windup
 
 Implement a standalone PID controller with anti-windup, output clamping,
@@ -102,52 +172,40 @@ process, no plant dependency.
 Tests: step response to setpoint, windup suppression, setpoint kick handling.
 ```
 
-**Pull requests:** title `T{TASK-ID}: Brief description`, body links the
-task on the live artifact.
+**Pull requests:** title `T{TASK-ID}: Brief description`; body summarises the
+change and its test plan.
 
-## Parallel Development
+## Parallel development
 
-Spine files are edited one branch at a time because they're the shared
-foundation everything else builds on — concurrent edits there cause the
-merge conflicts and silent breakage the spine/satellite split exists to
-avoid. Satellites should rebase onto `main` after any spine merge lands:
+Spine files are edited one branch at a time because they are the shared
+foundation everything else builds on. Satellites rebase onto `main` after any
+spine merge lands:
 
-```
+```bash
 git fetch origin
 git rebase origin/main
 ```
 
-## Running Tests
-
-```
-# Full suite
-/home/garey/miniconda3/envs/plant-simulator/bin/python -m pytest -q
-
-# Single file
-/home/garey/miniconda3/envs/plant-simulator/bin/python -m pytest tests/test_pump.py -q
-
-# Single test
-/home/garey/miniconda3/envs/plant-simulator/bin/python -m pytest -k "test_valve_ramp" -q
-```
+Never merge `main` backwards into the spine.
 
 ## Contracts
 
-The 8 interface contracts (C1–C8: Equipment, Topology, Plant config schema,
+The eight interface contracts (C1–C8: Equipment, Topology, Plant config schema,
 State snapshot, HTTP API, Event record, Alarm interface, Malfunction/Scenario)
-are defined in full on the live artifact. They're load-bearing — once a
-satellite branch depends on one, changing the contract means updating every
-dependent branch. Propose contract changes as their own task, not as a side
-effect of unrelated work.
+are defined in full on the build plan. C1–C4 are implemented in code; C5–C8
+exist as specifications only — see the contract table in [CLAUDE.md](CLAUDE.md).
 
-## Logging and Observability
+Contracts are load-bearing: once a satellite branch depends on one, changing it
+means updating every dependent branch. Propose contract changes as their own
+task, never as a side effect of unrelated work.
 
-Never call `time.time()` inside a model — simulation time must come from the
+## Determinism and observability
+
+Never call `time.time()` inside a model — simulated time must come from the
 injected `dt` / `SimulationClock`, so runs stay deterministic and replayable.
-Log lines should carry sim time, not wall-clock time, so behavior can be
+Log lines should carry sim time, not wall-clock time, so behaviour can be
 correlated across a run.
 
-## See Also
-
-- [docs/BUILD_PLAN.html](docs/BUILD_PLAN.html) — local companion guide
-- Live artifact: https://claude.ai/artifact/DXqzpwKxeKZNzZGrC3HkQ9
-- [README.md](README.md)
+The golden regression harness (`tests/golden_regression.py`,
+`tests/fixtures/golden/`) pins current numerical behaviour. **Do not regenerate a
+golden trace to make a test pass** — a moved trace means behaviour changed.

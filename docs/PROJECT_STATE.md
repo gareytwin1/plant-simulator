@@ -8,7 +8,7 @@ Refresh this file whenever a task merges to `main`.
 
 ---
 
-**Last refreshed:** 19 September 2026
+**Last refreshed:** 19 September 2026 (handoff refresh after T3-3 and T2-2)
 **Current `main`:** `26748e79091366aa2491c5607aa55ad71d160c1c` — *Merge T2-2: Seeded RNG service*
 **Full suite on `main`:** **297 passed** (`conda activate plant-simulator && python -m pytest -q`); `python -m mypy` clean
 
@@ -75,7 +75,8 @@ now genuinely merged.)
 
 ### What intentionally does not exist yet
 
-- **Plant-wide network solver (T4-2).** No plant-wide pressure/flow solution.
+- **Plant-wide network solver (T4-2) and its engine wiring (T4-4).** No
+  plant-wide pressure/flow solution.
 - **A reference plant file (T3-4).** The loader exists, but no
   `config/plants/*.yaml` file does, and the loader reads JSON only — `pyyaml`
   is not in `requirements.txt`.
@@ -144,13 +145,14 @@ and has a task that retires it.
    Both `GasCompressor` and `CentrifugalPump` keep `step()`, which runs
    `integrate(dt)` then `_calculate_operating_point()`. The live Flask routes
    (`/api/step`, `/api/pump/step`) call this path, so removing it breaks the app.
-   *Retired by:* **T4-2** (network solver).
+   *Retired by:* **T4-4** (wires the solver into the engine and removes
+   `_calculate_operating_point`; T4-2 only writes the solver).
 
 2. **Device-owned `upstream_boundary_pressure` / `downstream_boundary_pressure`.**
    Interim attributes on both devices, feeding only the standalone solve. They
    are not node pressures and deliberately avoid the C1 forbidden-attribute
    names, but in the target architecture the topology owns these.
-   *Retired by:* **T4-2**.
+   *Retired by:* **T4-4**.
 
 3. **`Engine` does not consult `device.simulation_speed`.**
    The clock is the sole speed authority for anything driven through the Engine.
@@ -160,7 +162,7 @@ and has a task that retires it.
 
 4. **`Engine.step()` computes no flow or pressure.**
    It calls `integrate()` only. Stepping a device through the Engine does not
-   change its flow/pressure. This is correct until T4-2, and the two engine
+   change its flow/pressure. This is correct until T4-4, and the two engine
    golden tests assert slow-state fields only for exactly this reason.
 
 5. **Legacy `*_pressure_rise` is no longer clamped at zero.**
@@ -171,7 +173,7 @@ and has a task that retires it.
    and equal to the `spread` on the same row. Separately, the reported rise
    still disagrees with `spread` when the legacy solve dead-heads or clips at
    `max_flow` — an artifact of the standalone solve, retired with it.
-   *Retired by:* **T4-2** / **T4-4**.
+   *Retired by:* **T4-4**.
 
 ## Known technical debt (recorded, not scheduled)
 
@@ -203,65 +205,91 @@ being a collection of independent gauges and becomes connected. It is the single
 largest risk in the plan: the build plan calls out solver non-convergence on a
 reasonable-looking topology as one of three most-likely slip points.
 
-## Recommended next task
+## Handoff: the next agents
 
-**T4-2 — Newton-Raphson network solver** (`feature/network-solver`).
+**Everything below is verified against `main`** (297 tests, `mypy` clean). Read
+[CLAUDE.md](../CLAUDE.md) first, then the build plan entry for your task. Model
+guidance is the **Agent model guidance** section of CLAUDE.md; the column below
+is the build plan's own assignment.
 
-- Category: core (`app/engine/network.py`). Dependencies `T4-1` and `T3-3` are
-  both Complete, so it is startable now. It can be written against
-  `load_plant()` for its fixtures and `Branch.residual()` /
-  `Branch.characteristic()` for the equations.
-- Read the open questions below before starting: the `reset()` one affects any
-  solver test that resets a loaded plant.
+### Critical path to Checkpoint B
 
-**Shortest path to Checkpoint B:** `T4-2` -> `T4-3` -> `T4-4`. T4-4 is the spine
-task (`engine.py`, `compressor.py`, `pump.py`): it retires the legacy `step()`
-path and freezes other merges while it lands.
+`T4-2` (solver) -> `T4-3` (diagnostics) -> `T4-4` (wire into engine, **spine**,
+freezes other merges) -> `T4-5` (cause-and-effect suite).
 
-## Open questions carried from T3-3
+**T4-2 is startable now (Opus, `feature/network-solver`).** Two things to know
+before it starts:
 
-Neither has a task yet; both need an owner.
+- Its acceptance criteria say "converges on the reference plant", but the
+  reference plant file is **T3-4**, which is not done. Either run T3-4 first or
+  in parallel, or build T4-2 against small hand-built configs through
+  `load_plant()` and add the reference-plant convergence test when T3-4 lands.
+- The `reset()` open question below affects any solver test that resets a
+  loaded plant.
+
+**T3-4 (Sonnet, `feature/reference-plant`) is the natural companion.** It needs
+YAML, and the loader reads JSON only: adding `pyyaml` to `requirements.txt` and a
+`.yaml` branch in `load_plant_file` is part of that task, not an accident.
+
+### Open questions carried from T3-3
+
+Neither has a task yet; both need an owner (an Opus decision each).
 
 1. **`Equipment.reset()` drops design values.** The loader applies a config's
    `design` by setting attributes after construction, but `reset()` restores the
    state captured at the end of `__init__`. A reset device returns to class
    defaults, not the configured design. Fixing it needs a design/configure hook
-   on C1 — a spine change and an Opus decision — before anything relies on
-   `reset()` for a loaded plant.
+   on C1 — a spine change — before anything relies on `reset()` for a loaded
+   plant. Also relevant to T12-1 (save/restore).
 2. **C3 cannot wire a multi-port device.** The schema has only
    `node_in`/`node_out`, so a device with more than one inlet or outlet (a
    vessel with a vent) is rejected at load. It needs `from_port`/`to_port` in
-   the schema (owned by T3-1); do it when the first such device, T5-1, lands.
+   the schema (owned by T3-1). **T5-1 (vessel) is likely the first task to hit it.**
+   A Sonnet agent on T5-1 should stop and escalate rather than invent the schema
+   change.
 
-## Tasks that can safely run in parallel now
+### Open question carried from T2-2
 
-19 tasks have all dependencies Complete. The independent ones touch no shared
-file and can be handed to separate agents immediately:
+**Who owns a plant's RNG** (session, engine or plant)? Undecided on purpose — see
+"Seeded RNG" above. `SeededRNG` also has no state save/restore, which T12-1
+(snapshot save and restore) and T14-5 (deterministic replay) will need.
 
-| Task | Name | Branch |
-|---|---|---|
-| **T8-1** | PID block | `feature/pid-block` |
-| **T9-1** | Envelope evaluator | `feature/envelope-evaluator` |
-| **T10-1** | Alarm state machine | `feature/alarm-state-machine` |
-| **T13-5** | Physics isolation guard | `test/import-direction-guard` |
-| **T14-1** | Scenario file schema | `feature/scenario-schema` |
-| **T15-4** | Score persistence | `feature/score-store` |
-| **T16-1** | Console design system | `design/console-system` |
-| **T17-1** | Ring-buffer historian | `feature/historian` |
-| **T18-1** | Container and WSGI serving | `chore/container-and-ci` |
-| **T18-2** | CI pipeline | `chore/ci-pipeline` |
-| **T12-1** | Plant snapshot save and restore | `feature/state-persistence` |
-| **T15-1** | Operator action log | `feature/action-log` |
-| **T5-1** | Vessel model | `feature/vessel-model` |
-| **T6-1** | Stream enthalpy and mixing | `feature/stream-enthalpy` |
-| **T13-1** | Malfunction model and registry | `feature/malfunction-model` |
-| **T2-5** | Background scheduler | `feature/engine-scheduler` |
-| **T3-4** | Reference plant configuration | `feature/reference-plant` |
-| **T4-2** | Newton-Raphson network solver | `feature/network-solver` |
-| **T7-1** | Control valve model | `feature/control-valve` (startable since T4-1 merged) |
+### Startable now (19 tasks)
 
-None of these takes the spine lock; each is a satellite and merges
-independently.
+All dependencies are Complete, and none of these edits an existing spine file.
+T4-3 (`snapshot.py`) and T4-4 (`engine.py`) will, and are not startable yet.
+Three of them (T2-5, T4-2, T12-1) add a *new* file under `app/engine/`, which
+CLAUDE.md lists as spine; the build plan treats them as satellites and `rng.py`
+landed the same way, but if an agent finds it needs to edit an existing file
+there, it stops and asks.
+
+| Task | Name | Model | Branch |
+|---|---|---|---|
+| **T4-2** | Newton-Raphson network solver | Opus | `feature/network-solver` |
+| **T3-4** | Reference plant configuration | Sonnet | `feature/reference-plant` |
+| **T5-1** | Vessel model (likely hits the C3 multi-port gap) | Sonnet | `feature/vessel-model` |
+| **T6-1** | Stream enthalpy and mixing | Opus | `feature/stream-enthalpy` |
+| **T7-1** | Control valve model | Sonnet | `feature/control-valve` |
+| **T13-1** | Malfunction model and registry | Opus | `feature/malfunction-model` |
+| **T2-5** | Background scheduler | Sonnet | `feature/engine-scheduler` |
+| **T12-1** | Plant snapshot save and restore | Sonnet | `feature/state-persistence` |
+| **T8-1** | PID block | Sonnet | `feature/pid-block` |
+| **T9-1** | Envelope evaluator | Sonnet | `feature/envelope-evaluator` |
+| **T10-1** | Alarm state machine | Sonnet | `feature/alarm-state-machine` |
+| **T14-1** | Scenario file schema | Sonnet | `feature/scenario-schema` |
+| **T15-1** | Operator action log | Sonnet | `feature/action-log` |
+| **T16-1** | Console design system | Sonnet | `design/console-system` |
+| **T18-1** | Container and WSGI serving | Sonnet | `chore/container-and-ci` |
+| **T13-5** | Physics isolation guard | Haiku | `test/import-direction-guard` |
+| **T15-4** | Score persistence | Haiku | `feature/score-store` |
+| **T17-1** | Ring-buffer historian | Haiku | `feature/historian` |
+| **T18-2** | CI pipeline (should run `python -m mypy` too) | Haiku | `chore/ci-pipeline` |
+
+Working rules for every one of them: one worktree per task branched from
+`origin/main`; full suite **and** `python -m mypy` green before review; small
+commits led by the task ID; **Ready for Review** at PR time and **Complete** only
+with the merge SHA. `tests/test_random_source_guard.py` shows the AST-scan style
+a layering guard like T13-5 can follow.
 
 ## Test suite composition (297 tests)
 

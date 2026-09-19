@@ -168,9 +168,11 @@ solver output; it belongs to a `Node` in the topology
 
 Both devices currently carry interim `upstream_boundary_pressure` /
 `downstream_boundary_pressure` attributes, in psia, feeding only the legacy
-standalone `step()` path. These are **temporary** and are retired by T4-2 when
-the network solver takes over. Do not add new device attributes that hold a
-plant pressure, and do not treat the interim ones as the pattern to copy.
+standalone `step()` path. These are **temporary** and are retired by **T4-4**,
+which wires the network solver into the engine — T4-2 only writes the solver
+and leaves the legacy path exactly as it found it. Do not add new device
+attributes that hold a plant pressure, and do not treat the interim ones as the
+pattern to copy.
 
 In the target model:
 
@@ -222,7 +224,10 @@ replaced the pre-C1 examples (`supply_pressure`, `discharge_header_pressure`
 owned by a device) with the current contract-based ownership model, and added
 the equipment-domain flow / connected-network note. No unit values changed.
 
-**Next review:** when **T4-1/T4-2** land. The network solver is the first thing
-that reads flows across branches, so it is the point at which the
-process-domain rule above stops being advisory and starts being enforced by
-code. Any equipment added before then must respect these units exactly.
+**Next review:** when **T4-4** lands. T4-1 and T4-2 have both landed, so the
+process-domain rule above is now enforced by code rather than advisory:
+`NetworkSolver` (`app/engine/network.py`) solves over one topology whose
+branches all carry the same flow unit, compares devices only through the psia
+their curves return, and converges against a pressure tolerance and a flow
+tolerance kept separately so the two are never added together. T4-4 is the
+point at which the live application starts reading those numbers.

@@ -1,18 +1,27 @@
 from app import config
+from app.equipment.base import Equipment, INLET, OUTLET
 
 
-class GasCompressor:
-    def __init__(self):
+class GasCompressor(Equipment):
+    def __init__(self, tag="K-101"):
+        super().__init__(
+            tag,
+            ports={
+                "suction": INLET,
+                "discharge": OUTLET,
+            },
+        )
+
         self.simulation_speed = config.SIMULATION_SPEED
         self.running = False
 
-        self.supply_pressure = 750.0
-        self.discharge_header_pressure = 750.0
+        self.upstream_boundary_pressure = 750.0
+        self.downstream_boundary_pressure = 750.0
 
-        self.suction_pressure = self.supply_pressure
+        self.suction_pressure = self.upstream_boundary_pressure
         self.suction_pressure_target = 675.0
 
-        self.discharge_pressure = self.discharge_header_pressure
+        self.discharge_pressure = self.downstream_boundary_pressure
         self.discharge_pressure_target = 875.0
 
         self.load = 0.0
@@ -106,17 +115,13 @@ class GasCompressor:
     @property
     def boundary_pressure_difference(self):
         return (
-            self.discharge_header_pressure
-            - self.supply_pressure
+            self.downstream_boundary_pressure
+            - self.upstream_boundary_pressure
         )
 
     @property
     def compressor_pressure_rise(self):
-        return max(
-            self.shutoff_pressure_rise * self.load ** 2
-            - self.compressor_resistance * self.flow ** 2,
-            0.0,
-        )
+        return self.characteristic(self.flow)
 
     @property
     def valve_pressure_drop(self):
@@ -125,30 +130,7 @@ class GasCompressor:
             * self.flow ** 2
         )
 
-    @staticmethod
-    def _move_toward(current, target, rate, dt):
-        change = rate * dt
-
-        if current < target:
-            return min(
-                current + change,
-                target,
-            )
-
-        if current > target:
-            return max(
-                current - change,
-                target,
-            )
-
-        return current
-
-    def step(self, dt=None):
-        if dt is None:
-            dt = config.SIMULATION_STEP_SECONDS
-
-        dt *= self.simulation_speed
-
+    def integrate(self, dt):
         load_target = (
             self.load_target
             if self.running
@@ -169,6 +151,21 @@ class GasCompressor:
             dt,
         )
 
+    def characteristic(self, flow):
+        return max(
+            self.shutoff_pressure_rise * self.load ** 2
+            - self.compressor_resistance * flow ** 2,
+            0.0,
+        )
+
+    def step(self, dt=None):
+        if dt is None:
+            dt = config.SIMULATION_STEP_SECONDS
+
+        dt *= self.simulation_speed
+
+        self.integrate(dt)
+
         (
             self.flow,
             self.suction_pressure,
@@ -177,15 +174,15 @@ class GasCompressor:
 
     def _calculate_operating_point(self):
         available_pressure_rise = (
-            self.shutoff_pressure_rise * self.load ** 2
+            self.characteristic(0.0)
             - self.boundary_pressure_difference
         )
 
         if available_pressure_rise <= 0.0:
             return (
                 0.0,
-                self.supply_pressure,
-                self.discharge_header_pressure,
+                self.upstream_boundary_pressure,
+                self.downstream_boundary_pressure,
             )
 
         flow = (
@@ -202,12 +199,12 @@ class GasCompressor:
         )
 
         suction_pressure = (
-            self.supply_pressure
+            self.upstream_boundary_pressure
             - self.suction_resistance * flow ** 2
         )
 
         discharge_pressure = (
-            self.discharge_header_pressure
+            self.downstream_boundary_pressure
             + (
                 self.discharge_resistance
                 + self.downstream_restriction

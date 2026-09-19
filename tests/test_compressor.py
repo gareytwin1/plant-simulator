@@ -134,7 +134,7 @@ def test_set_load_target():
 def test_higher_discharge_header_reduces_flow():
     simulator = GasCompressor()
 
-    simulator.discharge_header_pressure = 775.0
+    simulator.downstream_boundary_pressure = 775.0
     simulator.set_load_target(1.0)
     simulator.start()
 
@@ -149,7 +149,7 @@ def test_higher_discharge_header_reduces_flow():
 
 def test_lower_supply_pressure_reduces_flow():
     simulator = GasCompressor()
-    simulator.supply_pressure = 725.0
+    simulator.upstream_boundary_pressure = 725.0
     simulator.set_load_target(1.0)
     simulator.start()
 

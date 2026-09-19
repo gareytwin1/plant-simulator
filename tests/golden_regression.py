@@ -78,10 +78,10 @@ def compressor_valve_manipulation(comp, step_num):
 def compressor_supply_pressure_change(comp, step_num):
     """Ramp load with elevated supply pressure."""
     if step_num == 0:
-        comp.supply_pressure = 725.0
+        comp.upstream_boundary_pressure = 725.0
         comp.set_load_target(1.0)
         comp.start()
-        return "supply_pressure = 725.0, set_load_target(1.0), start()"
+        return "upstream_boundary_pressure = 725.0, set_load_target(1.0), start()"
     if step_num == 15:
         comp.stop()
         return "stop()"
@@ -91,10 +91,10 @@ def compressor_supply_pressure_change(comp, step_num):
 def compressor_discharge_header_change(comp, step_num):
     """Ramp load with elevated discharge header."""
     if step_num == 0:
-        comp.discharge_header_pressure = 775.0
+        comp.downstream_boundary_pressure = 775.0
         comp.set_load_target(1.0)
         comp.start()
-        return "discharge_header_pressure = 775.0, set_load_target(1.0), start()"
+        return "downstream_boundary_pressure = 775.0, set_load_target(1.0), start()"
     if step_num == 15:
         comp.stop()
         return "stop()"

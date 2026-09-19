@@ -9,8 +9,8 @@ Refresh this file whenever a task merges to `main`.
 ---
 
 **Last refreshed:** 19 September 2026
-**Current `main`:** `5e1a9f0512d9474f04b3fe3a69a252f983eb8415` — *Merge T1-4: Refactor the pump onto the equipment contract*
-**Full suite on `main`:** **202 passed** (`conda activate plant-simulator && python -m pytest -q`)
+**Current `main`:** `57d5c8f0d142bde1914b7427e2b2dbdc97079696` — *Merge T4-1: Branch characteristic interface*
+**Full suite on `main`:** **238 passed** (`conda activate plant-simulator && python -m pytest -q`); `python -m mypy` clean
 
 ---
 
@@ -18,25 +18,27 @@ Refresh this file whenever a task merges to `main`.
 
 | Milestone | Status |
 |---|---|
-| **M0** Baseline Cleanup | **6/6 Complete** |
+| **M0** Baseline Cleanup | **7/7 Complete** |
 | **M1** Equipment Model Contract | **5/5 Complete** — Checkpoint A reached |
 | **M2** Simulation Engine and Clock | 3/6 (T2-2 corrected to In Progress; T2-5 startable) |
 | **M3** Plant Topology and Streams | 2/4 (T3-3 startable) |
-| **M4** Pressure-Flow Network Solver | 0/5 — **not started** |
+| **M4** Pressure-Flow Network Solver | 1/5 — T4-1 Complete; T4-2 also needs T3-3 |
 | M5–M19 | Not started |
 
-Overall: **16 of 93 tasks Complete.**
+Overall: **18 of 94 tasks Complete.**
 
 ### Completed and merged to `main`
 
-- **M0** — `T0-1` … `T0-6`: baseline cleanup, pump endpoints, unit convention,
-  portable requirements.
+- **M0** — `T0-1` … `T0-7`: baseline cleanup, pump endpoints, unit convention,
+  portable requirements, static typing baseline.
 - **M1** — `T1-1` golden harness · `T1-2` Equipment base + Port (C1) ·
   `T1-3` compressor onto C1 · `T1-4` pump onto C1 · `T1-5` equipment registry.
 - **M2** — `T2-1` simulation clock · `T2-3` engine + snapshot (C4) ·
   `T2-4` session/plant registry.
 - **M3** — `T3-1` plant config schema + validator (C3) ·
   `T3-2` node/branch/stream (C2).
+- **M4** — `T4-1` branch characteristic interface (sign convention,
+  `signed_square`, `Branch.characteristic()` / `Branch.residual()`).
 
 ### Status correction made during this refresh
 
@@ -61,7 +63,7 @@ baseline below.)
 
 | Component | Where | Notes |
 |---|---|---|
-| Equipment contract (C1) + `Port` | `app/equipment/base.py` | Frozen at Checkpoint A |
+| Equipment contract (C1) + `Port` | `app/equipment/base.py` | Frozen at Checkpoint A; `characteristic()` sign convention and `signed_square` added at T4-1 |
 | `GasCompressor` (`K-101`) | `app/equipment/compressor.py` | On C1 |
 | `CentrifugalPump` (`P-101`) | `app/equipment/pump.py` | On C1 as of T1-4 |
 | `EquipmentRegistry` | `app/equipment/registry.py` | Tag → device; rejects duplicate tags |
@@ -69,7 +71,7 @@ baseline below.)
 | `Engine` | `app/engine/engine.py` | Integrates all devices, publishes snapshot |
 | `Snapshot` (C4) | `app/engine/snapshot.py` | Immutable; shape frozen |
 | `SessionRegistry` / `Session` | `app/engine/sessions.py` | Per-browser plant isolation |
-| Topology (C2) | `app/plant/topology.py` | `Node`, `Branch`, `Stream`, `Topology` |
+| Topology (C2) | `app/plant/topology.py` | `Node`, `Branch`, `Stream`, `Topology`; `Branch.characteristic()` / `residual()` as of T4-1 |
 | Plant config schema (C3) + validator | `config/schema/plant.schema.json`, `app/plant/validate.py` | |
 | Golden regression harness | `tests/golden_regression.py`, `tests/fixtures/golden/` | |
 | Flask app | `app/main.py` | Per-equipment routes, session-scoped |
@@ -86,6 +88,26 @@ baseline below.)
 - `Snapshot`'s `nodes` / `streams` / `controllers` / `envelope` / `alarms`
   sections are deliberately empty, and `solver` is a trivial converged
   placeholder.
+
+## Branch characteristic convention (T4-1)
+
+The convention T4-2 builds against. Authoritative text is the
+`Equipment.characteristic` docstring in `app/equipment/base.py`.
+
+- `characteristic(flow)` is **outlet minus inlet**: positive is a rise (machine),
+  negative a drop (valve, pipe). The direction is fixed by the ports, never by
+  the sign of the flow.
+- Flow is signed; positive runs inlet -> outlet. Every real flow is in range,
+  including negative — a device may not raise, clamp or return a non-finite
+  number outside the range it expects to operate in.
+- The curve is **non-increasing in flow everywhere**, so the branch equation has
+  exactly one root and the Jacobian diagonal does not vanish.
+- Write every quadratic term against `signed_square(flow)` (`|q|*q`), never
+  `flow ** 2`. The latter is even and reports the same pressure change at -100
+  as at +100.
+- `Branch.residual(flow)` is `from_node.pressure + characteristic(flow) -
+  to_node.pressure`: the branch equation T4-2 drives to zero. Both branch
+  methods take a trial flow and default to the flow the branch is carrying.
 
 ## Static typing
 
@@ -144,6 +166,16 @@ and has a task that retires it.
    change its flow/pressure. This is correct until T4-2, and the two engine
    golden tests assert slow-state fields only for exactly this reason.
 
+5. **Legacy `*_pressure_rise` is no longer clamped at zero.**
+   T4-1 removed the `max(..., 0.0)` from both device curves, so on the legacy
+   path `pump_pressure_rise` / `compressor_pressure_rise` can read negative when
+   a machine is overrun. One golden value moved because of it: pump
+   `supply_pressure_change` step 1, `0.0` -> `-1.4` (1 of 3528), edited by hand
+   and equal to the `spread` on the same row. Separately, the reported rise
+   still disagrees with `spread` when the legacy solve dead-heads or clips at
+   `max_flow` — an artifact of the standalone solve, retired with it.
+   *Retired by:* **T4-2** / **T4-4**.
+
 ## Known technical debt (recorded, not scheduled)
 
 - **`app/init.py` is a misnamed empty file** — it is not `__init__.py`. `app`
@@ -164,11 +196,9 @@ and has a task that retires it.
 
 ## Active branches and PRs
 
-`chore/static-typing-baseline` — **Ready for Review**: static typing baseline
-(mypy config, `app/` annotated, typing/model/commit rules in CLAUDE.md). Touches
-the spine files `app/equipment/base.py`, `app/engine/` and
-`app/plant/topology.py`, so it holds the spine lock until it merges — **T4-1
-waits for it.**
+No feature branch is in flight. Open PRs: `chore/track-claude-md` (drops a
+stale comment from `.gitignore`) and this refresh (`docs/t4-1-complete`). **No
+spine lock is held.**
 
 Two stale local-only branches exist in the primary clone and can be deleted once
 confirmed merged: `feature/plant-topology`, `feature/seeded-rng` (their work is
@@ -181,18 +211,19 @@ being a collection of independent gauges and becomes connected. It is the single
 largest risk in the plan: the build plan calls out solver non-convergence on a
 reasonable-looking topology as one of three most-likely slip points.
 
-## Recommended next spine task
+## Recommended next task
 
-**T4-1 — Branch characteristic interface** (`feature/branch-characteristic`).
+**T3-3 — Plant loader and topology validation** (`feature/plant-loader`).
 
-- Category: **core/spine**. Touches `app/equipment/base.py` and
-  `app/plant/topology.py` — both spine files, so it takes the spine lock alone.
-- Dependencies `T1-2` and `T3-2` are both Complete, so it is startable now.
-- It is the direct prerequisite for **T4-2** (Newton-Raphson network solver,
-  `app/engine/network.py`), which additionally needs **T3-3**.
+- Category: satellite (`app/plant/loader.py`), no spine lock. Dependencies `T3-1`
+  and `T3-2` are Complete.
+- It is the last dependency of **T4-2** (Newton-Raphson network solver,
+  `app/engine/network.py`). T4-1 is merged, so T4-2 can be written against
+  `Branch.residual()` / `Branch.characteristic()` as soon as T3-3 lands.
 
-**Shortest path to Checkpoint B:** `T4-1` (spine) and `T3-3` (plant loader, can
-run in parallel) → then `T4-2` → `T4-3`.
+**Shortest path to Checkpoint B:** `T3-3` -> `T4-2` -> `T4-3` -> `T4-4`. T4-4 is
+the spine task (`engine.py`, `compressor.py`, `pump.py`): it retires the legacy
+`step()` path and freezes other merges while it lands.
 
 ## Tasks that can safely run in parallel now
 
@@ -218,22 +249,22 @@ file and can be handed to separate agents immediately:
 | **T13-1** | Malfunction model and registry | `feature/malfunction-model` |
 | **T2-5** | Background scheduler | `feature/engine-scheduler` |
 | **T3-3** | Plant loader and topology validation | `feature/plant-loader` |
-| **T4-1** | Branch characteristic interface | `feature/branch-characteristic` ← **spine, one owner** |
+| **T7-1** | Control valve model | `feature/control-valve` (startable since T4-1 merged) |
 
-Only **T4-1** takes the spine lock. Everything else above is a satellite and
-merges independently.
+None of these takes the spine lock; each is a satellite and merges
+independently.
 
-## Test suite composition (202 tests)
+## Test suite composition (238 tests)
 
 | File | Tests | File | Tests |
 |---|---|---|---|
-| `test_topology.py` | 38 | `test_clock.py` | 13 |
-| `test_equipment_contract.py` | 33 | `test_engine.py` | 13 |
-| `test_compressor.py` | 17 | `test_snapshot.py` | 11 |
-| `test_golden_regression.py` | 17 | `test_pump_api.py` | 8 |
-| `test_plant_config_validation.py` | 13 | `test_api.py` | 7 |
-| `test_sessions.py` | 7 | `test_registry.py` | 6 |
-| `test_session_isolation.py` | 6 | `test_pump.py` | 4 |
+| `test_equipment_contract.py` | 58 | `test_snapshot.py` | 11 |
+| `test_topology.py` | 47 | `test_registry.py` | 9 |
+| `test_compressor.py` | 21 | `test_pump_api.py` | 8 |
+| `test_golden_regression.py` | 17 | `test_pump.py` | 8 |
+| `test_clock.py` | 13 | `test_api.py` | 7 |
+| `test_engine.py` | 13 | `test_sessions.py` | 7 |
+| `test_plant_config_validation.py` | 13 | `test_session_isolation.py` | 6 |
 
 `test_equipment_contract.py` and `test_registry.py` discover device classes
 dynamically, so a new `Equipment` subclass is swept into the contract tests

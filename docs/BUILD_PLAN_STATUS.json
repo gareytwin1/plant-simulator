@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "2026-09-19",
-  "main_sha": "5e1a9f0512d9474f04b3fe3a69a252f983eb8415",
-  "tests_passing_on_main": 202,
+  "main_sha": "57d5c8f0d142bde1914b7427e2b2dbdc97079696",
+  "tests_passing_on_main": 238,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -13,7 +13,7 @@
   "milestones": {
     "M0": {
       "name": "Baseline Cleanup",
-      "complete": 6,
+      "complete": 7,
       "total": 7
     },
     "M1": {
@@ -33,7 +33,7 @@
     },
     "M4": {
       "name": "Pressure-Flow Network Solver",
-      "complete": 0,
+      "complete": 1,
       "total": 5
     },
     "M5": {
@@ -114,7 +114,7 @@
   },
   "totals": {
     "tasks": 94,
-    "complete": 16,
+    "complete": 18,
     "startable_now": 18
   },
   "tasks": [
@@ -243,9 +243,9 @@
         "DEVELOPMENT.md",
         "docs/PROJECT_STATE.md"
       ],
-      "status": "Ready for Review",
-      "status_key": "review",
-      "note": "Establish static typing before T4 solver interfaces expand the architectural surface area. mypy 2.3.1 pinned in requirements-dev.txt, configured in pyproject.toml over app/ only (disallow_untyped_defs, disallow_any_generics, no_implicit_optional, warn_return_any, strict_equality). All of app/ is typed and the check is clean; app/config.py is deliberately unannotated because its constants infer exactly, and tests/ are outside the scope. New module app/statetypes.py names the JSON-safe row every get_state() returns, so C1, C2 and C4 agree on one invariant dict type. Port.node is typed against a PortNode protocol so C1 still does not import C2. Only deliberate Any is in app/plant/validate.py, which walks decoded JSON of unknown shape. No runtime behaviour change; 202 tests green and golden traces unchanged. CLAUDE.md now carries the typing policy (replacing the no-type-hints rule), the Agent model guidance section and the Commit discipline section; DEVELOPMENT.md requires a green type check for Ready for Review and links to CLAUDE.md. Cross-cutting: holds the spine lock until merged, so T4-1 waits. T18-2 (CI) should run the same check."
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Establish static typing before T4 solver interfaces expand the architectural surface area. mypy 2.3.1 pinned in requirements-dev.txt, configured in pyproject.toml over app/ only (disallow_untyped_defs, disallow_any_generics, no_implicit_optional, warn_return_any, strict_equality). All of app/ is typed and the check is clean; app/config.py is deliberately unannotated because its constants infer exactly, and tests/ are outside the scope. New module app/statetypes.py names the JSON-safe row every get_state() returns, so C1, C2 and C4 agree on one invariant dict type. Port.node is typed against a PortNode protocol so C1 still does not import C2. Only deliberate Any is in app/plant/validate.py, which walks decoded JSON of unknown shape. No runtime behaviour change; 202 tests green and golden traces unchanged. CLAUDE.md now carries the typing policy (replacing the no-type-hints rule), the Agent model guidance section and the Commit discipline section; DEVELOPMENT.md requires a green type check for Ready for Review and links to CLAUDE.md. Cross-cutting: held the spine lock until merged, then released it for T4-1. T18-2 (CI) should run the same check. Merged to main as 4128876cc35f42bba1cb3382a2b038901f7edac8 (Merge T0-7: Static typing baseline for production Python), 19 Sep. Full suite 202/202 green on main post-merge."
     },
     {
       "id": "T1-1",
@@ -512,10 +512,9 @@
         "app/equipment/base.py",
         "app/plant/topology.py"
       ],
-      "status": "Ready for Review",
-      "status_key": "review",
-      "startable": false,
-      "note": "Sign convention for characteristic(flow) is outlet minus inlet, positive inlet to outlet, defined for every real flow including negative, and non-increasing in flow everywhere. signed_square(q)=|q|*q in app/equipment/base.py is the primitive that makes reverse flow well defined; both devices now write their quadratic term against it. Branch gains characteristic() and residual() (the branch equation T4-2 drives to zero). The max(...,0) clamp is removed from both device curves. One golden value moves: pump supply_pressure_change step 1 pump_pressure_rise 0.0 to -1.4, which agrees with the spread recorded on the same row; edited by hand, not regenerated. compressor.py and pump.py are touched beyond the listed files because reverse flow cannot be defined in base.py alone. 238 tests green, mypy clean. Holds the spine lock until merged. PR open, not merged."
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Sign convention for characteristic(flow) is outlet minus inlet, positive inlet to outlet, defined for every real flow including negative, and non-increasing in flow everywhere. signed_square(q)=|q|*q in app/equipment/base.py is the primitive that makes reverse flow well defined; both devices now write their quadratic term against it. Branch gains characteristic() and residual() (the branch equation T4-2 drives to zero). The max(...,0) clamp is removed from both device curves. One golden value moves: pump supply_pressure_change step 1 pump_pressure_rise 0.0 to -1.4, which agrees with the spread recorded on the same row; edited by hand, not regenerated. compressor.py and pump.py are touched beyond the listed files because reverse flow cannot be defined in base.py alone. 238 tests green, mypy clean. Spine lock released at merge. Merged to main as 57d5c8f0d142bde1914b7427e2b2dbdc97079696 (no-ff merge commit of PR #5, from feature/branch-characteristic @ 86ef7f4), 19 Sep. Full suite 238/238 green and mypy clean on main post-merge. Unblocks T7-1; T4-2 still also needs T3-3."
     },
     {
       "id": "T4-2",
@@ -534,7 +533,6 @@
       "status_key": "todo",
       "startable": false,
       "blocked_by": [
-        "T4-1",
         "T3-3"
       ]
     },
@@ -784,10 +782,7 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "T4-1"
-      ]
+      "startable": true
     },
     {
       "id": "T7-2",

@@ -1,0 +1,1483 @@
+{
+  "idle": {
+    "name": "idle",
+    "steps": 5,
+    "trace": [
+      {
+        "running": false,
+        "speed": 0.0,
+        "speed_target": 0.0,
+        "flow": 0.0,
+        "suction_pressure": 50.0,
+        "discharge_pressure": 50.0,
+        "spread": 0.0,
+        "pump_pressure_rise": 0.0,
+        "max_flow": 1200.0
+      },
+      {
+        "running": false,
+        "speed": 0.0,
+        "speed_target": 0.0,
+        "flow": 0.0,
+        "suction_pressure": 50.0,
+        "discharge_pressure": 50.0,
+        "spread": 0.0,
+        "pump_pressure_rise": 0.0,
+        "max_flow": 1200.0
+      },
+      {
+        "running": false,
+        "speed": 0.0,
+        "speed_target": 0.0,
+        "flow": 0.0,
+        "suction_pressure": 50.0,
+        "discharge_pressure": 50.0,
+        "spread": 0.0,
+        "pump_pressure_rise": 0.0,
+        "max_flow": 1200.0
+      },
+      {
+        "running": false,
+        "speed": 0.0,
+        "speed_target": 0.0,
+        "flow": 0.0,
+        "suction_pressure": 50.0,
+        "discharge_pressure": 50.0,
+        "spread": 0.0,
+        "pump_pressure_rise": 0.0,
+        "max_flow": 1200.0
+      },
+      {
+        "running": false,
+        "speed": 0.0,
+        "speed_target": 0.0,
+        "flow": 0.0,
+        "suction_pressure": 50.0,
+        "discharge_pressure": 50.0,
+        "spread": 0.0,
+        "pump_pressure_rise": 0.0,
+        "max_flow": 1200.0
+      },
+      {
+        "running": false,
+        "speed": 0.0,
+        "speed_target": 0.0,
+        "flow": 0.0,
+        "suction_pressure": 50.0,
+        "discharge_pressure": 50.0,
+        "spread": 0.0,
+        "pump_pressure_rise": 0.0,
+        "max_flow": 1200.0
+      }
+    ],
+    "commands": []
+  },
+  "ramp_speed": {
+    "name": "ramp_speed",
+    "steps": 20,
+    "trace": [
+      {
+        "running": false,
+        "speed": 0.0,
+        "speed_target": 0.0,
+        "flow": 0.0,
+        "suction_pressure": 50.0,
+        "discharge_pressure": 50.0,
+        "spread": 0.0,
+        "pump_pressure_rise": 0.0,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.1,
+        "speed_target": 0.5,
+        "flow": 100.0,
+        "suction_pressure": 49.9,
+        "discharge_pressure": 50.5,
+        "spread": 0.6000000000000014,
+        "pump_pressure_rise": 0.6000000000000001,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.2,
+        "speed_target": 0.5,
+        "flow": 200.0,
+        "suction_pressure": 49.6,
+        "discharge_pressure": 52.0,
+        "spread": 2.3999999999999986,
+        "pump_pressure_rise": 2.4000000000000004,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.30000000000000004,
+        "speed_target": 0.5,
+        "flow": 300.0,
+        "suction_pressure": 49.1,
+        "discharge_pressure": 54.5,
+        "spread": 5.399999999999999,
+        "pump_pressure_rise": 5.400000000000002,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.4,
+        "speed_target": 0.5,
+        "flow": 400.0,
+        "suction_pressure": 48.4,
+        "discharge_pressure": 58.0,
+        "spread": 9.600000000000001,
+        "pump_pressure_rise": 9.600000000000001,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.5,
+        "speed_target": 0.5,
+        "flow": 499.99999999999994,
+        "suction_pressure": 47.5,
+        "discharge_pressure": 62.5,
+        "spread": 15.0,
+        "pump_pressure_rise": 15.0,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.5,
+        "speed_target": 0.5,
+        "flow": 499.99999999999994,
+        "suction_pressure": 47.5,
+        "discharge_pressure": 62.5,
+        "spread": 15.0,
+        "pump_pressure_rise": 15.0,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.5,
+        "speed_target": 0.5,
+        "flow": 499.99999999999994,
+        "suction_pressure": 47.5,
+        "discharge_pressure": 62.5,
+        "spread": 15.0,
+        "pump_pressure_rise": 15.0,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.5,
+        "speed_target": 0.5,
+        "flow": 499.99999999999994,
+        "suction_pressure": 47.5,
+        "discharge_pressure": 62.5,
+        "spread": 15.0,
+        "pump_pressure_rise": 15.0,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.5,
+        "speed_target": 0.5,
+        "flow": 499.99999999999994,
+        "suction_pressure": 47.5,
+        "discharge_pressure": 62.5,
+        "spread": 15.0,
+        "pump_pressure_rise": 15.0,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.5,
+        "speed_target": 0.5,
+        "flow": 499.99999999999994,
+        "suction_pressure": 47.5,
+        "discharge_pressure": 62.5,
+        "spread": 15.0,
+        "pump_pressure_rise": 15.0,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.5,
+        "speed_target": 0.5,
+        "flow": 499.99999999999994,
+        "suction_pressure": 47.5,
+        "discharge_pressure": 62.5,
+        "spread": 15.0,
+        "pump_pressure_rise": 15.0,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.5,
+        "speed_target": 0.5,
+        "flow": 499.99999999999994,
+        "suction_pressure": 47.5,
+        "discharge_pressure": 62.5,
+        "spread": 15.0,
+        "pump_pressure_rise": 15.0,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.5,
+        "speed_target": 0.5,
+        "flow": 499.99999999999994,
+        "suction_pressure": 47.5,
+        "discharge_pressure": 62.5,
+        "spread": 15.0,
+        "pump_pressure_rise": 15.0,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.5,
+        "speed_target": 0.5,
+        "flow": 499.99999999999994,
+        "suction_pressure": 47.5,
+        "discharge_pressure": 62.5,
+        "spread": 15.0,
+        "pump_pressure_rise": 15.0,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.5,
+        "speed_target": 0.5,
+        "flow": 499.99999999999994,
+        "suction_pressure": 47.5,
+        "discharge_pressure": 62.5,
+        "spread": 15.0,
+        "pump_pressure_rise": 15.0,
+        "max_flow": 1200.0
+      },
+      {
+        "running": false,
+        "speed": 0.4,
+        "speed_target": 0.0,
+        "flow": 400.0,
+        "suction_pressure": 48.4,
+        "discharge_pressure": 58.0,
+        "spread": 9.600000000000001,
+        "pump_pressure_rise": 9.600000000000001,
+        "max_flow": 1200.0
+      },
+      {
+        "running": false,
+        "speed": 0.30000000000000004,
+        "speed_target": 0.0,
+        "flow": 300.0,
+        "suction_pressure": 49.1,
+        "discharge_pressure": 54.5,
+        "spread": 5.399999999999999,
+        "pump_pressure_rise": 5.400000000000002,
+        "max_flow": 1200.0
+      },
+      {
+        "running": false,
+        "speed": 0.20000000000000004,
+        "speed_target": 0.0,
+        "flow": 200.00000000000003,
+        "suction_pressure": 49.6,
+        "discharge_pressure": 52.0,
+        "spread": 2.3999999999999986,
+        "pump_pressure_rise": 2.400000000000001,
+        "max_flow": 1200.0
+      },
+      {
+        "running": false,
+        "speed": 0.10000000000000003,
+        "speed_target": 0.0,
+        "flow": 100.00000000000004,
+        "suction_pressure": 49.9,
+        "discharge_pressure": 50.5,
+        "spread": 0.6000000000000014,
+        "pump_pressure_rise": 0.6000000000000004,
+        "max_flow": 1200.0
+      },
+      {
+        "running": false,
+        "speed": 2.7755575615628914e-17,
+        "speed_target": 0.0,
+        "flow": 2.775557561562891e-14,
+        "suction_pressure": 50.0,
+        "discharge_pressure": 50.0,
+        "spread": 0.0,
+        "pump_pressure_rise": 4.622231866529366e-32,
+        "max_flow": 1200.0
+      }
+    ],
+    "commands": [
+      {
+        "step": 0,
+        "command": "set_speed_target(0.5), start()"
+      },
+      {
+        "step": 15,
+        "command": "stop()"
+      }
+    ]
+  },
+  "speed_manipulation": {
+    "name": "speed_manipulation",
+    "steps": 35,
+    "trace": [
+      {
+        "running": false,
+        "speed": 0.0,
+        "speed_target": 0.0,
+        "flow": 0.0,
+        "suction_pressure": 50.0,
+        "discharge_pressure": 50.0,
+        "spread": 0.0,
+        "pump_pressure_rise": 0.0,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.1,
+        "speed_target": 0.8,
+        "flow": 100.0,
+        "suction_pressure": 49.9,
+        "discharge_pressure": 50.5,
+        "spread": 0.6000000000000014,
+        "pump_pressure_rise": 0.6000000000000001,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.2,
+        "speed_target": 0.8,
+        "flow": 200.0,
+        "suction_pressure": 49.6,
+        "discharge_pressure": 52.0,
+        "spread": 2.3999999999999986,
+        "pump_pressure_rise": 2.4000000000000004,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.30000000000000004,
+        "speed_target": 0.8,
+        "flow": 300.0,
+        "suction_pressure": 49.1,
+        "discharge_pressure": 54.5,
+        "spread": 5.399999999999999,
+        "pump_pressure_rise": 5.400000000000002,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.4,
+        "speed_target": 0.8,
+        "flow": 400.0,
+        "suction_pressure": 48.4,
+        "discharge_pressure": 58.0,
+        "spread": 9.600000000000001,
+        "pump_pressure_rise": 9.600000000000001,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.5,
+        "speed_target": 0.8,
+        "flow": 499.99999999999994,
+        "suction_pressure": 47.5,
+        "discharge_pressure": 62.5,
+        "spread": 15.0,
+        "pump_pressure_rise": 15.0,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.6,
+        "speed_target": 0.8,
+        "flow": 600.0,
+        "suction_pressure": 46.4,
+        "discharge_pressure": 68.0,
+        "spread": 21.6,
+        "pump_pressure_rise": 21.6,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.7,
+        "speed_target": 0.8,
+        "flow": 699.9999999999999,
+        "suction_pressure": 45.1,
+        "discharge_pressure": 74.5,
+        "spread": 29.4,
+        "pump_pressure_rise": 29.399999999999995,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.7999999999999999,
+        "speed_target": 0.8,
+        "flow": 799.9999999999999,
+        "suction_pressure": 43.6,
+        "discharge_pressure": 81.99999999999999,
+        "spread": 38.399999999999984,
+        "pump_pressure_rise": 38.4,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.8,
+        "speed_target": 0.8,
+        "flow": 800.0,
+        "suction_pressure": 43.6,
+        "discharge_pressure": 82.0,
+        "spread": 38.4,
+        "pump_pressure_rise": 38.400000000000006,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.8,
+        "speed_target": 0.8,
+        "flow": 800.0,
+        "suction_pressure": 43.6,
+        "discharge_pressure": 82.0,
+        "spread": 38.4,
+        "pump_pressure_rise": 38.400000000000006,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.7000000000000001,
+        "speed_target": 0.3,
+        "flow": 700.0,
+        "suction_pressure": 45.1,
+        "discharge_pressure": 74.5,
+        "spread": 29.4,
+        "pump_pressure_rise": 29.400000000000006,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.6000000000000001,
+        "speed_target": 0.3,
+        "flow": 600.0,
+        "suction_pressure": 46.4,
+        "discharge_pressure": 68.0,
+        "spread": 21.6,
+        "pump_pressure_rise": 21.60000000000001,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.5000000000000001,
+        "speed_target": 0.3,
+        "flow": 500.00000000000006,
+        "suction_pressure": 47.5,
+        "discharge_pressure": 62.5,
+        "spread": 15.0,
+        "pump_pressure_rise": 15.000000000000007,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.40000000000000013,
+        "speed_target": 0.3,
+        "flow": 400.00000000000017,
+        "suction_pressure": 48.4,
+        "discharge_pressure": 58.00000000000001,
+        "spread": 9.600000000000009,
+        "pump_pressure_rise": 9.600000000000007,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.30000000000000016,
+        "speed_target": 0.3,
+        "flow": 300.00000000000017,
+        "suction_pressure": 49.1,
+        "discharge_pressure": 54.50000000000001,
+        "spread": 5.400000000000006,
+        "pump_pressure_rise": 5.400000000000006,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.3,
+        "speed_target": 0.3,
+        "flow": 300.0,
+        "suction_pressure": 49.1,
+        "discharge_pressure": 54.5,
+        "spread": 5.399999999999999,
+        "pump_pressure_rise": 5.4,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.3,
+        "speed_target": 0.3,
+        "flow": 300.0,
+        "suction_pressure": 49.1,
+        "discharge_pressure": 54.5,
+        "spread": 5.399999999999999,
+        "pump_pressure_rise": 5.4,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.3,
+        "speed_target": 0.3,
+        "flow": 300.0,
+        "suction_pressure": 49.1,
+        "discharge_pressure": 54.5,
+        "spread": 5.399999999999999,
+        "pump_pressure_rise": 5.4,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.3,
+        "speed_target": 0.3,
+        "flow": 300.0,
+        "suction_pressure": 49.1,
+        "discharge_pressure": 54.5,
+        "spread": 5.399999999999999,
+        "pump_pressure_rise": 5.4,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.3,
+        "speed_target": 0.3,
+        "flow": 300.0,
+        "suction_pressure": 49.1,
+        "discharge_pressure": 54.5,
+        "spread": 5.399999999999999,
+        "pump_pressure_rise": 5.4,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.4,
+        "speed_target": 0.9,
+        "flow": 400.0,
+        "suction_pressure": 48.4,
+        "discharge_pressure": 58.0,
+        "spread": 9.600000000000001,
+        "pump_pressure_rise": 9.600000000000001,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.5,
+        "speed_target": 0.9,
+        "flow": 499.99999999999994,
+        "suction_pressure": 47.5,
+        "discharge_pressure": 62.5,
+        "spread": 15.0,
+        "pump_pressure_rise": 15.0,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.6,
+        "speed_target": 0.9,
+        "flow": 600.0,
+        "suction_pressure": 46.4,
+        "discharge_pressure": 68.0,
+        "spread": 21.6,
+        "pump_pressure_rise": 21.6,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.7,
+        "speed_target": 0.9,
+        "flow": 699.9999999999999,
+        "suction_pressure": 45.1,
+        "discharge_pressure": 74.5,
+        "spread": 29.4,
+        "pump_pressure_rise": 29.399999999999995,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.7999999999999999,
+        "speed_target": 0.9,
+        "flow": 799.9999999999999,
+        "suction_pressure": 43.6,
+        "discharge_pressure": 81.99999999999999,
+        "spread": 38.399999999999984,
+        "pump_pressure_rise": 38.4,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.8999999999999999,
+        "speed_target": 0.9,
+        "flow": 899.9999999999999,
+        "suction_pressure": 41.900000000000006,
+        "discharge_pressure": 90.5,
+        "spread": 48.599999999999994,
+        "pump_pressure_rise": 48.59999999999999,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.9,
+        "speed_target": 0.9,
+        "flow": 900.0,
+        "suction_pressure": 41.9,
+        "discharge_pressure": 90.5,
+        "spread": 48.6,
+        "pump_pressure_rise": 48.60000000000001,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.9,
+        "speed_target": 0.9,
+        "flow": 900.0,
+        "suction_pressure": 41.9,
+        "discharge_pressure": 90.5,
+        "spread": 48.6,
+        "pump_pressure_rise": 48.60000000000001,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.9,
+        "speed_target": 0.9,
+        "flow": 900.0,
+        "suction_pressure": 41.9,
+        "discharge_pressure": 90.5,
+        "spread": 48.6,
+        "pump_pressure_rise": 48.60000000000001,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.9,
+        "speed_target": 0.9,
+        "flow": 900.0,
+        "suction_pressure": 41.9,
+        "discharge_pressure": 90.5,
+        "spread": 48.6,
+        "pump_pressure_rise": 48.60000000000001,
+        "max_flow": 1200.0
+      },
+      {
+        "running": false,
+        "speed": 0.8,
+        "speed_target": 0.0,
+        "flow": 800.0,
+        "suction_pressure": 43.6,
+        "discharge_pressure": 82.0,
+        "spread": 38.4,
+        "pump_pressure_rise": 38.400000000000006,
+        "max_flow": 1200.0
+      },
+      {
+        "running": false,
+        "speed": 0.7000000000000001,
+        "speed_target": 0.0,
+        "flow": 700.0,
+        "suction_pressure": 45.1,
+        "discharge_pressure": 74.5,
+        "spread": 29.4,
+        "pump_pressure_rise": 29.400000000000006,
+        "max_flow": 1200.0
+      },
+      {
+        "running": false,
+        "speed": 0.6000000000000001,
+        "speed_target": 0.0,
+        "flow": 600.0,
+        "suction_pressure": 46.4,
+        "discharge_pressure": 68.0,
+        "spread": 21.6,
+        "pump_pressure_rise": 21.60000000000001,
+        "max_flow": 1200.0
+      },
+      {
+        "running": false,
+        "speed": 0.5000000000000001,
+        "speed_target": 0.0,
+        "flow": 500.00000000000006,
+        "suction_pressure": 47.5,
+        "discharge_pressure": 62.5,
+        "spread": 15.0,
+        "pump_pressure_rise": 15.000000000000007,
+        "max_flow": 1200.0
+      },
+      {
+        "running": false,
+        "speed": 0.40000000000000013,
+        "speed_target": 0.0,
+        "flow": 400.00000000000017,
+        "suction_pressure": 48.4,
+        "discharge_pressure": 58.00000000000001,
+        "spread": 9.600000000000009,
+        "pump_pressure_rise": 9.600000000000007,
+        "max_flow": 1200.0
+      }
+    ],
+    "commands": [
+      {
+        "step": 0,
+        "command": "set_speed_target(0.8), start()"
+      },
+      {
+        "step": 10,
+        "command": "set_speed_target(0.3)"
+      },
+      {
+        "step": 20,
+        "command": "set_speed_target(0.9)"
+      },
+      {
+        "step": 30,
+        "command": "stop()"
+      }
+    ]
+  },
+  "supply_pressure_change": {
+    "name": "supply_pressure_change",
+    "steps": 20,
+    "trace": [
+      {
+        "running": false,
+        "speed": 0.0,
+        "speed_target": 0.0,
+        "flow": 0.0,
+        "suction_pressure": 50.0,
+        "discharge_pressure": 50.0,
+        "spread": 0.0,
+        "pump_pressure_rise": 0.0,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.1,
+        "speed_target": 1.0,
+        "flow": 378.59388972001824,
+        "suction_pressure": 58.56666666666666,
+        "discharge_pressure": 57.16666666666667,
+        "spread": -1.3999999999999915,
+        "pump_pressure_rise": 0.0,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.2,
+        "speed_target": 1.0,
+        "flow": 416.33319989322655,
+        "suction_pressure": 58.266666666666666,
+        "discharge_pressure": 58.66666666666667,
+        "spread": 0.4000000000000057,
+        "pump_pressure_rise": 0.40000000000000036,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.30000000000000004,
+        "speed_target": 1.0,
+        "flow": 472.5815626252608,
+        "suction_pressure": 57.766666666666666,
+        "discharge_pressure": 61.166666666666664,
+        "spread": 3.3999999999999986,
+        "pump_pressure_rise": 3.4000000000000026,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.4,
+        "speed_target": 1.0,
+        "flow": 541.602560309064,
+        "suction_pressure": 57.06666666666667,
+        "discharge_pressure": 64.66666666666666,
+        "spread": 7.599999999999987,
+        "pump_pressure_rise": 7.600000000000003,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.5,
+        "speed_target": 1.0,
+        "flow": 619.1391873668903,
+        "suction_pressure": 56.166666666666664,
+        "discharge_pressure": 69.16666666666666,
+        "spread": 12.999999999999993,
+        "pump_pressure_rise": 13.0,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.6,
+        "speed_target": 1.0,
+        "flow": 702.3769168568492,
+        "suction_pressure": 55.06666666666667,
+        "discharge_pressure": 74.66666666666666,
+        "spread": 19.599999999999987,
+        "pump_pressure_rise": 19.6,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.7,
+        "speed_target": 1.0,
+        "flow": 789.5146188218006,
+        "suction_pressure": 53.766666666666666,
+        "discharge_pressure": 81.16666666666666,
+        "spread": 27.39999999999999,
+        "pump_pressure_rise": 27.4,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.7999999999999999,
+        "speed_target": 1.0,
+        "flow": 879.3937305515278,
+        "suction_pressure": 52.266666666666666,
+        "discharge_pressure": 88.66666666666666,
+        "spread": 36.39999999999999,
+        "pump_pressure_rise": 36.39999999999999,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.8999999999999999,
+        "speed_target": 1.0,
+        "flow": 971.2534856222309,
+        "suction_pressure": 50.56666666666667,
+        "discharge_pressure": 97.16666666666666,
+        "spread": 46.59999999999999,
+        "pump_pressure_rise": 46.599999999999994,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.9999999999999999,
+        "speed_target": 1.0,
+        "flow": 1064.581294844754,
+        "suction_pressure": 48.66666666666667,
+        "discharge_pressure": 106.66666666666666,
+        "spread": 57.999999999999986,
+        "pump_pressure_rise": 57.999999999999986,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 1.0,
+        "speed_target": 1.0,
+        "flow": 1064.581294844754,
+        "suction_pressure": 48.66666666666667,
+        "discharge_pressure": 106.66666666666666,
+        "spread": 57.999999999999986,
+        "pump_pressure_rise": 58.0,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 1.0,
+        "speed_target": 1.0,
+        "flow": 1064.581294844754,
+        "suction_pressure": 48.66666666666667,
+        "discharge_pressure": 106.66666666666666,
+        "spread": 57.999999999999986,
+        "pump_pressure_rise": 58.0,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 1.0,
+        "speed_target": 1.0,
+        "flow": 1064.581294844754,
+        "suction_pressure": 48.66666666666667,
+        "discharge_pressure": 106.66666666666666,
+        "spread": 57.999999999999986,
+        "pump_pressure_rise": 58.0,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 1.0,
+        "speed_target": 1.0,
+        "flow": 1064.581294844754,
+        "suction_pressure": 48.66666666666667,
+        "discharge_pressure": 106.66666666666666,
+        "spread": 57.999999999999986,
+        "pump_pressure_rise": 58.0,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 1.0,
+        "speed_target": 1.0,
+        "flow": 1064.581294844754,
+        "suction_pressure": 48.66666666666667,
+        "discharge_pressure": 106.66666666666666,
+        "spread": 57.999999999999986,
+        "pump_pressure_rise": 58.0,
+        "max_flow": 1200.0
+      },
+      {
+        "running": false,
+        "speed": 0.9,
+        "speed_target": 0.0,
+        "flow": 971.253485622231,
+        "suction_pressure": 50.56666666666666,
+        "discharge_pressure": 97.16666666666666,
+        "spread": 46.599999999999994,
+        "pump_pressure_rise": 46.60000000000001,
+        "max_flow": 1200.0
+      },
+      {
+        "running": false,
+        "speed": 0.8,
+        "speed_target": 0.0,
+        "flow": 879.3937305515279,
+        "suction_pressure": 52.266666666666666,
+        "discharge_pressure": 88.66666666666667,
+        "spread": 36.400000000000006,
+        "pump_pressure_rise": 36.400000000000006,
+        "max_flow": 1200.0
+      },
+      {
+        "running": false,
+        "speed": 0.7000000000000001,
+        "speed_target": 0.0,
+        "flow": 789.5146188218008,
+        "suction_pressure": 53.766666666666666,
+        "discharge_pressure": 81.16666666666667,
+        "spread": 27.400000000000006,
+        "pump_pressure_rise": 27.400000000000006,
+        "max_flow": 1200.0
+      },
+      {
+        "running": false,
+        "speed": 0.6000000000000001,
+        "speed_target": 0.0,
+        "flow": 702.3769168568493,
+        "suction_pressure": 55.06666666666666,
+        "discharge_pressure": 74.66666666666667,
+        "spread": 19.60000000000001,
+        "pump_pressure_rise": 19.600000000000005,
+        "max_flow": 1200.0
+      },
+      {
+        "running": false,
+        "speed": 0.5000000000000001,
+        "speed_target": 0.0,
+        "flow": 619.1391873668904,
+        "suction_pressure": 56.166666666666664,
+        "discharge_pressure": 69.16666666666667,
+        "spread": 13.000000000000007,
+        "pump_pressure_rise": 13.000000000000007,
+        "max_flow": 1200.0
+      }
+    ],
+    "commands": [
+      {
+        "step": 0,
+        "command": "supply_pressure = 60.0, set_speed_target(1.0), start()"
+      },
+      {
+        "step": 15,
+        "command": "stop()"
+      }
+    ]
+  },
+  "discharge_header_change": {
+    "name": "discharge_header_change",
+    "steps": 20,
+    "trace": [
+      {
+        "running": false,
+        "speed": 0.0,
+        "speed_target": 0.0,
+        "flow": 0.0,
+        "suction_pressure": 50.0,
+        "discharge_pressure": 50.0,
+        "spread": 0.0,
+        "pump_pressure_rise": 0.0,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.1,
+        "speed_target": 1.0,
+        "flow": 0.0,
+        "suction_pressure": 50.0,
+        "discharge_pressure": 75.0,
+        "spread": 25.0,
+        "pump_pressure_rise": 0.7500000000000001,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.2,
+        "speed_target": 1.0,
+        "flow": 0.0,
+        "suction_pressure": 50.0,
+        "discharge_pressure": 75.0,
+        "spread": 25.0,
+        "pump_pressure_rise": 3.0000000000000004,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.30000000000000004,
+        "speed_target": 1.0,
+        "flow": 0.0,
+        "suction_pressure": 50.0,
+        "discharge_pressure": 75.0,
+        "spread": 25.0,
+        "pump_pressure_rise": 6.750000000000002,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.4,
+        "speed_target": 1.0,
+        "flow": 0.0,
+        "suction_pressure": 50.0,
+        "discharge_pressure": 75.0,
+        "spread": 25.0,
+        "pump_pressure_rise": 12.000000000000002,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.5,
+        "speed_target": 1.0,
+        "flow": 0.0,
+        "suction_pressure": 50.0,
+        "discharge_pressure": 75.0,
+        "spread": 25.0,
+        "pump_pressure_rise": 18.75,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.6,
+        "speed_target": 1.0,
+        "flow": 163.2993161855452,
+        "suction_pressure": 49.733333333333334,
+        "discharge_pressure": 76.33333333333333,
+        "spread": 26.599999999999994,
+        "pump_pressure_rise": 26.6,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.7,
+        "speed_target": 1.0,
+        "flow": 395.81140290126376,
+        "suction_pressure": 48.43333333333334,
+        "discharge_pressure": 82.83333333333333,
+        "spread": 34.39999999999999,
+        "pump_pressure_rise": 34.39999999999999,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.7999999999999999,
+        "speed_target": 1.0,
+        "flow": 553.7749241945382,
+        "suction_pressure": 46.93333333333334,
+        "discharge_pressure": 90.33333333333333,
+        "spread": 43.39999999999999,
+        "pump_pressure_rise": 43.39999999999999,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.8999999999999999,
+        "speed_target": 1.0,
+        "flow": 690.4105059069325,
+        "suction_pressure": 45.233333333333334,
+        "discharge_pressure": 98.83333333333333,
+        "spread": 53.599999999999994,
+        "pump_pressure_rise": 53.59999999999999,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.9999999999999999,
+        "speed_target": 1.0,
+        "flow": 816.4965809277259,
+        "suction_pressure": 43.333333333333336,
+        "discharge_pressure": 108.33333333333331,
+        "spread": 64.99999999999997,
+        "pump_pressure_rise": 64.99999999999999,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 1.0,
+        "speed_target": 1.0,
+        "flow": 816.496580927726,
+        "suction_pressure": 43.333333333333336,
+        "discharge_pressure": 108.33333333333333,
+        "spread": 65.0,
+        "pump_pressure_rise": 65.0,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 1.0,
+        "speed_target": 1.0,
+        "flow": 816.496580927726,
+        "suction_pressure": 43.333333333333336,
+        "discharge_pressure": 108.33333333333333,
+        "spread": 65.0,
+        "pump_pressure_rise": 65.0,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 1.0,
+        "speed_target": 1.0,
+        "flow": 816.496580927726,
+        "suction_pressure": 43.333333333333336,
+        "discharge_pressure": 108.33333333333333,
+        "spread": 65.0,
+        "pump_pressure_rise": 65.0,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 1.0,
+        "speed_target": 1.0,
+        "flow": 816.496580927726,
+        "suction_pressure": 43.333333333333336,
+        "discharge_pressure": 108.33333333333333,
+        "spread": 65.0,
+        "pump_pressure_rise": 65.0,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 1.0,
+        "speed_target": 1.0,
+        "flow": 816.496580927726,
+        "suction_pressure": 43.333333333333336,
+        "discharge_pressure": 108.33333333333333,
+        "spread": 65.0,
+        "pump_pressure_rise": 65.0,
+        "max_flow": 1200.0
+      },
+      {
+        "running": false,
+        "speed": 0.9,
+        "speed_target": 0.0,
+        "flow": 690.4105059069327,
+        "suction_pressure": 45.233333333333334,
+        "discharge_pressure": 98.83333333333334,
+        "spread": 53.60000000000001,
+        "pump_pressure_rise": 53.60000000000001,
+        "max_flow": 1200.0
+      },
+      {
+        "running": false,
+        "speed": 0.8,
+        "speed_target": 0.0,
+        "flow": 553.7749241945384,
+        "suction_pressure": 46.93333333333333,
+        "discharge_pressure": 90.33333333333334,
+        "spread": 43.40000000000001,
+        "pump_pressure_rise": 43.400000000000006,
+        "max_flow": 1200.0
+      },
+      {
+        "running": false,
+        "speed": 0.7000000000000001,
+        "speed_target": 0.0,
+        "flow": 395.811402901264,
+        "suction_pressure": 48.43333333333333,
+        "discharge_pressure": 82.83333333333334,
+        "spread": 34.40000000000001,
+        "pump_pressure_rise": 34.400000000000006,
+        "max_flow": 1200.0
+      },
+      {
+        "running": false,
+        "speed": 0.6000000000000001,
+        "speed_target": 0.0,
+        "flow": 163.29931618554548,
+        "suction_pressure": 49.733333333333334,
+        "discharge_pressure": 76.33333333333334,
+        "spread": 26.60000000000001,
+        "pump_pressure_rise": 26.600000000000005,
+        "max_flow": 1200.0
+      },
+      {
+        "running": false,
+        "speed": 0.5000000000000001,
+        "speed_target": 0.0,
+        "flow": 0.0,
+        "suction_pressure": 50.0,
+        "discharge_pressure": 75.0,
+        "spread": 25.0,
+        "pump_pressure_rise": 18.750000000000007,
+        "max_flow": 1200.0
+      }
+    ],
+    "commands": [
+      {
+        "step": 0,
+        "command": "discharge_header_pressure = 75.0, set_speed_target(1.0), start()"
+      },
+      {
+        "step": 15,
+        "command": "stop()"
+      }
+    ]
+  },
+  "max_flow_clip": {
+    "name": "max_flow_clip",
+    "steps": 20,
+    "trace": [
+      {
+        "running": false,
+        "speed": 0.0,
+        "speed_target": 0.0,
+        "flow": 0.0,
+        "suction_pressure": 50.0,
+        "discharge_pressure": 50.0,
+        "spread": 0.0,
+        "pump_pressure_rise": 0.0,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.1,
+        "speed_target": 1.0,
+        "flow": 146.38501094228,
+        "suction_pressure": 49.785714285714285,
+        "discharge_pressure": 50.214285714285715,
+        "spread": 0.4285714285714306,
+        "pump_pressure_rise": 0.42857142857142866,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.2,
+        "speed_target": 1.0,
+        "flow": 292.77002188456,
+        "suction_pressure": 49.142857142857146,
+        "discharge_pressure": 50.857142857142854,
+        "spread": 1.7142857142857082,
+        "pump_pressure_rise": 1.7142857142857146,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.30000000000000004,
+        "speed_target": 1.0,
+        "flow": 439.15503282684,
+        "suction_pressure": 48.07142857142857,
+        "discharge_pressure": 51.92857142857143,
+        "spread": 3.857142857142861,
+        "pump_pressure_rise": 3.8571428571428577,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.4,
+        "speed_target": 1.0,
+        "flow": 585.54004376912,
+        "suction_pressure": 46.57142857142857,
+        "discharge_pressure": 53.42857142857143,
+        "spread": 6.857142857142861,
+        "pump_pressure_rise": 6.8571428571428585,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.5,
+        "speed_target": 1.0,
+        "flow": 731.9250547113999,
+        "suction_pressure": 44.64285714285714,
+        "discharge_pressure": 55.35714285714286,
+        "spread": 10.714285714285722,
+        "pump_pressure_rise": 10.714285714285715,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.6,
+        "speed_target": 1.0,
+        "flow": 878.3100656536798,
+        "suction_pressure": 42.285714285714285,
+        "discharge_pressure": 57.714285714285715,
+        "spread": 15.42857142857143,
+        "pump_pressure_rise": 15.42857142857143,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.7,
+        "speed_target": 1.0,
+        "flow": 1024.6950765959598,
+        "suction_pressure": 39.5,
+        "discharge_pressure": 60.5,
+        "spread": 21.0,
+        "pump_pressure_rise": 20.999999999999993,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.7999999999999999,
+        "speed_target": 1.0,
+        "flow": 1171.0800875382397,
+        "suction_pressure": 36.28571428571429,
+        "discharge_pressure": 63.71428571428571,
+        "spread": 27.428571428571416,
+        "pump_pressure_rise": 27.428571428571427,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.8999999999999999,
+        "speed_target": 1.0,
+        "flow": 1200.0,
+        "suction_pressure": 35.6,
+        "discharge_pressure": 64.4,
+        "spread": 28.800000000000004,
+        "pump_pressure_rise": 39.149999999999984,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 0.9999999999999999,
+        "speed_target": 1.0,
+        "flow": 1200.0,
+        "suction_pressure": 35.6,
+        "discharge_pressure": 64.4,
+        "spread": 28.800000000000004,
+        "pump_pressure_rise": 53.399999999999984,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 1.0,
+        "speed_target": 1.0,
+        "flow": 1200.0,
+        "suction_pressure": 35.6,
+        "discharge_pressure": 64.4,
+        "spread": 28.800000000000004,
+        "pump_pressure_rise": 53.4,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 1.0,
+        "speed_target": 1.0,
+        "flow": 1200.0,
+        "suction_pressure": 35.6,
+        "discharge_pressure": 64.4,
+        "spread": 28.800000000000004,
+        "pump_pressure_rise": 53.4,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 1.0,
+        "speed_target": 1.0,
+        "flow": 1200.0,
+        "suction_pressure": 35.6,
+        "discharge_pressure": 64.4,
+        "spread": 28.800000000000004,
+        "pump_pressure_rise": 53.4,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 1.0,
+        "speed_target": 1.0,
+        "flow": 1200.0,
+        "suction_pressure": 35.6,
+        "discharge_pressure": 64.4,
+        "spread": 28.800000000000004,
+        "pump_pressure_rise": 53.4,
+        "max_flow": 1200.0
+      },
+      {
+        "running": true,
+        "speed": 1.0,
+        "speed_target": 1.0,
+        "flow": 1200.0,
+        "suction_pressure": 35.6,
+        "discharge_pressure": 64.4,
+        "spread": 28.800000000000004,
+        "pump_pressure_rise": 53.4,
+        "max_flow": 1200.0
+      },
+      {
+        "running": false,
+        "speed": 0.9,
+        "speed_target": 0.0,
+        "flow": 1200.0,
+        "suction_pressure": 35.6,
+        "discharge_pressure": 64.4,
+        "spread": 28.800000000000004,
+        "pump_pressure_rise": 39.150000000000006,
+        "max_flow": 1200.0
+      },
+      {
+        "running": false,
+        "speed": 0.8,
+        "speed_target": 0.0,
+        "flow": 1171.08008753824,
+        "suction_pressure": 36.285714285714285,
+        "discharge_pressure": 63.714285714285715,
+        "spread": 27.42857142857143,
+        "pump_pressure_rise": 27.428571428571434,
+        "max_flow": 1200.0
+      },
+      {
+        "running": false,
+        "speed": 0.7000000000000001,
+        "speed_target": 0.0,
+        "flow": 1024.6950765959598,
+        "suction_pressure": 39.5,
+        "discharge_pressure": 60.5,
+        "spread": 21.0,
+        "pump_pressure_rise": 21.000000000000007,
+        "max_flow": 1200.0
+      },
+      {
+        "running": false,
+        "speed": 0.6000000000000001,
+        "speed_target": 0.0,
+        "flow": 878.31006565368,
+        "suction_pressure": 42.285714285714285,
+        "discharge_pressure": 57.714285714285715,
+        "spread": 15.42857142857143,
+        "pump_pressure_rise": 15.42857142857143,
+        "max_flow": 1200.0
+      },
+      {
+        "running": false,
+        "speed": 0.5000000000000001,
+        "speed_target": 0.0,
+        "flow": 731.9250547114,
+        "suction_pressure": 44.64285714285714,
+        "discharge_pressure": 55.35714285714286,
+        "spread": 10.714285714285722,
+        "pump_pressure_rise": 10.71428571428572,
+        "max_flow": 1200.0
+      }
+    ],
+    "commands": [
+      {
+        "step": 0,
+        "command": "discharge_resistance = 0.000010, set_speed_target(1.0), start()"
+      },
+      {
+        "step": 15,
+        "command": "stop()"
+      }
+    ]
+  }
+}

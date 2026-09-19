@@ -9,8 +9,8 @@ Refresh this file whenever a task merges to `main`.
 ---
 
 **Last refreshed:** 19 September 2026
-**Current `main`:** `57d5c8f0d142bde1914b7427e2b2dbdc97079696` — *Merge T4-1: Branch characteristic interface*
-**Full suite on `main`:** **238 passed** (`conda activate plant-simulator && python -m pytest -q`); `python -m mypy` clean
+**Current `main`:** `b2656a5f9aa706d27316c61ff2d0381ce2ca6730` — *Merge T3-3: Plant loader and topology validation*
+**Full suite on `main`:** **266 passed** (`conda activate plant-simulator && python -m pytest -q`); `python -m mypy` clean
 
 ---
 
@@ -21,11 +21,11 @@ Refresh this file whenever a task merges to `main`.
 | **M0** Baseline Cleanup | **7/7 Complete** |
 | **M1** Equipment Model Contract | **5/5 Complete** — Checkpoint A reached |
 | **M2** Simulation Engine and Clock | 3/6 (T2-2 corrected to In Progress; T2-5 startable) |
-| **M3** Plant Topology and Streams | 2/4 (T3-3 startable) |
-| **M4** Pressure-Flow Network Solver | 1/5 — T4-1 Complete; T4-2 also needs T3-3 |
+| **M3** Plant Topology and Streams | 3/4 (T3-4 startable) |
+| **M4** Pressure-Flow Network Solver | 1/5 — T4-1 Complete; **T4-2 startable** (T3-3 merged) |
 | M5–M19 | Not started |
 
-Overall: **18 of 94 tasks Complete.**
+Overall: **19 of 94 tasks Complete.**
 
 ### Completed and merged to `main`
 
@@ -36,7 +36,7 @@ Overall: **18 of 94 tasks Complete.**
 - **M2** — `T2-1` simulation clock · `T2-3` engine + snapshot (C4) ·
   `T2-4` session/plant registry.
 - **M3** — `T3-1` plant config schema + validator (C3) ·
-  `T3-2` node/branch/stream (C2).
+  `T3-2` node/branch/stream (C2) · `T3-3` plant loader (`app/plant/loader.py`).
 - **M4** — `T4-1` branch characteristic interface (sign convention,
   `signed_square`, `Branch.characteristic()` / `Branch.residual()`).
 
@@ -79,9 +79,9 @@ baseline below.)
 ### What intentionally does not exist yet
 
 - **Plant-wide network solver (T4-2).** No plant-wide pressure/flow solution.
-- **Plant loader (T3-3).** Nothing builds a `Topology` from a config file yet;
-  the schema and validator exist, but no loader consumes them, and no
-  `config/plants/*.yaml` file exists.
+- **A reference plant file (T3-4).** The loader exists, but no
+  `config/plants/*.yaml` file does, and the loader reads JSON only — `pyyaml`
+  is not in `requirements.txt`.
 - **Single action endpoint (C5).** Routes are still per-equipment.
 - **Controllers (PID), envelopes, alarms, trips, scenarios, scoring, historian,
   console.** All specified in the build plan, none implemented.
@@ -213,21 +213,37 @@ reasonable-looking topology as one of three most-likely slip points.
 
 ## Recommended next task
 
-**T3-3 — Plant loader and topology validation** (`feature/plant-loader`).
+**T4-2 — Newton-Raphson network solver** (`feature/network-solver`).
 
-- Category: satellite (`app/plant/loader.py`), no spine lock. Dependencies `T3-1`
-  and `T3-2` are Complete.
-- It is the last dependency of **T4-2** (Newton-Raphson network solver,
-  `app/engine/network.py`). T4-1 is merged, so T4-2 can be written against
-  `Branch.residual()` / `Branch.characteristic()` as soon as T3-3 lands.
+- Category: core (`app/engine/network.py`). Dependencies `T4-1` and `T3-3` are
+  both Complete, so it is startable now. It can be written against
+  `load_plant()` for its fixtures and `Branch.residual()` /
+  `Branch.characteristic()` for the equations.
+- Read the open questions below before starting: the `reset()` one affects any
+  solver test that resets a loaded plant.
 
-**Shortest path to Checkpoint B:** `T3-3` -> `T4-2` -> `T4-3` -> `T4-4`. T4-4 is
-the spine task (`engine.py`, `compressor.py`, `pump.py`): it retires the legacy
-`step()` path and freezes other merges while it lands.
+**Shortest path to Checkpoint B:** `T4-2` -> `T4-3` -> `T4-4`. T4-4 is the spine
+task (`engine.py`, `compressor.py`, `pump.py`): it retires the legacy `step()`
+path and freezes other merges while it lands.
+
+## Open questions carried from T3-3
+
+Neither has a task yet; both need an owner.
+
+1. **`Equipment.reset()` drops design values.** The loader applies a config's
+   `design` by setting attributes after construction, but `reset()` restores the
+   state captured at the end of `__init__`. A reset device returns to class
+   defaults, not the configured design. Fixing it needs a design/configure hook
+   on C1 — a spine change and an Opus decision — before anything relies on
+   `reset()` for a loaded plant.
+2. **C3 cannot wire a multi-port device.** The schema has only
+   `node_in`/`node_out`, so a device with more than one inlet or outlet (a
+   vessel with a vent) is rejected at load. It needs `from_port`/`to_port` in
+   the schema (owned by T3-1); do it when the first such device, T5-1, lands.
 
 ## Tasks that can safely run in parallel now
 
-18 tasks have all dependencies Complete. The independent ones touch no shared
+19 tasks have all dependencies Complete. The independent ones touch no shared
 file and can be handed to separate agents immediately:
 
 | Task | Name | Branch |
@@ -248,23 +264,25 @@ file and can be handed to separate agents immediately:
 | **T6-1** | Stream enthalpy and mixing | `feature/stream-enthalpy` |
 | **T13-1** | Malfunction model and registry | `feature/malfunction-model` |
 | **T2-5** | Background scheduler | `feature/engine-scheduler` |
-| **T3-3** | Plant loader and topology validation | `feature/plant-loader` |
+| **T3-4** | Reference plant configuration | `feature/reference-plant` |
+| **T4-2** | Newton-Raphson network solver | `feature/network-solver` |
 | **T7-1** | Control valve model | `feature/control-valve` (startable since T4-1 merged) |
 
 None of these takes the spine lock; each is a satellite and merges
 independently.
 
-## Test suite composition (238 tests)
+## Test suite composition (266 tests)
 
 | File | Tests | File | Tests |
 |---|---|---|---|
-| `test_equipment_contract.py` | 58 | `test_snapshot.py` | 11 |
-| `test_topology.py` | 47 | `test_registry.py` | 9 |
-| `test_compressor.py` | 21 | `test_pump_api.py` | 8 |
-| `test_golden_regression.py` | 17 | `test_pump.py` | 8 |
-| `test_clock.py` | 13 | `test_api.py` | 7 |
-| `test_engine.py` | 13 | `test_sessions.py` | 7 |
+| `test_equipment_contract.py` | 58 | `test_registry.py` | 10 |
+| `test_topology.py` | 47 | `test_pump.py` | 8 |
+| `test_plant_loader.py` | 27 | `test_pump_api.py` | 8 |
+| `test_compressor.py` | 21 | `test_api.py` | 7 |
+| `test_golden_regression.py` | 17 | `test_sessions.py` | 7 |
 | `test_plant_config_validation.py` | 13 | `test_session_isolation.py` | 6 |
+| `test_engine.py` | 13 | `test_clock.py` | 13 |
+| `test_snapshot.py` | 11 | | |
 
 `test_equipment_contract.py` and `test_registry.py` discover device classes
 dynamically, so a new `Equipment` subclass is swept into the contract tests

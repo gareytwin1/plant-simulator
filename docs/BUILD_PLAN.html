@@ -920,6 +920,7 @@ Scenario(initial_condition, malfunctions[], triggers[],
         <tr><td class="b">feature/simulation-clock</td><td>Sim time, speed, pause &mdash; pure arithmetic</td><td class="b">Haiku</td><td class="b">now</td><td class="b">CP-A</td></tr>
         <tr><td class="b">feature/seeded-rng</td><td>One seeded source; determinism service</td><td class="b">Haiku</td><td class="b">now</td><td class="b">CP-A</td></tr>
         <tr><td class="b">feature/plant-config-schema</td><td>Contract C3 as JSON Schema plus validator</td><td class="b">Sonnet</td><td class="b">now</td><td class="b">CP-A</td></tr>
+        <tr><td class="b">feature/flow-domains</td><td>Flow-domain declaration and C3 named-port wiring (T3-5)</td><td class="b">Sonnet</td><td class="b">now</td><td class="b">CP-B</td></tr>
         <tr><td class="b">feature/pid-block</td><td>PID with anti-windup against a fake process</td><td class="b">Sonnet</td><td class="b">now</td><td class="b">CP-D</td></tr>
         <tr><td class="b">feature/envelope-evaluator</td><td>Value + limits + time &rarr; band. No plant.</td><td class="b">Sonnet</td><td class="b">now</td><td class="b">CP-E</td></tr>
         <tr><td class="b">feature/alarm-state-machine</td><td>Contract C7 states, pure and event-driven</td><td class="b">Sonnet</td><td class="b">now</td><td class="b">CP-E</td></tr>
@@ -932,7 +933,7 @@ Scenario(initial_condition, malfunctions[], triggers[],
 
         <tr><td colspan="5" style="background:var(--surface-2);font-family:var(--cond);font-size:10.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)">Wave 2 &middot; after Checkpoint A &mdash; the equipment contract is on main</td></tr>
         <tr><td class="b">feature/control-valve</td><td>Valve as a first-class device with a characteristic</td><td class="b">Sonnet</td><td class="b">CP-A &middot; 2 Oct</td><td class="b">CP-C</td></tr>
-        <tr><td class="b">feature/vessel-model</td><td>Separator with real integrated level</td><td class="b">Sonnet</td><td class="b">CP-A &middot; 2 Oct</td><td class="b">CP-C</td></tr>
+        <tr><td class="b">feature/vessel-model</td><td>Separator with real integrated level</td><td class="b">Sonnet</td><td class="b">CP-A &middot; 2 Oct, and T3-5</td><td class="b">CP-C</td></tr>
         <tr><td class="b">feature/heat-exchanger</td><td>Duty, utility side, foulable &mdash; the E-101 heater</td><td class="b">Sonnet</td><td class="b">CP-A &middot; 2 Oct</td><td class="b">CP-C</td></tr>
         <tr><td class="b">feature/equipment-registry</td><td>Stable tags everything else refers to</td><td class="b">Sonnet</td><td class="b">CP-A &middot; 2 Oct</td><td class="b">CP-B</td></tr>
         <tr><td class="b">design/console-system</td><td>Colour and symbol standards before screens exist</td><td class="b">Sonnet</td><td class="b">CP-A &middot; 2 Oct</td><td class="b">CP-G</td></tr>
@@ -968,7 +969,7 @@ Scenario(initial_condition, malfunctions[], triggers[],
 <section>
   <div class="sec-head"><h2>Milestones and tasks</h2></div>
   <p class="sec-note">Milestone status is derived from its tasks. Open any task for purpose, dependencies, affected files, merge criteria, required tests and known conflict points.</p>
-  <div class="banner"><b>Repository snapshot.</b> This is the durable copy of the master build plan, committed so the plan survives if the live artifact becomes unavailable. Opened from the repository it cannot reach the shared status database, so every task below renders at its default status. For per-task status as of the last refresh read <code>docs/BUILD_PLAN_STATUS.json</code>; for live interactive status tracking open the live artifact linked from <code>DEVELOPMENT.md</code>.</div>
+  <div class="banner" id="repo-banner"><b>Repository snapshot.</b> This is the durable copy of the master build plan, committed so the plan survives if the live artifact becomes unavailable. Opened from the repository it cannot reach the shared status database, so every task below renders at its default status. For per-task status as of the last refresh read <code>docs/BUILD_PLAN_STATUS.json</code>; for live interactive status tracking open the live artifact linked from <code>DEVELOPMENT.md</code>.</div>
   <div class="banner" id="db-banner" hidden></div>
   <div id="milestones"></div>
 </section>
@@ -1212,12 +1213,19 @@ Scenario(initial_condition, malfunctions[], triggers[],
    t:["Dangling port rejected","Duplicate tag rejected","Zero pressure boundaries rejected","Disconnected subgraph rejected","Round trip: plant to config to plant is identical"],
    x:"None beyond the schema, which T3-1 owns."},
 
-  {id:"T3-4",m:"M3",cat:"dep",n:"Reference plant configuration",
-   p:"The smallest topology that exercises real interaction: supply header, feed pump, separator, compressor, discharge header. Becomes the fixture for every later test.",
-   d:["T3-3"],f:["config/plants/olefins_lite.yaml"],b:"feature/reference-plant",
-   w:["Loads and solves","Design values reviewed against docs/units.md"],
-   t:["Loads without warnings","Reaches a plausible steady state from cold"],
-   x:"Shared config file from here on. One owner per top-level key."},
+  {id:"T3-4",m:"M3",cat:"dep",n:"Single-domain reference fixtures",
+   p:"Two small real plants, one liquid and one gas, each a single hydraulic domain. They are the solver's regression fixtures and the first real config files in the repository. The full mixed-phase train moves to T5-5, which needs a vessel and inventory coupling that do not exist in M3.",
+   d:["T3-3","T3-5"],f:["config/plants/liquid_transfer.yaml","config/plants/gas_compression.yaml"],b:"feature/reference-plant",
+   w:["Each fixture declares one domain and loads through the current C3/YAML loader","Each solves with NetworkSolver unchanged","Solved values match a closed-form expected value, so the fixture can be checked without trusting the solver","Design values reviewed against docs/UNITS_CONVENTION.md"],
+   t:["Both fixtures load without warnings","Both converge, and the mass balance closes at the internal node","Solved flow and internal-node pressure match the hand-derived value","A fixture with mixed domains is rejected at load"],
+   x:"First files under config/plants/. Shared config from here on, one owner per top-level key. Do NOT assert a plausible cold-start operating point: with no check valve, line resistance or control valve, no boundary pair is sane both cold and running. That criterion moves to T7-1. See docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md section 2.9."},
+
+  {id:"T3-5",m:"M3",cat:"dep",n:"Flow-domain declaration and multi-port wiring",
+   p:"Make the single-domain rule enforceable instead of conventional. A mixed liquid/gas topology currently loads and solves to a confident, meaningless answer; this rejects it at load, where the error can name a config path. Carries C3 named-port wiring in the same schema pass, so T5-1 never has to invent it.",
+   d:["T3-3"],f:["config/schema/plant.schema.json","app/plant/loader.py","tests/test_plant_domains.py"],b:"feature/flow-domains",
+   w:["C3 nodes accept an optional domain; absent means one implicit domain, so every existing config stays valid","C3 equipment accepts a named ports map as a oneOf alongside node_in/node_out, which is retained unchanged","The loader partitions nodes by domain and returns Plant.topologies, keeping Plant.topology as a single-domain convenience that raises on a multi-domain plant","NetworkSolver is not modified"],
+   t:["A mixed-domain config is rejected at load, naming the offending branch","A branch whose two nodes declare different domains is rejected","A domain with no boundary node is rejected","A domain that is not one connected piece is rejected","Every existing loader test and fixture still passes unchanged","Round trip plant to config to plant is still identical, node order preserved"],
+   x:"Schema and loader only. app/plant/loader.py is not a spine file, so this is satellite work and takes no lock. Design is settled by docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md; implement it, do not redesign it. Do NOT touch C1, C2 or NetworkSolver. tests/test_plant_loader.py asserts exact dict equality on the round trip, so partitioning must preserve config node order. Retires both open questions in the T3-3 note."},
 
   // ---------------- M4 ----------------
   {id:"T4-1",m:"M4",cat:"core",n:"Branch characteristic interface",
@@ -1243,10 +1251,10 @@ Scenario(initial_condition, malfunctions[], triggers[],
 
   {id:"T4-4",m:"M4",cat:"core",n:"Wire the solver into the engine",
    p:"Retire per-equipment operating points. This is the moment the plant becomes connected, and the moment the old single-device behaviour formally ends.",
-   d:["T4-2","T2-3"],f:["app/engine/engine.py","app/equipment/compressor.py","app/equipment/pump.py"],b:"refactor/solver-integration",
+   d:["T4-2","T2-3","T3-5"],f:["app/engine/engine.py","app/equipment/compressor.py","app/equipment/pump.py"],b:"refactor/solver-integration",
    w:["_calculate_operating_point removed from both devices","Golden traces reconciled, with any intentional differences explained in the PR"],
    t:["Full suite green","Golden traces reproduce or the delta is documented and justified"],
-   x:"Touches three core files at once. This is Checkpoint B — freeze other merges while it lands."},
+   x:"Touches three core files at once. This is Checkpoint B — freeze other merges while it lands. Wire the Engine against Plant.topology, the single-domain convenience; one solver per domain arrives with T5-2. T3-5 shares no files with this task and takes no spine lock, so the two may run concurrently if Checkpoint B is under date pressure. See docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md section 6.2."},
 
   {id:"T4-5",m:"M4",cat:"dep",n:"Cause-and-effect assertion suite",
    p:"The project's stated goal is believable cause and effect. This suite is the executable statement of what that means, and it guards every later physics change.",
@@ -1258,17 +1266,17 @@ Scenario(initial_condition, malfunctions[], triggers[],
   // ---------------- M5 ----------------
   {id:"T5-1",m:"M5",cat:"dep",n:"Vessel model",
    p:"Separators and knockout drums with integrated level. New file against C1, so it parallelises cleanly with the energy work.",
-   d:["T1-2"],f:["app/equipment/vessel.py"],b:"feature/vessel-model",
+   d:["T1-2","T3-5"],f:["app/equipment/vessel.py"],b:"feature/vessel-model",
    w:["Level integrates from net flow","Clamps at 0 and 100 percent without instability"],
    t:["Level rises with inlet above outlet and falls with the reverse","Clamping is stable over long runs","Residence time correct for a known geometry"],
-   x:"None."},
+   x:"Receives already settled, and must not redesign: C3 named-port wiring and flow-domain semantics (T3-5), and solver orchestration (unchanged, one solver per domain). The vessel is an inventory device, not a branch device carrying both phases; it terminates one domain and originates another. Its level and pressure are slow state advanced by integrate(dt). It does NOT build the boundary-condition update (T5-2) and does NOT widen characteristic(flow). If any of those seem necessary, stop and escalate against docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md."},
 
   {id:"T5-2",m:"M5",cat:"core",n:"Level to hydraulics coupling",
    p:"Level must affect the network — liquid head on the outlet, loss of suction when empty, carryover when full. Without this a vessel is just a number on a screen.",
    d:["T5-1","T4-4"],f:["app/engine/engine.py","app/equipment/vessel.py"],b:"feature/inventory-coupling",
    w:["Low level reduces downstream pump suction pressure","High level raises a carryover flag"],
    t:["Draining a vessel drops pump suction pressure and flow","Carryover flag fires at the configured level","No solver instability as level crosses zero"],
-   x:"Spine-owned engine file."},
+   x:"Spine-owned engine file. Owns the sanctioned boundary-condition update: solve each domain against fixed boundary conditions, integrate vessel inventory from the resulting flows, then write the next step's boundary conditions from that slow state. Node.set_pressure() refuses on a boundary by design, so this needs an explicit new route in C2, a spine change that belongs to this task. Vessel pressure is integrated slow state supplying a boundary condition; internal solver pressures must never be written back as vessel inventory state. See docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md section 3.5."},
 
   {id:"T5-3",m:"M5",cat:"dep",n:"Gas-phase pressure accumulation",
    p:"Vessels where pressure builds from net molar flow. This is what makes drum and column pressure upsets feel real rather than instantaneous.",
@@ -1283,6 +1291,13 @@ Scenario(initial_condition, malfunctions[], triggers[],
    w:["Closes to tolerance across all reference topologies"],
    t:["In equals out plus accumulation over a long run","10,000 steps at steady state with no drift","Balance holds through a transient"],
    x:"None."},
+
+  {id:"T5-5",m:"M5",cat:"dep",n:"Integrated reference plant",
+   p:"The full train T3-4 originally promised: supply header, feed pump, separator, Gas Compressor, discharge header. Built as two hydraulic domains coupled through vessel inventory, never as one mixed mass-balance topology. Becomes the reference fixture for every later milestone.",
+   d:["T3-4","T5-2"],f:["config/plants/olefins_lite.yaml"],b:"feature/integrated-plant",
+   w:["Liquid and gas sides are separate topologies coupled through V-101 inventory","Loads and solves each domain","Design values reviewed against docs/UNITS_CONVENTION.md"],
+   t:["Both domains converge","Mass balance closes across the separator over a long run","No domain mixes flow units"],
+   x:"Split out of the original T3-4 by docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md. T5-2 transitively carries T5-1 and T4-4, and T3-4 carries T3-5, so do not add those edges directly. Inherits the parked feature/reference-plant branch if useful. Confirm the intent of the train before writing design values: it has no stated vapour source or liquid draw."},
 
   // ---------------- M6 ----------------
   {id:"T6-1",m:"M6",cat:"dep",n:"Stream enthalpy and mixing",
@@ -1325,15 +1340,15 @@ Scenario(initial_condition, malfunctions[], triggers[],
    p:"Cv, inherent characteristic, stroke rate and fail position as a proper device. Currently this logic lives inside the compressor, where no other equipment can use it.",
    d:["T1-2","T4-1"],f:["app/equipment/valve.py"],b:"feature/control-valve",
    w:["Linear and equal-percentage characteristics","Stroke rate limited, travel bounded","Fail-closed and fail-open supported"],
-   t:["Characteristics produce the expected flow curves","Stroke never exceeds the rate limit","Fail position reached on signal loss","Minimum position does not divide by zero"],
-   x:"None. New file — a strong candidate for an independent agent once C1 is on main."},
+   t:["Characteristics produce the expected flow curves","Stroke never exceeds the rate limit","Fail position reached on signal loss","Minimum position does not divide by zero","A reference fixture reaches a plausible steady state from cold once the valve supplies a system curve"],
+   x:"None. New file — a strong candidate for an independent agent once C1 is on main. Also inherits the cold-start criterion dropped from T3-4: with no other resistance in the network, no boundary pair is sane both cold and running. See docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md section 2.9."},
 
   {id:"T7-2",m:"M7",cat:"core",n:"Extract valve logic from the compressor",
    p:"Remove discharge_valve_position, its target, its rate and valve_resistance from GasCompressor and replace them with a real valve on the discharge branch.",
-   d:["T7-1","T4-4"],f:["app/equipment/compressor.py","config/plants/olefins_lite.yaml"],b:"refactor/extract-compressor-valve",
+   d:["T7-1","T4-4","T5-5"],f:["app/equipment/compressor.py","config/plants/olefins_lite.yaml"],b:"refactor/extract-compressor-valve",
    w:["No valve attributes remain on the compressor","Reference plant updated to place the valve explicitly"],
    t:["Behaviour preserved against golden traces","Valve API tests still pass against the new tag"],
-   x:"compressor.py again — conflicts with T6-2. Do not run these two concurrently."},
+   x:"compressor.py again — conflicts with T6-2. Do not run these two concurrently. Edits config/plants/olefins_lite.yaml, which T5-5 creates, hence the explicit T5-5 dependency."},
 
   {id:"T7-3",m:"M7",cat:"dep",n:"Valve fault modes",
    p:"Stuck, slow, reversed and passing-through as device properties, which is what M13 will reach for rather than inventing its own mechanism.",
@@ -1366,10 +1381,10 @@ Scenario(initial_condition, malfunctions[], triggers[],
 
   {id:"T8-3",m:"M8",cat:"dep",n:"Loop configuration and tag wiring",
    p:"Define loops in plant config against real tags, so adding a controller is a config change rather than a code change.",
-   d:["T3-1","T8-2","T1-5"],f:["app/controls/loader.py","config/plants/olefins_lite.yaml"],b:"feature/loop-config",
+   d:["T3-1","T8-2","T1-5","T5-5"],f:["app/controls/loader.py","config/plants/olefins_lite.yaml"],b:"feature/loop-config",
    w:["Loops load from the controllers key","Unknown PV or output tag fails at load"],
    t:["Loop loads and binds to real tags","Unresolvable tag rejected at load with a clear message"],
-   x:"Shares the reference plant config. Owns only the controllers key."},
+   x:"Shares the reference plant config. Owns only the controllers key. The file is created by T5-5, hence the explicit dependency."},
 
   {id:"T8-4",m:"M8",cat:"core",n:"Loop execution in the engine step",
    p:"Controllers read the previous snapshot and write before the solve, with a defined order. Ambiguity here produces one-step lags that are nearly impossible to debug later.",
@@ -1395,10 +1410,10 @@ Scenario(initial_condition, malfunctions[], triggers[],
 
   {id:"T9-2",m:"M9",cat:"dep",n:"Limit definitions in plant config",
    p:"Limits belong beside the tag in configuration, never hardcoded in an equipment model where they cannot be tuned per plant.",
-   d:["T3-1","T9-1"],f:["config/plants/olefins_lite.yaml","app/envelope/loader.py"],b:"feature/envelope-limits",
+   d:["T3-1","T9-1","T5-5"],f:["config/plants/olefins_lite.yaml","app/envelope/loader.py"],b:"feature/envelope-limits",
    w:["Limits load from the limits key","Inconsistent ordering rejected at load"],
    t:["Limits load and bind","lo_lo above lo is rejected","Missing limits for a tag is a clear warning, not a crash"],
-   x:"Owns only the limits key of the reference plant config."},
+   x:"Owns only the limits key of the reference plant config. The file is created by T5-5, hence the explicit dependency."},
 
   {id:"T9-3",m:"M9",cat:"dep",n:"Time-in-band and excursion tracking",
    p:"Track how long each variable has been outside normal and how far it went. This is the raw material for both the trip delay window and the entire scoring system.",
@@ -1453,10 +1468,10 @@ Scenario(initial_condition, malfunctions[], triggers[],
   // ---------------- M11 ----------------
   {id:"T11-1",m:"M11",cat:"dep",n:"Interlock definitions and evaluator",
    p:"Condition, delay, actions and reset requirements, in config. The delay is the operator's recovery window, which is the central training mechanic of the whole simulator.",
-   d:["T3-1","T9-1"],f:["app/safety/interlocks.py","config/plants/olefins_lite.yaml"],b:"feature/interlock-evaluator",
+   d:["T3-1","T9-1","T5-5"],f:["app/safety/interlocks.py","config/plants/olefins_lite.yaml"],b:"feature/interlock-evaluator",
    w:["Interlocks load from config","Delay timers accurate to the step"],
    t:["Trip fires exactly at the limit after exactly the configured delay","Recovery inside the window prevents the trip","Timer resets when the condition clears"],
-   x:"Owns only the interlocks key of the reference plant config."},
+   x:"Owns only the interlocks key of the reference plant config. The file is created by T5-5, hence the explicit dependency."},
 
   {id:"T11-2",m:"M11",cat:"core",n:"Trip actions on equipment",
    p:"Trips must manipulate real devices through the arbitration layer: stop the machine, drive valves to fail position, open recycle.",
@@ -2525,6 +2540,7 @@ Scenario(initial_condition, malfunctions[], triggers[],
         return;
       }
       db=x;
+      var rb=document.getElementById("repo-banner"); if(rb) rb.hidden=true;
       db.collection("taskStatus").onSnapshot(function(snap){
         var next={};
         snap.docs.forEach(function(doc){

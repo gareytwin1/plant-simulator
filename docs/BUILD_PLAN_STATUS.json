@@ -29,7 +29,7 @@
     "M3": {
       "name": "Plant Topology and Streams",
       "complete": 3,
-      "total": 4
+      "total": 5
     },
     "M4": {
       "name": "Pressure-Flow Network Solver",
@@ -39,7 +39,7 @@
     "M5": {
       "name": "Inventory and Mass Balance",
       "complete": 0,
-      "total": 4
+      "total": 5
     },
     "M6": {
       "name": "Energy Balance and Temperature",
@@ -113,7 +113,7 @@
     }
   },
   "totals": {
-    "tasks": 94,
+    "tasks": 96,
     "complete": 22,
     "startable_now": 17
   },
@@ -481,21 +481,42 @@
     {
       "id": "T3-4",
       "milestone": "M3",
-      "name": "Reference plant configuration",
+      "name": "Single-domain reference fixtures",
       "category": "dep",
       "branch": "feature/reference-plant",
       "depends_on": [
-        "T3-3"
+        "T3-3",
+        "T3-5"
       ],
       "files": [
-        "config/plants/olefins_lite.yaml"
+        "config/plants/liquid_transfer.yaml",
+        "config/plants/gas_compression.yaml"
       ],
       "status": "Blocked",
       "status_key": "blocked",
       "blocked_by": [
-        "Design Decision: Flow Domain Metadata"
+        "T3-5"
       ],
-      "note": "YAML plant loading (.json/.yaml/.yml via yaml.safe_load) is merged to main as c406ca0 (PR #15) as a prerequisite; it does not complete this task, and config/plants/olefins_lite.yaml still does not exist. Parked pending design decision on flow-domain metadata and liquid/gas split. T4-2's solver and T3-4's config both lack metadata to enforce single hydraulic domain; the design of how topology/config will track flow boundaries (gas vs. liquid circuits) is undecided. T3-4 provides the first test case. T5-1 (vessel model) will also need this decision before it can wire into inventory coupling (T5-2). Hold until flow-domain design is settled."
+      "note": "Re-scoped by docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md from the full mixed-phase train to two single-domain fixtures; the full train is now T5-5. Blocked only on T3-5 (flow-domain declaration), not on a design decision - the design is settled. YAML plant loading is already merged (c406ca0, PR #15). Fixtures validated against main at 7b54ec9: liquid_transfer (N-101 50 psia -> P-101 -> N-102 -> P-102 -> N-103 180 psia, speed 1.0) solves to 816.50 GPM with N-102 at 115.00 psia in 5 iterations; gas_compression (N-201 60 psia -> K-101 -> N-202 -> K-102 -> N-203 480 psia, load 1.0) solves to 70.71 SCFM with N-202 at 270.00 psia in 4 iterations. Both answers are closed-form and hand-checkable. The old criterion 'reaches a plausible steady state from cold' is DROPPED and moved to T7-1: with no check valve, line resistance or control valve, no boundary pair is sane both cold and running (ADR section 2.9). Worktree ../plant-simulator-reference-plant and branch feature/reference-plant are preserved."
+    },
+    {
+      "id": "T3-5",
+      "milestone": "M3",
+      "name": "Flow-domain declaration and multi-port wiring",
+      "category": "dep",
+      "branch": "feature/flow-domains",
+      "depends_on": [
+        "T3-3"
+      ],
+      "files": [
+        "config/schema/plant.schema.json",
+        "app/plant/loader.py",
+        "tests/test_plant_domains.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": true,
+      "note": "Sonnet. Design settled by docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md - implement it, do not redesign it. Satellite: app/plant/loader.py is not a spine file and this takes no lock. Additive C3 only: optional nodes[].domain, and a named ports map as a oneOf alongside node_in/node_out, which is retained unchanged. The loader partitions by domain into Plant.topologies, keeps Plant.topology as a single-domain convenience that raises on a multi-domain plant, and gains four rejections: branch nodes disagreeing on domain, a port wired across domains, a domain with no boundary, and a domain that is not one connected piece (today's _components check, moved inside the partition). Do NOT modify C1, C2 or NetworkSolver. tests/test_plant_loader.py asserts exact dict equality on the round trip, so partitioning must preserve config node order. Retires both open questions in the T3-3 note."
     },
     {
       "id": "T4-1",
@@ -559,7 +580,8 @@
       "branch": "refactor/solver-integration",
       "depends_on": [
         "T4-2",
-        "T2-3"
+        "T2-3",
+        "T3-5"
       ],
       "files": [
         "app/engine/engine.py",
@@ -568,8 +590,11 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": true,
-      "note": "Startable now (Opus, refactor/solver-integration). Dependencies T4-2 and T2-3 are Complete and T4-3 released the app/engine/snapshot.py spine lock on merge. This is Checkpoint B and it touches three core files at once (app/engine/engine.py, app/equipment/compressor.py, app/equipment/pump.py) - freeze other merges while it lands. It retires the legacy device step() path, _calculate_operating_point() and the interim *_boundary_pressure attributes for BOTH devices at once, since the live Flask routes depend on them. Build snapshots with snapshot.solver_status(result) from T4-3 rather than hand-rolling the solver section, and expect golden traces to move - the engine's two golden tests assert slow-state fields only because Engine.step() computes no flow or pressure today. Any delta needs justifying in the PR, not regenerating away."
+      "startable": false,
+      "note": "Blocked only on T3-5 (Opus, refactor/solver-integration). Dependencies T4-2 and T2-3 are Complete and T4-3 released the app/engine/snapshot.py spine lock on merge. This is Checkpoint B and it touches three core files at once (app/engine/engine.py, app/equipment/compressor.py, app/equipment/pump.py) - freeze other merges while it lands. It retires the legacy device step() path, _calculate_operating_point() and the interim *_boundary_pressure attributes for BOTH devices at once, since the live Flask routes depend on them. Build snapshots with snapshot.solver_status(result) from T4-3 rather than hand-rolling the solver section, and expect golden traces to move - the engine's two golden tests assert slow-state fields only because Engine.step() computes no flow or pressure today. Any delta needs justifying in the PR, not regenerating away. ADR 0001 added the T3-5 dependency so the Engine is wired knowing plants hold one topology per flow domain; wire against Plant.topology (the single-domain convenience), and one solver per domain arrives with T5-2. T3-5 shares no files with this task and takes no spine lock. See docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md section 6.2 for the ordering argument and its counterargument.",
+      "blocked_by": [
+        "T3-5"
+      ]
     },
     {
       "id": "T4-5",
@@ -597,14 +622,19 @@
       "category": "dep",
       "branch": "feature/vessel-model",
       "depends_on": [
-        "T1-2"
+        "T1-2",
+        "T3-5"
       ],
       "files": [
         "app/equipment/vessel.py"
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": true
+      "startable": false,
+      "blocked_by": [
+        "T3-5"
+      ],
+      "note": "Receives already settled, and must not redesign: C3 named-port wiring and flow-domain semantics (T3-5), and solver orchestration (unchanged, one solver per domain). The vessel is an inventory device, not a branch device carrying both phases; it terminates one domain and originates another. Its level and pressure are slow state advanced by integrate(dt). It does NOT build the boundary-condition update (T5-2) and does NOT widen characteristic(flow). If any of those seem necessary, stop and escalate against docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md."
     },
     {
       "id": "T5-2",
@@ -626,7 +656,8 @@
       "blocked_by": [
         "T5-1",
         "T4-4"
-      ]
+      ],
+      "note": "Owns the sanctioned boundary-condition update: solve each domain against fixed boundary conditions, integrate vessel inventory from the resulting flows, then write the next step's boundary conditions from that slow state. Node.set_pressure() refuses on a boundary by design, so this needs an explicit new route in C2, a spine change that belongs to this task. Vessel pressure is integrated slow state supplying a boundary condition; internal solver pressures must never be written back as vessel inventory state. Opus (core default, unchanged). See docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md section 3.5."
     },
     {
       "id": "T5-3",
@@ -665,6 +696,28 @@
       "blocked_by": [
         "T5-2"
       ]
+    },
+    {
+      "id": "T5-5",
+      "milestone": "M5",
+      "name": "Integrated reference plant",
+      "category": "dep",
+      "branch": "feature/integrated-plant",
+      "depends_on": [
+        "T3-4",
+        "T5-2"
+      ],
+      "files": [
+        "config/plants/olefins_lite.yaml"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T3-4",
+        "T5-2"
+      ],
+      "note": "The full supply -> pump -> separator -> compressor -> discharge train, split out of the original T3-4 by docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md. Two hydraulic domains coupled through V-101 inventory, never one mixed mass-balance topology. T5-2 transitively carries T5-1 and T4-4; T3-4 carries T3-5. Do not add those edges directly. Owns creation of config/plants/olefins_lite.yaml, which T7-2, T8-3, T9-2 and T11-1 edit and therefore depend on it."
     },
     {
       "id": "T6-1",
@@ -775,7 +828,8 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": true
+      "startable": true,
+      "note": "Also inherits the cold-start criterion dropped from T3-4: a reference fixture reaches a plausible steady state from cold once the valve supplies a system curve. See docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md section 2.9."
     },
     {
       "id": "T7-2",
@@ -785,7 +839,8 @@
       "branch": "refactor/extract-compressor-valve",
       "depends_on": [
         "T7-1",
-        "T4-4"
+        "T4-4",
+        "T5-5"
       ],
       "files": [
         "app/equipment/compressor.py",
@@ -796,8 +851,10 @@
       "startable": false,
       "blocked_by": [
         "T7-1",
-        "T4-4"
-      ]
+        "T4-4",
+        "T5-5"
+      ],
+      "note": "Depends on T5-5, which creates config/plants/olefins_lite.yaml; explicit because milestone ordering alone is too implicit for agents (docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md)."
     },
     {
       "id": "T7-3",
@@ -879,7 +936,8 @@
       "depends_on": [
         "T3-1",
         "T8-2",
-        "T1-5"
+        "T1-5",
+        "T5-5"
       ],
       "files": [
         "app/controls/loader.py",
@@ -889,8 +947,10 @@
       "status_key": "todo",
       "startable": false,
       "blocked_by": [
-        "T8-2"
-      ]
+        "T8-2",
+        "T5-5"
+      ],
+      "note": "Depends on T5-5, which creates config/plants/olefins_lite.yaml; explicit because milestone ordering alone is too implicit for agents (docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md)."
     },
     {
       "id": "T8-4",
@@ -953,7 +1013,8 @@
       "branch": "feature/envelope-limits",
       "depends_on": [
         "T3-1",
-        "T9-1"
+        "T9-1",
+        "T5-5"
       ],
       "files": [
         "config/plants/olefins_lite.yaml",
@@ -963,8 +1024,10 @@
       "status_key": "todo",
       "startable": false,
       "blocked_by": [
-        "T9-1"
-      ]
+        "T9-1",
+        "T5-5"
+      ],
+      "note": "Depends on T5-5, which creates config/plants/olefins_lite.yaml; explicit because milestone ordering alone is too implicit for agents (docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md)."
     },
     {
       "id": "T9-3",
@@ -1109,7 +1172,8 @@
       "branch": "feature/interlock-evaluator",
       "depends_on": [
         "T3-1",
-        "T9-1"
+        "T9-1",
+        "T5-5"
       ],
       "files": [
         "app/safety/interlocks.py",
@@ -1119,8 +1183,10 @@
       "status_key": "todo",
       "startable": false,
       "blocked_by": [
-        "T9-1"
-      ]
+        "T9-1",
+        "T5-5"
+      ],
+      "note": "Depends on T5-5, which creates config/plants/olefins_lite.yaml; explicit because milestone ordering alone is too implicit for agents (docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md)."
     },
     {
       "id": "T11-2",

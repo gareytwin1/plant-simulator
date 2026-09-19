@@ -8,9 +8,9 @@ Refresh this file whenever a task merges to `main`.
 
 ---
 
-**Last refreshed:** 19 September 2026 (post-merge refresh after T4-3)
+**Last refreshed:** 19 September 2026 (architecture decision ADR 0001 recorded; no code merged)
 **Current `main`:** `c406ca0164882eb8a154cf12ca2f8fcdf3326e18` — *Merge pull request #15 (T3-4 prerequisite: YAML plant loading)*
-**Last code merge:** `c406ca0` — YAML plant loading, extracted from the parked T3-4 branch; T3-4 itself is still Blocked. Previous solver merge: `a2a1596` (T4-3)
+**Last code merge:** `c406ca0` — YAML plant loading, extracted from the parked T3-4 branch. Previous solver merge: `a2a1596` (T4-3). Since then only documentation has changed: the flow-domain architecture decision ([docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md](ADR_0001_FLOW_DOMAIN_SEPARATION.md)), carried on branch `docs/flow-domain-adr` and **not yet merged to `main`**
 **Full suite on `main`:** **372 passed** (`conda activate plant-simulator && python -m pytest -q`); `python -m mypy` clean
 
 ---
@@ -22,11 +22,11 @@ Refresh this file whenever a task merges to `main`.
 | **M0** Baseline Cleanup | **7/7 Complete** |
 | **M1** Equipment Model Contract | **5/5 Complete** — Checkpoint A reached |
 | **M2** Simulation Engine and Clock | 4/6 (T2-5 startable) |
-| **M3** Plant Topology and Streams | 3/4 (T3-4 Blocked) |
-| **M4** Pressure-Flow Network Solver | 3/5 — T4-1, T4-2, T4-3 Complete; **T4-4 startable (Checkpoint B)** |
-| M5–M19 | Not started |
+| **M3** Plant Topology and Streams | 3/5 — **T3-5 startable**; T3-4 Blocked on T3-5 |
+| **M4** Pressure-Flow Network Solver | 3/5 — T4-1, T4-2, T4-3 Complete; T4-4 (Checkpoint B) waits on T3-5 |
+| M5–M19 | Not started (M5 now has 5 tasks: T5-5, the integrated reference plant, was added) |
 
-Overall: **22 of 94 tasks Complete.**
+Overall: **22 of 96 tasks Complete.**
 
 ### Completed and merged to `main`
 
@@ -86,20 +86,49 @@ now genuinely merged.)
   solving and interim `*_boundary_pressure` attributes remain until T4-4.
   T4-3 made a solve's diagnostics *representable* in a snapshot; it did not
   make anything produce one, so the live snapshot's `solver` section is still
-  the placeholder. **T4-4 is now startable** — the `snapshot.py` spine lock is
-  released.
-- **A reference plant file (T3-4).** The loader exists and reads `.json`,
-  `.yaml` and `.yml` (YAML via `yaml.safe_load`, same C3 validation and
-  `load_plant()` path), but no `config/plants/*.yaml` file does. T3-4 is **Blocked** pending a design
-  decision on flow-domain metadata: both the config schema (C3) and the solver
-  (T4-2) lack metadata to track liquid/gas boundaries, and the design of how
-  topology will enforce single hydraulic domain is undecided. T5-1 (vessel)
-  will also need this decision.
+  the placeholder. The `snapshot.py` spine lock is released, but **T4-4 now
+  depends on T3-5** (see "Architecture decisions on file" below), so it is not
+  startable until T3-5 merges.
+- **Reference plant files.** The loader reads `.json`, `.yaml` and `.yml` (YAML
+  via `yaml.safe_load`, same C3 validation and `load_plant()` path), but no
+  `config/plants/*.yaml` file exists. T3-4 was **re-scoped** by ADR 0001 to two
+  single-domain fixtures (`liquid_transfer.yaml`, `gas_compression.yaml`) and is
+  Blocked only on T3-5. The full `olefins_lite.yaml` train is now T5-5, in M5.
+- **Flow-domain enforcement (T3-5).** A topology must be a single flow domain,
+  and nothing enforces it yet: a mixed pump-plus-compressor config still loads
+  and solves. The design is settled; the enforcement is T3-5.
 - **Single action endpoint (C5).** Routes are still per-equipment.
 - **Controllers (PID), envelopes, alarms, trips, scenarios, scoring, historian,
   console.** All specified in the build plan, none implemented.
 - `Snapshot`'s `nodes` / `streams` / `controllers` / `envelope` / `alarms`
   sections are deliberately empty.
+
+### Architecture decisions on file
+
+[docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md](ADR_0001_FLOW_DOMAIN_SEPARATION.md) (accepted 19 September 2026) froze these. A later task does
+not reverse one without a new ADR.
+
+- **`NetworkSolver` stays single-domain.** One invocation solves exactly one
+  compatible flow domain. A mass balance mixing GPM with SCFM is invalid and is
+  rejected at load, not in the solver. The solver is not changed.
+- **Domain belongs to the hydraulic connection, not the device.** Nodes carry it
+  (optional `domain` in C3); branches and topologies derive it; a separator that
+  spans two domains through different ports is why no device-wide domain exists.
+- **The integrated train is two hydraulic problems** (liquid, gas) coupled through
+  the vessel's slow state, never one mixed topology.
+- **C1 and C2 need no change.** Multi-port devices already work there; the gap is
+  C3 only, closed by a named `ports` map that keeps `node_in`/`node_out`.
+- **`characteristic(flow)` is device-wide** (no port or branch argument). Recorded
+  as a limitation, deliberately not widened.
+- **Vessel pressure is integrated slow state supplying a boundary condition**, not
+  a solver result written back into equipment. The route that does this is T5-2's.
+- **No boundary pair is sane both cold and running** with only the pump and
+  compressor models, so the "plausible steady state from cold" criterion moved
+  from T3-4 to T7-1.
+
+Build-plan changes it made: **T3-5** (new, satellite), **T5-5** (new), T3-4
+re-scoped, and new dependencies on T3-5 (T3-4, T4-4, T5-1) and on T5-5 (T7-2,
+T8-3, T9-2, T11-1, the tasks that edit `olefins_lite.yaml`).
 
 ## Branch characteristic convention (T4-1)
 
@@ -209,13 +238,16 @@ and has a task that retires it.
 
 ## Active branches and PRs
 
-None. No open PRs and no feature branch in flight; **no spine lock is held.**
+No open PRs and no code branch in flight; **no spine lock is held.** Branch
+`docs/flow-domain-adr` carries the ADR 0001 documentation package and is not yet
+merged.
 T4-3 merged as `a2a1596` ([PR #14](https://github.com/gareytwin1/plant-simulator/pull/14)) and released `app/engine/snapshot.py`.
 
 **`feature/reference-plant` (T3-4) is a parked staging branch** reset to `main`
 at `c406ca0` with no commits of its own. The YAML work it once carried is
-merged (PR #15); `config/plants/olefins_lite.yaml` still does not exist. See
-the T3-4 note below before touching it.
+merged (PR #15). It is now the branch for the two single-domain fixtures
+(T3-4), which wait on T3-5; `olefins_lite.yaml` belongs to T5-5 and does not
+exist. See the T3-4 note below before touching it.
 
 Merged local branches can be deleted at any time.
 
@@ -235,52 +267,50 @@ is the build plan's own assignment.
 
 ### Critical path to Checkpoint B
 
-**T4-2, T4-3 (Complete)** -> **T4-4 (wire into engine, spine, freezes other
-merges — startable now)** -> T4-5 (cause-and-effect suite).
+**T4-2, T4-3 (Complete)** -> **T3-5 (flow domains, satellite, startable)** ->
+**T4-4 (wire into engine, spine, freezes other merges)** -> T4-5
+(cause-and-effect suite). T3-5 shares no files with T4-4 and takes no spine lock,
+so the two may be *developed* in parallel, but T3-5 merges first.
 
 `NetworkSolver` is in `app/engine/network.py`, fully tested, with its failure
 policy and diagnostics settled by T4-3 — but it is still not called from
 `Engine.step()` or the Flask request path.
 
-**T4-4 is startable now (Opus, `refactor/solver-integration`).** No spine lock
-is held. It wires the solver into the engine and retires the legacy device
+**T4-4 waits on T3-5 (Opus, `refactor/solver-integration`).** No spine lock is
+held. It wires the Engine against `Plant.topology`, the single-domain
+convenience T3-5 keeps; one solver per domain arrives with T5-2. It wires the solver into the engine and retires the legacy device
 `step()` / `_calculate_operating_point()` / `*_boundary_pressure` path for both
 devices at once. Build the snapshot's solver section with
 `snapshot.solver_status(result)` rather than hand-rolling it — see "Solver and
 snapshot state" below for the contract it presents. Expect golden traces to
 move, and justify any delta in the PR rather than regenerating it away.
 
-**T3-4 (`feature/reference-plant`) is Blocked** on the design decision
-*Flow Domain Metadata*, not on file-format support. Verified against `main` on
-19 September:
+**T3-4 (`feature/reference-plant`) is Blocked on T3-5, not on a design
+decision.** ADR 0001 settled the design and re-scoped the task. Verified against
+`main` on 19 September:
 
 - The **YAML half is merged** (PR #15, `c406ca0`) — `.json`/`.yaml`/`.yml` in
   `load_plant_file`, `PyYAML` + `types-PyYAML` pinned, `tests/test_plant_yaml.py`.
-- The **reference plant file itself cannot be written yet**, for two reasons
-  that are hard load-time rejections rather than judgement calls. The plan's
-  train needs a **separator, and there is no vessel model**: `DEVICE_TYPES` in
-  `app/plant/loader.py` maps only `pump` and `compressor`, so a `vessel` config
-  is rejected with *"has no device model yet"*. The vessel is **T5-1, in M5** —
-  so T3-4 as specified sits in M3 but depends on a task two milestones later.
-  And **C3 cannot wire a separator even once one exists**: `equipment` requires
-  exactly `node_in`/`node_out` with `additionalProperties: false`, so a vessel
-  with both a liquid and a vapour outlet is inexpressible (the T3-1-owned
-  multi-port gap).
-- The **flow-domain risk is real, not theoretical.** A pump-plus-compressor
-  config loads and solves happily today, converging to −410.773 GPM through the
-  pump and −410.773 SCFM through the compressor as though they were the same
-  quantity. Since T3-4's file "becomes the fixture for every later test", that
-  is the number that would get baked in.
-
-The likely shape of the fix: re-scope T3-4
-to the single-domain fixtures it can actually deliver (one liquid, one gas —
-which is what coupling through vessel inventory implies anyway), and move the
-full `olefins_lite.yaml` train after M5. **That is a build-plan change and an
-Opus decision; it has not been made.**
+- The **original full train cannot be expressed or solved honestly yet**: there
+  is no vessel model (`DEVICE_TYPES` maps only `pump` and `compressor`), C3
+  cannot wire a multi-port device, and a mixed liquid/gas config solves to a
+  meaningless answer (a pump and compressor in series converge to the same number
+  as GPM and as SCFM). That train is now **T5-5**, after the vessel and the
+  inventory coupling.
+- **T3-4 now delivers two single-domain fixtures**, both validated on `main`:
+  `liquid_transfer.yaml` (booster into transfer pump, 50 to 180 psia, solves to
+  816.50 GPM with the internal node at 115.00 psia) and `gas_compression.yaml`
+  (two-stage compression, 60 to 480 psia, solves to 70.71 SCFM with the internal
+  node at 270.00 psia). Both answers are closed-form and hand-checkable.
+- **Do not assert a cold-start operating point in those fixtures.** With no check
+  valve, line resistance or control valve, a stopped machine backflows if the
+  boundaries are sized for running and a started one runs away if they are sized
+  for cold. That criterion moved to T7-1.
 
 ### Open questions carried from T3-3
 
-Neither has a task yet; both need an owner (an Opus decision each).
+Question 1 still has no task and needs an owner (an Opus decision). Question 2
+is retired: T3-5 carries the C3 named-port wiring.
 
 1. **`Equipment.reset()` drops design values.** The loader applies a config's
    `design` by setting attributes after construction, but `reset()` restores the
@@ -288,12 +318,10 @@ Neither has a task yet; both need an owner (an Opus decision each).
    defaults, not the configured design. Fixing it needs a design/configure hook
    on C1 — a spine change — before anything relies on `reset()` for a loaded
    plant. Also relevant to T12-1 (save/restore).
-2. **C3 cannot wire a multi-port device.** The schema has only
-   `node_in`/`node_out`, so a device with more than one inlet or outlet (a
-   vessel with a vent) is rejected at load. It needs `from_port`/`to_port` in
-   the schema (owned by T3-1). **T5-1 (vessel) is likely the first task to hit it.**
-   A Sonnet agent on T5-1 should stop and escalate rather than invent the schema
-   change.
+2. **C3 cannot wire a multi-port device — now assigned to T3-5.** The schema has
+   only `node_in`/`node_out`. C1 and C2 already support multi-port devices, so
+   the change is C3 only: a named `ports` map alongside the existing form, added
+   by T3-5 before T5-1 starts. T5-1 must not invent it.
 
 ### Open question carried from T2-2
 
@@ -303,18 +331,16 @@ Neither has a task yet; both need an owner (an Opus decision each).
 
 ### Startable now (17 tasks)
 
-All dependencies are Complete. **T4-4 is the exception to the satellite rule
-below**: it edits existing spine files and is Checkpoint B, so it takes the
-spine lock and other merges freeze while it lands. Two of the others (T2-5,
-T12-1) add *new* isolated modules under `app/engine/`, which is satellite work
-under the **`app/engine/` rule** in CLAUDE.md.
+All dependencies are Complete. Two of them (T2-5, T12-1) add *new* isolated
+modules under `app/engine/`, which is satellite work under the **`app/engine/`
+rule** in CLAUDE.md.
 
-**T3-4 (reference plant) is Blocked** on flow-domain metadata design (see above).
+**Not startable, on purpose:** T4-4 (Checkpoint B, spine, freezes other merges),
+T5-1 and T3-4 all wait on **T3-5**. T3-5 takes no spine lock.
 
 | Task | Name | Model | Branch |
 |---|---|---|---|
-| **T4-4** | Wire the solver into the engine — **Checkpoint B, spine, freezes other merges** | Opus | `refactor/solver-integration` |
-| **T5-1** | Vessel model (likely hits the C3 multi-port gap; also blocked on flow-domain design) | Sonnet | `feature/vessel-model` |
+| **T3-5** | Flow-domain declaration and C3 named-port wiring — unblocks T3-4, T4-4 and T5-1 | Sonnet | `feature/flow-domains` |
 | **T6-1** | Stream enthalpy and mixing | Opus | `feature/stream-enthalpy` |
 | **T7-1** | Control valve model | Sonnet | `feature/control-valve` |
 | **T13-1** | Malfunction model and registry | Opus | `feature/malfunction-model` |
@@ -327,6 +353,7 @@ under the **`app/engine/` rule** in CLAUDE.md.
 | **T15-1** | Operator action log | Sonnet | `feature/action-log` |
 | **T16-1** | Console design system | Sonnet | `design/console-system` |
 | **T18-1** | Container and WSGI serving | Sonnet | `chore/container-and-ci` |
+| **T18-2** | CI pipeline | Haiku | `chore/ci-pipeline` |
 | **T13-5** | Physics isolation guard | Haiku | `test/import-direction-guard` |
 | **T15-4** | Score persistence | Haiku | `feature/score-store` |
 | **T17-1** | Ring-buffer historian | Haiku | `feature/historian` |
@@ -388,19 +415,19 @@ failure reads `iteration_cap` at a residual a few times tolerance — a slow
 solve, not a stuck one. The cap is untouched and is not coupled to damping.
 
 **The build plan's reference-plant acceptance test is deferred, not satisfied.**
-"Residual falls below tolerance on the reference plant" needs
-`config/plants/olefins_lite.yaml`, which does not exist because **T3-4 is
-Blocked**. T4-3 proves convergence on a hand-built single-domain series plant
-instead (`tests/test_solver_diagnostics.py`). Re-run the criterion against a
-reference plant once one lands.
+"Residual falls below tolerance on the reference plant" needs a reference plant
+file, and none exists because **T3-4 is Blocked on T3-5**. T4-3 proves
+convergence on a hand-built single-domain series plant instead
+(`tests/test_solver_diagnostics.py`). T3-4's two single-domain fixtures are what
+this criterion will run against; the integrated train (T5-5) comes later.
 
-**Process-domain caveat (recorded, unenforced; blocker for T3-4 and T5-1)**:
-A `Topology` must be a single hydraulic domain (gas or liquid, not both). Nothing
-enforces this — C2/C3/`NetworkSolver` carry no flow-domain metadata. **T3-4 (reference
-plant) is Blocked** pending the design of how config/topology will track and
-enforce flow boundaries. **T5-1 (vessel)** will also depend on this decision,
-since a vessel can have both liquid and gas phases. Hold both until flow-domain
-architecture is settled.
+**Process-domain caveat (design settled, enforcement pending T3-5)**:
+A `Topology` must be a single flow domain (gas or liquid, not both), and
+`NetworkSolver` solves exactly one. Nothing enforces this yet — C2, C3 and the
+solver carry no domain metadata — so a mixed config still loads and solves to a
+meaningless answer. ADR 0001 decided where the rule is enforced: at load, in the
+loader, via an optional `domain` on C3 nodes, with the solver untouched. **T3-5
+implements it**, and T3-4, T4-4 and T5-1 depend on it.
 
 ## Test suite composition (372 tests on `main`)
 

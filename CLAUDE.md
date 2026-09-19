@@ -150,8 +150,10 @@ the plant loader (`app/plant/loader.py`, T3-3) and `SeededRNG` (T2-2). The
 loader builds a solvable `Topology` from a C3 config and rejects unsolvable
 ones at load time; nothing on the request path calls it yet.
 
-**What does not exist yet:** the plant-wide pressure-flow **network solver**
-(T4-2, milestone M4) and its wiring into the engine (T4-4). Until T4-4 lands:
+**What exists but is not yet on the request path:** the plant-wide pressure-flow
+**network solver** (`app/engine/network.py`, T4-2 and T4-3) — merged and tested,
+but nothing calls it. **What does not exist yet:** its wiring into the engine
+(T4-4). Until T4-4 lands:
 
 - `Engine.step()` deliberately calls `integrate()` only. It does **not** compute
   flow or pressure, and a device's flow/pressure do not change when stepped
@@ -167,8 +169,8 @@ writes the solver, off the request path), and it will do so for both devices at
 once. Removing them early breaks the live Flask
 routes, which still depend on them.
 
-**Do not write documentation, comments, or code that implies the network solver,
-controllers, alarms, envelopes, or scoring already exist.**
+**Do not write documentation, comments, or code that implies controllers,
+alarms, envelopes, or scoring already exist.**
 
 ## Development rules
 
@@ -261,8 +263,8 @@ Bad: `update files` · `fixes` · `misc changes` · `work in progress`
 Existing spine modules and interfaces require the spine lock. A **new isolated
 module** under `app/engine/` may be developed as a satellite when the build-plan
 task explicitly owns that new file and does not modify an existing spine
-interface or module. That is how `rng.py` (T2-2) landed, and it is what the
-build plan intends for `scheduler.py` (T2-5), `network.py` (T4-2) and
+interface or module. That is how `rng.py` (T2-2) and `network.py` (T4-2)
+landed, and it is what the build plan intends for `scheduler.py` (T2-5) and
 `persistence.py` (T12-1).
 
 The existing spine modules there are `clock.py`, `engine.py`, `snapshot.py` and

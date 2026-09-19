@@ -85,6 +85,7 @@ conda activate plant-simulator
 pip install -r requirements-dev.txt
 
 python -m pytest -q
+python -m mypy      # static type check over app/
 ```
 
 ## Documentation

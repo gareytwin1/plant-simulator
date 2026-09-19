@@ -33,7 +33,7 @@ paths into documentation, scripts or CI**:
 ```bash
 conda activate plant-simulator
 pip install -r requirements.txt       # runtime
-pip install -r requirements-dev.txt   # tests
+pip install -r requirements-dev.txt   # tests and mypy
 ```
 
 ## Status vocabulary
@@ -45,7 +45,7 @@ These five values mean exactly this, everywhere:
 | **Not Started** | No work begun |
 | **In Progress** | Implementation underway; code may exist on a branch |
 | **Blocked** | Waiting on a dependency or decision — record *why* in the note |
-| **Ready for Review** | Code complete, **rebased on current `main`**, full suite green, **PR open, not merged** |
+| **Ready for Review** | Code complete, **rebased on current `main`**, full suite green, **type check green**, **PR open, not merged** |
 | **Complete** | **Merged to `main`.** Nothing else counts. |
 
 A task is never **Complete** because code exists on a local or pushed branch.
@@ -80,27 +80,44 @@ directory against the same repo, which removes the race entirely.
    branch touching the same file before starting. Spine files take one branch at
    a time.
 
+### Picking a model
+
+Haiku executes, Sonnet implements, Opus decides. The full table — what each
+one is for, and the rule that a smaller model escalates rather than inventing
+a design — is the **Agent model guidance** section in [CLAUDE.md](CLAUDE.md).
+
 ### During development
 
 - Build against the **frozen interface contract**, not against another
   satellite's in-progress code.
 - Keep commits scoped to the task; unrelated cleanup goes in its own task.
+- New and modified production code under `app/` carries type hints — see the
+  typing rules in [CLAUDE.md](CLAUDE.md).
 - If you hit a blocker (a contract seems wrong, a dependency isn't actually
   ready), note it on the task rather than working around it silently.
 
 ### Before review
 
-- Run the **full** suite, not just your new tests:
+**Ready for Review** means all four of these, not some of them: rebased on
+current `main`, full pytest suite green, static type check green over the
+configured production scope, PR open.
+
+- Run the **full** suite, not just your new tests, and the type checker:
 
   ```bash
   python -m pytest -q
+  python -m mypy
   ```
 
+  `mypy` reads its configuration from `pyproject.toml` and checks `app/`.
+  Tests are outside that scope by design.
+
 - Confirm the task's own required tests (listed on the build plan) pass.
-- Rebase onto current `main` and run the full suite again:
+- Rebase onto current `main` and run both again:
 
   ```bash
-  git fetch origin && git rebase origin/main && python -m pytest -q
+  git fetch origin && git rebase origin/main
+  python -m pytest -q && python -m mypy
   ```
 
 - Open a PR titled `T{TASK-ID}: Brief description`.
@@ -160,16 +177,17 @@ chore/ci-pipeline
 docs/project-handoff-refresh
 ```
 
-**Commits** — reference the task ID, explain *why*, not *what*:
+**Commits** — small, focused, and concisely described. Keep one commit to one
+clear change, lead the subject with the task ID where there is one, keep it
+short, and add a body only when it carries something the subject and the diff
+do not. Do not combine unrelated work in one commit. The full convention is the
+**Commit discipline** section in [CLAUDE.md](CLAUDE.md).
 
 ```text
 T8-1: Add PID block with anti-windup
 
-Implement a standalone PID controller with anti-windup, output clamping,
-and derivative on measurement. Fully testable against a fake first-order
-process, no plant dependency.
-
-Tests: step response to setpoint, windup suppression, setpoint kick handling.
+Anti-windup, output clamping and derivative on measurement. Testable
+against a fake first-order process, so it carries no plant dependency.
 ```
 
 **Pull requests:** title `T{TASK-ID}: Brief description`; body summarises the

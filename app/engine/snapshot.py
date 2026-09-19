@@ -10,10 +10,14 @@ Sections that don't have a subsystem yet — nodes, streams, controllers,
 envelope, alarms — are present but empty, and solver reports a trivial
 placeholder. The shape is fixed now; the content fills in as each
 milestone lands. Nothing in a Snapshot can be mutated after it is built:
-every mapping is a MappingProxyType and alarms is a tuple, so a consumer
-holding a reference cannot corrupt what another consumer already read.
+every mapping is a MappingProxyType over a deep copy of its input, and
+alarms is a tuple of the same, so a consumer holding a reference cannot
+corrupt what another consumer already read, and mutating the caller's
+original input after the fact cannot leak into a Snapshot already built
+from it.
 """
 
+import copy
 from dataclasses import dataclass
 from types import MappingProxyType
 
@@ -49,7 +53,7 @@ class Snapshot:
             "streams": _thawed(self.streams),
             "controllers": _thawed(self.controllers),
             "envelope": _thawed(self.envelope),
-            "alarms": list(self.alarms),
+            "alarms": [dict(alarm) for alarm in self.alarms],
             "solver": dict(self.solver),
         }
 
@@ -68,27 +72,36 @@ def build_snapshot(
 ):
     """Assemble an immutable Snapshot from plain mutable inputs.
 
-    Every per-tag state dict is copied into the snapshot, so nothing the
-    engine still owns can leak through and be mutated by a consumer.
+    Every per-tag state dict and every alarm is deep-copied before being
+    frozen, so nothing the caller still owns — and later mutates — can
+    leak through into a Snapshot already built from it.
     """
+    sections = {"nodes": nodes, "streams": streams, "controllers": controllers, "envelope": envelope}
+    frozen_sections = {
+        name: _frozen(value or {})
+        for name, value in sections.items()
+    }
+
     return Snapshot(
         sim_time=sim_time,
         speed=speed,
         running=running,
         equipment=_frozen(equipment),
-        nodes=_frozen(nodes or {}),
-        streams=_frozen(streams or {}),
-        controllers=_frozen(controllers or {}),
-        envelope=_frozen(envelope or {}),
-        alarms=tuple(alarms or ()),
-        solver=MappingProxyType(dict(solver or DEFAULT_SOLVER_STATUS)),
+        alarms=tuple(
+            MappingProxyType(copy.deepcopy(alarm))
+            for alarm in (alarms or ())
+        ),
+        solver=MappingProxyType(
+            copy.deepcopy(DEFAULT_SOLVER_STATUS if solver is None else solver)
+        ),
+        **frozen_sections,
     )
 
 
 def _frozen(mapping):
     return MappingProxyType(
         {
-            tag: MappingProxyType(dict(state))
+            tag: MappingProxyType(copy.deepcopy(state))
             for tag, state in mapping.items()
         }
     )

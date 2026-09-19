@@ -95,12 +95,15 @@ def test_snapshot_mappings_cannot_be_mutated():
 
 
 def test_snapshot_alarms_cannot_be_mutated():
-    snapshot = make_snapshot(alarms=[{"id": "a1"}])
+    snapshot = make_snapshot(alarms=[{"id": "a1", "severity": "high"}])
 
     assert isinstance(snapshot.alarms, tuple)
 
     with pytest.raises(AttributeError):
         snapshot.alarms.append({"id": "a2"})
+
+    with pytest.raises(TypeError):
+        snapshot.alarms[0]["severity"] = "low"
 
 
 def test_mutating_the_source_dict_after_construction_does_not_leak():
@@ -111,3 +114,21 @@ def test_mutating_the_source_dict_after_construction_does_not_leak():
     source["P-101"] = {"speed": 1.0}
 
     assert snapshot.as_dict()["equipment"] == {"K-101": {"load": 0.5}}
+
+
+def test_mutating_the_source_alarm_after_construction_does_not_leak():
+    alarm = {"id": "a1", "severity": "high"}
+    snapshot = make_snapshot(alarms=[alarm])
+
+    alarm["severity"] = "low"
+
+    assert snapshot.as_dict()["alarms"] == [{"id": "a1", "severity": "high"}]
+
+
+def test_solver_explicit_empty_dict_is_not_replaced_by_the_default():
+    """solver={} is a meaningful value (distinct from "not provided"),
+    unlike nodes/streams/controllers/envelope where empty and unset are
+    the same thing either way."""
+    snapshot = make_snapshot(solver={})
+
+    assert snapshot.as_dict()["solver"] == {}

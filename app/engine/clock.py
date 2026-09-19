@@ -36,9 +36,18 @@ class SimulationClock:
         dt is in seconds. With speed=1.0, step(1.0) advances sim_time by 1.0.
         With speed=10.0, it advances by 10.0. If paused, sim_time does not
         change but the step still happens (the clock is frozen, not broken).
+
+        Returns the simulated time actually applied (0.0 if paused), so a
+        caller that needs to move something else by the same elapsed time
+        doesn't have to re-derive it from sim_time before and after.
         """
-        if not self.paused:
-            self.sim_time += dt * self.speed
+        if self.paused:
+            return 0.0
+
+        elapsed = dt * self.speed
+        self.sim_time += elapsed
+
+        return elapsed
 
     def set_speed(self, speed):
         """Set the speed multiplier.

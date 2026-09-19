@@ -2,6 +2,7 @@ import json
 
 import pytest
 
+from app import config
 from app.engine.engine import Engine
 from app.equipment.base import Equipment, INLET, OUTLET
 from app.equipment.compressor import GasCompressor
@@ -64,7 +65,7 @@ def test_step_integrates_every_device():
     widget = Widget()
     widget.target = 10.0
 
-    engine = Engine({widget.tag: widget})
+    engine = Engine([widget])
     engine.step(1.0)
 
     assert widget.value == pytest.approx(1.0)
@@ -74,7 +75,7 @@ def test_step_scales_by_clock_speed():
     widget = Widget()
     widget.target = 100.0
 
-    engine = Engine({widget.tag: widget})
+    engine = Engine([widget])
     engine.clock.set_speed(10.0)
     engine.step(1.0)
 
@@ -85,12 +86,41 @@ def test_step_is_a_no_op_while_paused():
     widget = Widget()
     widget.target = 10.0
 
-    engine = Engine({widget.tag: widget})
+    engine = Engine([widget])
     engine.clock.pause()
     engine.step(1.0)
 
     assert widget.value == pytest.approx(0.0)
     assert engine.clock.sim_time == pytest.approx(0.0)
+
+
+def test_stop_then_step_is_a_no_op():
+    """stop() delegates to the clock's pause() — there is no separate
+    'running' flag to fall out of sync with it."""
+    widget = Widget()
+    widget.target = 10.0
+
+    engine = Engine([widget])
+    engine.stop()
+    snapshot = engine.step(1.0)
+
+    assert widget.value == pytest.approx(0.0)
+    assert engine.clock.sim_time == pytest.approx(0.0)
+    assert snapshot.running is False
+
+
+def test_start_resumes_stepping():
+    widget = Widget()
+    widget.target = 10.0
+
+    engine = Engine([widget])
+    engine.stop()
+    engine.step(1.0)
+    engine.start()
+    snapshot = engine.step(1.0)
+
+    assert widget.value == pytest.approx(1.0)
+    assert snapshot.running is True
 
 
 def test_add_equipment_after_construction():
@@ -105,8 +135,18 @@ def test_add_equipment_after_construction():
     assert "W-1" in engine.snapshot().equipment
 
 
+def test_add_equipment_keys_by_the_device_own_tag():
+    engine = Engine()
+    widget = Widget(tag="W-2")
+
+    engine.add_equipment(widget)
+
+    assert engine.equipment["W-2"] is widget
+    assert set(engine.equipment) == {"W-2"}
+
+
 def test_step_publishes_a_snapshot_matching_c4_shape():
-    engine = Engine({"W-1": Widget()})
+    engine = Engine([Widget()])
 
     snapshot = engine.step(1.0)
 
@@ -118,7 +158,7 @@ def test_snapshot_reports_sim_time_and_equipment_state():
     widget = Widget()
     widget.target = 5.0
 
-    engine = Engine({widget.tag: widget})
+    engine = Engine([widget])
     snapshot = engine.step(1.0)
 
     assert snapshot.sim_time == pytest.approx(1.0)
@@ -131,7 +171,7 @@ def test_determinism_same_steps_give_bit_identical_snapshots():
         widget.target = 1.0
         widget.rate = 0.037
 
-        engine = Engine({widget.tag: widget})
+        engine = Engine([widget])
 
         for step_num in range(50):
             if step_num == 20:
@@ -142,6 +182,23 @@ def test_determinism_same_steps_give_bit_identical_snapshots():
         return engine.snapshot().as_dict()
 
     assert run() == run()
+
+
+def test_compressor_simulation_speed_is_not_consulted_by_the_engine():
+    """GasCompressor.simulation_speed only affects its own legacy step();
+    Engine.step() drives integrate() directly and consults only the
+    clock's speed. Pinned here so a future change can't let the two
+    silently start disagreeing (they'd currently agree by coincidence,
+    since both default to 1.0)."""
+    compressor = GasCompressor()
+    compressor.simulation_speed = 5.0
+    compressor.set_load_target(1.0)
+    compressor.start()
+
+    engine = Engine([compressor])
+    engine.step(1.0)
+
+    assert compressor.load == pytest.approx(config.LOAD_RATE_PER_SECOND)
 
 
 def _assert_field_matches(step_num, field, actual, expected):
@@ -157,7 +214,7 @@ def _assert_field_matches(step_num, field, actual, expected):
 
 def _replay_slow_state_through_engine(factory, scenario_fn, steps, fields):
     device = factory()
-    engine = Engine({device.tag: device})
+    engine = Engine([device])
 
     observed = []
 
@@ -178,6 +235,7 @@ COMPRESSOR_SLOW_FIELDS = (
     "discharge_valve_position",
     "discharge_valve_target",
 )
+
 
 def test_compressor_golden_slow_state_reproduces_through_the_engine():
     """The engine only calls integrate(), never the device's own step(), so

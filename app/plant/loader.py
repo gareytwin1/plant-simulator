@@ -15,6 +15,9 @@ every device port is wired, there is at least one boundary and each boundary
 holds a positive absolute pressure, and the graph is one connected piece.
 Whether the solver then *converges* is the solver's business (T4-2).
 
+Plant files may be JSON or YAML (`.json`, `.yaml`, `.yml`). The format is
+resolved before validation; after that there is one path.
+
 Only `nodes` and `equipment` build anything. `limits`, `controllers` and
 `interlocks` are carried through untouched for the subsystems that will own
 them, so a plant round-trips back to the config it came from.
@@ -26,12 +29,16 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
+import yaml
+
 from app.equipment.base import Equipment
 from app.equipment.compressor import GasCompressor
 from app.equipment.pump import CentrifugalPump
 from app.plant.topology import Branch, Node, Topology
 from app.plant.validate import validate
 
+
+CONFIG_SUFFIXES = (".json", ".yaml", ".yml")
 
 PASSTHROUGH_SECTIONS = (
     "limits",
@@ -151,10 +158,37 @@ def load_plant_file(
     path: str | Path,
     device_types: Mapping[str, type[Equipment]] | None = None,
 ) -> Plant:
-    with open(path) as f:
-        config = json.load(f)
+    return load_plant(_read_config(Path(path)), device_types)
 
-    return load_plant(config, device_types)
+
+def _read_config(path: Path) -> Any:
+    # Decoded JSON or YAML of a shape only the C3 validator knows. Both formats
+    # feed the same load_plant(), so there is one set of semantics.
+    suffix = path.suffix.lower()
+
+    if suffix not in CONFIG_SUFFIXES:
+        raise PlantConfigError(
+            [
+                f"{path}: unsupported plant file type {path.suffix!r}, "
+                f"only {sorted(CONFIG_SUFFIXES)}",
+            ],
+        )
+
+    with open(path) as f:
+        try:
+            if suffix == ".json":
+                return json.load(f)
+
+            document = yaml.safe_load(f)
+        except (json.JSONDecodeError, yaml.YAMLError) as error:
+            raise PlantConfigError(
+                [f"{path}: not parseable as {suffix[1:].upper()}: {error}"],
+            ) from error
+
+    if document is None:
+        raise PlantConfigError([f"{path}: plant file is empty"])
+
+    return document
 
 
 def _reference_errors(

@@ -312,6 +312,14 @@ def test_port_rejects_an_unknown_direction():
         Port("suction", "sideways")
 
 
+def test_port_refuses_to_carry_a_solver_output():
+    port = Port("suction", INLET)
+
+    for attribute in ("pressure", "flow", "temperature"):
+        with pytest.raises(AttributeError):
+            setattr(port, attribute, 800.0)
+
+
 def test_port_connects_and_disconnects():
     port = Port("suction", INLET)
 

@@ -23,7 +23,16 @@ class Port:
     attached it to, and there is deliberately nowhere on a port to put a
     pressure or a flow — those are solver outputs, and a device that could
     read them would be solving its own operating point again.
+
+    The slots are what make that structural rather than a convention: a
+    device cannot stash a solver output on a port even by accident.
     """
+
+    __slots__ = (
+        "name",
+        "direction",
+        "node",
+    )
 
     def __init__(self, name, direction, node=None):
         if direction not in PORT_DIRECTIONS:

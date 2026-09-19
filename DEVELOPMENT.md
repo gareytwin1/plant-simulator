@@ -30,8 +30,16 @@ on it, and merge it back.
 
 ### Starting a Task
 
-1. `git checkout main && git pull`
-2. `git checkout -b feature/task-name`
+Tasks run in parallel across agents that all share this one clone, so more
+than one `git checkout` can be in flight at the same time. If each task
+checks out its branch in the same working directory, one agent's checkout
+can land between another's `git checkout -b` and its first commit, and the
+commit ends up on the wrong branch. A worktree gives each task its own
+working directory against the same repo, which removes the race entirely.
+
+1. `git fetch origin`
+2. `git worktree add ../plant-simulator-task-name -b feature/task-name origin/main`
+   — do all work for the task inside that directory, not the main checkout.
 3. Re-read the task's fields on the live artifact: objective, required
    tests, and whether it's Independent, Dependent, or Core-integration.
 4. If it's Core-integration (touches spine files), check the artifact for
@@ -59,6 +67,8 @@ on it, and merge it back.
 - Update the task status to **Complete** on the live artifact.
 - If other tasks were blocked on this one, they're now unblocked — no need
   to notify anyone individually, the artifact reflects it.
+- Remove the task's worktree: `git worktree remove ../plant-simulator-task-name`
+  (from the main clone, not from inside the worktree being removed).
 
 ## File Ownership
 

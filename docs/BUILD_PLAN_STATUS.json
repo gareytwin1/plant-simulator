@@ -490,9 +490,12 @@
       "files": [
         "config/plants/olefins_lite.yaml"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true
+      "status": "Blocked",
+      "status_key": "blocked",
+      "blocked_by": [
+        "Design Decision: Flow Domain Metadata"
+      ],
+      "note": "Parked pending design decision on flow-domain metadata and liquid/gas split. T4-2's solver and T3-4's config both lack metadata to enforce single hydraulic domain; the design of how topology/config will track flow boundaries (gas vs. liquid circuits) is undecided. T3-4 provides the first test case. T5-1 (vessel model) will also need this decision before it can wire into inventory coupling (T5-2). Hold until flow-domain design is settled."
     },
     {
       "id": "T4-1",

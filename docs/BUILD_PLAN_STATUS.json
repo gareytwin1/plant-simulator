@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "2026-09-19",
-  "main_sha": "a2a1596f48554733a0e295ec6105ac3bfc1adba9",
-  "tests_passing_on_main": 355,
+  "main_sha": "c406ca0164882eb8a154cf12ca2f8fcdf3326e18",
+  "tests_passing_on_main": 372,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -495,7 +495,7 @@
       "blocked_by": [
         "Design Decision: Flow Domain Metadata"
       ],
-      "note": "Parked pending design decision on flow-domain metadata and liquid/gas split. T4-2's solver and T3-4's config both lack metadata to enforce single hydraulic domain; the design of how topology/config will track flow boundaries (gas vs. liquid circuits) is undecided. T3-4 provides the first test case. T5-1 (vessel model) will also need this decision before it can wire into inventory coupling (T5-2). Hold until flow-domain design is settled."
+      "note": "YAML plant loading (.json/.yaml/.yml via yaml.safe_load) is merged to main as c406ca0 (PR #15) as a prerequisite; it does not complete this task, and config/plants/olefins_lite.yaml still does not exist. Parked pending design decision on flow-domain metadata and liquid/gas split. T4-2's solver and T3-4's config both lack metadata to enforce single hydraulic domain; the design of how topology/config will track flow boundaries (gas vs. liquid circuits) is undecided. T3-4 provides the first test case. T5-1 (vessel model) will also need this decision before it can wire into inventory coupling (T5-2). Hold until flow-domain design is settled."
     },
     {
       "id": "T4-1",

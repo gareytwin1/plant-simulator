@@ -9,9 +9,9 @@ Refresh this file whenever a task merges to `main`.
 ---
 
 **Last refreshed:** 19 September 2026 (post-merge refresh after T4-3)
-**Current `main`:** `a2a1596f48554733a0e295ec6105ac3bfc1adba9` — *Merge pull request #14 (T4-3: solver diagnostics)*
-**Last code merge:** `a2a1596` — T4-3, solver diagnostics and failure handling
-**Full suite on `main`:** **355 passed** (`conda activate plant-simulator && python -m pytest -q`); `python -m mypy` clean
+**Current `main`:** `c406ca0164882eb8a154cf12ca2f8fcdf3326e18` — *Merge pull request #15 (T3-4 prerequisite: YAML plant loading)*
+**Last code merge:** `c406ca0` — YAML plant loading, extracted from the parked T3-4 branch; T3-4 itself is still Blocked. Previous solver merge: `a2a1596` (T4-3)
+**Full suite on `main`:** **372 passed** (`conda activate plant-simulator && python -m pytest -q`); `python -m mypy` clean
 
 ---
 
@@ -88,8 +88,9 @@ now genuinely merged.)
   make anything produce one, so the live snapshot's `solver` section is still
   the placeholder. **T4-4 is now startable** — the `snapshot.py` spine lock is
   released.
-- **A reference plant file (T3-4).** The loader exists, but no
-  `config/plants/*.yaml` file does. T3-4 is **Blocked** pending a design
+- **A reference plant file (T3-4).** The loader exists and reads `.json`,
+  `.yaml` and `.yml` (YAML via `yaml.safe_load`, same C3 validation and
+  `load_plant()` path), but no `config/plants/*.yaml` file does. T3-4 is **Blocked** pending a design
   decision on flow-domain metadata: both the config schema (C3) and the solver
   (T4-2) lack metadata to track liquid/gas boundaries, and the design of how
   topology will enforce single hydraulic domain is undecided. T5-1 (vessel)
@@ -211,10 +212,10 @@ and has a task that retires it.
 None. No open PRs and no feature branch in flight; **no spine lock is held.**
 T4-3 merged as `a2a1596` ([PR #14](https://github.com/gareytwin1/plant-simulator/pull/14)) and released `app/engine/snapshot.py`.
 
-**`feature/reference-plant` (T3-4) is parked, not merged.** It carries three
-commits of YAML config loading (`loader.py`, `PyYAML` pinned, 191 lines of
-tests) but no `config/plants/olefins_lite.yaml`, and it predates T4-2 so it
-needs a rebase. See the T3-4 note below before touching it.
+**`feature/reference-plant` (T3-4) is a parked staging branch** reset to `main`
+at `c406ca0` with no commits of its own. The YAML work it once carried is
+merged (PR #15); `config/plants/olefins_lite.yaml` still does not exist. See
+the T3-4 note below before touching it.
 
 Merged local branches can be deleted at any time.
 
@@ -227,7 +228,7 @@ reasonable-looking topology as one of three most-likely slip points.
 
 ## Handoff: the next agents
 
-**Everything below is verified against `main`** (355 tests, `mypy` clean). Read
+**Everything below is verified against `main`** (372 tests, `mypy` clean). Read
 [CLAUDE.md](../CLAUDE.md) first, then the build plan entry for your task. Model
 guidance is the **Agent model guidance** section of CLAUDE.md; the column below
 is the build plan's own assignment.
@@ -249,13 +250,12 @@ devices at once. Build the snapshot's solver section with
 snapshot state" below for the contract it presents. Expect golden traces to
 move, and justify any delta in the PR rather than regenerating it away.
 
-**T3-4 (`feature/reference-plant`) is Blocked, and its branch is parked
-part-finished.** Verified against `main` on 19 September:
+**T3-4 (`feature/reference-plant`) is Blocked** on the design decision
+*Flow Domain Metadata*, not on file-format support. Verified against `main` on
+19 September:
 
-- The **YAML half is done on the branch** — `.json`/`.yaml`/`.yml` in
-  `load_plant_file`, `PyYAML` + `types-PyYAML` pinned, 191 lines of tests. It
-  touches only `loader.py`, so it is landable on its own once rebased (the
-  branch predates T4-2).
+- The **YAML half is merged** (PR #15, `c406ca0`) — `.json`/`.yaml`/`.yml` in
+  `load_plant_file`, `PyYAML` + `types-PyYAML` pinned, `tests/test_plant_yaml.py`.
 - The **reference plant file itself cannot be written yet**, for two reasons
   that are hard load-time rejections rather than judgement calls. The plan's
   train needs a **separator, and there is no vessel model**: `DEVICE_TYPES` in
@@ -272,7 +272,7 @@ part-finished.** Verified against `main` on 19 September:
   quantity. Since T3-4's file "becomes the fixture for every later test", that
   is the number that would get baked in.
 
-The likely shape of the fix: land the YAML work as its own task, re-scope T3-4
+The likely shape of the fix: re-scope T3-4
 to the single-domain fixtures it can actually deliver (one liquid, one gas —
 which is what coupling through vessel inventory implies anyway), and move the
 full `olefins_lite.yaml` train after M5. **That is a build-plan change and an
@@ -402,7 +402,7 @@ enforce flow boundaries. **T5-1 (vessel)** will also depend on this decision,
 since a vessel can have both liquid and gas phases. Hold both until flow-domain
 architecture is settled.
 
-## Test suite composition (355 tests on `main`)
+## Test suite composition (372 tests on `main`)
 
 | File | Tests | File | Tests |
 |---|---|---|---|
@@ -415,11 +415,11 @@ architecture is settled.
 | `test_engine.py` | 13 | `test_clock.py` | 13 |
 | `test_snapshot.py` | 16 | `test_random_source_guard.py` | 21 |
 | `test_rng.py` | 10 | `test_network_solver.py` | 36 |
-| `test_solver_diagnostics.py` | 14 | | |
+| `test_solver_diagnostics.py` | 14 | `test_plant_yaml.py` | 17 |
 
 `test_equipment_contract.py` and `test_registry.py` discover device classes
 dynamically, so a new `Equipment` subclass is swept into the contract tests
 automatically — adding one raises the total by more than the tests you wrote.
 (T4-2 added `test_network_solver.py` with 36 tests, taking the total to 336;
 T4-3 added `test_solver_diagnostics.py` with 14 and 5 to `test_snapshot.py`,
-taking it to 355.)
+taking it to 355; `test_plant_yaml.py` added 17, taking it to 372.)

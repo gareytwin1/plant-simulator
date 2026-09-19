@@ -1,5 +1,5 @@
 from app import config
-from app.equipment.base import Equipment, INLET, OUTLET
+from app.equipment.base import Equipment, INLET, OUTLET, signed_square
 from app.statetypes import StateRow
 
 
@@ -88,10 +88,9 @@ class CentrifugalPump(Equipment):
         )
 
     def characteristic(self, flow: float) -> float:
-        return max(
+        return (
             self.shutoff_pressure_rise * self.speed ** 2
-            - self.pump_resistance * flow ** 2,
-            0.0,
+            - self.pump_resistance * signed_square(flow)
         )
 
     def step(self, dt: float | None = None) -> None:

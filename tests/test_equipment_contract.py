@@ -1,6 +1,7 @@
 import copy
 import importlib
 import json
+import math
 
 import pytest
 
@@ -10,6 +11,24 @@ from app.equipment.base import (
     PRESERVED_ON_RESET,
     Equipment,
     Port,
+    signed_square,
+)
+
+
+# Spans both directions and both sides of zero, because the solver reaches
+# flows the plant never will and reaches them while it is still wrong.
+CHARACTERISTIC_SWEEP = (
+    -400.0,
+    -200.0,
+    -100.0,
+    -25.0,
+    -1.0,
+    0.0,
+    1.0,
+    25.0,
+    100.0,
+    200.0,
+    400.0,
 )
 
 
@@ -64,7 +83,7 @@ class Machine(Equipment):
     def characteristic(self, flow):
         return (
             self.shutoff_pressure_rise * self.load ** 2
-            - self.machine_resistance * flow ** 2
+            - self.machine_resistance * signed_square(flow)
         )
 
     def get_state(self):
@@ -106,7 +125,7 @@ class Valve(Equipment):
             - 1.0
         )
 
-        return -resistance * flow ** 2
+        return -resistance * signed_square(flow)
 
     def get_state(self):
         return {
@@ -243,10 +262,42 @@ def test_characteristic_is_pure(device_class):
 
     before = _slow_state(device)
 
-    for flow in (0.0, 25.0, 100.0):
+    for flow in CHARACTERISTIC_SWEEP:
         assert isinstance(device.characteristic(flow), float)
 
     assert _slow_state(device) == before
+
+
+@pytest.mark.parametrize("device_class", REGISTERED, ids=_device_ids)
+def test_characteristic_is_finite_at_every_flow(device_class):
+    device = device_class()
+    device.integrate(10.0)
+
+    for flow in CHARACTERISTIC_SWEEP:
+        assert math.isfinite(device.characteristic(flow))
+
+
+@pytest.mark.parametrize("device_class", REGISTERED, ids=_device_ids)
+def test_characteristic_never_rises_with_flow(device_class):
+    device = device_class()
+    device.integrate(10.0)
+
+    curve = [
+        device.characteristic(flow)
+        for flow in CHARACTERISTIC_SWEEP
+    ]
+
+    for lower, higher in zip(curve, curve[1:]):
+        assert higher <= lower
+
+
+@pytest.mark.parametrize("device_class", REGISTERED, ids=_device_ids)
+def test_reverse_flow_never_reads_as_forward_flow(device_class):
+    device = device_class()
+    device.integrate(10.0)
+
+    for flow in (1.0, 25.0, 100.0, 400.0):
+        assert device.characteristic(-flow) >= device.characteristic(flow)
 
 
 def test_machine_characteristic_rises_and_valve_characteristic_drops():
@@ -263,6 +314,41 @@ def test_machine_characteristic_rises_and_valve_characteristic_drops():
 
     assert valve.characteristic(0.0) == pytest.approx(0.0)
     assert valve.characteristic(100.0) == pytest.approx(-75.0)
+
+
+def test_machine_rises_above_shutoff_when_flow_reverses():
+    machine = Machine()
+    machine.load_target = 1.0
+    machine.integrate(30.0)
+
+    assert machine.characteristic(-100.0) == pytest.approx(240.0)
+
+
+def test_resistance_drop_follows_the_direction_of_flow():
+    valve = Valve()
+    valve.position_target = 0.50
+    valve.integrate(30.0)
+
+    assert valve.characteristic(-100.0) == pytest.approx(75.0)
+    assert valve.characteristic(-100.0) == pytest.approx(
+        -valve.characteristic(100.0),
+    )
+
+
+def test_signed_square_is_odd_through_zero():
+    assert signed_square(0.0) == pytest.approx(0.0)
+    assert signed_square(12.0) == pytest.approx(144.0)
+    assert signed_square(-12.0) == pytest.approx(-144.0)
+
+
+def test_signed_square_increases_everywhere():
+    values = [
+        signed_square(flow)
+        for flow in CHARACTERISTIC_SWEEP
+    ]
+
+    for lower, higher in zip(values, values[1:]):
+        assert higher > lower
 
 
 def test_integrate_moves_slow_state_at_its_rate():

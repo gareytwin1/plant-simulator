@@ -259,3 +259,54 @@ def test_valve_target_stays_fixed_while_valve_moves():
     assert simulator.discharge_valve_position == pytest.approx(0.20)
     assert simulator.flow > first_flow
 
+
+def test_compressor_characteristic_never_rises_with_flow():
+    device = GasCompressor()
+    device.set_load_target(1.0)
+    device.start()
+    device.integrate(60.0)
+
+    curve = [
+        device.characteristic(flow)
+        for flow in (-400.0, -100.0, -1.0, 0.0, 1.0, 100.0, 400.0)
+    ]
+
+    for lower, higher in zip(curve, curve[1:]):
+        assert higher < lower
+
+
+def test_compressor_holds_shutoff_rise_at_zero_flow():
+    device = GasCompressor()
+    device.set_load_target(1.0)
+    device.start()
+    device.integrate(60.0)
+
+    assert device.load == pytest.approx(1.0)
+    assert device.characteristic(0.0) == pytest.approx(220.0)
+
+
+def test_compressor_rises_above_shutoff_when_flow_reverses():
+    device = GasCompressor()
+    device.set_load_target(1.0)
+    device.start()
+    device.integrate(60.0)
+
+    forward = device.characteristic(100.0)
+    reverse = device.characteristic(-100.0)
+
+    assert forward < 220.0 < reverse
+    assert reverse - 220.0 == pytest.approx(220.0 - forward)
+
+
+def test_compressor_curve_is_not_clamped_past_runout():
+    device = GasCompressor()
+    device.set_load_target(0.1)
+    device.start()
+    device.integrate(60.0)
+
+    overrun = device.max_flow
+
+    assert device.characteristic(overrun) < 0.0
+    assert device.characteristic(overrun) == pytest.approx(
+        220.0 * device.load ** 2 - 0.002 * overrun ** 2,
+    )

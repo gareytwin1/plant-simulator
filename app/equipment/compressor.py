@@ -1,5 +1,5 @@
 from app import config
-from app.equipment.base import Equipment, INLET, OUTLET
+from app.equipment.base import Equipment, INLET, OUTLET, signed_square
 from app.statetypes import StateRow
 
 
@@ -153,10 +153,9 @@ class GasCompressor(Equipment):
         )
 
     def characteristic(self, flow: float) -> float:
-        return max(
+        return (
             self.shutoff_pressure_rise * self.load ** 2
-            - self.compressor_resistance * flow ** 2,
-            0.0,
+            - self.compressor_resistance * signed_square(flow)
         )
 
     def step(self, dt: float | None = None) -> None:

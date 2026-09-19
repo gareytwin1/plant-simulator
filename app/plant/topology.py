@@ -12,6 +12,12 @@ only through set_pressure() and set_flow() — a device holding a Port has no
 route to either, and `node.pressure = 800` raises instead of quietly becoming
 physics.
 
+Branches carry C1's sign convention into the graph. Positive flow runs
+from_node -> to_node, which construction guarantees is also the device's
+inlet -> outlet direction, so `Branch.characteristic()` is the device curve
+unchanged. `Branch.residual()` is the branch equation built from it, and the
+thing the network solver (T4-2) drives to zero.
+
 Boundary nodes are the plant's battery limits: their pressure is held fixed,
 and set_pressure() refuses to move it. A topology with no boundary node has
 nothing anchoring its pressure field; `boundary_nodes` is the primitive the
@@ -179,8 +185,19 @@ class Branch:
     the branch carries. The property reads it and set_flow() writes it, so
     branch and stream can never disagree about how much is moving.
 
-    Sign convention for the device curve is deliberately not defined here —
-    T4-1 owns it, and guessing at it now would freeze the wrong thing.
+    The branch is also where C1's sign convention becomes concrete, because
+    the branch is what knows which way round the device is. Positive flow
+    runs from_node -> to_node, and construction guarantees that is the same
+    direction as the device's inlet -> outlet, because `from_port` must be an
+    INLET and `to_port` an OUTLET. A branch therefore never has to flip the
+    curve to match its own orientation, and there is no second convention
+    here to get out of step with the one in `Equipment.characteristic`.
+
+    `characteristic()` reads the curve in graph terms — the rise from
+    `from_node` to `to_node` — and `residual()` is the branch equation the
+    network solver (T4-2) drives to zero. Both take a trial flow, because the
+    solver evaluates candidate flows far from the one the branch is currently
+    carrying, and default to the current flow for reading a solved plant.
     """
 
     __slots__ = (
@@ -260,6 +277,43 @@ class Branch:
         return (
             self.from_node,
             self.to_node,
+        )
+
+    def characteristic(self, flow: float | None = None) -> float:
+        """The device curve in graph terms: the pressure rise this branch
+        applies going from_node -> to_node at `flow`.
+
+        Positive raises pressure along the branch, negative drops it. It is
+        `Equipment.characteristic` unchanged rather than re-signed, because a
+        branch is always wired inlet-first and the two directions agree.
+
+        `flow` defaults to the flow the branch is carrying, which is how a
+        solved plant is read. The solver passes a trial flow instead.
+        """
+        return self.device.characteristic(
+            self.flow if flow is None else flow,
+        )
+
+    def residual(self, flow: float | None = None) -> float:
+        """How far this branch sits off its own curve, in psi.
+
+        The branch equation is that the pressure the graph offers across the
+        branch equals the pressure change the device produces at the flow
+        being carried:
+
+            from_node.pressure + characteristic(flow) - to_node.pressure = 0
+
+        Zero means the branch is on its curve. Positive means the device is
+        producing more rise than the two node pressures can absorb, so that
+        flow is too low; negative means the reverse. The solver drives this
+        to zero on every branch at once, and because the curve is
+        non-increasing in flow the residual is too — one sign change, one
+        root, and a Jacobian diagonal that does not vanish.
+        """
+        return (
+            self.from_node.pressure
+            + self.characteristic(flow)
+            - self.to_node.pressure
         )
 
     def get_state(self) -> StateRow:

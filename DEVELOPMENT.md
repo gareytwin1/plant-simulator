@@ -75,8 +75,10 @@ directory against the same repo, which removes the race entirely.
    git worktree add ../plant-simulator-<task> -b <type>/<name> origin/main
    ```
 
-5. If the task is Core/spine (touches `app/equipment/base.py`, `app/engine/` or
-   `app/plant/topology.py`), check the build plan for any other in-progress
+5. If the task is Core/spine (edits an existing module among `app/equipment/base.py`,
+   `app/engine/` or `app/plant/topology.py` — a new isolated module under
+   `app/engine/` does not count; see the `app/engine/` rule in
+   [CLAUDE.md](CLAUDE.md#the-appengine-rule)), check the build plan for any other in-progress
    branch touching the same file before starting. Spine files take one branch at
    a time.
 
@@ -156,7 +158,7 @@ configured production scope, PR open.
 | File / Path | Rule |
 |---|---|
 | `app/equipment/base.py` | **Spine** — one branch at a time, no satellite edits |
-| `app/engine/` | **Spine** — one branch at a time |
+| `app/engine/` | **Spine** for existing modules — one branch at a time; new isolated modules can be satellite ([rule](CLAUDE.md#the-appengine-rule)) |
 | `app/plant/topology.py` | **Spine** — one branch at a time |
 | `app/main.py` | **Highest-conflict file.** One branch at a time until the C5 single action endpoint lands; release it immediately after merging. |
 | `app/config.py` | **Append-only** — add a clearly-headed section, never reorder |

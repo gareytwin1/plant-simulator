@@ -71,8 +71,20 @@ empty.
 
 ## 2. Target architecture
 
-Where this is going once the network solver (T4-2, milestone M4) lands. **None
-of the solver path below exists today.**
+Where this is going once milestone M4 is done. **None of the solver path below
+exists today.** Two separate tasks get it there, and only the second changes
+what the application does:
+
+| Task | What it does | What changes at runtime |
+|---|---|---|
+| **T4-2** | Builds the network solver (`app/engine/network.py`) as a standalone module | **Nothing.** The solver exists but nothing calls it. |
+| **T4-4** | Wires the solver into `Engine.step()`, makes the topology the live owner of solved pressure and flow, and retires the legacy device operating-point path | The plant becomes connected (Checkpoint B). |
+
+T4-2 does **not** wire the solver into `Engine.step()`, remove `step()` or
+`_calculate_operating_point()` from the devices, remove the interim
+`upstream_boundary_pressure` / `downstream_boundary_pressure` attributes, or
+touch the live Flask request path. Every "target" statement below describes the
+state **after T4-4**.
 
 ```text
 Browser / API client
@@ -88,7 +100,8 @@ Engine.step(dt)
   │                                     valve stroke, level, metal temperature
   │                                     (never flow, never pressure)
   │
-  ├── 3. plant network solver        → app/engine/network.py (T4-2)
+  ├── 3. plant network solver        → app/engine/network.py (built by T4-2,
+  │                                     called from the Engine by T4-4)
   │        iterates, calling each device's pure characteristic(flow)
   │        as many times as convergence needs
   │
@@ -107,7 +120,7 @@ Engine.step(dt)
             └── operator console   process graphic + faceplates  [M16]
 ```
 
-At that point the device's own `step()` and `_calculate_operating_point()` are
+At T4-4 the device's own `step()` and `_calculate_operating_point()` are
 **removed**, along with the interim `upstream_boundary_pressure` /
 `downstream_boundary_pressure` attributes. Boundary pressures become properties
 of boundary `Node`s in the topology, which is where they belong.
@@ -115,7 +128,8 @@ of boundary `Node`s in the topology, which is where they belong.
 ## 3. State ownership
 
 This table is the heart of the architecture. Most contract violations are an
-ownership violation.
+ownership violation. "Owner in target" means the owner **after T4-4**; T4-2
+alone changes none of these owners.
 
 | State | Owner today | Owner in target | Rule |
 |---|---|---|---|
@@ -238,3 +252,32 @@ protection  K-101 trip on discharge PSHH · P-101 trip on suction PSLL
 
 Of these, **P-101 and K-101 exist today**. E-101, V-101 and FV-101 do not, and
 nothing connects them yet.
+
+## 8. Deferred: operator console screens and subunit views
+
+**Not built, not scheduled, and not a task.** Recorded so the console milestone
+(M16) does not have to rediscover it. Nothing described here exists today.
+
+The finished simulator may present one processing unit through several
+operator-facing screens or subunit views. Illustrative examples only:
+
+- unit overview
+- feed / pumping
+- separation / heating
+- compression / product
+- alarms / controls / trends
+
+The number and split of screens is deliberately undecided.
+
+**The rule that matters: UI screen boundaries must never become physics
+boundaries.** There is one connected plant model, one simulation state, one
+topology and one `Snapshot`. A screen is only a view into that state.
+
+The same equipment may appear on several screens, e.g. K-101 on the unit
+overview, again on the compression screen, and again in a detailed faceplate.
+Each is a read of the same snapshot row.
+
+Process-area or display metadata may eventually be added to the plant
+configuration, but it must stay separate from equipment physics and topology: a
+device's type, ports, design values and wiring must not depend on which screen
+shows it.

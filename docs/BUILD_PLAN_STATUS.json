@@ -490,9 +490,13 @@
       "files": [
         "config/plants/olefins_lite.yaml"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true
+      "status": "Blocked",
+      "status_key": "block",
+      "startable": false,
+      "note": "YAML support done: load_plant_file reads .json, .yaml and .yml (PyYAML safe_load, pinned in requirements.txt; types-PyYAML in requirements-dev.txt); all formats feed the one load_plant()/C3 validator path, and unparseable or unsupported files raise PlantConfigError. tests/test_plant_yaml.py added. config/plants/olefins_lite.yaml is NOT created. BLOCKED: the reference train (supply header, feed pump, separator, Gas Compressor, discharge header) needs a separator, and no vessel model exists (T5-1), so the loader rejects type 'vessel' ('has no device model yet'). No stand-in was substituted. Once T5-1 lands, a separator with one inlet and one outlet fits C3 as-is; a separator with a liquid drain or vent needs from_port/to_port in C3 (open question, Opus decision). Unblocks when T5-1 (and any C3 change it needs) is merged. Reset limitation (Equipment.reset() drops loaded design values) was not touched and no test depends on it.",
+      "blocked_by": [
+        "T5-1"
+      ]
     },
     {
       "id": "T4-1",

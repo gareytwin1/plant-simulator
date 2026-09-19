@@ -22,7 +22,7 @@ Refresh this file whenever a task merges to `main`.
 | **M0** Baseline Cleanup | **7/7 Complete** |
 | **M1** Equipment Model Contract | **5/5 Complete** — Checkpoint A reached |
 | **M2** Simulation Engine and Clock | 4/6 (T2-5 startable) |
-| **M3** Plant Topology and Streams | 3/4 (T3-4 startable) |
+| **M3** Plant Topology and Streams | 3/4 (T3-4 Blocked on T5-1; YAML loading done on its branch) |
 | **M4** Pressure-Flow Network Solver | 1/5 — T4-1 Complete; **T4-2 startable** (T3-3 merged) |
 | M5–M19 | Not started |
 
@@ -78,9 +78,12 @@ now genuinely merged.)
 
 - **Plant-wide network solver (T4-2) and its engine wiring (T4-4).** No
   plant-wide pressure/flow solution.
-- **A reference plant file (T3-4).** The loader exists, but no
-  `config/plants/*.yaml` file does, and the loader reads JSON only — `pyyaml`
-  is not in `requirements.txt`.
+- **A reference plant file (T3-4).** `load_plant_file` reads `.json`, `.yaml`
+  and `.yml` (PyYAML), but `config/plants/olefins_lite.yaml` does not exist.
+  **T3-4 is Blocked** on `feature/reference-plant`: the train needs a separator,
+  no vessel model exists (T5-1), and the loader rejects `vessel` as having no
+  device model. A separator with one inlet and one outlet would fit C3 as it
+  stands; one with a drain or vent needs the `from_port`/`to_port` change below.
 - **Single action endpoint (C5).** Routes are still per-equipment.
 - **Controllers (PID), envelopes, alarms, trips, scenarios, scoring, historian,
   console.** All specified in the build plan, none implemented.
@@ -231,9 +234,9 @@ is T4-4. Two things to know before it starts:
 - The `reset()` open question below affects any solver test that resets a
   loaded plant.
 
-**T3-4 (Sonnet, `feature/reference-plant`) is the natural companion.** It needs
-YAML, and the loader reads JSON only: adding `pyyaml` to `requirements.txt` and a
-`.yaml` branch in `load_plant_file` is part of that task, not an accident.
+**T3-4 is Blocked (`feature/reference-plant`, not merged).** YAML loading is
+done on that branch; `olefins_lite.yaml` waits on the vessel model (T5-1). Until
+it exists, T4-2 builds against small hand-built configs.
 
 ### Open questions carried from T3-3
 
@@ -258,7 +261,7 @@ Neither has a task yet; both need an owner (an Opus decision each).
 "Seeded RNG" above. `SeededRNG` also has no state save/restore, which T12-1
 (snapshot save and restore) and T14-5 (deterministic replay) will need.
 
-### Startable now (19 tasks)
+### Startable now (18 tasks)
 
 All dependencies are Complete, and none of these edits an existing spine file.
 T4-3 (`snapshot.py`) and T4-4 (`engine.py`) will, and are not startable yet.
@@ -269,7 +272,6 @@ finds it must edit an existing spine module there, it stops and escalates.
 | Task | Name | Model | Branch |
 |---|---|---|---|
 | **T4-2** | Newton-Raphson network solver | Opus | `feature/network-solver` |
-| **T3-4** | Reference plant configuration | Sonnet | `feature/reference-plant` |
 | **T5-1** | Vessel model (likely hits the C3 multi-port gap) | Sonnet | `feature/vessel-model` |
 | **T6-1** | Stream enthalpy and mixing | Opus | `feature/stream-enthalpy` |
 | **T7-1** | Control valve model | Sonnet | `feature/control-valve` |

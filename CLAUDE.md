@@ -104,6 +104,12 @@ Violating any of these is a contract break, not a style preference.
   `simulation_speed`.
 - Determinism is a hard requirement: same config, same seed, same sequence of
   `step(dt)` calls must give bit-identical state forever.
+- **Randomness comes only from a `SeededRNG`** (`app/engine/rng.py`, T2-2). No
+  other module in `app/` may import `random` —
+  `tests/test_random_source_guard.py` fails the build if one does. There is
+  deliberately no global generator: each session owns its own plant, so a
+  process-wide stream would leak draws between sessions. Which object owns a
+  plant's RNG is undecided; the first task that needs randomness decides it.
 
 **Snapshot is the read contract.**
 - `Snapshot` (C4) is the only thing downstream consumers read — historian,
@@ -139,10 +145,13 @@ attributes. `SessionRegistry` gives each browser its own plant instance.
 
 **The infrastructure that exists alongside it but is not yet on the request
 path:** `Equipment`/`Port` (C1), `EquipmentRegistry`, `SimulationClock`,
-`Engine`, `Snapshot` (C4), `Topology` (C2), plant config schema + validator (C3).
+`Engine`, `Snapshot` (C4), `Topology` (C2), plant config schema + validator (C3),
+the plant loader (`app/plant/loader.py`, T3-3) and `SeededRNG` (T2-2). The
+loader builds a solvable `Topology` from a C3 config and rejects unsolvable
+ones at load time; nothing on the request path calls it yet.
 
 **What does not exist yet:** the plant-wide pressure-flow **network solver**
-(T4-2, milestone M4). Until it lands:
+(T4-2, milestone M4) and its wiring into the engine (T4-4). Until T4-4 lands:
 
 - `Engine.step()` deliberately calls `integrate()` only. It does **not** compute
   flow or pressure, and a device's flow/pressure do not change when stepped
@@ -153,8 +162,9 @@ path:** `Equipment`/`Port` (C1), `EquipmentRegistry`, `SimulationClock`,
   `upstream_boundary_pressure` / `downstream_boundary_pressure` attributes.
 
 **Do not "clean up" the legacy `step()` path or those boundary attributes as a
-side effect of another task.** T4-2 is the task that retires them, and it will
-do so for both devices at once. Removing them early breaks the live Flask
+side effect of another task.** T4-4 is the task that retires them (T4-2 only
+writes the solver, off the request path), and it will do so for both devices at
+once. Removing them early breaks the live Flask
 routes, which still depend on them.
 
 **Do not write documentation, comments, or code that implies the network solver,

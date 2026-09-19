@@ -161,7 +161,7 @@ configured production scope, PR open.
 | `app/main.py` | **Highest-conflict file.** One branch at a time until the C5 single action endpoint lands; release it immediately after merging. |
 | `app/config.py` | **Append-only** — add a clearly-headed section, never reorder |
 | `config/schema/plant.schema.json` | Shared — each top-level key has one owner |
-| `config/plants/*.yaml` | Shared — each top-level key has one owner (no plant file exists yet; T3-3 introduces the first) |
+| `config/plants/*.yaml` | Shared — each top-level key has one owner (no plant file exists yet; T3-4 introduces the first — the T3-3 loader that reads it already exists) |
 | `tests/fixtures/golden/*.json` | Regenerate only with explicit written justification |
 | `static/compressor.js`, `static/pump.js` | **Frozen** — replaced wholesale at M16. Do not invest in them. |
 

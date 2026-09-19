@@ -35,10 +35,17 @@ equipment it has never seen before.
 - **Plant topology (C2)** — `Node`, `Branch`, `Stream` and a `Topology`
   container, with solver-owned values write-protected.
 - **Plant configuration schema (C3)** — JSON Schema plus a validator.
+- **Plant loader** — builds a `Topology` from a C3 config and rejects
+  unsolvable graphs (dangling ports, duplicate tags, disconnected subgraphs,
+  zero-pressure boundaries) at load time, naming the config path. JSON only for
+  now; `to_config()` round-trips.
+- **Seeded RNG** — `SeededRNG` is the only permitted source of randomness, and
+  a test fails if any other module imports `random`. Nothing draws random
+  numbers yet.
 - **Golden-value regression harness** — pins current numerical behaviour for
   both devices and fails loudly on drift.
 - **Flask API and browser pages** for the compressor and the pump.
-- **202 passing tests.**
+- **297 passing tests**, and a clean `mypy` over `app/`.
 
 ### Not built yet
 

@@ -248,13 +248,28 @@ Bad: `update files` · `fixes` · `misc changes` · `work in progress`
 | Path | Rule |
 |---|---|
 | `app/equipment/base.py` | **Spine** — one branch at a time, no satellite edits |
-| `app/engine/` | **Spine** — one branch at a time |
+| `app/engine/` | **Spine** for its existing modules — one branch at a time. A new isolated module here can be satellite work; see the rule below. |
 | `app/plant/topology.py` | **Spine** — one branch at a time |
 | `app/main.py` | **Highest-conflict file.** Exactly one branch at a time until the C5 single action endpoint lands. Release it immediately after merging. |
 | `app/config.py` | **Append-only** — add a clearly-headed section, never reorder |
 | `config/schema/plant.schema.json` | Shared — each top-level key has one owner |
 | `tests/fixtures/golden/*.json` | Regenerate only with explicit justification |
 | `static/compressor.js`, `static/pump.js` | **Frozen** — replaced wholesale at M16. Do not invest in them. |
+
+### The `app/engine/` rule
+
+Existing spine modules and interfaces require the spine lock. A **new isolated
+module** under `app/engine/` may be developed as a satellite when the build-plan
+task explicitly owns that new file and does not modify an existing spine
+interface or module. That is how `rng.py` (T2-2) landed, and it is what the
+build plan intends for `scheduler.py` (T2-5), `network.py` (T4-2) and
+`persistence.py` (T12-1).
+
+The existing spine modules there are `clock.py`, `engine.py`, `snapshot.py` and
+`sessions.py`. **If a satellite task discovers that it must modify one of them,
+it stops and escalates or acquires the spine lock; it does not expand scope
+silently.** T4-3 (`snapshot.py`) and T4-4 (`engine.py`) are spine tasks for
+exactly this reason.
 
 ## How to start a task
 

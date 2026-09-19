@@ -9,7 +9,8 @@ Refresh this file whenever a task merges to `main`.
 ---
 
 **Last refreshed:** 19 September 2026 (handoff refresh after T3-3 and T2-2)
-**Current `main`:** `26748e79091366aa2491c5607aa55ad71d160c1c` — *Merge T2-2: Seeded RNG service*
+**Current `main`:** `1de0e75a0fb8ac26c11032422f8990088327ccde` — *Merge docs: Handoff refresh after T3-3 and T2-2*
+**Last code merge:** `26748e7` — *Merge T2-2: Seeded RNG service*
 **Full suite on `main`:** **297 passed** (`conda activate plant-simulator && python -m pytest -q`); `python -m mypy` clean
 
 ---
@@ -217,8 +218,11 @@ is the build plan's own assignment.
 `T4-2` (solver) -> `T4-3` (diagnostics) -> `T4-4` (wire into engine, **spine**,
 freezes other merges) -> `T4-5` (cause-and-effect suite).
 
-**T4-2 is startable now (Opus, `feature/network-solver`).** Two things to know
-before it starts:
+**T4-2 is startable now (Opus, `feature/network-solver`).** It builds the solver
+as a standalone module. It does **not** wire it into `Engine.step()`, remove the
+legacy device `step()` / `_calculate_operating_point()`, remove the
+`*_boundary_pressure` attributes, or change the Flask request path — all of that
+is T4-4. Two things to know before it starts:
 
 - Its acceptance criteria say "converges on the reference plant", but the
   reference plant file is **T3-4**, which is not done. Either run T3-4 first or
@@ -258,10 +262,9 @@ Neither has a task yet; both need an owner (an Opus decision each).
 
 All dependencies are Complete, and none of these edits an existing spine file.
 T4-3 (`snapshot.py`) and T4-4 (`engine.py`) will, and are not startable yet.
-Three of them (T2-5, T4-2, T12-1) add a *new* file under `app/engine/`, which
-CLAUDE.md lists as spine; the build plan treats them as satellites and `rng.py`
-landed the same way, but if an agent finds it needs to edit an existing file
-there, it stops and asks.
+Three of them (T2-5, T4-2, T12-1) add a *new* module under `app/engine/`, which
+is satellite work under the **`app/engine/` rule** in CLAUDE.md. If any of them
+finds it must edit an existing spine module there, it stops and escalates.
 
 | Task | Name | Model | Branch |
 |---|---|---|---|

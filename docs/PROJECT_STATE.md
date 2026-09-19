@@ -8,11 +8,10 @@ Refresh this file whenever a task merges to `main`.
 
 ---
 
-**Last refreshed:** 19 September 2026 (T4-3 opened for review; `main` unchanged
-since T4-2)
-**Current `main`:** `7d05323d2e246a8325f3704cdcc33f12faf58496` — *Merge T4-2: Newton-Raphson network solver*
-**Last code merge:** `7d05323` — *Merge T4-2: Newton-Raphson network solver*
-**Full suite on `main`:** **336 passed** (`conda activate plant-simulator && python -m pytest -q`); `python -m mypy` clean
+**Last refreshed:** 19 September 2026 (post-merge refresh after T4-3)
+**Current `main`:** `a2a1596f48554733a0e295ec6105ac3bfc1adba9` — *Merge pull request #14 (T4-3: solver diagnostics)*
+**Last code merge:** `a2a1596` — T4-3, solver diagnostics and failure handling
+**Full suite on `main`:** **355 passed** (`conda activate plant-simulator && python -m pytest -q`); `python -m mypy` clean
 
 ---
 
@@ -24,10 +23,10 @@ since T4-2)
 | **M1** Equipment Model Contract | **5/5 Complete** — Checkpoint A reached |
 | **M2** Simulation Engine and Clock | 4/6 (T2-5 startable) |
 | **M3** Plant Topology and Streams | 3/4 (T3-4 Blocked) |
-| **M4** Pressure-Flow Network Solver | 2/5 — T4-1, T4-2 Complete; **T4-3 Ready for Review, not merged** |
+| **M4** Pressure-Flow Network Solver | 3/5 — T4-1, T4-2, T4-3 Complete; **T4-4 startable (Checkpoint B)** |
 | M5–M19 | Not started |
 
-Overall: **21 of 94 tasks Complete.**
+Overall: **22 of 94 tasks Complete.**
 
 ### Completed and merged to `main`
 
@@ -43,7 +42,8 @@ Overall: **21 of 94 tasks Complete.**
 - **M4** — `T4-1` branch characteristic interface (sign convention,
   `signed_square`, `Branch.characteristic()` / `Branch.residual()`) · `T4-2`
   Newton-Raphson network solver (`NetworkSolver`, standalone, not yet wired
-  into the engine).
+  into the engine) · `T4-3` solver diagnostics and failure handling
+  (`SolverResult.failure`, `snapshot.solver_status()`; C4's shape unchanged).
 
 ### Seeded RNG: what shipped and what did not (T2-2)
 
@@ -72,7 +72,7 @@ now genuinely merged.)
 | `Engine` | `app/engine/engine.py` | Integrates all devices, publishes snapshot |
 | `Snapshot` (C4) | `app/engine/snapshot.py` | Immutable; shape frozen |
 | `SessionRegistry` / `Session` | `app/engine/sessions.py` | Per-browser plant isolation |
-| `NetworkSolver` | `app/engine/network.py` | Newton-Raphson solver for plant-wide flows and pressures; standalone, not yet on the request path |
+| `NetworkSolver` | `app/engine/network.py` | Newton-Raphson solver for plant-wide flows and pressures; standalone, not yet on the request path. Diagnostics and failure policy as of T4-3 |
 | Topology (C2) | `app/plant/topology.py` | `Node`, `Branch`, `Stream`, `Topology`; `Branch.characteristic()` / `residual()` as of T4-1 |
 | Plant config schema (C3) + validator | `config/schema/plant.schema.json`, `app/plant/validate.py` | |
 | Golden regression harness | `tests/golden_regression.py`, `tests/fixtures/golden/` | |
@@ -84,9 +84,10 @@ now genuinely merged.)
   (T4-2) is complete and tested but standalone — nothing calls it from
   `Engine.step()` or the Flask request path. Device-owned operating-point
   solving and interim `*_boundary_pressure` attributes remain until T4-4.
-  T4-3 makes a solve's diagnostics *representable* in a snapshot; it does not
+  T4-3 made a solve's diagnostics *representable* in a snapshot; it did not
   make anything produce one, so the live snapshot's `solver` section is still
-  the placeholder.
+  the placeholder. **T4-4 is now startable** — the `snapshot.py` spine lock is
+  released.
 - **A reference plant file (T3-4).** The loader exists, but no
   `config/plants/*.yaml` file does. T3-4 is **Blocked** pending a design
   decision on flow-domain metadata: both the config schema (C3) and the solver
@@ -207,13 +208,13 @@ and has a task that retires it.
 
 ## Active branches and PRs
 
-**`feature/solver-diagnostics` (T4-3) — Ready for Review, not merged** ([PR #14](https://github.com/gareytwin1/plant-simulator/pull/14)). Rebased
-on current `main`; **355 passed** on the branch (336 on `main` plus 19 new),
-`mypy` clean. It **holds the spine lock on `app/engine/snapshot.py`** and also
-owns its own edits to `app/engine/network.py`, so nothing else edits either file
-and **T4-4 waits.** It touches four files and nothing else: `network.py`,
-`snapshot.py`, `tests/test_solver_diagnostics.py`, `tests/test_snapshot.py`. No
-golden trace changed.
+None. No open PRs and no feature branch in flight; **no spine lock is held.**
+T4-3 merged as `a2a1596` ([PR #14](https://github.com/gareytwin1/plant-simulator/pull/14)) and released `app/engine/snapshot.py`.
+
+**`feature/reference-plant` (T3-4) is parked, not merged.** It carries three
+commits of YAML config loading (`loader.py`, `PyYAML` pinned, 191 lines of
+tests) but no `config/plants/olefins_lite.yaml`, and it predates T4-2 so it
+needs a rebase. See the T3-4 note below before touching it.
 
 Merged local branches can be deleted at any time.
 
@@ -226,32 +227,56 @@ reasonable-looking topology as one of three most-likely slip points.
 
 ## Handoff: the next agents
 
-**Everything below is verified against `main`** (297 tests, `mypy` clean). Read
+**Everything below is verified against `main`** (355 tests, `mypy` clean). Read
 [CLAUDE.md](../CLAUDE.md) first, then the build plan entry for your task. Model
 guidance is the **Agent model guidance** section of CLAUDE.md; the column below
 is the build plan's own assignment.
 
 ### Critical path to Checkpoint B
 
-**T4-2 (Complete)** -> **T4-3 (startable)** -> **T4-4 (wire into engine, spine,
-freezes other merges)** -> T4-5 (cause-and-effect suite).
+**T4-2, T4-3 (Complete)** -> **T4-4 (wire into engine, spine, freezes other
+merges — startable now)** -> T4-5 (cause-and-effect suite).
 
-**T4-2 is Complete** — `NetworkSolver` is in `app/engine/network.py`, fully
-tested, but not yet called from `Engine.step()` or the Flask request path. T4-4
-wires it into the engine and retires the legacy device `step()` /
-`_calculate_operating_point()` path; T4-3 owns solver diagnostics and failure
-handling.
+`NetworkSolver` is in `app/engine/network.py`, fully tested, with its failure
+policy and diagnostics settled by T4-3 — but it is still not called from
+`Engine.step()` or the Flask request path.
 
-**T4-3 is Ready for Review, not merged** (`feature/solver-diagnostics`). It
-settled the failure policy and the snapshot projection — see "Solver and
-snapshot state" below for what a T4-4 agent builds against. It holds the spine
-lock on `app/engine/snapshot.py` until it merges, so **T4-4 does not start
-while it is in flight.**
+**T4-4 is startable now (Opus, `refactor/solver-integration`).** No spine lock
+is held. It wires the solver into the engine and retires the legacy device
+`step()` / `_calculate_operating_point()` / `*_boundary_pressure` path for both
+devices at once. Build the snapshot's solver section with
+`snapshot.solver_status(result)` rather than hand-rolling it — see "Solver and
+snapshot state" below for the contract it presents. Expect golden traces to
+move, and justify any delta in the PR rather than regenerating it away.
 
-**T3-4 (Sonnet, `feature/reference-plant`) is startable but parked.** It needs
-YAML, and the loader reads JSON only: adding `pyyaml` to `requirements.txt` and a
-`.yaml` branch in `load_plant_file` is part of that task. T4-2 reference-plant
-convergence test waits on T3-4 landing.
+**T3-4 (`feature/reference-plant`) is Blocked, and its branch is parked
+part-finished.** Verified against `main` on 19 September:
+
+- The **YAML half is done on the branch** — `.json`/`.yaml`/`.yml` in
+  `load_plant_file`, `PyYAML` + `types-PyYAML` pinned, 191 lines of tests. It
+  touches only `loader.py`, so it is landable on its own once rebased (the
+  branch predates T4-2).
+- The **reference plant file itself cannot be written yet**, for two reasons
+  that are hard load-time rejections rather than judgement calls. The plan's
+  train needs a **separator, and there is no vessel model**: `DEVICE_TYPES` in
+  `app/plant/loader.py` maps only `pump` and `compressor`, so a `vessel` config
+  is rejected with *"has no device model yet"*. The vessel is **T5-1, in M5** —
+  so T3-4 as specified sits in M3 but depends on a task two milestones later.
+  And **C3 cannot wire a separator even once one exists**: `equipment` requires
+  exactly `node_in`/`node_out` with `additionalProperties: false`, so a vessel
+  with both a liquid and a vapour outlet is inexpressible (the T3-1-owned
+  multi-port gap).
+- The **flow-domain risk is real, not theoretical.** A pump-plus-compressor
+  config loads and solves happily today, converging to −410.773 GPM through the
+  pump and −410.773 SCFM through the compressor as though they were the same
+  quantity. Since T3-4's file "becomes the fixture for every later test", that
+  is the number that would get baked in.
+
+The likely shape of the fix: land the YAML work as its own task, re-scope T3-4
+to the single-domain fixtures it can actually deliver (one liquid, one gas —
+which is what coupling through vessel inventory implies anyway), and move the
+full `olefins_lite.yaml` train after M5. **That is a build-plan change and an
+Opus decision; it has not been made.**
 
 ### Open questions carried from T3-3
 
@@ -276,18 +301,19 @@ Neither has a task yet; both need an owner (an Opus decision each).
 "Seeded RNG" above. `SeededRNG` also has no state save/restore, which T12-1
 (snapshot save and restore) and T14-5 (deterministic replay) will need.
 
-### Startable now (16 tasks)
+### Startable now (17 tasks)
 
-All dependencies are Complete, and none of these edits an existing spine file.
-T4-4 (edits `engine.py`) does, and is not startable yet — T4-3 holds the
-`snapshot.py` spine lock until it merges. Two of them (T2-5, T12-1) add *new*
-isolated modules under `app/engine/`, which is satellite work under the
-**`app/engine/` rule** in CLAUDE.md.
+All dependencies are Complete. **T4-4 is the exception to the satellite rule
+below**: it edits existing spine files and is Checkpoint B, so it takes the
+spine lock and other merges freeze while it lands. Two of the others (T2-5,
+T12-1) add *new* isolated modules under `app/engine/`, which is satellite work
+under the **`app/engine/` rule** in CLAUDE.md.
 
 **T3-4 (reference plant) is Blocked** on flow-domain metadata design (see above).
 
 | Task | Name | Model | Branch |
 |---|---|---|---|
+| **T4-4** | Wire the solver into the engine — **Checkpoint B, spine, freezes other merges** | Opus | `refactor/solver-integration` |
 | **T5-1** | Vessel model (likely hits the C3 multi-port gap; also blocked on flow-domain design) | Sonnet | `feature/vessel-model` |
 | **T6-1** | Stream enthalpy and mixing | Opus | `feature/stream-enthalpy` |
 | **T7-1** | Control valve model | Sonnet | `feature/control-valve` |
@@ -323,9 +349,9 @@ a layering guard like T13-5 can follow.
 - `failure`: `str | None` — why a non-converged solve stopped, `iteration_cap`
   or `line_search_stall`. Set on exactly the results that did not converge:
   `converged` and `failure` cannot disagree, and a result that tried to claim
-  both is refused at construction. **On the T4-3 branch, not yet on `main`.**
+  both is refused at construction.
 
-**Failure policy (T4-3, on the branch).** Two-sided and deliberate:
+**Failure policy (T4-3).** Two-sided and deliberate:
 
 - **Structural / ill-posed network raises `SolverError`** — no boundary node to
   anchor the pressure field, an unknown appearing in no equation. No iteration
@@ -365,7 +391,8 @@ solve, not a stuck one. The cap is untouched and is not coupled to damping.
 "Residual falls below tolerance on the reference plant" needs
 `config/plants/olefins_lite.yaml`, which does not exist because **T3-4 is
 Blocked**. T4-3 proves convergence on a hand-built single-domain series plant
-instead. Re-run the criterion against the reference plant once T3-4 lands.
+instead (`tests/test_solver_diagnostics.py`). Re-run the criterion against a
+reference plant once one lands.
 
 **Process-domain caveat (recorded, unenforced; blocker for T3-4 and T5-1)**:
 A `Topology` must be a single hydraulic domain (gas or liquid, not both). Nothing
@@ -375,7 +402,7 @@ enforce flow boundaries. **T5-1 (vessel)** will also depend on this decision,
 since a vessel can have both liquid and gas phases. Hold both until flow-domain
 architecture is settled.
 
-## Test suite composition (336 tests on `main`)
+## Test suite composition (355 tests on `main`)
 
 | File | Tests | File | Tests |
 |---|---|---|---|
@@ -386,13 +413,13 @@ architecture is settled.
 | `test_golden_regression.py` | 17 | `test_sessions.py` | 7 |
 | `test_plant_config_validation.py` | 13 | `test_session_isolation.py` | 6 |
 | `test_engine.py` | 13 | `test_clock.py` | 13 |
-| `test_snapshot.py` | 11 | `test_random_source_guard.py` | 21 |
+| `test_snapshot.py` | 16 | `test_random_source_guard.py` | 21 |
 | `test_rng.py` | 10 | `test_network_solver.py` | 36 |
+| `test_solver_diagnostics.py` | 14 | | |
 
 `test_equipment_contract.py` and `test_registry.py` discover device classes
 dynamically, so a new `Equipment` subclass is swept into the contract tests
 automatically — adding one raises the total by more than the tests you wrote.
-(T4-2 added `test_network_solver.py` with 36 tests; the test count rose to 336
-total, +39 from 297 at T2-2.) The T4-3 branch adds `test_solver_diagnostics.py`
-(14) and 5 to `test_snapshot.py` for 355, which lands on `main` only when it
-merges.
+(T4-2 added `test_network_solver.py` with 36 tests, taking the total to 336;
+T4-3 added `test_solver_diagnostics.py` with 14 and 5 to `test_snapshot.py`,
+taking it to 355.)

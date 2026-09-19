@@ -8,7 +8,8 @@ Refresh this file whenever a task merges to `main`.
 
 ---
 
-**Last refreshed:** 19 September 2026 (post-merge cleanup after T4-2)
+**Last refreshed:** 19 September 2026 (T4-3 opened for review; `main` unchanged
+since T4-2)
 **Current `main`:** `7d05323d2e246a8325f3704cdcc33f12faf58496` — *Merge T4-2: Newton-Raphson network solver*
 **Last code merge:** `7d05323` — *Merge T4-2: Newton-Raphson network solver*
 **Full suite on `main`:** **336 passed** (`conda activate plant-simulator && python -m pytest -q`); `python -m mypy` clean
@@ -23,7 +24,7 @@ Refresh this file whenever a task merges to `main`.
 | **M1** Equipment Model Contract | **5/5 Complete** — Checkpoint A reached |
 | **M2** Simulation Engine and Clock | 4/6 (T2-5 startable) |
 | **M3** Plant Topology and Streams | 3/4 (T3-4 Blocked) |
-| **M4** Pressure-Flow Network Solver | 2/5 — T4-1, T4-2 Complete; **T4-3 startable** |
+| **M4** Pressure-Flow Network Solver | 2/5 — T4-1, T4-2 Complete; **T4-3 Ready for Review, not merged** |
 | M5–M19 | Not started |
 
 Overall: **21 of 94 tasks Complete.**
@@ -83,6 +84,9 @@ now genuinely merged.)
   (T4-2) is complete and tested but standalone — nothing calls it from
   `Engine.step()` or the Flask request path. Device-owned operating-point
   solving and interim `*_boundary_pressure` attributes remain until T4-4.
+  T4-3 makes a solve's diagnostics *representable* in a snapshot; it does not
+  make anything produce one, so the live snapshot's `solver` section is still
+  the placeholder.
 - **A reference plant file (T3-4).** The loader exists, but no
   `config/plants/*.yaml` file does. T3-4 is **Blocked** pending a design
   decision on flow-domain metadata: both the config schema (C3) and the solver
@@ -203,7 +207,14 @@ and has a task that retires it.
 
 ## Active branches and PRs
 
-None. No open PRs and no feature branch in flight; **no spine lock is held.**
+**`feature/solver-diagnostics` (T4-3) — Ready for Review, not merged** ([PR #14](https://github.com/gareytwin1/plant-simulator/pull/14)). Rebased
+on current `main`; **355 passed** on the branch (336 on `main` plus 19 new),
+`mypy` clean. It **holds the spine lock on `app/engine/snapshot.py`** and also
+owns its own edits to `app/engine/network.py`, so nothing else edits either file
+and **T4-4 waits.** It touches four files and nothing else: `network.py`,
+`snapshot.py`, `tests/test_solver_diagnostics.py`, `tests/test_snapshot.py`. No
+golden trace changed.
+
 Merged local branches can be deleted at any time.
 
 ## Next integration checkpoint
@@ -231,11 +242,11 @@ wires it into the engine and retires the legacy device `step()` /
 `_calculate_operating_point()` path; T4-3 owns solver diagnostics and failure
 handling.
 
-**T4-3 is startable now (Sonnet, `feature/solver-diagnostics`).** It owns the
-failure policy for non-converging solves and records diagnostic fields in the
-snapshot. `SolverResult` already provides `converged`, `iterations`,
-`residual`, `pressure_residual`, `flow_residual`, and a failed solve is atomic
-on every path. See T4-3 details below.
+**T4-3 is Ready for Review, not merged** (`feature/solver-diagnostics`). It
+settled the failure policy and the snapshot projection — see "Solver and
+snapshot state" below for what a T4-4 agent builds against. It holds the spine
+lock on `app/engine/snapshot.py` until it merges, so **T4-4 does not start
+while it is in flight.**
 
 **T3-4 (Sonnet, `feature/reference-plant`) is startable but parked.** It needs
 YAML, and the loader reads JSON only: adding `pyyaml` to `requirements.txt` and a
@@ -265,21 +276,18 @@ Neither has a task yet; both need an owner (an Opus decision each).
 "Seeded RNG" above. `SeededRNG` also has no state save/restore, which T12-1
 (snapshot save and restore) and T14-5 (deterministic replay) will need.
 
-### Startable now (17 tasks)
+### Startable now (16 tasks)
 
 All dependencies are Complete, and none of these edits an existing spine file.
-T4-3 (edits `snapshot.py`) and T4-4 (edits `engine.py`) will, and are not
-startable yet. Three of them (T2-5, T12-1, and non-critical T4-3 additions beyond
-the snapshot work) add *new* isolated modules under `app/engine/`, which is
-satellite work under the **`app/engine/` rule** in CLAUDE.md. T4-3 is the
-exception: it edits existing spine files (`snapshot.py`) so it is spine work and
-takes the lock.
+T4-4 (edits `engine.py`) does, and is not startable yet — T4-3 holds the
+`snapshot.py` spine lock until it merges. Two of them (T2-5, T12-1) add *new*
+isolated modules under `app/engine/`, which is satellite work under the
+**`app/engine/` rule** in CLAUDE.md.
 
 **T3-4 (reference plant) is Blocked** on flow-domain metadata design (see above).
 
 | Task | Name | Model | Branch |
 |---|---|---|---|
-| **T4-3** | Solver diagnostics and failure handling | Sonnet | `feature/solver-diagnostics` |
 | **T5-1** | Vessel model (likely hits the C3 multi-port gap; also blocked on flow-domain design) | Sonnet | `feature/vessel-model` |
 | **T6-1** | Stream enthalpy and mixing | Opus | `feature/stream-enthalpy` |
 | **T7-1** | Control valve model | Sonnet | `feature/control-valve` |
@@ -308,14 +316,56 @@ a layering guard like T13-5 can follow.
 **`SolverResult` (`app/engine/network.SolverResult`)**:
 - `converged`: bool — whether the solver converged
 - `iterations`: int — number of Newton-Raphson iterations
-- `residual`: float — maximum of all residuals (branch equations + mass balance)
-- `pressure_residual`: float — maximum pressure equation residual
-- `flow_residual`: float — maximum mass-balance equation residual
+- `residual`: float — maximum of all residuals, dimensionless (each scaled by
+  its own tolerance); converged is exactly `residual <= 1.0`
+- `pressure_residual`: float — worst branch-equation residual, psia
+- `flow_residual`: float — worst mass-balance residual, in the branch's flow unit
+- `failure`: `str | None` — why a non-converged solve stopped, `iteration_cap`
+  or `line_search_stall`. Set on exactly the results that did not converge:
+  `converged` and `failure` cannot disagree, and a result that tried to claim
+  both is refused at construction. **On the T4-3 branch, not yet on `main`.**
 
-**Non-convergence** returns `converged=False`; a failed solve is atomic and
-restores the pressures/flows to their pre-solve state. `Snapshot.solver`
-currently holds a placeholder `converged: true`; T4-3 will populate it with the
-full result.
+**Failure policy (T4-3, on the branch).** Two-sided and deliberate:
+
+- **Structural / ill-posed network raises `SolverError`** — no boundary node to
+  anchor the pressure field, an unknown appearing in no equation. No iteration
+  count or tolerance would have helped, so there is nothing for a caller to
+  decide.
+- **Numerical non-convergence returns `SolverResult(converged=False)`** with
+  `failure` set. The cap was reached or the line search stalled; the same plant
+  may solve from a different state or at a looser tolerance. That is a flag,
+  never a success. `raise_if_not_converged()` is the opt-in escalation for a
+  caller that would rather have the exception, and `describe()` gives one
+  diagnostic line.
+
+`solve_network()` delegates and therefore follows exactly the same policy —
+there is one, not two. A failed solve is atomic either way: unless the solve
+converges and commits, every node pressure and branch flow is what it was on
+entry, so a caller that ignores the flag reads the pre-solve plant rather than
+an unchecked iterate.
+
+**Snapshot solver section (C4) is unchanged in shape**: `converged`,
+`iterations`, `residual`, and nothing else. `app.engine.snapshot.solver_status(result)`
+is the projection a caller uses, reading `converged` straight off the result so
+a failed solve cannot arrive looking like one that landed. `pressure_residual`,
+`flow_residual` and `failure` stay off C4 on purpose — widening it is a contract
+change and its own task. `build_snapshot()` refuses *half* a solver section (a
+residual with no `converged` reads as a clean solve to any consumer that treats
+the flag as optional) and refuses an unexpected key; `solver={}` still means "no
+solve to report", and the default placeholder is unchanged because nothing on
+the request path solves yet (T4-4).
+
+**Damping, recorded not retuned.** Heavy under-relaxation (`damping <= 0.25`)
+can exhaust the default 50-iteration cap on a plant that solves in four
+iterations at full step. T4-3 made that legible rather than changing it: the
+failure reads `iteration_cap` at a residual a few times tolerance — a slow
+solve, not a stuck one. The cap is untouched and is not coupled to damping.
+
+**The build plan's reference-plant acceptance test is deferred, not satisfied.**
+"Residual falls below tolerance on the reference plant" needs
+`config/plants/olefins_lite.yaml`, which does not exist because **T3-4 is
+Blocked**. T4-3 proves convergence on a hand-built single-domain series plant
+instead. Re-run the criterion against the reference plant once T3-4 lands.
 
 **Process-domain caveat (recorded, unenforced; blocker for T3-4 and T5-1)**:
 A `Topology` must be a single hydraulic domain (gas or liquid, not both). Nothing
@@ -325,7 +375,7 @@ enforce flow boundaries. **T5-1 (vessel)** will also depend on this decision,
 since a vessel can have both liquid and gas phases. Hold both until flow-domain
 architecture is settled.
 
-## Test suite composition (336 tests)
+## Test suite composition (336 tests on `main`)
 
 | File | Tests | File | Tests |
 |---|---|---|---|
@@ -343,4 +393,6 @@ architecture is settled.
 dynamically, so a new `Equipment` subclass is swept into the contract tests
 automatically — adding one raises the total by more than the tests you wrote.
 (T4-2 added `test_network_solver.py` with 36 tests; the test count rose to 336
-total, +39 from 297 at T2-2.)
+total, +39 from 297 at T2-2.) The T4-3 branch adds `test_solver_diagnostics.py`
+(14) and 5 to `test_snapshot.py` for 355, which lands on `main` only when it
+merges.

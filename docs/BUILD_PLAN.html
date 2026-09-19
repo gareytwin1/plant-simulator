@@ -894,7 +894,7 @@ Scenario(initial_condition, malfunctions[], triggers[],
 
 <section id="agents">
   <div class="sec-head"><h2>Parallel agent assignments</h2></div>
-  <p class="sec-note">Which branches can be handed to a separate agent, when each is allowed to start, and where it must merge. Model level is a judgement about blast radius and ambiguity, not about task size &mdash; a small task that redefines a shared shape is an Opus task, and a large task with a written spec and a test list is not.</p>
+  <p class="sec-note">Which branches can be handed to a separate agent, when each is allowed to start, and where it must merge. Model level is a judgement about blast radius and ambiguity, not about task size &mdash; a small task that redefines a shared shape is an Opus task, and a large task with a written spec and a test list is not. The general rule &mdash; Haiku executes, Sonnet implements, Opus decides &mdash; is stated once, in the <em>Agent model guidance</em> section of <code>CLAUDE.md</code>; the assignments below apply it per task.</p>
 
   <div class="grid3" style="margin-bottom:18px">
     <div class="card">
@@ -1103,6 +1103,13 @@ Scenario(initial_condition, malfunctions[], triggers[],
    w:["Clean install succeeds in a fresh environment","Python version pinned"],
    t:["Fresh venv install then full suite green"],
    x:"None. Unblocks T18-3 and T18-4."},
+
+  {id:"T0-7",m:"M0",cat:"core",n:"Static typing baseline",
+   p:"Establish static typing before T4 solver interfaces expand the architectural surface area. The contracts later milestones build against are stated in types, and a checker keeps them stated. Replaces the project's earlier no-type-hints rule.",
+   d:[],f:["pyproject.toml","requirements-dev.txt","app/statetypes.py","app/equipment/base.py","app/engine/","app/plant/topology.py","CLAUDE.md","DEVELOPMENT.md","docs/PROJECT_STATE.md"],b:"chore/static-typing-baseline",
+   w:["Type checker installed through reproducible dev dependencies and configured in the repository","Core production interfaces typed: C1 equipment, C2 topology, C4 snapshot, clock, engine, sessions, registry, validator, Flask routes","CLAUDE.md carries the typing policy, the agent model guidance and the commit discipline","DEVELOPMENT.md requires a green type check for Ready for Review and links to CLAUDE.md rather than restating it","PROJECT_STATE.md records the migration state","No runtime behaviour change"],
+   t:["Configured type check clean over app/","Full pytest suite green","Golden numerical traces unchanged"],
+   x:"Cross-cutting. Touches app/equipment/base.py, app/engine/ and app/plant/topology.py, so it takes the spine lock alone and T4-1 waits for it. T18-2 should run the same check in CI."},
 
   // ---------------- M1 ----------------
   {id:"T1-1",m:"M1",cat:"ind",n:"Golden-value regression harness",

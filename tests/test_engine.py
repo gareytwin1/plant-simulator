@@ -6,9 +6,11 @@ from app import config
 from app.engine.engine import Engine
 from app.equipment.base import Equipment, INLET, OUTLET
 from app.equipment.compressor import GasCompressor
+from app.equipment.pump import CentrifugalPump
 from tests.golden_regression import (
     compressor_ramp_load,
     load_traces,
+    pump_ramp_speed,
 )
 
 
@@ -241,11 +243,7 @@ def test_compressor_golden_slow_state_reproduces_through_the_engine():
     """The engine only calls integrate(), never the device's own step(), so
     this checks the slow-state fields integrate() owns against the golden
     trace — not flow or pressure, which the engine does not compute until
-    the network solver exists.
-
-    Only the compressor is checked here: it is the one device on the
-    Equipment contract on main as of this branch. Pump coverage belongs
-    here once T1-4 (refactor/pump-onto-base) merges."""
+    the network solver exists."""
     trace = load_traces("compressor")["ramp_load"]["trace"]
 
     observed = _replay_slow_state_through_engine(
@@ -257,4 +255,32 @@ def test_compressor_golden_slow_state_reproduces_through_the_engine():
 
     for step_num, (obs, expected) in enumerate(zip(observed, trace)):
         for field in COMPRESSOR_SLOW_FIELDS:
+            _assert_field_matches(step_num, field, obs[field], expected[field])
+
+
+PUMP_SLOW_FIELDS = (
+    "speed",
+    "speed_target",
+    "running",
+)
+
+
+def test_pump_golden_slow_state_reproduces_through_the_engine():
+    """Same as the compressor's golden slow-state test above, now that
+    CentrifugalPump is on the Equipment contract (T1-4): the engine only
+    calls integrate(), never the pump's own step(), so this checks only the
+    slow-state field integrate() owns (speed) against the golden trace —
+    not flow or pressure, which the engine does not compute until the
+    network solver exists."""
+    trace = load_traces("pump")["ramp_speed"]["trace"]
+
+    observed = _replay_slow_state_through_engine(
+        CentrifugalPump,
+        pump_ramp_speed,
+        20,
+        PUMP_SLOW_FIELDS,
+    )
+
+    for step_num, (obs, expected) in enumerate(zip(observed, trace)):
+        for field in PUMP_SLOW_FIELDS:
             _assert_field_matches(step_num, field, obs[field], expected[field])

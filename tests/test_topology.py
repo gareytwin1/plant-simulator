@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from app.equipment.base import INLET, OUTLET, Equipment
+from app.equipment.base import INLET, OUTLET, Equipment, signed_square
 from app.equipment.compressor import GasCompressor
 from app.plant.topology import (
     ATMOSPHERIC_PRESSURE,
@@ -57,6 +57,57 @@ class Device(Equipment):
         return {
             "position": self.position,
         }
+
+
+class Curve(Equipment):
+    """A device with a real curve, for exercising the branch equation.
+
+    The Device double above is deliberately flat, which cannot tell a branch
+    that reads its curve correctly from one that ignores it.
+    """
+
+    def __init__(self, tag="K-902", shutoff_rise=75.0, resistance=0.01):
+        super().__init__(
+            tag,
+            ports={
+                "inlet": INLET,
+                "outlet": OUTLET,
+            },
+        )
+
+        self.shutoff_rise = shutoff_rise
+        self.resistance = resistance
+
+    def integrate(self, dt):
+        pass
+
+    def characteristic(self, flow):
+        return (
+            self.shutoff_rise
+            - self.resistance * signed_square(flow)
+        )
+
+    def get_state(self):
+        return {
+            "shutoff_rise": self.shutoff_rise,
+            "resistance": self.resistance,
+        }
+
+
+def build_curve_branch(shutoff_rise=75.0, resistance=0.01):
+    """A -> B across a machine, with both ends pinned.
+
+    residual(flow) = 100 + 75 - 0.01 * |q|q - 150, which is zero at 50.
+    """
+    return Branch(
+        "B-01",
+        Node("N-A", pressure=100.0, is_boundary=True),
+        Node("N-B", pressure=150.0, is_boundary=True),
+        Curve(
+            shutoff_rise=shutoff_rise,
+            resistance=resistance,
+        ),
+    )
 
 
 def build_topology(fixture=FIXTURE):
@@ -556,3 +607,78 @@ def test_repr_summarises_the_graph():
     assert repr(topology.branch("B-P-101")) == (
         "Branch('B-P-101', 'N-01' -> 'N-02', P-101, flow=0.0)"
     )
+
+
+def test_positive_branch_flow_runs_from_inlet_to_outlet():
+    branch = build_curve_branch()
+
+    assert branch.from_port.direction == INLET
+    assert branch.to_port.direction == OUTLET
+
+
+def test_branch_characteristic_is_the_device_curve_unchanged():
+    branch = build_curve_branch()
+
+    for flow in (-100.0, -25.0, 0.0, 25.0, 100.0):
+        assert branch.characteristic(flow) == pytest.approx(
+            branch.device.characteristic(flow),
+        )
+
+
+def test_branch_characteristic_defaults_to_the_carried_flow():
+    branch = build_curve_branch()
+    branch.set_flow(50.0)
+
+    assert branch.characteristic() == pytest.approx(50.0)
+    assert branch.characteristic() == pytest.approx(
+        branch.characteristic(50.0),
+    )
+
+
+def test_branch_residual_is_zero_on_the_curve():
+    branch = build_curve_branch()
+
+    assert branch.residual(50.0) == pytest.approx(0.0)
+
+
+def test_branch_residual_defaults_to_the_carried_flow():
+    branch = build_curve_branch()
+    branch.set_flow(50.0)
+
+    assert branch.residual() == pytest.approx(0.0)
+
+
+def test_branch_residual_is_positive_below_the_root_and_negative_above():
+    branch = build_curve_branch()
+
+    assert branch.residual(0.0) == pytest.approx(25.0)
+    assert branch.residual(100.0) == pytest.approx(-75.0)
+
+
+def test_branch_residual_never_rises_with_flow():
+    branch = build_curve_branch()
+
+    residuals = [
+        branch.residual(flow)
+        for flow in (-100.0, -50.0, 0.0, 50.0, 100.0)
+    ]
+
+    for lower, higher in zip(residuals, residuals[1:]):
+        assert higher < lower
+
+
+def test_branch_residual_uses_node_pressures_in_graph_direction():
+    branch = build_curve_branch()
+
+    assert branch.residual(0.0) == pytest.approx(
+        branch.from_node.pressure
+        + branch.characteristic(0.0)
+        - branch.to_node.pressure,
+    )
+
+
+def test_reverse_flow_raises_the_rise_a_branch_reports():
+    branch = build_curve_branch()
+
+    assert branch.characteristic(-50.0) > branch.characteristic(50.0)
+    assert branch.characteristic(-50.0) == pytest.approx(100.0)

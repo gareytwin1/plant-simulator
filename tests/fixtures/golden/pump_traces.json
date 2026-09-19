@@ -762,7 +762,7 @@
         "suction_pressure": 58.56666666666666,
         "discharge_pressure": 57.16666666666667,
         "spread": -1.3999999999999915,
-        "pump_pressure_rise": 0.0,
+        "pump_pressure_rise": -1.4000000000000004,
         "max_flow": 1200.0
       },
       {

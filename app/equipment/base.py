@@ -1,3 +1,17 @@
+"""
+Equipment: interface contract C1, and the sign convention its curves obey.
+
+Two things live here that the rest of the plant is measured against. C1 itself
+— the integrate/characteristic split every device implements — and the sign
+convention `characteristic` reports against, including what a device is
+required to do when flow runs backwards through it.
+
+`signed_square` is the primitive that makes the second of those true. Read the
+`Equipment.characteristic` docstring before writing a device: a curve with the
+wrong sign is not a device bug, it is a solver that converges on a plant which
+does not exist.
+"""
+
 import copy
 import functools
 from collections.abc import Callable, Mapping
@@ -162,8 +176,39 @@ class Equipment:
         raise NotImplementedError
 
     def characteristic(self, flow: float) -> float:
-        """Pressure change across the device at this flow.
-        Positive = rise (machine), negative = drop (valve, pipe).
+        """Pressure change across the device at this flow: outlet minus inlet.
+
+        Positive is a rise (a machine), negative is a drop (a valve, a pipe).
+
+        Flow is signed, and positive flow runs from the inlet port to the
+        outlet port. The direction the change is measured in is fixed by the
+        ports and never by the flow: reversing the flow changes the number
+        this returns, not which end it is measured from. A solver that had to
+        know which way a branch happened to be flowing before it could read
+        the sign would get it wrong on the iteration where the flow crossed
+        zero, which is the iteration it spends most of its time near.
+
+        Every real flow is in range — positive, zero and negative. A solver
+        reaches flows the plant never will, and reaches them while it is
+        still wrong, so a device may not raise, clamp, or return a
+        non-finite number outside the range it expects to operate in.
+
+        The curve is non-increasing in flow everywhere: more flow never buys
+        more pressure. That is what leaves the branch equation exactly one
+        root and keeps the Jacobian from going singular. A clamp that
+        flattens the curve past runout is not a safety measure, it is a flat
+        region with no gradient for the solver to descend.
+
+        Written against `signed_square`, the two shapes V1 needs satisfy all
+        of that without each device restating it:
+
+            machine      shutoff_rise - resistance * signed_square(flow)
+            resistance   -resistance * signed_square(flow)
+
+        A machine holds its static head at zero flow and rises above shutoff
+        when flow is driven backwards through it — a centrifugal machine
+        resists a reversal rather than helping it along. A resistance is zero
+        at zero flow and drops in whichever direction the flow runs.
 
         Pure: it reads slow state and returns a number, and mutates nothing.
         """
@@ -210,6 +255,23 @@ class Equipment:
 
     def __repr__(self) -> str:
         return f"<{type(self).__name__} {getattr(self, 'tag', '?')}>"
+
+
+def signed_square(flow: float) -> float:
+    """`flow` squared, carried through zero with flow's own sign: |q|*q.
+
+    Every quadratic term in the plant is written against this rather than
+    `flow ** 2`, and that single substitution is the whole of reverse flow.
+
+    `flow ** 2` is even, so a device built on it returns the same pressure
+    change at -100 as at +100: a resistance that pushes back just as hard on
+    flow which is already running backwards, and a curve with a matching root
+    on either side of zero for the solver to fall into. |q|*q is odd,
+    continuous and increasing everywhere, so a resistance term built on it
+    always opposes the flow that caused it, and a machine curve built on it
+    keeps falling as flow rises — including across zero.
+    """
+    return abs(flow) * flow
 
 
 def _snapshot(device: "Equipment") -> dict[str, Any]:

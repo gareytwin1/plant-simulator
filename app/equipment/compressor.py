@@ -1,9 +1,10 @@
 from app import config
 from app.equipment.base import Equipment, INLET, OUTLET
+from app.statetypes import StateRow
 
 
 class GasCompressor(Equipment):
-    def __init__(self, tag="K-101"):
+    def __init__(self, tag: str = "K-101") -> None:
         super().__init__(
             tag,
             ports={
@@ -50,34 +51,34 @@ class GasCompressor(Equipment):
         )
         self.valve_resistance_scale = 0.0025
 
-    def start(self):
+    def start(self) -> None:
         self.running = True
 
-    def stop(self):
+    def stop(self) -> None:
         self.running = False
         self.load_target = 0.0
 
-    def set_load_target(self, target):
+    def set_load_target(self, target: float) -> None:
         self.load_target = max(
             0.0,
             min(target, 1.0),
         )
 
-    def set_discharge_valve_position(self, position):
+    def set_discharge_valve_position(self, position: float) -> None:
         self.discharge_valve_target = max(
             0.10,
             min(position, 1.0),
         )
 
     @property
-    def spread(self):
+    def spread(self) -> float:
         return (
             self.discharge_pressure
             - self.suction_pressure
         )
 
     @property
-    def temperature(self):
+    def temperature(self) -> float:
         if self.spread <= 150.0:
             return (
                 self.base_temperature
@@ -97,7 +98,7 @@ class GasCompressor(Equipment):
         )
 
     @property
-    def system_resistance(self):
+    def system_resistance(self) -> float:
         return (
             self.suction_resistance
             + self.discharge_resistance
@@ -106,31 +107,31 @@ class GasCompressor(Equipment):
         )
 
     @property
-    def valve_resistance(self):
+    def valve_resistance(self) -> float:
         return self.valve_resistance_scale * (
             1.0 / self.discharge_valve_position ** 2
             - 1.0
         )
 
     @property
-    def boundary_pressure_difference(self):
+    def boundary_pressure_difference(self) -> float:
         return (
             self.downstream_boundary_pressure
             - self.upstream_boundary_pressure
         )
 
     @property
-    def compressor_pressure_rise(self):
+    def compressor_pressure_rise(self) -> float:
         return self.characteristic(self.flow)
 
     @property
-    def valve_pressure_drop(self):
+    def valve_pressure_drop(self) -> float:
         return (
             self.valve_resistance
             * self.flow ** 2
         )
 
-    def integrate(self, dt):
+    def integrate(self, dt: float) -> None:
         load_target = (
             self.load_target
             if self.running
@@ -151,14 +152,14 @@ class GasCompressor(Equipment):
             dt,
         )
 
-    def characteristic(self, flow):
+    def characteristic(self, flow: float) -> float:
         return max(
             self.shutoff_pressure_rise * self.load ** 2
             - self.compressor_resistance * flow ** 2,
             0.0,
         )
 
-    def step(self, dt=None):
+    def step(self, dt: float | None = None) -> None:
         if dt is None:
             dt = config.SIMULATION_STEP_SECONDS
 
@@ -172,7 +173,7 @@ class GasCompressor(Equipment):
             self.discharge_pressure,
         ) = self._calculate_operating_point()
 
-    def _calculate_operating_point(self):
+    def _calculate_operating_point(self) -> tuple[float, float, float]:
         available_pressure_rise = (
             self.characteristic(0.0)
             - self.boundary_pressure_difference
@@ -218,7 +219,7 @@ class GasCompressor(Equipment):
             discharge_pressure,
         )
 
-    def get_state(self):
+    def get_state(self) -> StateRow:
         return {
             "running": self.running,
             "pressure": self.discharge_pressure,

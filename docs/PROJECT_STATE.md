@@ -51,8 +51,9 @@ Impact is contained: nothing in `app/` imports `random` today, so no determinism
 rule is currently violated, and the only dependent task (**T14-5**, deterministic
 replay) is blocked on other dependencies anyway. No currently-startable task
 changes. To finish T2-2: rebase the branch onto `main`, reconcile it with project
-style (it uses type hints, which this codebase does not), run the full suite,
-open a PR, merge.
+style, run the full suite and `python -m mypy`, open a PR, merge. (Its type hints
+are no longer a mismatch — production code is typed as of the static typing
+baseline below.)
 
 ## Architecture status
 
@@ -85,6 +86,35 @@ open a PR, merge.
 - `Snapshot`'s `nodes` / `streams` / `controllers` / `envelope` / `alarms`
   sections are deliberately empty, and `solver` is a trivial converged
   placeholder.
+
+## Static typing
+
+**Permanent policy:** type hints are **required** in new and modified production
+Python under `app/`. The rules — what must be typed, what must not be annotated
+for its own sake, and when `Any` is acceptable — are in
+[CLAUDE.md](../CLAUDE.md). This replaced the project's earlier "no type hints"
+rule.
+
+**Current migration state:** all of `app/` is inside the checked scope and
+`python -m mypy` is clean. `mypy` is pinned in `requirements-dev.txt` and
+configured in `pyproject.toml`; it checks `app/` only.
+
+| Module | State |
+|---|---|
+| `app/statetypes.py` | New. `JSONValue` / `StateRow` — the JSON-safe row every `get_state()` returns |
+| `app/equipment/base.py`, `registry.py`, `compressor.py`, `pump.py` | Typed |
+| `app/engine/clock.py`, `engine.py`, `snapshot.py`, `sessions.py` | Typed |
+| `app/plant/topology.py`, `validate.py` | Typed |
+| `app/main.py` | Typed (`flask.typing.ResponseReturnValue`) |
+| `app/config.py` | Unannotated by design — its constants infer exactly |
+| `tests/` | Outside the checked scope; tests stay lightly typed |
+
+`app/plant/validate.py` is the only deliberate `Any`: it walks decoded JSON
+whose shape is what it exists to discover.
+
+Strictness today is "every def in `app/` is annotated, no implicit `Optional`,
+no bare generics". Tightening further (`disallow_untyped_calls`,
+`warn_unreachable`, `strict`) is a later decision, not a silent one.
 
 ## Known temporary compatibility paths
 
@@ -134,8 +164,11 @@ and has a task that retires it.
 
 ## Active branches and PRs
 
-**None.** No open PRs; no feature branches in flight on `origin` as of this
-refresh.
+`chore/static-typing-baseline` — **Ready for Review**: static typing baseline
+(mypy config, `app/` annotated, typing/model/commit rules in CLAUDE.md). Touches
+the spine files `app/equipment/base.py`, `app/engine/` and
+`app/plant/topology.py`, so it holds the spine lock until it merges — **T4-1
+waits for it.**
 
 Two stale local-only branches exist in the primary clone and can be deleted once
 confirmed merged: `feature/plant-topology`, `feature/seeded-rng` (their work is

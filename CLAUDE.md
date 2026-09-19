@@ -1,7 +1,8 @@
 # CLAUDE.md
 
-Operating context for Claude Code sessions (Opus or Sonnet) working in this
-repository. Read this first. It is stable: architectural invariants and working
+Operating context for Claude Code sessions working in this repository — read
+this first. Which model should be running a given task is itself a rule here:
+see [Agent model guidance](#agent-model-guidance). It is stable: architectural invariants and working
 rules, not current status.
 
 **For what is true right now** — current `main`, test count, which branches are
@@ -168,7 +169,8 @@ controllers, alarms, envelopes, or scoring already exist.**
   contracts and merge independently.
 - **Rebase satellites onto `main` after every spine merge.** Never merge `main`
   backwards into the spine.
-- **Run the full suite before review**, not just the tests you added.
+- **Run the full suite and the type check before review** — `python -m pytest -q`
+  and `python -m mypy` — not just the tests you added.
 - **Do not modify unrelated files.** Unrelated cleanup goes in its own task.
 - **Preserve contracts.** If a contract seems wrong, raise it as a task; do not
   work around it silently.
@@ -181,11 +183,55 @@ controllers, alarms, envelopes, or scoring already exist.**
 | Not Started | No work begun |
 | In Progress | Implementation underway |
 | Blocked | Waiting on a dependency or a decision; record why in the note |
-| **Ready for Review** | Code complete, rebased on current `main`, full suite green, **not merged** |
+| **Ready for Review** | Code complete, rebased on current `main`, full suite green, type check green, **not merged** |
 | **Complete** | **Merged to `main`.** Nothing else counts. |
 
 A task is never Complete because code exists on a local or pushed branch. The
 note on a Complete task should name the merge SHA.
+
+## Agent model guidance
+
+Use the smallest model that can do the work safely. This is guidance, not a
+restriction — but **do not use Opus for routine mechanical work Haiku or Sonnet
+can finish safely.**
+
+| Model | Use it for |
+|---|---|
+| **Haiku** | Execution. Shell and Git commands, small Bash or Python scripts, simple file operations, small documentation edits, formatting, straightforward test additions, repetitive typing fixes, simple `mypy` fixes where the intended type is already clear — mechanical work with little architectural ambiguity. |
+| **Sonnet** | Implementation. Feature work, debugging, API work, test development, refactors inside an established contract, most satellite tasks, moderate multi-file changes, building a design someone already decided. |
+| **Opus** | Architecture and integration judgment. Contract design, spine changes, the network solver, integration reviews, build-plan changes, cross-cutting refactors, repository-wide standards, anything spanning several subsystems or milestones, and ambiguous problems where the design has to be worked out before any code is written. |
+
+In short: **Haiku executes, Sonnet implements, Opus decides.**
+
+A smaller model that runs into architectural ambiguity or a contract question
+**stops and escalates** — record the question on the task and hand it up. Never
+invent a design to get unblocked.
+
+This section is the authoritative statement of model selection. Other documents
+link here rather than restating it.
+
+## Commit discipline
+
+Small commit, clear purpose, short message.
+
+- One commit is one clear change, or one coherent part of a task.
+- Do not bundle unrelated cleanup, formatting, refactoring, documentation and
+  feature work together unless they genuinely cannot be separated. Split a task
+  with independent stages into independent commits.
+- Prefer several small understandable commits to one "everything changed"
+  commit, and leave the branch in a sensible state at each one where practical.
+- Subject lines are short and say what changed, not how it was implemented.
+  Lead with the build plan task ID when the work has one.
+- Write a body only when the reason, the tradeoff, a migration concern or
+  important test information is not already obvious from the subject and the
+  diff. Routine changes do not get essays, and no commit needs a list of the
+  files it touched.
+
+Good: `T4-1: Add branch characteristic interface` ·
+`T3-3: Validate topology references` · `Typing: Annotate Equipment contract` ·
+`Docs: Add agent model guidance`
+
+Bad: `update files` · `fixes` · `misc changes` · `work in progress`
 
 ## File ownership and high-conflict areas
 
@@ -209,9 +255,9 @@ note on a Complete task should name the merge SHA.
    `git worktree add ../plant-simulator-<task> -b <type>/<name> origin/main`
 5. Implement against the **frozen contract**, not against another branch's
    in-progress code.
-6. Run the full suite: `python -m pytest -q`
+6. Run the full suite and the type check: `python -m pytest -q && python -m mypy`
 7. `git fetch origin && git rebase origin/main`
-8. Run the full suite again.
+8. Run both again.
 9. Open a PR titled `T{TASK-ID}: Brief description`.
 10. Update the build plan: **Ready for Review** at PR time, **Complete** with the
     merge SHA only after it is merged to `main`.
@@ -226,6 +272,9 @@ conda activate plant-simulator
 
 # Full suite
 python -m pytest -q
+
+# Static type check (configured over app/ in pyproject.toml)
+python -m mypy
 
 # Single file / single test
 python -m pytest tests/test_pump.py -q
@@ -246,7 +295,7 @@ fixtures.
 
 Match the surrounding code:
 
-- 4-space indent, no type hints, no docstrings on equipment methods.
+- 4-space indent, no docstrings on equipment methods.
 - Multi-line call formatting with trailing commas.
 - Blank lines between logical blocks.
 - Comments are rare — naming carries the explanation. Module-level docstrings
@@ -255,11 +304,43 @@ Match the surrounding code:
 - Tests are flat `def test_*` functions, no classes, `pytest.approx` for every
   float comparison.
 
+### Typing
+
+**Type hints are required in new and modified production code under `app/`.**
+This replaces the project's earlier "no type hints" rule: the interfaces the
+solver milestones build against are worth stating explicitly, and they were
+brought under a checker before M4 grew the architectural surface further.
+
+- Public functions, methods, constructors and return values are typed. `-> None`
+  counts.
+- Type the attributes that carry the interface — `Equipment.tag`,
+  `Equipment.ports`, a collection that holds devices. Not every attribute.
+- Prefer Python 3.12 built-ins and unions: `list[str]`, `dict[str, float]`,
+  `str | None`. Never `typing.List` or `Optional`.
+- Do not annotate obvious locals to raise coverage. Annotate one only where
+  inference genuinely needs help, e.g. `errors: list[str] = []`.
+- `Any` needs a reason stated beside it. Decoded JSON of a shape nothing knows
+  yet is a reason; silencing the checker is not.
+- The JSON-safe row every `get_state()` returns is `StateRow` in
+  `app/statetypes.py`. Use it rather than a hand-rolled dict type — a dict
+  return type is invariant, so a device narrowing its row to
+  `dict[str, float]` would not be a valid override.
+- Tests may stay lightly typed; annotate one only where it makes the test
+  clearer. `mypy` is not configured over `tests/`.
+- New code passes `python -m mypy` before review. The configuration lives in
+  `pyproject.toml` — do not loosen it to land a change; propose a change to it
+  as its own task.
+
+Existing production code is typed; new modules join the checked scope by
+default. `app/config.py` carries no annotations because its constants infer
+exactly.
+
 ## Where authoritative state lives
 
 | Question | Source |
 |---|---|
 | What must I never break? | This file |
+| Which model should run this task? How should I commit? | This file — [Agent model guidance](#agent-model-guidance), [Commit discipline](#commit-discipline) |
 | What is true right now? | [docs/PROJECT_STATE.md](docs/PROJECT_STATE.md) |
 | What is the task list / schedule / contract text? | [docs/BUILD_PLAN.html](docs/BUILD_PLAN.html) + [live artifact](https://claude.ai/artifact/DXqzpwKxeKZNzZGrC3HkQ9) |
 | What is each task's current status? | Live artifact; durable snapshot in [docs/BUILD_PLAN_STATUS.json](docs/BUILD_PLAN_STATUS.json) |

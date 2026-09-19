@@ -1,9 +1,10 @@
 from app import config
 from app.equipment.base import Equipment, INLET, OUTLET
+from app.statetypes import StateRow
 
 
 class CentrifugalPump(Equipment):
-    def __init__(self, tag="P-101"):
+    def __init__(self, tag: str = "P-101") -> None:
         super().__init__(
             tag,
             ports={
@@ -34,45 +35,45 @@ class CentrifugalPump(Equipment):
         self.suction_resistance = 0.000010
         self.discharge_resistance = 0.000050
 
-    def start(self):
+    def start(self) -> None:
         self.running = True
 
-    def stop(self):
+    def stop(self) -> None:
         self.running = False
         self.speed_target = 0.0
 
-    def set_speed_target(self, target):
+    def set_speed_target(self, target: float) -> None:
         self.speed_target = max(
             0.0,
             min(target, 1.0),
         )
 
     @property
-    def spread(self):
+    def spread(self) -> float:
         return (
             self.discharge_pressure
             - self.suction_pressure
         )
 
     @property
-    def system_resistance(self):
+    def system_resistance(self) -> float:
         return (
             self.suction_resistance
             + self.discharge_resistance
         )
 
     @property
-    def boundary_pressure_difference(self):
+    def boundary_pressure_difference(self) -> float:
         return (
             self.downstream_boundary_pressure
             - self.upstream_boundary_pressure
         )
 
     @property
-    def pump_pressure_rise(self):
+    def pump_pressure_rise(self) -> float:
         return self.characteristic(self.flow)
 
-    def integrate(self, dt):
+    def integrate(self, dt: float) -> None:
         speed_target = (
             self.speed_target
             if self.running
@@ -86,14 +87,14 @@ class CentrifugalPump(Equipment):
             dt,
         )
 
-    def characteristic(self, flow):
+    def characteristic(self, flow: float) -> float:
         return max(
             self.shutoff_pressure_rise * self.speed ** 2
             - self.pump_resistance * flow ** 2,
             0.0,
         )
 
-    def step(self, dt=None):
+    def step(self, dt: float | None = None) -> None:
         if dt is None:
             dt = config.SIMULATION_STEP_SECONDS
 
@@ -107,7 +108,7 @@ class CentrifugalPump(Equipment):
             self.discharge_pressure,
         ) = self._calculate_operating_point()
 
-    def _calculate_operating_point(self):
+    def _calculate_operating_point(self) -> tuple[float, float, float]:
         available_pressure_rise = (
             self.characteristic(0.0)
             - self.boundary_pressure_difference
@@ -149,7 +150,7 @@ class CentrifugalPump(Equipment):
             discharge_pressure,
         )
 
-    def get_state(self):
+    def get_state(self) -> StateRow:
         return {
             "running": self.running,
             "speed": self.speed,

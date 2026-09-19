@@ -18,11 +18,16 @@ from it.
 """
 
 import copy
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from types import MappingProxyType
 
+from app.statetypes import JSONValue
 
-DEFAULT_SOLVER_STATUS = {
+
+Section = MappingProxyType[str, Mapping[str, JSONValue]]
+
+DEFAULT_SOLVER_STATUS: Mapping[str, JSONValue] = {
     "converged": True,
     "iterations": 0,
     "residual": 0.0,
@@ -34,15 +39,15 @@ class Snapshot:
     sim_time: float
     speed: float
     running: bool
-    equipment: MappingProxyType
-    nodes: MappingProxyType
-    streams: MappingProxyType
-    controllers: MappingProxyType
-    envelope: MappingProxyType
-    alarms: tuple
-    solver: MappingProxyType
+    equipment: Section
+    nodes: Section
+    streams: Section
+    controllers: Section
+    envelope: Section
+    alarms: tuple[Mapping[str, JSONValue], ...]
+    solver: MappingProxyType[str, JSONValue]
 
-    def as_dict(self):
+    def as_dict(self) -> dict[str, JSONValue]:
         """Flat, JSON-safe dict matching C4 exactly."""
         return {
             "sim_time": self.sim_time,
@@ -59,17 +64,17 @@ class Snapshot:
 
 
 def build_snapshot(
-    sim_time,
-    speed,
-    running,
-    equipment,
-    nodes=None,
-    streams=None,
-    controllers=None,
-    envelope=None,
-    alarms=None,
-    solver=None,
-):
+    sim_time: float,
+    speed: float,
+    running: bool,
+    equipment: Mapping[str, Mapping[str, JSONValue]],
+    nodes: Mapping[str, Mapping[str, JSONValue]] | None = None,
+    streams: Mapping[str, Mapping[str, JSONValue]] | None = None,
+    controllers: Mapping[str, Mapping[str, JSONValue]] | None = None,
+    envelope: Mapping[str, Mapping[str, JSONValue]] | None = None,
+    alarms: Iterable[Mapping[str, JSONValue]] | None = None,
+    solver: Mapping[str, JSONValue] | None = None,
+) -> Snapshot:
     """Assemble an immutable Snapshot from plain mutable inputs.
 
     Every per-tag state dict and every alarm is deep-copied before being
@@ -98,7 +103,7 @@ def build_snapshot(
     )
 
 
-def _frozen(mapping):
+def _frozen(mapping: Mapping[str, Mapping[str, JSONValue]]) -> Section:
     return MappingProxyType(
         {
             tag: MappingProxyType(copy.deepcopy(state))
@@ -107,7 +112,7 @@ def _frozen(mapping):
     )
 
 
-def _thawed(mapping):
+def _thawed(mapping: Mapping[str, Mapping[str, JSONValue]]) -> dict[str, JSONValue]:
     return {
         tag: dict(state)
         for tag, state in mapping.items()

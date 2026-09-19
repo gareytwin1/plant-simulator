@@ -21,7 +21,10 @@ Units follow docs/UNITS_CONVENTION.md: pressure psia, temperature °F, flow in
 the device's native unit (SCFM gas, GPM liquid), elevation ft.
 """
 
-from app.equipment.base import INLET, OUTLET
+from collections.abc import Iterable, Mapping
+
+from app.equipment.base import INLET, OUTLET, Equipment, Port
+from app.statetypes import StateRow
 
 
 ATMOSPHERIC_PRESSURE = 14.696  # psia
@@ -51,23 +54,28 @@ class Node:
         "_pressure",
     )
 
+    id: str
+    is_boundary: bool
+    elevation: float
+    _pressure: float
+
     def __init__(
         self,
-        id,
-        pressure=ATMOSPHERIC_PRESSURE,
-        is_boundary=False,
-        elevation=0.0,
-    ):
+        id: str,
+        pressure: float = ATMOSPHERIC_PRESSURE,
+        is_boundary: bool = False,
+        elevation: float = 0.0,
+    ) -> None:
         self.id = id
         self.is_boundary = is_boundary
         self.elevation = elevation
         self._pressure = pressure
 
     @property
-    def pressure(self):
+    def pressure(self) -> float:
         return self._pressure
 
-    def set_pressure(self, pressure):
+    def set_pressure(self, pressure: float) -> None:
         """Write a solved pressure. Boundary nodes refuse.
 
         The solver calls this on internal nodes once per iteration. A call
@@ -83,14 +91,14 @@ class Node:
 
         self._pressure = pressure
 
-    def get_state(self):
+    def get_state(self) -> StateRow:
         return {
             "pressure": self._pressure,
             "is_boundary": self.is_boundary,
             "elevation": self.elevation,
         }
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         kind = "boundary" if self.is_boundary else "internal"
 
         return f"Node({self.id!r}, {self._pressure} psia, {kind})"
@@ -118,19 +126,24 @@ class Stream:
         "composition",
     )
 
+    flow: float
+    pressure: float
+    temperature: float
+    composition: dict[str, float]
+
     def __init__(
         self,
-        flow=0.0,
-        pressure=ATMOSPHERIC_PRESSURE,
-        temperature=STANDARD_TEMPERATURE,
-        composition=None,
-    ):
+        flow: float = 0.0,
+        pressure: float = ATMOSPHERIC_PRESSURE,
+        temperature: float = STANDARD_TEMPERATURE,
+        composition: Mapping[str, float] | None = None,
+    ) -> None:
         self.flow = flow
         self.pressure = pressure
         self.temperature = temperature
         self.composition = _validated_composition(composition)
 
-    def get_state(self):
+    def get_state(self) -> StateRow:
         return {
             "flow": self.flow,
             "pressure": self.pressure,
@@ -138,7 +151,7 @@ class Stream:
             "composition": dict(self.composition),
         }
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return (
             f"Stream(flow={self.flow}, {self.pressure} psia, "
             f"{self.temperature} °F)"
@@ -180,16 +193,24 @@ class Branch:
         "stream",
     )
 
+    id: str
+    from_node: Node
+    to_node: Node
+    device: Equipment
+    from_port: Port
+    to_port: Port
+    stream: Stream
+
     def __init__(
         self,
-        id,
-        from_node,
-        to_node,
-        device,
-        flow=0.0,
-        from_port=None,
-        to_port=None,
-    ):
+        id: str,
+        from_node: Node,
+        to_node: Node,
+        device: Equipment,
+        flow: float = 0.0,
+        from_port: str | None = None,
+        to_port: str | None = None,
+    ) -> None:
         if device is None:
             raise ValueError(
                 f"branch {id!r} needs a device — a branch is a flow path "
@@ -219,14 +240,14 @@ class Branch:
         self._bind(self.to_port, to_node)
 
     @property
-    def flow(self):
+    def flow(self) -> float:
         return self.stream.flow
 
-    def set_flow(self, flow):
+    def set_flow(self, flow: float) -> None:
         """Write a solved flow. The stream is where it is stored."""
         self.stream.flow = flow
 
-    def set_stream(self, stream):
+    def set_stream(self, stream: Stream) -> None:
         """Replace the material state wholesale.
 
         Flow rides along with it, because the stream owns flow — a caller
@@ -235,13 +256,13 @@ class Branch:
         self.stream = stream
 
     @property
-    def nodes(self):
+    def nodes(self) -> tuple[Node, Node]:
         return (
             self.from_node,
             self.to_node,
         )
 
-    def get_state(self):
+    def get_state(self) -> StateRow:
         return {
             "from_node": self.from_node.id,
             "to_node": self.to_node.id,
@@ -251,7 +272,7 @@ class Branch:
             "flow": self.stream.flow,
         }
 
-    def _resolve_port(self, name, direction):
+    def _resolve_port(self, name: str | None, direction: str) -> Port:
         if name is None:
             return self._sole_port(direction)
 
@@ -265,7 +286,7 @@ class Branch:
 
         return port
 
-    def _sole_port(self, direction):
+    def _sole_port(self, direction: str) -> Port:
         matching = [
             port
             for port in self.device.ports.values()
@@ -282,16 +303,18 @@ class Branch:
 
         return matching[0]
 
-    def _bind(self, port, node):
-        if port.connected and port.node is not node:
+    def _bind(self, port: Port, node: Node) -> None:
+        connected_to = port.node
+
+        if connected_to is not None and connected_to is not node:
             raise ValueError(
                 f"branch {self.id!r} claims {self.device.tag}.{port.name}, "
-                f"which is already connected to node {port.node.id!r}",
+                f"which is already connected to node {connected_to.id!r}",
             )
 
         port.connect(node)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return (
             f"Branch({self.id!r}, {self.from_node.id!r} -> "
             f"{self.to_node.id!r}, {self.device.tag}, flow={self.stream.flow})"
@@ -315,9 +338,13 @@ class Topology:
     with.
     """
 
-    def __init__(self, nodes=(), branches=()):
-        self.nodes = {}
-        self.branches = {}
+    def __init__(
+        self,
+        nodes: Iterable[Node] = (),
+        branches: Iterable[Branch] = (),
+    ) -> None:
+        self.nodes: dict[str, Node] = {}
+        self.branches: dict[str, Branch] = {}
 
         for node in nodes:
             self.add_node(node)
@@ -325,7 +352,7 @@ class Topology:
         for branch in branches:
             self.add_branch(branch)
 
-    def add_node(self, node):
+    def add_node(self, node: Node) -> Node:
         if node.id in self.nodes:
             raise ValueError(
                 f"duplicate node id {node.id!r}",
@@ -335,7 +362,7 @@ class Topology:
 
         return node
 
-    def add_branch(self, branch):
+    def add_branch(self, branch: Branch) -> Branch:
         if branch.id in self.branches:
             raise ValueError(
                 f"duplicate branch id {branch.id!r}",
@@ -360,7 +387,7 @@ class Topology:
 
         return branch
 
-    def node(self, node_id):
+    def node(self, node_id: str) -> Node:
         if node_id not in self.nodes:
             raise KeyError(
                 f"no node {node_id!r} in this topology, only "
@@ -369,7 +396,7 @@ class Topology:
 
         return self.nodes[node_id]
 
-    def branch(self, branch_id):
+    def branch(self, branch_id: str) -> Branch:
         if branch_id not in self.branches:
             raise KeyError(
                 f"no branch {branch_id!r} in this topology, only "
@@ -378,7 +405,7 @@ class Topology:
 
         return self.branches[branch_id]
 
-    def device(self, tag):
+    def device(self, tag: str) -> Equipment:
         devices = self.devices
 
         if tag not in devices:
@@ -390,14 +417,14 @@ class Topology:
         return devices[tag]
 
     @property
-    def devices(self):
+    def devices(self) -> dict[str, Equipment]:
         return {
             branch.device.tag: branch.device
             for branch in self.branches.values()
         }
 
     @property
-    def boundary_nodes(self):
+    def boundary_nodes(self) -> dict[str, Node]:
         return {
             node_id: node
             for node_id, node in self.nodes.items()
@@ -405,14 +432,14 @@ class Topology:
         }
 
     @property
-    def internal_nodes(self):
+    def internal_nodes(self) -> dict[str, Node]:
         return {
             node_id: node
             for node_id, node in self.nodes.items()
             if not node.is_boundary
         }
 
-    def branches_from(self, node_id):
+    def branches_from(self, node_id: str) -> tuple[Branch, ...]:
         node = self.node(node_id)
 
         return tuple(
@@ -421,7 +448,7 @@ class Topology:
             if branch.from_node is node
         )
 
-    def branches_to(self, node_id):
+    def branches_to(self, node_id: str) -> tuple[Branch, ...]:
         node = self.node(node_id)
 
         return tuple(
@@ -430,7 +457,7 @@ class Topology:
             if branch.to_node is node
         )
 
-    def branches_at(self, node_id):
+    def branches_at(self, node_id: str) -> tuple[Branch, ...]:
         node = self.node(node_id)
 
         return tuple(
@@ -439,7 +466,7 @@ class Topology:
             if node in branch.nodes
         )
 
-    def unconnected_ports(self):
+    def unconnected_ports(self) -> tuple[tuple[str, Port], ...]:
         """Every port no branch wired to a node, as (tag, port) pairs.
 
         A device with more ports than its branch uses — a vessel with a vent,
@@ -454,7 +481,7 @@ class Topology:
             if not port.connected
         )
 
-    def get_state(self):
+    def get_state(self) -> dict[str, dict[str, StateRow]]:
         """Nodes, branches and streams as flat JSON-safe rows.
 
         C4 gives streams ids of their own ("S-01"). Until a stream is more
@@ -476,7 +503,7 @@ class Topology:
             },
         }
 
-    def describe(self):
+    def describe(self) -> str:
         """The graph as printable text, for reading a plant at a glance."""
         lines = [
             f"Topology: {len(self.nodes)} nodes "
@@ -505,24 +532,26 @@ class Topology:
 
         return "\n".join(lines)
 
-    def _branch_of(self, tag):
+    def _branch_of(self, tag: str) -> str | None:
         for branch_id, branch in self.branches.items():
             if branch.device.tag == tag:
                 return branch_id
 
         return None
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.describe()
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return (
             f"<Topology {len(self.nodes)} nodes, "
             f"{len(self.branches)} branches>"
         )
 
 
-def _validated_composition(composition):
+def _validated_composition(
+    composition: Mapping[str, float] | None,
+) -> dict[str, float]:
     fractions = dict(composition or {})
 
     if not fractions:

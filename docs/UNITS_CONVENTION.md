@@ -59,10 +59,22 @@ P-101, gas through K-101, with the V-101 separator between them — those are
 network with a single flow variable.
 
 No cross-phase flow conversion exists, and none should be invented to make the
-solver or this document simpler. When T4-1/T4-2 define the branch
-characteristic and the network solver, the correct treatment is for the solver
-to work per process domain and for the coupling to happen through mass balance
-at the vessel.
+solver or this document simpler.
+
+**This rule is a modelling constraint, not yet an enforced one — open issue.**
+One `NetworkSolver` solve (`app/engine/network.py`, T4-2) assumes the topology
+it is handed is a single compatible hydraulic/process domain, because a mass
+balance sums the flows meeting a node and summing GPM with SCFM is meaningless.
+Nothing checks that assumption: **C2, C3 and `NetworkSolver` carry no
+flow-domain metadata**, so there is nothing for the solver to enforce against
+and a mixed-domain topology would solve and return a confidently wrong answer.
+Keeping one domain per topology is the responsibility of whoever builds it.
+
+How the liquid and gas domains get split and coupled — separate hydraulic
+problems joined through the V-101 separator's inventory rather than through a
+shared flow variable — is decided by the reference plant (T3-4) and the vessel
+work (T5-x), which is where the question has now surfaced in practice. It is
+deliberately not decided inside T4-2.
 
 ### Dimensionless
 
@@ -224,10 +236,10 @@ replaced the pre-C1 examples (`supply_pressure`, `discharge_header_pressure`
 owned by a device) with the current contract-based ownership model, and added
 the equipment-domain flow / connected-network note. No unit values changed.
 
-**Next review:** when **T4-4** lands. T4-1 and T4-2 have both landed, so the
-process-domain rule above is now enforced by code rather than advisory:
-`NetworkSolver` (`app/engine/network.py`) solves over one topology whose
-branches all carry the same flow unit, compares devices only through the psia
-their curves return, and converges against a pressure tolerance and a flow
-tolerance kept separately so the two are never added together. T4-4 is the
-point at which the live application starts reading those numbers.
+**Next review:** when **T4-4** lands. T4-1 and T4-2 have both landed, and no
+unit value changed for either. `NetworkSolver` compares devices only through
+the psia their curves return, and keeps a pressure tolerance and a flow
+tolerance separately so the two are never added together. The process-domain
+rule above is **still advisory** — see the open issue there; T4-2 added no
+mechanism that could enforce it. T4-4 is the point at which the live
+application starts reading the solver's numbers.

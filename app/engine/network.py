@@ -37,8 +37,21 @@ checked. See `solve()` for the invariant in full.
 
 This module is the mathematics only. `Engine.step()` does not call it and the
 Flask routes do not reach it — wiring it in, and retiring the devices' own
-standalone operating point, is T4-4. Richer diagnostics and failure policy are
-T4-3.
+standalone operating point, is T4-4.
+
+Failure policy (T4-3) is two-sided, and which side a failure falls on is the
+difference between a plant that cannot be solved and a plant that merely was
+not. A network that is ill-posed — no boundary node to anchor the pressure
+field, an unknown appearing in no equation — raises `SolverError`, because no
+iteration count or tolerance would have helped and a caller has nothing to
+decide. Ordinary numerical non-convergence returns
+`SolverResult(converged=False)` instead: the iteration cap was reached, or the
+line search stalled, and the same plant may well solve from a different state
+or with a looser tolerance. That is a flag, never a success — `converged` is
+the only thing that says a solve landed, `failure` says which way it did not,
+and the solve is atomic either way, so a caller that ignores the flag reads
+the pre-solve plant rather than the last iterate. `raise_if_not_converged()`
+is there for a caller that would rather have the exception.
 
 Units follow docs/UNITS_CONVENTION.md: pressures and branch residuals in psia,
 flows and mass-balance residuals in the branch's own process-domain unit
@@ -86,6 +99,18 @@ DERIVATIVE_FLOOR = 1e-3  # absolute, for perturbing a branch near zero flow
 MIN_SLOPE_MAGNITUDE = 1e-9
 
 
+# Why a non-converged solve stopped. Both are ordinary numerical failures
+# reported through SolverResult.failure, not exceptions: a plant can be hard to
+# solve without being ill-posed. They are told apart because the remedies
+# differ — an iteration cap wants more iterations or a looser tolerance, a
+# stalled line search wants a different starting state. Heavy under-relaxation
+# is the common way to meet the first: damping at or below about 0.25 can take
+# more than the default 50 iterations on a plant that solves in a handful at
+# full step, and ITERATION_CAP rather than LINE_SEARCH_STALL is what says so.
+ITERATION_CAP = "iteration_cap"
+LINE_SEARCH_STALL = "line_search_stall"
+
+
 class SolverError(RuntimeError):
     """The network cannot be solved as posed.
 
@@ -99,7 +124,7 @@ class SolverError(RuntimeError):
 
 @dataclass(frozen=True)
 class SolverResult:
-    """What one solve did. T4-3 owns the full diagnostic set.
+    """What one solve did — the whole diagnostic record of it.
 
     `residual` is the convergence measure, and it is dimensionless on
     purpose: a branch residual is in psia and a mass balance is in flow
@@ -108,6 +133,14 @@ class SolverResult:
     `residual <= 1.0`. `pressure_residual` and `flow_residual` are the same
     two worst cases in their own units, for reading rather than testing
     against.
+
+    `failure` is set on exactly the results that did not converge, and
+    `converged` and `failure` cannot disagree — a result claiming success
+    while naming a reason it failed is refused at construction rather than
+    left for a consumer to puzzle over. Only the first three reach a
+    snapshot: C4's solver section is `converged`, `iterations` and
+    `residual`, and the rest stay here (`app.engine.snapshot.solver_status`
+    is the projection).
     """
 
     converged: bool
@@ -115,6 +148,46 @@ class SolverResult:
     residual: float
     pressure_residual: float
     flow_residual: float
+    failure: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.converged != (self.failure is None):
+            raise ValueError(
+                f"a result converged if and only if it names no failure, got "
+                f"converged={self.converged} and failure={self.failure!r}",
+            )
+
+    def raise_if_not_converged(self) -> "SolverResult":
+        """Escalate a non-converged solve, for a caller that would rather
+        not carry the flag.
+
+        The default policy is the flag: numerical non-convergence is an
+        outcome a caller may reasonably retry, damp or report, and solve()
+        has already put the plant back. This turns it into the same
+        `SolverError` a structurally impossible network raises, for the
+        caller whose next line would only have raised one anyway. Returns
+        the result so it can be chained onto a solve.
+        """
+        if not self.converged:
+            raise SolverError(f"the network did not converge: {self.describe()}")
+
+        return self
+
+    def describe(self) -> str:
+        """One line for a log, an error message or a test failure."""
+        residuals = (
+            f"residual {self.residual:.3g}x tolerance "
+            f"(pressure {self.pressure_residual:.3g} psia, "
+            f"flow {self.flow_residual:.3g})"
+        )
+
+        if self.converged:
+            return f"converged in {self.iterations} iterations, {residuals}"
+
+        return (
+            f"stopped after {self.iterations} iterations on {self.failure}, "
+            f"{residuals}"
+        )
 
 
 class NetworkSolver:
@@ -219,6 +292,13 @@ class NetworkSolver:
         answer. A caller reading node pressures afterwards has no way to tell
         the two apart, so the only safe thing to leave behind is what was
         already there.
+
+        Not converging is reported, not raised: the result comes back with
+        `converged=False` and `failure` naming which of the two numerical
+        walls it hit — ITERATION_CAP or LINE_SEARCH_STALL. A network that
+        cannot be solved as posed is the other case and raises SolverError,
+        from here or from the constructor. Nothing about a failed solve is
+        silent in either direction, and no unchecked iterate survives it.
         """
         if self._size == 0:
             return SolverResult(
@@ -242,13 +322,23 @@ class NetworkSolver:
 
             while self._norm(residuals) > 1.0:
                 if iterations == self.max_iterations:
-                    return self._result(False, iterations, residuals)
+                    return self._result(
+                        False,
+                        iterations,
+                        residuals,
+                        ITERATION_CAP,
+                    )
 
                 step = self._newton_step(x, residuals)
                 advanced = self._line_search(x, residuals, step)
 
                 if advanced is None:
-                    return self._result(False, iterations, residuals)
+                    return self._result(
+                        False,
+                        iterations,
+                        residuals,
+                        LINE_SEARCH_STALL,
+                    )
 
                 x, residuals = advanced
                 iterations += 1
@@ -393,6 +483,7 @@ class NetworkSolver:
         converged: bool,
         iterations: int,
         residuals: list[float],
+        failure: str | None = None,
     ) -> SolverResult:
         branch_residuals = [abs(r) for r in residuals[: self._flows]]
         node_residuals = [abs(r) for r in residuals[self._flows :]]
@@ -403,6 +494,7 @@ class NetworkSolver:
             residual=self._norm(residuals),
             pressure_residual=max(branch_residuals, default=0.0),
             flow_residual=max(node_residuals, default=0.0),
+            failure=failure,
         )
 
 
@@ -415,6 +507,12 @@ def solve_network(
 ) -> SolverResult:
     """Solve a topology once. For a caller that solves the same plant every
     timestep, build a NetworkSolver and keep it instead.
+
+    A thin wrapper by design, so there is one failure policy and not two:
+    an ill-posed network raises SolverError out of the constructor or the
+    solve, non-convergence comes back as `converged=False` with a `failure`,
+    and the solve is atomic. Whatever `NetworkSolver.solve()` does, this
+    does.
     """
     return NetworkSolver(
         topology,

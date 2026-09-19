@@ -1,7 +1,7 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "2026-09-19",
-  "main_sha": "7d05323d2e246a8325f3704cdcc33f12faf58496",
+  "main_sha": "b6746b4e36e156142a52b82198902ab3c7e89de4",
   "tests_passing_on_main": 336,
   "status_vocabulary": {
     "Not Started": "No work begun",
@@ -115,7 +115,7 @@
   "totals": {
     "tasks": 94,
     "complete": 21,
-    "startable_now": 18
+    "startable_now": 16
   },
   "tasks": [
     {
@@ -546,9 +546,10 @@
         "app/engine/network.py",
         "app/engine/snapshot.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true
+      "status": "Ready for Review",
+      "status_key": "review",
+      "startable": false,
+      "note": "Ready for Review on feature/solver-diagnostics (PR #14), NOT merged. Failure policy is explicit and two-sided: a network that cannot be solved as posed raises SolverError (no boundary node to anchor the pressure field, an unknown appearing in no equation), while ordinary numerical non-convergence returns SolverResult(converged=False) with a new `failure` field naming which wall it hit - ITERATION_CAP or LINE_SEARCH_STALL. converged and failure cannot disagree (refused at construction), and raise_if_not_converged() is an opt-in escalation for a caller that wants the exception. describe() gives one diagnostic line. solve_network() is unchanged in behaviour and still delegates, so there is one policy and not two. T4-2's atomicity invariant is untouched and re-asserted at the diagnostic seam: a flagged solve leaves every node pressure and branch flow exactly as it found them.\n\nC4's shape is UNCHANGED. The snapshot solver section is still exactly converged / iterations / residual; snapshot.solver_status(result) is the projection, taking a structural SolverDiagnostics Protocol so the read contract still does not import the solver. pressure_residual, flow_residual and failure deliberately stay off C4 - widening it is a contract change and its own task. build_snapshot() now refuses half a solver section (iterations and residual with no converged reads as a clean solve to any consumer treating the flag as optional) and refuses an unexpected key so C4 cannot grow one by accident; solver={} still means 'no solve to report' and the default placeholder is unchanged.\n\nDiagnostics make T4-2's under-relaxation finding legible without retuning anything: damping 0.25 exhausts the default 50-iteration cap on a plant that solves in four iterations at full step, and reports ITERATION_CAP at a residual ~25x tolerance - a slow solve, not a stuck one. No solver mathematics changed, the cap is untouched and is not coupled to damping.\n\nNothing was wired into the engine: app/engine/engine.py, app/main.py, the Flask routes, both devices' step() / _calculate_operating_point() / *_boundary_pressure and every golden trace are untouched. T4-4 still owns that.\n\nTests: 355 passed (336 on main + 19), mypy clean, git diff --check clean. New tests/test_solver_diagnostics.py (14) covers the seam - structural raises, both failure slugs, atomicity plus the snapshot reporting converged=false, solve_network/solve parity, the damping condition - importing fixtures from test_network_solver so there is one SolverCurve (Equipment keys its registry by class name). test_snapshot.py gains 5 for the projection and the refusals. Files touched: app/engine/network.py, app/engine/snapshot.py, tests/test_solver_diagnostics.py, tests/test_snapshot.py.\n\nDEFERRED, not satisfied: the build plan's 'residual falls below tolerance on the reference plant' acceptance test. config/plants/olefins_lite.yaml does not exist - T3-4 is Blocked on the flow-domain decision - so convergence is proved on a hand-built single-domain series plant instead, and the test says so. Re-run the criterion against the reference plant once T3-4 lands."
     },
     {
       "id": "T4-4",

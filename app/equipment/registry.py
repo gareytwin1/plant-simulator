@@ -13,12 +13,14 @@ the full table. The registry itself does not enforce the convention; it
 only guarantees a tag maps to exactly one device.
 """
 
+from app.equipment.base import Equipment
+
 
 class EquipmentRegistry:
-    def __init__(self):
-        self._devices = {}
+    def __init__(self) -> None:
+        self._devices: dict[str, Equipment] = {}
 
-    def register(self, device):
+    def register(self, device: Equipment) -> Equipment:
         if device.tag in self._devices:
             raise ValueError(
                 f"tag {device.tag!r} is already registered to "
@@ -29,7 +31,7 @@ class EquipmentRegistry:
 
         return device
 
-    def resolve(self, tag):
+    def resolve(self, tag: str) -> Equipment:
         if tag not in self._devices:
             raise KeyError(
                 f"no device registered under tag {tag!r}, only {sorted(self._devices)}",

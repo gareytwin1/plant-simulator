@@ -29,19 +29,22 @@ dt is always injected by the caller, never defaulted from config or read
 from a wall clock — determinism depends on the caller owning time.
 """
 
+from collections.abc import Iterable
+
 from app.engine.clock import SimulationClock
-from app.engine.snapshot import build_snapshot
+from app.engine.snapshot import Snapshot, build_snapshot
+from app.equipment.base import Equipment
 
 
 class Engine:
-    def __init__(self, equipment=()):
+    def __init__(self, equipment: Iterable[Equipment] = ()) -> None:
         self.clock = SimulationClock()
-        self.equipment = {}
+        self.equipment: dict[str, Equipment] = {}
 
         for device in equipment:
             self.add_equipment(device)
 
-    def add_equipment(self, device):
+    def add_equipment(self, device: Equipment) -> None:
         """Register a device, keyed by its own tag.
 
         The only way to add equipment, so the dict key and device.tag can
@@ -49,13 +52,13 @@ class Engine:
         """
         self.equipment[device.tag] = device
 
-    def start(self):
+    def start(self) -> None:
         self.clock.resume()
 
-    def stop(self):
+    def stop(self) -> None:
         self.clock.pause()
 
-    def step(self, dt):
+    def step(self, dt: float) -> Snapshot:
         """Advance the clock by dt, integrate every device by the elapsed
         simulated time the clock actually applied, and publish the
         resulting snapshot.
@@ -71,7 +74,7 @@ class Engine:
 
         return self.snapshot()
 
-    def snapshot(self):
+    def snapshot(self) -> Snapshot:
         equipment_state = {
             tag: device.get_state()
             for tag, device in self.equipment.items()

@@ -1,5 +1,9 @@
 import copy
 import functools
+from collections.abc import Callable, Mapping
+from typing import Any, Protocol
+
+from app.statetypes import StateRow
 
 
 INLET = "inlet"
@@ -14,6 +18,19 @@ PRESERVED_ON_RESET = (
     "ports",
     "_construction_state",
 )
+
+
+class PortNode(Protocol):
+    """What a Port needs a node to be.
+
+    C1 sits below C2 and must not import it, but a port does carry the
+    node the topology attached it to. The only thing anything on the
+    equipment side ever reads off that node is its id, so that is all the
+    protocol states — `app.plant.topology.Node` satisfies it structurally.
+    """
+
+    @property
+    def id(self) -> str: ...
 
 
 class Port:
@@ -34,7 +51,16 @@ class Port:
         "node",
     )
 
-    def __init__(self, name, direction, node=None):
+    name: str
+    direction: str
+    node: PortNode | None
+
+    def __init__(
+        self,
+        name: str,
+        direction: str,
+        node: PortNode | None = None,
+    ) -> None:
         if direction not in PORT_DIRECTIONS:
             raise ValueError(
                 f"port direction must be one of {PORT_DIRECTIONS}, got {direction!r}",
@@ -45,16 +71,16 @@ class Port:
         self.node = node
 
     @property
-    def connected(self):
+    def connected(self) -> bool:
         return self.node is not None
 
-    def connect(self, node):
+    def connect(self, node: PortNode) -> None:
         self.node = node
 
-    def disconnect(self):
+    def disconnect(self) -> None:
         self.node = None
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"Port({self.name!r}, {self.direction!r}, node={self.node!r})"
 
 
@@ -85,19 +111,21 @@ class Equipment:
     """
 
     tag: str
-    ports: dict
+    ports: dict[str, Port]
 
-    _registry = {}
+    _registry: dict[str, type["Equipment"]] = {}
 
-    def __init_subclass__(cls, **kwargs):
+    def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
 
         Equipment._registry[cls.__name__] = cls
 
         if "__init__" in cls.__dict__:
-            cls.__init__ = _captures_construction_state(cls.__init__)
+            cls.__init__ = _captures_construction_state(  # type: ignore[method-assign]
+                cls.__init__,
+            )
 
-    def __init__(self, tag, ports=None):
+    def __init__(self, tag: str, ports: Mapping[str, str] | None = None) -> None:
         self.tag = tag
         self.ports = {}
 
@@ -107,16 +135,16 @@ class Equipment:
         self._construction_state = _snapshot(self)
 
     @classmethod
-    def registered(cls):
+    def registered(cls) -> dict[str, type["Equipment"]]:
         return dict(Equipment._registry)
 
-    def add_port(self, name, direction):
+    def add_port(self, name: str, direction: str) -> Port:
         port = Port(name, direction)
         self.ports[name] = port
 
         return port
 
-    def port(self, name):
+    def port(self, name: str) -> Port:
         if name not in self.ports:
             raise KeyError(
                 f"{self.tag} has no port {name!r}, only {sorted(self.ports)}",
@@ -124,7 +152,7 @@ class Equipment:
 
         return self.ports[name]
 
-    def integrate(self, dt):
+    def integrate(self, dt: float) -> None:
         """Advance SLOW state only: load ramp, valve stroke,
         level, metal temperature. Never touches flow/pressure.
 
@@ -133,7 +161,7 @@ class Equipment:
         """
         raise NotImplementedError
 
-    def characteristic(self, flow):
+    def characteristic(self, flow: float) -> float:
         """Pressure change across the device at this flow.
         Positive = rise (machine), negative = drop (valve, pipe).
 
@@ -141,11 +169,11 @@ class Equipment:
         """
         raise NotImplementedError
 
-    def get_state(self):
+    def get_state(self) -> StateRow:
         """Flat, JSON-safe primitives — the device's row in the snapshot."""
         raise NotImplementedError
 
-    def reset(self):
+    def reset(self) -> None:
         """Back to construction state, exactly. Port wiring is left alone."""
         restored = copy.deepcopy(self._construction_state)
 
@@ -158,7 +186,12 @@ class Equipment:
         self.__dict__.update(restored)
 
     @staticmethod
-    def _move_toward(current, target, rate, dt):
+    def _move_toward(
+        current: float,
+        target: float,
+        rate: float,
+        dt: float,
+    ) -> float:
         change = rate * dt
 
         if current < target:
@@ -175,11 +208,13 @@ class Equipment:
 
         return current
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<{type(self).__name__} {getattr(self, 'tag', '?')}>"
 
 
-def _snapshot(device):
+def _snapshot(device: "Equipment") -> dict[str, Any]:
+    # A device's __dict__ holds whatever slow state that device declared,
+    # so this is genuinely heterogeneous rather than under-specified.
     return copy.deepcopy(
         {
             name: value
@@ -189,9 +224,11 @@ def _snapshot(device):
     )
 
 
-def _captures_construction_state(init):
+def _captures_construction_state(
+    init: Callable[..., None],
+) -> Callable[..., None]:
     @functools.wraps(init)
-    def wrapper(self, *args, **kwargs):
+    def wrapper(self: "Equipment", *args: Any, **kwargs: Any) -> None:
         init(self, *args, **kwargs)
 
         self._construction_state = _snapshot(self)

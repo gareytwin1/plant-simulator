@@ -22,7 +22,7 @@ Refresh this file whenever a task merges to `main`.
 | **M0** Baseline Cleanup | **7/7 Complete** |
 | **M1** Equipment Model Contract | **5/5 Complete** — Checkpoint A reached |
 | **M2** Simulation Engine and Clock | 4/6 (T2-5 startable) |
-| **M3** Plant Topology and Streams | 3/4 (T3-4 startable but parked) |
+| **M3** Plant Topology and Streams | 3/4 (T3-4 Blocked) |
 | **M4** Pressure-Flow Network Solver | 2/5 — T4-1, T4-2 Complete; **T4-3 startable** |
 | M5–M19 | Not started |
 
@@ -84,8 +84,11 @@ now genuinely merged.)
   `Engine.step()` or the Flask request path. Device-owned operating-point
   solving and interim `*_boundary_pressure` attributes remain until T4-4.
 - **A reference plant file (T3-4).** The loader exists, but no
-  `config/plants/*.yaml` file does, and the loader reads JSON only — `pyyaml`
-  is not in `requirements.txt`. T3-4 is startable but parked.
+  `config/plants/*.yaml` file does. T3-4 is **Blocked** pending a design
+  decision on flow-domain metadata: both the config schema (C3) and the solver
+  (T4-2) lack metadata to track liquid/gas boundaries, and the design of how
+  topology will enforce single hydraulic domain is undecided. T5-1 (vessel)
+  will also need this decision.
 - **Single action endpoint (C5).** Routes are still per-equipment.
 - **Controllers (PID), envelopes, alarms, trips, scenarios, scoring, historian,
   console.** All specified in the build plan, none implemented.
@@ -262,7 +265,7 @@ Neither has a task yet; both need an owner (an Opus decision each).
 "Seeded RNG" above. `SeededRNG` also has no state save/restore, which T12-1
 (snapshot save and restore) and T14-5 (deterministic replay) will need.
 
-### Startable now (18 tasks)
+### Startable now (17 tasks)
 
 All dependencies are Complete, and none of these edits an existing spine file.
 T4-3 (edits `snapshot.py`) and T4-4 (edits `engine.py`) will, and are not
@@ -272,11 +275,12 @@ satellite work under the **`app/engine/` rule** in CLAUDE.md. T4-3 is the
 exception: it edits existing spine files (`snapshot.py`) so it is spine work and
 takes the lock.
 
+**T3-4 (reference plant) is Blocked** on flow-domain metadata design (see above).
+
 | Task | Name | Model | Branch |
 |---|---|---|---|
 | **T4-3** | Solver diagnostics and failure handling | Sonnet | `feature/solver-diagnostics` |
-| **T3-4** | Reference plant configuration | Sonnet | `feature/reference-plant` |
-| **T5-1** | Vessel model (likely hits the C3 multi-port gap) | Sonnet | `feature/vessel-model` |
+| **T5-1** | Vessel model (likely hits the C3 multi-port gap; also blocked on flow-domain design) | Sonnet | `feature/vessel-model` |
 | **T6-1** | Stream enthalpy and mixing | Opus | `feature/stream-enthalpy` |
 | **T7-1** | Control valve model | Sonnet | `feature/control-valve` |
 | **T13-1** | Malfunction model and registry | Opus | `feature/malfunction-model` |
@@ -313,10 +317,13 @@ restores the pressures/flows to their pre-solve state. `Snapshot.solver`
 currently holds a placeholder `converged: true`; T4-3 will populate it with the
 full result.
 
-**Process-domain caveat (recorded, unenforced)**:
+**Process-domain caveat (recorded, unenforced; blocker for T3-4 and T5-1)**:
 A `Topology` must be a single hydraulic domain (gas or liquid, not both). Nothing
-enforces this — C2/C3/`NetworkSolver` carry no flow-domain metadata. T3-4 (YAML)
-and T5-1 (vessel) will decide the liquid/gas architecture.
+enforces this — C2/C3/`NetworkSolver` carry no flow-domain metadata. **T3-4 (reference
+plant) is Blocked** pending the design of how config/topology will track and
+enforce flow boundaries. **T5-1 (vessel)** will also depend on this decision,
+since a vessel can have both liquid and gas phases. Hold both until flow-domain
+architecture is settled.
 
 ## Test suite composition (336 tests)
 

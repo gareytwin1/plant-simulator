@@ -1,0 +1,22 @@
+# Tool configuration only. The project is not packaged and deliberately does
+# not use Poetry/Hatch/uv: dependencies stay in requirements.txt and
+# requirements-dev.txt.
+
+[tool.mypy]
+python_version = "3.12"
+files = ["app"]
+mypy_path = "."
+explicit_package_bases = true
+
+# Production code is typed, so an untyped def in app/ is a gap, not a choice.
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_any_generics = true
+no_implicit_optional = true
+strict_equality = true
+extra_checks = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_unused_configs = true
+warn_return_any = true

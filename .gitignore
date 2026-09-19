@@ -1,6 +1,4 @@
 # Claude Code
-# CLAUDE.md is deliberately tracked — it is the agent-facing operating
-# context every new session reads before touching the repository.
 CLAUDE.local.md
 .claude/settings.local.json
 

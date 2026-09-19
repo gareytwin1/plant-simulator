@@ -9,8 +9,8 @@ Refresh this file whenever a task merges to `main`.
 ---
 
 **Last refreshed:** 19 September 2026
-**Current `main`:** `b2656a5f9aa706d27316c61ff2d0381ce2ca6730` — *Merge T3-3: Plant loader and topology validation*
-**Full suite on `main`:** **266 passed** (`conda activate plant-simulator && python -m pytest -q`); `python -m mypy` clean
+**Current `main`:** `26748e79091366aa2491c5607aa55ad71d160c1c` — *Merge T2-2: Seeded RNG service*
+**Full suite on `main`:** **297 passed** (`conda activate plant-simulator && python -m pytest -q`); `python -m mypy` clean
 
 ---
 
@@ -20,12 +20,12 @@ Refresh this file whenever a task merges to `main`.
 |---|---|
 | **M0** Baseline Cleanup | **7/7 Complete** |
 | **M1** Equipment Model Contract | **5/5 Complete** — Checkpoint A reached |
-| **M2** Simulation Engine and Clock | 3/6 (T2-2 corrected to In Progress; T2-5 startable) |
+| **M2** Simulation Engine and Clock | 4/6 (T2-5 startable) |
 | **M3** Plant Topology and Streams | 3/4 (T3-4 startable) |
 | **M4** Pressure-Flow Network Solver | 1/5 — T4-1 Complete; **T4-2 startable** (T3-3 merged) |
 | M5–M19 | Not started |
 
-Overall: **19 of 94 tasks Complete.**
+Overall: **20 of 94 tasks Complete.**
 
 ### Completed and merged to `main`
 
@@ -33,29 +33,26 @@ Overall: **19 of 94 tasks Complete.**
   portable requirements, static typing baseline.
 - **M1** — `T1-1` golden harness · `T1-2` Equipment base + Port (C1) ·
   `T1-3` compressor onto C1 · `T1-4` pump onto C1 · `T1-5` equipment registry.
-- **M2** — `T2-1` simulation clock · `T2-3` engine + snapshot (C4) ·
+- **M2** — `T2-1` simulation clock · `T2-2` seeded RNG (`SeededRNG`, no global
+  stream — see the note below) · `T2-3` engine + snapshot (C4) ·
   `T2-4` session/plant registry.
 - **M3** — `T3-1` plant config schema + validator (C3) ·
   `T3-2` node/branch/stream (C2) · `T3-3` plant loader (`app/plant/loader.py`).
 - **M4** — `T4-1` branch characteristic interface (sign convention,
   `signed_square`, `Branch.characteristic()` / `Branch.residual()`).
 
-### Status correction made during this refresh
+### Seeded RNG: what shipped and what did not (T2-2)
 
-**T2-2 (Seeded RNG service) was marked Complete but is not on `main`.** Its note
-claimed "Merged feature/seeded-rng … commit 611c5b6", but `app/engine/rng.py`
-and `tests/test_rng.py` do not exist on `main`. Commit `611c5b6` lives only on
-the **local-only, never-pushed, never-merged** branch `feature/seeded-rng`,
-which is also well behind current `main`. Status corrected to **In Progress** in
-both the live artifact and `docs/BUILD_PLAN_STATUS.json`.
+`SeededRNG` (`app/engine/rng.py`) is a seeded generator instance; a seed is
+required. `tests/test_random_source_guard.py` fails the build if any other module
+in `app/` imports `random`. Nothing in `app/` draws random numbers yet.
 
-Impact is contained: nothing in `app/` imports `random` today, so no determinism
-rule is currently violated, and the only dependent task (**T14-5**, deterministic
-replay) is blocked on other dependencies anyway. No currently-startable task
-changes. To finish T2-2: rebase the branch onto `main`, reconcile it with project
-style, run the full suite and `python -m mypy`, open a PR, merge. (Its type hints
-are no longer a mismatch — production code is typed as of the static typing
-baseline below.)
+**There is deliberately no module-level RNG and no `set_seed()`.** A process-wide
+stream would be shared by every browser session, and each session owns its own
+plant. **Open decision:** which object owns a plant's RNG (session, engine or
+plant). It belongs to the first task that needs randomness. (T2-2 was once
+recorded as Complete before it was merged; that was corrected, and the task is
+now genuinely merged.)
 
 ## Architecture status
 
@@ -196,13 +193,8 @@ and has a task that retires it.
 
 ## Active branches and PRs
 
-No feature branch is in flight. Open PRs: `chore/track-claude-md` (drops a
-stale comment from `.gitignore`) and this refresh (`docs/t4-1-complete`). **No
-spine lock is held.**
-
-Two stale local-only branches exist in the primary clone and can be deleted once
-confirmed merged: `feature/plant-topology`, `feature/seeded-rng` (their work is
-on `main` as `2e56c48` and `611c5b6`).
+None. No open PRs and no feature branch in flight; **no spine lock is held.**
+Merged local branches can be deleted at any time.
 
 ## Next integration checkpoint
 
@@ -271,7 +263,7 @@ file and can be handed to separate agents immediately:
 None of these takes the spine lock; each is a satellite and merges
 independently.
 
-## Test suite composition (266 tests)
+## Test suite composition (297 tests)
 
 | File | Tests | File | Tests |
 |---|---|---|---|
@@ -282,7 +274,8 @@ independently.
 | `test_golden_regression.py` | 17 | `test_sessions.py` | 7 |
 | `test_plant_config_validation.py` | 13 | `test_session_isolation.py` | 6 |
 | `test_engine.py` | 13 | `test_clock.py` | 13 |
-| `test_snapshot.py` | 11 | | |
+| `test_snapshot.py` | 11 | `test_random_source_guard.py` | 21 |
+| `test_rng.py` | 10 | | |
 
 `test_equipment_contract.py` and `test_registry.py` discover device classes
 dynamically, so a new `Equipment` subclass is swept into the contract tests

@@ -1,12 +1,6 @@
 import pytest
 
 from app import main
-from app.equipment.compressor import GasCompressor
-
-
-@pytest.fixture(autouse=True)
-def reset_compressor():
-    main.compressor = GasCompressor()
 
 
 def test_api_state():
@@ -92,9 +86,10 @@ def test_start_redirect():
     client = main.app.test_client()
 
     response = client.get("/start", follow_redirects=False)
+    state = client.get("/api/state").get_json()
 
     assert response.status_code == 302
-    assert main.compressor.running is True
+    assert state["running"] is True
 
 
 def test_stop_redirect():
@@ -105,7 +100,8 @@ def test_stop_redirect():
     client.post("/api/step")
 
     response = client.get("/stop", follow_redirects=False)
+    state = client.get("/api/state").get_json()
 
     assert response.status_code == 302
-    assert main.compressor.running is False
-    assert main.compressor.load_target == 0.0
+    assert state["running"] is False
+    assert state["load_target"] == 0.0

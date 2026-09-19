@@ -1,12 +1,6 @@
 import pytest
 
 from app import main
-from app.equipment.pump import CentrifugalPump
-
-
-@pytest.fixture(autouse=True)
-def reset_pump():
-    main.pump = CentrifugalPump()
 
 
 def test_pump_api_state():

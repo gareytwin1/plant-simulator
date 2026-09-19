@@ -1,7 +1,8 @@
-from flask import Flask, jsonify, redirect, render_template, request, url_for
+import uuid
 
-from app.equipment.compressor import GasCompressor
-from app.equipment.pump import CentrifugalPump
+from flask import Flask, g, jsonify, redirect, render_template, request, url_for
+
+from app.engine.sessions import SessionRegistry
 
 
 app = Flask(
@@ -10,27 +11,47 @@ app = Flask(
     static_folder="../static",
 )
 
-compressor = GasCompressor()
-pump = CentrifugalPump()
+SESSION_COOKIE = "plant_session_id"
+
+sessions = SessionRegistry()
+
+
+@app.before_request
+def load_session():
+    session_id = request.cookies.get(SESSION_COOKIE)
+    session = sessions.get(session_id) if session_id else None
+
+    if session is None:
+        session_id = uuid.uuid4().hex
+        session = sessions.create(session_id)
+
+    g.session_id = session_id
+    g.plant = session
+
+
+@app.after_request
+def persist_session_cookie(response):
+    response.set_cookie(SESSION_COOKIE, g.session_id, httponly=True)
+    return response
 
 
 @app.route("/compressor")
 def compressor_page():
     return render_template(
         "compressor.html",
-        state=compressor.get_state(),
+        state=g.plant.compressor.get_state(),
     )
 
 
 @app.route("/start")
 def start():
-    compressor.start()
+    g.plant.compressor.start()
     return redirect(url_for("compressor_page"))
 
 
 @app.route("/stop")
 def stop():
-    compressor.stop()
+    g.plant.compressor.stop()
     return redirect(url_for("compressor_page"))
 
 
@@ -38,87 +59,87 @@ def stop():
 def pump_page():
     return render_template(
         "pump.html",
-        state=pump.get_state(),
+        state=g.plant.pump.get_state(),
     )
 
 
 @app.route("/api/state")
 def api_state():
-    return jsonify(compressor.get_state())
+    return jsonify(g.plant.compressor.get_state())
 
 
 @app.route("/api/start", methods=["POST"])
 def api_start():
-    compressor.start()
-    return jsonify(compressor.get_state())
+    g.plant.compressor.start()
+    return jsonify(g.plant.compressor.get_state())
 
 
 @app.route("/api/stop", methods=["POST"])
 def api_stop():
-    compressor.stop()
-    return jsonify(compressor.get_state())
+    g.plant.compressor.stop()
+    return jsonify(g.plant.compressor.get_state())
 
 
 @app.route("/api/step", methods=["POST"])
 def api_step():
-    compressor.step()
-    return jsonify(compressor.get_state())
+    g.plant.compressor.step()
+    return jsonify(g.plant.compressor.get_state())
 
 
 @app.post("/api/valve")
 def set_valve():
     data = request.get_json()
 
-    compressor.set_discharge_valve_position(
+    g.plant.compressor.set_discharge_valve_position(
         data["discharge_valve_position"]
     )
 
-    return jsonify(compressor.get_state())
+    return jsonify(g.plant.compressor.get_state())
 
 
 @app.post("/api/load")
 def set_load():
     data = request.get_json()
 
-    compressor.set_load_target(
+    g.plant.compressor.set_load_target(
         float(data["load_target"])
     )
 
-    return jsonify(compressor.get_state())
+    return jsonify(g.plant.compressor.get_state())
 
 
 @app.route("/api/pump/state")
 def api_pump_state():
-    return jsonify(pump.get_state())
+    return jsonify(g.plant.pump.get_state())
 
 
 @app.route("/api/pump/start", methods=["POST"])
 def api_pump_start():
-    pump.start()
-    return jsonify(pump.get_state())
+    g.plant.pump.start()
+    return jsonify(g.plant.pump.get_state())
 
 
 @app.route("/api/pump/stop", methods=["POST"])
 def api_pump_stop():
-    pump.stop()
-    return jsonify(pump.get_state())
+    g.plant.pump.stop()
+    return jsonify(g.plant.pump.get_state())
 
 
 @app.route("/api/pump/step", methods=["POST"])
 def api_pump_step():
-    pump.step()
-    return jsonify(pump.get_state())
+    g.plant.pump.step()
+    return jsonify(g.plant.pump.get_state())
 
 
 @app.post("/api/pump/speed")
 def set_pump_speed():
     data = request.get_json()
 
-    pump.set_speed_target(
+    g.plant.pump.set_speed_target(
         float(data["speed_target"])
     )
 
-    return jsonify(pump.get_state())
+    return jsonify(g.plant.pump.get_state())
 
 
 if __name__ == "__main__":

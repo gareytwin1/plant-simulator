@@ -2,7 +2,7 @@
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "20 September 2026",
   "main_sha": "42dc22776a2f8dcec2686b4395ae61e8e24cbe47",
-  "tests_passing_on_main": 715,
+  "tests_passing_on_main": 738,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -23,7 +23,7 @@
     },
     "M2": {
       "name": "Simulation Engine and Clock",
-      "complete": 4,
+      "complete": 5,
       "total": 6
     },
     "M3": {
@@ -114,7 +114,7 @@
   },
   "totals": {
     "tasks": 97,
-    "complete": 30,
+    "complete": 32,
     "startable_now": 18
   },
   "tasks": [
@@ -407,9 +407,9 @@
       "files": [
         "app/engine/scheduler.py"
       ],
-      "status": "Ready for Review",
-      "status_key": "review",
-      "note": "app/engine/scheduler.py: one Scheduler per Engine, deadline-scheduled fixed-dt worker thread, step_lock around engine.step, fail-stop on exception, explicit stop()+join. Not yet merged."
+      "status": "Complete",
+      "status_key": "done",
+      "note": "app/engine/scheduler.py: one Scheduler per Engine, deadline-scheduled fixed-dt worker thread, step_lock around engine.step, fail-stop on exception, explicit stop()+join. Merged to main (06569cc), PR #36."
     },
     {
       "id": "T2-6",
@@ -425,10 +425,7 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "T2-5"
-      ]
+      "startable": true
     },
     {
       "id": "T3-1",

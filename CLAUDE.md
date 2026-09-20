@@ -177,7 +177,7 @@ the coupling's writer partition the graph between them. A port is coupled
 only where its flow unit can be confirmed GPM from the devices on the
 branches meeting it — **a new device model on a branch must be added to
 `FLOW_UNITS`**, or a vessel attached beside it refuses at Engine
-construction. Gas-phase accumulation is T5-3 and does not exist.
+construction. Gas-phase accumulation (T5-3) puts a gas vessel's pressure on the same footing: it replaces the boundary at every SCFM attachment, and a gas attachment is coupled only where SCFM is confirmed.
 
 **Still not on the request path:** `EquipmentRegistry`, `SeededRNG` (T2-2).
 

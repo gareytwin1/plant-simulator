@@ -24,7 +24,7 @@ Refresh this file whenever a task merges to `main`.
 | **M2** Simulation Engine and Clock | 4/6 (T2-5 startable) |
 | **M3** Plant Topology and Streams | **6/6 Complete** |
 | **M4** Pressure-Flow Network Solver | **5/5 Complete** — Checkpoint B reached; T4-5 was re-scoped before implementation, see [The T4-5 re-scope](#the-t4-5-re-scope) |
-| **M5** Inventory and Mass Balance | 2/5 — T5-1, T5-2 Complete; **T5-3 and T5-4 startable**; the engine and topology spine locks are released (M5 has 5 tasks: T5-5, the integrated reference plant, was added) |
+| **M5** Inventory and Mass Balance | 2/5 — T5-1, T5-2 Complete; **T5-3 Ready for Review** (`feature/gas-inventory`, not merged); **T5-4 startable**; the engine and topology spine locks are released (M5 has 5 tasks: T5-5, the integrated reference plant, was added) |
 | **M7** Control Valves and Final Elements | 1/4 — T7-1 Complete; **T7-3 and T7-4 startable**; T7-2 also needs T5-5 |
 | M6, M8–M19 | Not started |
 
@@ -344,8 +344,44 @@ Engine-computes-nothing state; what remains is the consequence of that:
 
 **No spine lock is held.** T5-2 merged as `154385c`
 ([PR #27](https://github.com/gareytwin1/plant-simulator/pull/27)) and released
-the locks on `app/engine/engine.py` and `app/plant/topology.py`. **T5-3 is now
-free to start** (`app/equipment/vessel.py`, gas-phase accumulation).
+the locks on `app/engine/engine.py` and `app/plant/topology.py`.
+
+**T5-3 is Ready for Review** on `feature/gas-inventory` (based on `4259617`, not
+merged; 715 tests, `mypy` clean). It touches `app/equipment/vessel.py`,
+`app/engine/coupling.py` and `app/config.py` only.
+
+- **Rate law.** `dP/dt = P_std * (Q_in - Q_out) / V_gas` (psi/min, SCFM, ft^3),
+  isothermal at the SCFM standard temperature, `P_std = 14.696` psia
+  (`config.STANDARD_PRESSURE`). No Z-factor, no temperature dynamics. The
+  standard-volume inventory `P * V_gas / P_std` (scf) changes by exactly the net
+  SCFM, so mass closes to rounding. Verified by hand: 70.7 SCFM into 100 ft^3 is
+  10.39 psi/min.
+- **Routing.** A vessel keeps GPM (`inlet_flow`, `outlet_flow`) and SCFM
+  (`gas_inlet_flow`, `gas_outlet_flow`) apart. The flow unit confirmed at each
+  attachment picks the pair, never the port name.
+- **Boundaries.** Vessel pressure *replaces* the runtime boundary at **every** gas
+  attachment, inlet and outlet, so the inlet machine sees the back-pressure.
+  `configured_pressure` is untouched and `Plant.to_config()` still round-trips.
+  Liquid keeps its head-as-offset on the outlet only, and a head never reaches a
+  gas boundary.
+- **Attachment-driven.** A confirmed SCFM attachment activates the gas phase
+  (`Vessel.activate_gas()`, called by the coupling). A liquid-only vessel never
+  integrates pressure and its `get_state()` is unchanged; a gas vessel adds
+  `pressure`, `gas_volume`, `gas_inventory`, `gas_inlet_flow`, `gas_outlet_flow`.
+- **Reference numbers** (`tests/test_gas_inventory.py`): compressor 60 psia with
+  shutoff 220 and R 0.002 into the vessel, vent valve capacity 20 to 14.696 psia.
+  Balance at 162.09 psia and 242.8 SCFM; linearised time constant
+  `V / (P_std * 1.853)`, 220 s for 100 ft^3 (measured to within 10%).
+- **Known limit, not fixed and no clamp added.** The compressor curve and the
+  valve are square-root laws, so the flow's slope is infinite at zero flow and
+  explicit Euler steps across a zero-flow point (the vent pressure, compressor
+  shutoff) by about `(a * dt)^2 / 4`, `a = P_std * C / (60 * V)`. That is 0.0006
+  psi at 100 ft^3 and 0.06 psi at 10 ft^3 (dt = 1 s), a bounded limit cycle
+  near 1 ft^3, and at 0.3 ft^3 pressure would go negative, where the
+  strictly-positive guard raises. Supported: 10 ft^3 and up at a one-second step.
+- The three pre-T5-3 tests that encoded "gas is not coupled yet" were rewritten,
+  not weakened: the SCFM-never-reaches-GPM and head-never-reaches-gas guarantees
+  remain, and an unclassifiable node still raises.
 
 **T4-5 merged** as `e261134` ([PR #29](https://github.com/gareytwin1/plant-simulator/pull/29)):
 `tests/test_cause_effect.py` and nothing else. It was rebased onto `154385c`
@@ -490,16 +526,14 @@ All dependencies are Complete. Two of them (T2-5, T12-1) add *new* isolated
 modules under `app/engine/`, which is satellite work under the **`app/engine/`
 rule** in CLAUDE.md.
 
-**Startable:** T4-5 and T5-2 are both merged, so neither appears below. T5-3
-(gas pressure, `app/equipment/vessel.py`) takes no spine lock and is free to
-start now that T5-2 has released that file. **T7-1** is merged (`fefa841`) and carried the
+**Startable:** T4-5 and T5-2 are both merged, so neither appears below. T5-3 is
+Ready for Review and no longer startable. **T7-1** is merged (`fefa841`) and carried the
 two cause-and-effect criteria moved off T4-5, so **T7-3** and **T7-4** are newly
 startable. T7-3 edits `app/equipment/valve.py` and should not run beside another
 valve change.
 
 | Task | Name | Model | Branch |
 |---|---|---|---|
-| **T5-3** | Gas-phase pressure accumulation | Sonnet | `feature/gas-inventory` |
 | **T6-1** | Stream enthalpy and mixing | Opus | `feature/stream-enthalpy` |
 | **T7-3** | Valve fault modes | Sonnet | `feature/valve-faults` |
 | **T7-4** | Command arbitration | Sonnet | `feature/command-arbitration` |

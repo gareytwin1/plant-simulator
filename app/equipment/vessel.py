@@ -1,5 +1,5 @@
 """
-Vessel: a coupling device whose liquid inventory is slow state.
+Vessel: a coupling device whose liquid and gas inventory is slow state.
 
 A vessel is not a branch. It declares ports and no hydraulic path (ADR 0001,
 A4), so it holds no Branch, sits in no Topology and lives only in
@@ -24,6 +24,31 @@ head, not zero psia, and the base it is added to is the node's own configured
 pressure. A vessel that owned the absolute boundary would put a battery limit
 at 0 psia the moment it drained.
 
+**Gas (T5-3).** The same physical vessel may also hold a gas phase, and it is
+a second, separate piece of slow state: `pressure` (psia), integrated from
+`gas_inlet_flow` and `gas_outlet_flow` in SCFM. GPM and SCFM never share an
+attribute; which pair a port writes to is decided by the flow unit confirmed
+at the node it attaches to (`app/engine/coupling.py`), never by the port's
+name. The rate law is a lumped, isothermal ideal gas at the standard
+temperature, which is the one temperature SCFM is defined at:
+
+    dP/dt = P_std * (Q_in - Q_out) / V_gas
+
+with P_std in psia, Q in SCFM and V_gas in ft^3, so the right-hand side is
+psi per minute. It is dimensionally the ideal-gas law differentiated with
+n proportional to P_std * (standard volume): the standard-volume inventory
+`P * V_gas / P_std` (scf) changes by exactly the net SCFM, which is why mass
+is conserved to rounding. No Z-factor, no temperature dynamics.
+
+The gas phase is attachment-driven: a vessel with no confirmed SCFM
+attachment never has it activated by the coupling, integrates no pressure
+and publishes no gas fields, so a liquid-only vessel is exactly what it was.
+The pressure is the vessel's own state and, unlike the liquid head, an
+absolute one: the coupling writes it as the runtime boundary at every gas
+attachment, and the as-built configured pressure is untouched. Nothing is
+clamped. Pressure must stay strictly positive, and a step that would take it
+to zero or below raises rather than being floored.
+
 Range guards sit on the attributes rather than in `__init__` because design
 values arrive by `setattr` from the C3 loader: a capacity of zero set from
 config would otherwise surface much later as a division by zero, a long way
@@ -32,6 +57,7 @@ from the line that caused it.
 
 import math
 
+from app import config
 from app.equipment.base import Equipment, INLET, OUTLET
 from app.statetypes import StateRow
 
@@ -55,6 +81,14 @@ class Vessel(Equipment):
 
         self.inlet_flow = 0.0                  # GPM, written by the caller
         self.outlet_flow = 0.0                 # GPM, written by the caller
+
+        self.gas_volume = 100.0                # ft^3, fixed gas space
+        self.initial_pressure = config.STANDARD_PRESSURE   # psia, the design seed
+
+        self.gas_inlet_flow = 0.0              # SCFM, written by the caller
+        self.gas_outlet_flow = 0.0             # SCFM, written by the caller
+
+        self._gas_active = False
 
     @property
     def capacity(self) -> float:
@@ -95,6 +129,51 @@ class Vessel(Equipment):
         self._level = _checked(self.tag, "level", value, 0.0, 1.0)
 
     @property
+    def gas_volume(self) -> float:
+        return self._gas_volume
+
+    @gas_volume.setter
+    def gas_volume(self, value: float) -> None:
+        self._gas_volume = _checked(self.tag, "gas_volume", value, 0.0, above=True)
+
+    @property
+    def initial_pressure(self) -> float:
+        return self._initial_pressure
+
+    @initial_pressure.setter
+    def initial_pressure(self, value: float) -> None:
+        # The design seed and the running state start equal, exactly as a
+        # configured level is both. Set it once, from the loader.
+        self._initial_pressure = _checked(
+            self.tag,
+            "initial_pressure",
+            value,
+            0.0,
+            above=True,
+        )
+        self._pressure = self._initial_pressure
+
+    @property
+    def pressure(self) -> float:
+        return self._pressure
+
+    @pressure.setter
+    def pressure(self, value: float) -> None:
+        self._pressure = _checked(self.tag, "pressure", value, 0.0, above=True)
+
+    @property
+    def gas_active(self) -> bool:
+        return self._gas_active
+
+    def activate_gas(self) -> None:
+        """Called by the coupling when it confirms an SCFM attachment."""
+        self._gas_active = True
+
+    @property
+    def gas_inventory(self) -> float:
+        return self.pressure * self.gas_volume / config.STANDARD_PRESSURE  # scf
+
+    @property
     def volume(self) -> float:
         return self.level * self.capacity      # gal
 
@@ -124,11 +203,19 @@ class Vessel(Equipment):
             ),
         )
 
+        if self.gas_active:
+            net_gas_flow = self.gas_inlet_flow - self.gas_outlet_flow   # SCFM
+
+            self.pressure = (
+                self.pressure
+                + config.STANDARD_PRESSURE * net_gas_flow * dt / 60.0 / self.gas_volume
+            )
+
     def characteristic(self, flow: float) -> float:
         return 0.0
 
     def get_state(self) -> StateRow:
-        return {
+        state: StateRow = {
             "level": self.level,                # [0, 1]
             "volume": self.volume,              # gal
             "head": self.head,                  # psi
@@ -137,6 +224,19 @@ class Vessel(Equipment):
             "outlet_flow": self.outlet_flow,    # GPM
             "residence_time": self.residence_time,  # s, None with no outflow
         }
+
+        if self.gas_active:
+            state.update(
+                {
+                    "pressure": self.pressure,                  # psia
+                    "gas_volume": self.gas_volume,              # ft^3
+                    "gas_inventory": self.gas_inventory,        # scf
+                    "gas_inlet_flow": self.gas_inlet_flow,      # SCFM
+                    "gas_outlet_flow": self.gas_outlet_flow,    # SCFM
+                },
+            )
+
+        return state
 
 
 def _checked(

@@ -20,6 +20,17 @@ PUMP_SPEED_RATE_PER_SECOND = 0.10
 VALVE_STROKE_RATE_PER_SECOND = 0.05
 
 
+# Gas inventory
+#
+# Standard conditions for SCFM, from docs/UNITS_CONVENTION.md: 60 F and 1 atm.
+# A vessel's gas is held isothermal at the standard temperature, so the only
+# constant its rate law needs is the standard pressure, and 1 atm is 14.696
+# psia. It is a second spelling of topology.ATMOSPHERIC_PRESSURE on purpose:
+# equipment imports nothing from the plant package.
+
+STANDARD_PRESSURE = 14.696  # psia
+
+
 # Equipment tag prefixes
 #
 # ISA-style equipment codes: a tag is PREFIX-NNN. This is the reference

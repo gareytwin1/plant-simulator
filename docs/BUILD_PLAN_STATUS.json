@@ -680,10 +680,10 @@
       "files": [
         "app/equipment/vessel.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true,
-      "note": "Startable: T5-2 merged as 154385c; the vessel.py and engine.py locks are released."
+      "status": "Ready for Review",
+      "status_key": "review",
+      "startable": false,
+      "note": "Ready for Review on feature/gas-inventory, based on 4259617; not merged. Full suite 715 passed and mypy clean. Vessel gains a gas phase beside its liquid one: pressure (psia) integrated as dP/dt = P_std * (Q_in - Q_out) / V_gas, P_std = 14.696 psia (config.STANDARD_PRESSURE, 1 atm per UNITS_CONVENTION), isothermal at the SCFM standard temperature, no Z-factor. Separate gas_inlet_flow / gas_outlet_flow (SCFM); the confirmed flow unit at each attachment, never the port name, picks GPM or SCFM attributes. Vessel pressure REPLACES the boundary at every gas attachment (inlet and outlet), configured_pressure untouched; liquid keeps head-as-offset on the outlet only. Gas is attachment-driven: a liquid-only vessel never activates it and its get_state() is unchanged. Files: app/equipment/vessel.py, app/engine/coupling.py, app/config.py (append-only), tests/test_gas_inventory.py (34 tests) and three pre-T5-3 tests rewritten on purpose. engine.py, topology.py, base.py, network.py, compressor.py untouched; no golden trace moved. Known limit: square-root curves have infinite slope at zero flow, so Euler crosses a zero-flow point by about (a*dt)^2/4 with a = P_std*C/(60*V); supported at 10 ft^3 and up at dt = 1 s, a vessel of 0.3 ft^3 raises on non-positive pressure rather than clamping. Task statuses live in the plan's shared database; that entry still needs updating."
     },
     {
       "id": "T5-4",

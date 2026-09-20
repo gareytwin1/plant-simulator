@@ -1,6 +1,6 @@
 # T2-6 — Scheduler ownership design note
 
-**Status:** proposed, awaiting approval. No code has been written.
+**Status:** **approved** (all four decisions settled below). Phase 2 may proceed.
 **Baseline:** `origin/main` at `bbbfa60`, 738 passed, `mypy` clean over 24 source files
 (re-verified before this note).
 
@@ -90,34 +90,40 @@ threads are genuinely dead — which is what the teardown test asserts.
 
 ## 4. What production path ends an abandoned Session?
 
-**Today: nothing. This is the one piece of genuinely new policy, and it is the
-decision I need approved.**
-
-Proposal: bound `SessionRegistry` by **capacity with least-recently-used
-eviction**, swept inside `create`/`get_or_create`.
+**Today: nothing.** Settled: bound `SessionRegistry` by **capacity with
+least-recently-used eviction**, swept inside `create`/`get_or_create`.
 
 - The registry stamps each session with a monotonic last-touched time, refreshed
   on lookup.
 - On create at capacity, it ends the least-recently-touched session first —
-  `Session.end()` (which joins both workers), then drops it.
-- Capacity lands in `app/config.py` as a new appended section, `MAX_SESSIONS`.
-  I suggest `32`.
+  `Session.end()`, which **stops and joins both scheduler workers** before the
+  registry drops the session.
+- `MAX_SESSIONS = 32` lands in `app/config.py` as a new appended section.
+
+**32 is an operational guardrail, not a simulation constant.** It lives in
+config so it can be changed without touching logic, and no physics depends on it.
 
 **Why a cap rather than an idle timeout.** A cap is a *hard* bound on live
 workers: never more than `2 * MAX_SESSIONS`, with no tuning and no timer. An
 idle timeout only reclaims when a later request arrives to trigger a sweep — so
 if every browser leaves, the last sessions run forever, which is precisely the
 leak being closed. A timeout also needs a background sweeper thread, which is
-one more thread to own, or a fourth wall-clock reader in the request path.
+one more thread to own.
 
-**What the cap costs.** More than `MAX_SESSIONS` concurrent browsers evicts
-someone's live plant. For a single-operator training rig at M2 that is
-acceptable and loud — their next request builds a fresh plant — and durable
-session state is T12-1 (`persistence.py`), not this task.
+### Scope boundary: T18-5 owns idle reclamation
 
-**Optional, say if you want it:** also evict on idle age in the same sweep
-(`SESSION_IDLE_SECONDS`). Roughly six extra lines, reclaims sooner under light
-traffic, and does not replace the cap.
+**Idle-age expiry is deliberately excluded from T2-6.** `T18-5`
+("Session lifecycle and config versioning") already owns
+`app/engine/sessions.py` for exactly this, with acceptance criteria
+"Idle sessions reclaimed" and "Idle session is reclaimed and memory released".
+Adding timeout policy here would steal that task's scope.
+
+T2-6's LRU cap is **only the bounded-resource safety mechanism** that makes
+Scheduler ownership safe today. It is not session lifecycle management, and it
+does not close out T18-5.
+
+**Required test:** creating session 33 evicts the least-recently-used session,
+and both of that session's scheduler workers are proven stopped.
 
 Note the request layer reading a monotonic clock is consistent with the rules:
 CLAUDE.md bans wall-clock reads *inside a model*, and `scheduler.py` already
@@ -169,21 +175,35 @@ One `step_lock` acquisition covers the whole read:
 
 ```python
 with self.compressor_scheduler.step_lock:
-    snapshot = self.compressor_scheduler.published or self.compressor_engine.snapshot()
-    ...
+    snapshot = self.compressor_scheduler.snapshot_locked()
+    # characteristic(flow), temperature_at(spread), response — all from this
+    # one coherent state
 ```
 
 Fact 6 is the trap: calling `Scheduler.snapshot()` while holding `step_lock`
-deadlocks before the first publish. That argues for a small addition to
-`scheduler.py` — a lock-free `published` property exposing `_latest` — so the
-Session takes the lock once and reads the published snapshot and the live device
-inside the same acquisition.
+deadlocks before the first publish. Settled: `scheduler.py` gains a narrow,
+explicitly-named accessor **`snapshot_locked()`** rather than a generic
+`published` property, so its contract is visible at the call site.
 
-`scheduler.py` is a new, non-spine module owned by T2-5, so a read-only property
-is a small change but still a second task touching a fresh file. **Flagging it
-rather than assuming it.** The alternative is to read the snapshot outside the
-lock and the device inside it: no scheduler change, but the response can straddle
-a step boundary and mix values one step apart. I recommend the property.
+`snapshot_locked()` contract: **the caller already holds `step_lock`, and this
+method must never acquire it again.** With nothing published yet it may build
+the current Engine snapshot directly, because the caller's lock already covers
+that read.
+
+Three rules follow, and they are what Phase 2 enforces:
+
+1. State reads based entirely on published data use `scheduler.snapshot()` and
+   take no external lock.
+2. State reads that still need live-device queries take `step_lock` **once** and
+   use `snapshot_locked()` plus those queries inside it.
+3. **No code calls `scheduler.snapshot()` while already holding `step_lock`.**
+
+Ordinary consumers that need no live-device reads keep using
+`scheduler.snapshot()` unchanged.
+
+The one-step straddle is **rejected**: it would publish a response mixing values
+from two different steps, and a narrow accessor is cleaner than either that or a
+reentrant lock.
 
 Everything else in those two methods is snapshot-only and gets no lock.
 
@@ -223,13 +243,17 @@ do not make the lock reentrant to allow it.
 - `app/main.py` is the **highest-conflict** file — one branch at a time, released
   immediately after merge.
 - `app/config.py` gains `MAX_SESSIONS` in a new appended section.
-- Possible one-property addition to `app/engine/scheduler.py` (§7).
+- `app/engine/scheduler.py` gains `snapshot_locked()` (§7).
 
-## Decisions requested
+## Decisions settled
 
-1. **Abandonment policy** — registry capacity with LRU eviction, `MAX_SESSIONS = 32`?
-   Add idle-age eviction as well, or cap only?
-2. **Start trigger** — start on page render, rather than on Session creation?
-3. **Manual-step routes** — 409 while the matching scheduler runs?
-4. **Scheduler change** — add the lock-free `published` property, or accept a
-   one-step straddle in the state response?
+1. **Abandonment policy** — capacity with LRU eviction, `MAX_SESSIONS = 32` in
+   `app/config.py`. **No idle-age expiry**: T18-5 owns that.
+2. **Start trigger** — start on page render, and only the scheduler for the
+   equipment page actually rendered. Never both because a Session exists.
+3. **Manual-step routes** — kept, 409 while the matching scheduler runs. Not a
+   successful no-op, and never an extra step taken beside the scheduler.
+4. **Scheduler change** — add `snapshot_locked()` with the explicit
+   caller-holds-the-lock contract. The one-step straddle is rejected.
+
+None of these change the Engine or Snapshot contracts.

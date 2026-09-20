@@ -5,7 +5,8 @@ Walks the schema generically rather than hard-coding plant fields, so a
 schema-only change (new equipment type, new limit field) never requires a
 validator change. Supports the subset of JSON Schema the plant config
 actually uses: type, enum, properties, required, additionalProperties,
-items, minItems, minLength, minimum.
+items, minItems, minLength, minimum, minProperties, and
+additionalProperties given as a subschema.
 
 Both the schema and the config it checks are decoded JSON of a shape
 nothing knows until it is walked — discovering that shape is the whole
@@ -68,12 +69,20 @@ def _check_object(value: Any, schema: Schema, path: str, errors: list[str]) -> N
         if key not in value:
             errors.append(f"{path}: missing required property {key!r}")
 
-    properties = schema.get("properties", {})
+    if "minProperties" in schema and len(value) < schema["minProperties"]:
+        errors.append(f"{path}: has {len(value)} properties, fewer than the minimum of {schema['minProperties']}")
 
-    if schema.get("additionalProperties") is False:
+    properties = schema.get("properties", {})
+    additional = schema.get("additionalProperties")
+
+    if additional is False:
         for key in value:
             if key not in properties:
                 errors.append(f"{path}: unexpected property {key!r}")
+    elif isinstance(additional, dict):
+        for key in value:
+            if key not in properties:
+                _check(value[key], additional, f"{path}.{key}", errors)
 
     for key, subschema in properties.items():
         if key in value:

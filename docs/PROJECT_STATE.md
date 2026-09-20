@@ -22,7 +22,7 @@ Refresh this file whenever a task merges to `main`.
 | **M0** Baseline Cleanup | **7/7 Complete** |
 | **M1** Equipment Model Contract | **5/5 Complete** — Checkpoint A reached |
 | **M2** Simulation Engine and Clock | 4/6 (T2-5 startable) |
-| **M3** Plant Topology and Streams | 4/6 — T3-5 Complete; **T3-4 and T3-6 startable** |
+| **M3** Plant Topology and Streams | 4/6 — T3-5 Complete; **T3-6 Ready for Review** (PR #20); T3-4 startable |
 | **M4** Pressure-Flow Network Solver | 3/5 — T4-1, T4-2, T4-3 Complete; **T4-4 (Checkpoint B) startable** |
 | M5–M19 | Not started (M5 has 5 tasks: T5-5, the integrated reference plant, was added) |
 

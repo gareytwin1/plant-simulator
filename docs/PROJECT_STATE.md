@@ -8,10 +8,10 @@ Refresh this file whenever a task merges to `main`.
 
 ---
 
-**Last refreshed:** 20 September 2026 (**T4-4 merged** as `0efa5be`, [PR #25](https://github.com/gareytwin1/plant-simulator/pull/25) — Checkpoint B)
-**Current `main`:** `0efa5be` — *Merge pull request #25 from gareytwin1/refactor/solver-integration*
-**Last code merge:** `0efa5be` — T4-4, the solver wired into the engine (PR #25). Previous: `b8af231` T5-1 vessel model (PR #23); `d6a6cfb` T3-4 single-domain reference fixtures (PR #19); `2c08bb8` T3-6 multi-port equipment wiring (PR #20); `11517f6` T3-5 flow-domain declaration (PR #17); `c406ca0` YAML plant loading; previous solver merge `a2a1596` (T4-3). ADR 0001 ([docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md](ADR_0001_FLOW_DOMAIN_SEPARATION.md)) and its Amendment 1 are on `main`
-**Full suite on `main`:** **486 passed** (`conda activate plant-simulator && python -m pytest -q`); `python -m mypy` clean
+**Last refreshed:** 20 September 2026 (**T5-2 merged** as `154385c`, [PR #27](https://github.com/gareytwin1/plant-simulator/pull/27) — inventory coupled to the hydraulics)
+**Current `main`:** `154385c` — *Merge T5-2: Couple vessel level to hydraulics*
+**Last code merge:** `154385c` — T5-2, level to hydraulics coupling and the multi-domain Engine (PR #27). Previous: `0efa5be` T4-4, the solver wired into the engine (PR #25). Previous: `b8af231` T5-1 vessel model (PR #23); `d6a6cfb` T3-4 single-domain reference fixtures (PR #19); `2c08bb8` T3-6 multi-port equipment wiring (PR #20); `11517f6` T3-5 flow-domain declaration (PR #17); `c406ca0` YAML plant loading; previous solver merge `a2a1596` (T4-3). ADR 0001 ([docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md](ADR_0001_FLOW_DOMAIN_SEPARATION.md)) and its Amendment 1 are on `main`
+**Full suite on `main`:** **541 passed** (`conda activate plant-simulator && python -m pytest -q`); `python -m mypy` clean
 
 ---
 
@@ -24,10 +24,10 @@ Refresh this file whenever a task merges to `main`.
 | **M2** Simulation Engine and Clock | 4/6 (T2-5 startable) |
 | **M3** Plant Topology and Streams | **6/6 Complete** |
 | **M4** Pressure-Flow Network Solver | 4/5 — T4-1, T4-2, T4-3, T4-4 Complete (**Checkpoint B reached**); **T4-5 startable**, re-scoped 20 Sep — see [The T4-5 re-scope](#the-t4-5-re-scope) |
-| **M5** Inventory and Mass Balance | 1/5 — T5-1 Complete; **T5-2 and T5-3 startable**; T5-2 takes the engine spine lock (M5 has 5 tasks: T5-5, the integrated reference plant, was added) |
+| **M5** Inventory and Mass Balance | 2/5 — T5-1, T5-2 Complete; **T5-3 and T5-4 startable**; the engine and topology spine locks are released (M5 has 5 tasks: T5-5, the integrated reference plant, was added) |
 | M6–M19 | Not started |
 
-Overall: **27 of 97 tasks Complete.**
+Overall: **28 of 97 tasks Complete.**
 
 ### Completed and merged to `main`
 
@@ -41,7 +41,12 @@ Overall: **27 of 97 tasks Complete.**
 - **M3** — `T3-1` plant config schema + validator (C3) ·
   `T3-2` node/branch/stream (C2) · `T3-3` plant loader (`app/plant/loader.py`) ·
   `T3-5` flow-domain declaration · `T3-6` multi-port equipment wiring.
-- **M5** — `T5-1` vessel model (`app/equipment/vessel.py`): a coupling device, level integrated from caller-written `inlet_flow` / `outlet_flow` (GPM). **Not registered in `DEVICE_TYPES` yet** — register it before T5-5.
+- **M5** — `T5-1` vessel model (`app/equipment/vessel.py`): a coupling device,
+  level integrated from `inlet_flow` / `outlet_flow` (GPM) · `T5-2` level to
+  hydraulics coupling (`154385c`): `head_at_full * level` added to the
+  `configured_pressure` of the boundary the vessel's OUTLET port attaches to,
+  flows read back as net signed flow at each attachment, one solver per flow
+  domain, and `"vessel"` registered in `DEVICE_TYPES`.
 - **M4** — `T4-1` branch characteristic interface (sign convention,
   `signed_square`, `Branch.characteristic()` / `Branch.residual()`) · `T4-2`
   Newton-Raphson network solver (`NetworkSolver`) · `T4-3` solver diagnostics
@@ -75,7 +80,8 @@ now genuinely merged.)
 | `CentrifugalPump` (`P-101`) | `app/equipment/pump.py` | On C1 as of T1-4 |
 | `EquipmentRegistry` | `app/equipment/registry.py` | Tag → device; rejects duplicate tags |
 | `SimulationClock` | `app/engine/clock.py` | Sim time, speed, pause |
-| `Engine` | `app/engine/engine.py` | Integrates all devices, solves the network, publishes snapshot. `Engine.from_plant()` is single-domain (`Plant.topology`) |
+| `Engine` | `app/engine/engine.py` | Integrates all devices, couples inventory, solves every flow domain, publishes snapshot. `Engine.from_plant()` wires one solver per entry in `Plant.topologies` (T5-2) |
+| Inventory coupling | `app/engine/coupling.py` | T5-2. Vessel head down onto a boundary, net signed flow back up. `FLOW_UNITS` decides which ports are GPM; **a new branch device must be added to it** |
 | `Snapshot` (C4) | `app/engine/snapshot.py` | Immutable; shape frozen |
 | `SessionRegistry` / `Session` | `app/engine/sessions.py` | Per-browser plant isolation; one `Engine` per page over a loader-built single-device plant |
 | `NetworkSolver` | `app/engine/network.py` | Newton-Raphson solver for plant-wide flows and pressures; called by `Engine.step()` since T4-4. Diagnostics and failure policy as of T4-3 |
@@ -301,19 +307,16 @@ Engine-computes-nothing state; what remains is the consequence of that:
 
 ## Active branches and PRs
 
-**In flight: `feature/inventory-coupling` (T5-2), Ready for Review** ([PR #27](https://github.com/gareytwin1/plant-simulator/pull/27))**.** It holds
-the **spine lock on `app/engine/engine.py` and on `app/plant/topology.py`** (the
-C2 boundary-condition route the plan assigns to this task), and also touches
-`app/equipment/vessel.py`, `app/plant/loader.py` and the new
-`app/engine/coupling.py`. Release both locks on merge. **Do not start T5-3** —
-it edits `vessel.py` too.
+**No spine lock is held.** T5-2 merged as `154385c`
+([PR #27](https://github.com/gareytwin1/plant-simulator/pull/27)) and released
+the locks on `app/engine/engine.py` and `app/plant/topology.py`. **T5-3 is now
+free to start** (`app/equipment/vessel.py`, gas-phase accumulation).
 
-**T4-5 is also in flight** ([PR #29](https://github.com/gareytwin1/plant-simulator/pull/29),
-`test/cause-and-effect`). It is test-only, so it holds no lock and conflicts
-with nothing here, but it was written against a `main` without the coupling:
-**rebase it after T5-2 merges** and re-run it, because `Engine.from_plant` no
-longer raises on a multi-domain plant and the snapshot's `solver` row is now
-aggregated across domains.
+**T4-5 is in flight** ([PR #29](https://github.com/gareytwin1/plant-simulator/pull/29),
+`test/cause-and-effect`). It is test-only and holds no lock, but it was opened
+against a `main` without the coupling: **rebase it onto `154385c` and re-run it**,
+because `Engine.from_plant` no longer raises on a multi-domain plant and the
+snapshot's `solver` row is now aggregated across domains.
 
 T4-4 merged as `0efa5be`
 ([PR #25](https://github.com/gareytwin1/plant-simulator/pull/25)) and released

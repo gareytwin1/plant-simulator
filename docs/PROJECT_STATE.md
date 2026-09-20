@@ -8,10 +8,10 @@ Refresh this file whenever a task merges to `main`.
 
 ---
 
-**Last refreshed:** 20 September 2026 (**T5-2 merged** as `154385c`, [PR #27](https://github.com/gareytwin1/plant-simulator/pull/27) — inventory coupled to the hydraulics)
-**Current `main`:** `154385c` — *Merge T5-2: Couple vessel level to hydraulics*
-**Last code merge:** `154385c` — T5-2, level to hydraulics coupling and the multi-domain Engine (PR #27). Previous: `0efa5be` T4-4, the solver wired into the engine (PR #25). Previous: `b8af231` T5-1 vessel model (PR #23); `d6a6cfb` T3-4 single-domain reference fixtures (PR #19); `2c08bb8` T3-6 multi-port equipment wiring (PR #20); `11517f6` T3-5 flow-domain declaration (PR #17); `c406ca0` YAML plant loading; previous solver merge `a2a1596` (T4-3). ADR 0001 ([docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md](ADR_0001_FLOW_DOMAIN_SEPARATION.md)) and its Amendment 1 are on `main`
-**Full suite on `main`:** **541 passed** (`conda activate plant-simulator && python -m pytest -q`); `python -m mypy` clean
+**Last refreshed:** 20 September 2026 (**T4-5 merged** as `e261134`, [PR #29](https://github.com/gareytwin1/plant-simulator/pull/29) — **M4 complete**)
+**Current `main`:** `e261134` — *Merge pull request #29 from gareytwin1/test/cause-and-effect*
+**Last code merge:** `e261134` — T4-5, the cause-and-effect assertion suite (PR #29, test-only). Previous: `154385c` T5-2, level to hydraulics coupling and the multi-domain Engine (PR #27). Previous: `0efa5be` T4-4, the solver wired into the engine (PR #25). Previous: `b8af231` T5-1 vessel model (PR #23); `d6a6cfb` T3-4 single-domain reference fixtures (PR #19); `2c08bb8` T3-6 multi-port equipment wiring (PR #20); `11517f6` T3-5 flow-domain declaration (PR #17); `c406ca0` YAML plant loading; previous solver merge `a2a1596` (T4-3). ADR 0001 ([docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md](ADR_0001_FLOW_DOMAIN_SEPARATION.md)) and its Amendment 1 are on `main`
+**Full suite on `main`:** **567 passed** (`conda activate plant-simulator && python -m pytest -q`); `python -m mypy` clean
 
 ---
 
@@ -23,11 +23,11 @@ Refresh this file whenever a task merges to `main`.
 | **M1** Equipment Model Contract | **5/5 Complete** — Checkpoint A reached |
 | **M2** Simulation Engine and Clock | 4/6 (T2-5 startable) |
 | **M3** Plant Topology and Streams | **6/6 Complete** |
-| **M4** Pressure-Flow Network Solver | 4/5 — T4-1, T4-2, T4-3, T4-4 Complete (**Checkpoint B reached**); **T4-5 startable**, re-scoped 20 Sep — see [The T4-5 re-scope](#the-t4-5-re-scope) |
+| **M4** Pressure-Flow Network Solver | **5/5 Complete** — Checkpoint B reached; T4-5 was re-scoped before implementation, see [The T4-5 re-scope](#the-t4-5-re-scope) |
 | **M5** Inventory and Mass Balance | 2/5 — T5-1, T5-2 Complete; **T5-3 and T5-4 startable**; the engine and topology spine locks are released (M5 has 5 tasks: T5-5, the integrated reference plant, was added) |
 | M6–M19 | Not started |
 
-Overall: **28 of 97 tasks Complete.**
+Overall: **29 of 97 tasks Complete.**
 
 ### Completed and merged to `main`
 
@@ -54,7 +54,9 @@ Overall: **28 of 97 tasks Complete.**
   shape unchanged) · `T4-4` solver wired into the engine (`0efa5be`): `Engine.step()`
   integrates, solves and publishes real `solver` / `nodes` / `streams`;
   `Engine.from_plant()` builds equipment from `Plant.devices`; the devices'
-  standalone operating point is retired.
+  standalone operating point is retired · `T4-5` cause-and-effect assertion
+  suite (`e261134`, `tests/test_cause_effect.py`, 26 tests, test-only), re-scoped
+  before implementation — two criteria moved to T7-1.
 
 ### Seeded RNG: what shipped and what did not (T2-2)
 
@@ -286,9 +288,14 @@ Engine-computes-nothing state; what remains is the consequence of that:
   exact solution is still zero; only the reported one is not. Not a defect and
   not a reason to retune the tolerance — `tests/test_network_solver.py` has
   asserted `approx(0.0, abs=0.05)` on a stopped pump, with the reason in a
-  comment, since T4-2. **Do not assert an idle flow of exactly zero**, and
-  **T5-2 should know** that a residual which never decays integrates into level
-  once inventory is coupled: 0.055 GPM is 3.3 gal/hour against a 1000 gal vessel.
+  comment, since T4-2, and `tests/test_cause_effect.py` asserts against a bound
+  derived from the tolerance rather than a recorded value. **Do not assert an
+  idle flow of exactly zero.** T5-2 settled what becomes of that residual
+  downstream, and the answer is that nothing special does: a solved flow is
+  written onto a coupling device and integrated with **no clamp and no
+  deadband**, so a stopped machine's residual reaches vessel level at 0.055 GPM,
+  or 3.3 gal/hour against a 1000 gal vessel. That is the decided behaviour; what
+  stays recorded here is the numerical residual itself.
 - **`app/init.py` is a misnamed empty file** — it is not `__init__.py`. `app`
   resolves as a namespace package so imports work anyway. Harmless; has never
   had a task.
@@ -312,11 +319,11 @@ Engine-computes-nothing state; what remains is the consequence of that:
 the locks on `app/engine/engine.py` and `app/plant/topology.py`. **T5-3 is now
 free to start** (`app/equipment/vessel.py`, gas-phase accumulation).
 
-**T4-5 is in flight** ([PR #29](https://github.com/gareytwin1/plant-simulator/pull/29),
-`test/cause-and-effect`). It is test-only and holds no lock, but it was opened
-against a `main` without the coupling: **rebase it onto `154385c` and re-run it**,
-because `Engine.from_plant` no longer raises on a multi-domain plant and the
-snapshot's `solver` row is now aggregated across domains.
+**T4-5 merged** as `e261134` ([PR #29](https://github.com/gareytwin1/plant-simulator/pull/29)):
+`tests/test_cause_effect.py` and nothing else. It was rebased onto `154385c`
+first and every reference value re-derived — each of its plants is
+single-domain and holds no coupling device, so `build_couplings()` returns `[]`,
+one solver is wired as before, and no assertion moved.
 
 T4-4 merged as `0efa5be`
 ([PR #25](https://github.com/gareytwin1/plant-simulator/pull/25)) and released
@@ -352,16 +359,17 @@ the `engine.py` spine lock again.
 
 ## Handoff: the next agents
 
-**Everything below is verified against `main`** (486 tests, `mypy` clean). Read
+**Everything below is verified against `main`** (567 tests, `mypy` clean). Read
 [CLAUDE.md](../CLAUDE.md) first, then the build plan entry for your task. Model
 guidance is the **Agent model guidance** section of CLAUDE.md; the column below
 is the build plan's own assignment.
 
 ### Critical path after Checkpoint B
 
-**T4-4 (Complete)** -> **T4-5** (cause-and-effect suite, test-only, re-scoped —
-see below) and **T5-2** (level-to-hydraulics coupling, spine) -> T5-5 (integrated
-reference plant, also needs T3-4, Complete).
+**M4 and the coupling are both done.** T4-4, **T4-5** (cause-and-effect suite,
+test-only, re-scoped — see below) and **T5-2** (level-to-hydraulics coupling,
+spine) are all Complete. Next on the critical path is T5-5 (integrated reference
+plant, which also needs T3-4, Complete).
 
 The solver is on the request path. `Engine.step()` calls `NetworkSolver`, the
 snapshot's `solver`, `nodes` and `streams` are real, and topology owns hydraulic
@@ -448,24 +456,21 @@ is retired: **T3-6** (merged) carried the C3 named-port wiring (moved from T3-5 
 "Seeded RNG" above. `SeededRNG` also has no state save/restore, which T12-1
 (snapshot save and restore) and T14-5 (deterministic replay) will need.
 
-### Startable now (19 tasks)
+### Startable now (18 tasks)
 
 All dependencies are Complete. Two of them (T2-5, T12-1) add *new* isolated
 modules under `app/engine/`, which is satellite work under the **`app/engine/`
 rule** in CLAUDE.md.
 
-**Startable:** T4-4 merged, so **T4-5** (test-only, and re-scoped — read [The
-T4-5 re-scope](#the-t4-5-re-scope) before writing a line of it) and **T5-2**
-(spine: `engine.py` and, per the plan, a C2 boundary-condition route in
-`topology.py`) are newly startable. T5-3 (gas pressure, same file as T5-1) takes
-no spine lock. T5-2 and T5-3 both touch `app/equipment/vessel.py`, so do not run
-them concurrently. **T7-1** now also carries two cause-and-effect criteria moved
-off T4-5, and depends on T4-4 (Complete), so it stays startable.
+**Startable:** T4-5 and T5-2 are both merged, so neither appears below. T5-3
+(gas pressure, `app/equipment/vessel.py`) takes no spine lock and is free to
+start now that T5-2 has released that file. **T7-1** carries two cause-and-effect
+criteria moved off T4-5 and depends on T4-4 (Complete), so it stays startable —
+and it is now the task that makes those two criteria expressible at all.
 
 | Task | Name | Model | Branch |
 |---|---|---|---|
 | **T5-2** | Level to hydraulics coupling (spine) | Opus | `feature/inventory-coupling` |
-| **T4-5** | Cause-and-effect assertion suite | Opus | `test/cause-and-effect` |
 | **T5-3** | Gas-phase pressure accumulation | Sonnet | `feature/gas-inventory` |
 | **T6-1** | Stream enthalpy and mixing | Opus | `feature/stream-enthalpy` |
 | **T7-1** | Control valve model | Sonnet | `feature/control-valve` |
@@ -558,27 +563,31 @@ raises on a multi-domain plant; one solver per domain arrives with T5-2. (T5-1's
 dependency moved to T3-6, the multi-port wiring half of the original T3-5, when
 Amendment 1 split the task.)
 
-## Test suite composition (486 tests on `main`)
+## Test suite composition (567 tests on `main`)
 
 | File | Tests | File | Tests |
 |---|---|---|---|
-| `test_api.py` | 7 | `test_pump.py` | 9 |
+| `test_api.py` | 7 | `test_plant_yaml.py` | 17 |
+| `test_cause_effect.py` | 26 | `test_pump.py` | 9 |
 | `test_clock.py` | 13 | `test_pump_api.py` | 8 |
-| `test_compressor.py` | 19 | `test_random_source_guard.py` | 23 |
+| `test_compressor.py` | 19 | `test_random_source_guard.py` | 24 |
 | `test_engine.py` | 13 | `test_reference_plants.py` | 20 |
-| `test_engine_solver.py` | 15 | `test_registry.py` | 14 |
+| `test_engine_solver.py` | 17 | `test_registry.py` | 16 |
 | `test_equipment_contract.py` | 67 | `test_rng.py` | 10 |
 | `test_golden_regression.py` | 15 | `test_session_isolation.py` | 6 |
-| `test_network_solver.py` | 36 | `test_sessions.py` | 7 |
-| `test_plant_config_validation.py` | 13 | `test_snapshot.py` | 16 |
-| `test_plant_domains.py` | 23 | `test_solver_diagnostics.py` | 14 |
-| `test_plant_loader.py` | 27 | `test_topology.py` | 47 |
-| `test_plant_ports.py` | 32 | `test_vessel.py` | 15 |
-| `test_plant_yaml.py` | 17 |  |  |
+| `test_inventory_coupling.py` | 26 | `test_sessions.py` | 7 |
+| `test_network_solver.py` | 36 | `test_snapshot.py` | 16 |
+| `test_plant_config_validation.py` | 13 | `test_solver_diagnostics.py` | 14 |
+| `test_plant_domains.py` | 23 | `test_topology.py` | 59 |
+| `test_plant_loader.py` | 27 | `test_vessel.py` | 27 |
+| `test_plant_ports.py` | 32 |  |  |
 
 `test_equipment_contract.py` and `test_registry.py` discover device classes
 dynamically, so a new `Equipment` subclass is swept into the contract tests
 automatically — adding one raises the total by more than the tests you wrote.
-(T4-2 added `test_network_solver.py` with 36 tests, taking the total to 336;
-T4-3 added `test_solver_diagnostics.py` with 14 and 5 to `test_snapshot.py`,
-taking it to 355; `test_plant_yaml.py` added 17, taking it to 372; `test_plant_domains.py` added 23, taking it to 395; `test_plant_ports.py` added 32, `test_reference_plants.py` added 20, `test_vessel.py` added 15, and T4-4 added `test_engine_solver.py` (15) while retiring and rewriting device tests, so `main` runs 486. The vessel did not raise the sweep counts: the contract tests import only the compressor and pump modules, so `vessel` is not yet swept into them.)
+The table above is regenerated from `pytest --collect-only`, not maintained by
+hand, because it had drifted twice before T4-5.
+
+Recent movement: T4-4 took `main` to 486; T5-2 added `test_inventory_coupling.py`
+(26) and grew `test_vessel.py`, `test_topology.py` and `test_engine_solver.py`,
+taking it to 541; T4-5 added `test_cause_effect.py` (26), taking it to 567.

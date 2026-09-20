@@ -61,10 +61,11 @@ flows and mass-balance residuals in the branch's own process-domain unit
 One solve assumes the topology it is handed is a single compatible
 hydraulic/process domain, because a mass balance sums the flows meeting a
 node and summing GPM with SCFM is meaningless. **That assumption is not
-checked here, and nothing else encodes it either** — C2 and C3 carry no
-flow-domain metadata, so there is nothing for this module to enforce against.
-Whoever builds a topology is responsible for keeping one domain in it. How
-liquid and gas domains get split and coupled — through a separator's
+checked here.** The plant loader enforces it before a solver is ever handed a
+topology: it partitions nodes by declared flow domain into one Topology per
+domain and rejects a branch whose nodes disagree (app/plant/loader.py). A
+Topology built by hand is the builder's responsibility. How liquid and gas
+domains get coupled — through a separator's
 inventory rather than through a shared flow variable — is decided by the
 reference plant and the vessel work, not here.
 """

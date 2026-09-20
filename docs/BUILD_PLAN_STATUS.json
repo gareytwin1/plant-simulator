@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "19 September 2026",
-  "main_sha": "c406ca0164882eb8a154cf12ca2f8fcdf3326e18",
-  "tests_passing_on_main": 372,
+  "main_sha": "2c08bb8ab9c231d7ae61d2c80432606026e7a4d4",
+  "tests_passing_on_main": 428,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -28,7 +28,7 @@
     },
     "M3": {
       "name": "Plant Topology and Streams",
-      "complete": 4,
+      "complete": 5,
       "total": 6
     },
     "M4": {
@@ -114,8 +114,8 @@
   },
   "totals": {
     "tasks": 97,
-    "complete": 23,
-    "startable_now": 18
+    "complete": 24,
+    "startable_now": 19
   },
   "tasks": [
     {
@@ -531,10 +531,10 @@
         "app/plant/loader.py",
         "tests/test_plant_ports.py"
       ],
-      "status": "Ready for Review",
-      "status_key": "review",
+      "status": "Complete",
+      "status_key": "done",
       "startable": false,
-      "note": "Ready for Review on feature/multi-port-wiring (PR #20), NOT merged. Implements ADR 0001 section 12.1-12.4, 12.8 and 12.9. C3 equipment gains optional ports (port name -> node id, attachment only) and paths ({from, to} pairs, one Branch each); node_in/node_out is optional sugar. The loader enforces the one-form rule and every 12.3 rejection at $.equipment[i]; paths is required with ports and [] marks a coupling device; more than one path is rejected (A6). Branch id stays B-{tag}. Plant.devices is config-ordered and holds every device, coupling devices included, and coupling devices sit in no Topology. The dangling-port check walks Plant.devices. to_config() is form-preserving and round-trips both forms and mixed configs exactly. validate.py gained only minProperties and additionalProperties-as-subschema. C1, C2, NetworkSolver and Engine untouched. 428 tests green (32 new in tests/test_plant_ports.py), mypy clean. One existing test, test_missing_required_field_names_the_path, now deletes design instead of node_out because node_out is no longer required."
+      "note": "Merged to main as 2c08bb8 (Merge pull request #20 from gareytwin1/feature/multi-port-wiring), 19 Sep. Full suite 428/428 green, mypy clean. Implements ADR 0001 section 12.1-12.4, 12.8 and 12.9. C3 equipment gains optional ports (port name -> node id, attachment only) and paths ({from, to} pairs, one Branch each); node_in/node_out is optional sugar. The loader enforces the one-form rule and every 12.3 rejection at $.equipment[i]; paths is required with ports and [] marks a coupling device; more than one path is rejected (A6). Branch id stays B-{tag}. Plant.devices is config-ordered and holds every device; coupling devices sit in no Topology and are bound with Port.connect. The dangling-port check walks Plant.devices. to_config() is form-preserving and round-trips both forms and mixed configs exactly. validate.py gained only minProperties and additionalProperties-as-subschema. C1, C2, NetworkSolver and Engine untouched. 32 new tests in tests/test_plant_ports.py. One existing test, test_missing_required_field_names_the_path, now deletes design instead of node_out because node_out is no longer required. T4-4 must build Engine equipment from Plant.devices, never Topology.devices."
     },
     {
       "id": "T4-1",
@@ -645,10 +645,7 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "T3-6"
-      ],
+      "startable": true,
       "note": "Receives already settled, and must not redesign: flow-domain semantics (T3-5), C3 named-port wiring (T3-6), and solver orchestration (unchanged, one solver per domain). The vessel is a COUPLING device: it declares a C3 ports map and an EMPTY paths list, so it holds no C2 Branch, appears in no Topology and in no Topology.devices, and its single identity lives in Plant.devices with its ports bound by Port.connect. It terminates one domain and originates another through its ports; a device whose ports attach to nodes in two different domains is valid and is the coupling mechanism. Its level and pressure are slow state advanced by integrate(dt). It does NOT build the boundary-condition update (T5-2) and does NOT widen characteristic(flow). If any of those seem necessary, stop and escalate against docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md, Amendment 1."
     },
     {

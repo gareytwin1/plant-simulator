@@ -301,7 +301,7 @@ Engine-computes-nothing state; what remains is the consequence of that:
 
 ## Active branches and PRs
 
-**In flight: `feature/inventory-coupling` (T5-2), Ready for Review.** It holds
+**In flight: `feature/inventory-coupling` (T5-2), Ready for Review** ([PR #27](https://github.com/gareytwin1/plant-simulator/pull/27))**.** It holds
 the **spine lock on `app/engine/engine.py` and on `app/plant/topology.py`** (the
 C2 boundary-condition route the plan assigns to this task), and also touches
 `app/equipment/vessel.py`, `app/plant/loader.py` and the new

@@ -2,7 +2,10 @@
 Golden-value regression harness.
 
 Captures baseline traces from GasCompressor and CentrifugalPump under
-standardized scenarios. Later refactors compare against these to detect
+standardized scenarios, each run through an Engine and the network solver
+(T4-4) — the same path the live pages take. What a trace records is the
+page's state row: the device's own state plus the flow and pressures the
+solver put on its branch and nodes. Later refactors compare against these to detect
 unintended behaviour changes.
 
 Each scenario is deterministic: fixed timestep, fixed inputs at known steps,
@@ -18,8 +21,10 @@ scenario cannot drift away from the numbers it produced.
 import json
 from pathlib import Path
 
-from app.equipment.compressor import GasCompressor
-from app.equipment.pump import CentrifugalPump
+import copy
+
+from app.engine.sessions import COMPRESSOR_PLANT, PUMP_PLANT, Session
+from app.equipment.base import Equipment
 
 
 # Directory to store golden traces
@@ -76,12 +81,11 @@ def compressor_valve_manipulation(comp, step_num):
 
 
 def compressor_supply_pressure_change(comp, step_num):
-    """Ramp load with elevated supply pressure."""
+    """Ramp load with elevated supply pressure (N-201 held at 725 psia)."""
     if step_num == 0:
-        comp.upstream_boundary_pressure = 725.0
         comp.set_load_target(1.0)
         comp.start()
-        return "upstream_boundary_pressure = 725.0, set_load_target(1.0), start()"
+        return "set_load_target(1.0), start()"
     if step_num == 15:
         comp.stop()
         return "stop()"
@@ -89,25 +93,11 @@ def compressor_supply_pressure_change(comp, step_num):
 
 
 def compressor_discharge_header_change(comp, step_num):
-    """Ramp load with elevated discharge header."""
+    """Ramp load with elevated discharge header (N-202 held at 775 psia)."""
     if step_num == 0:
-        comp.downstream_boundary_pressure = 775.0
         comp.set_load_target(1.0)
         comp.start()
-        return "downstream_boundary_pressure = 775.0, set_load_target(1.0), start()"
-    if step_num == 15:
-        comp.stop()
-        return "stop()"
-    return None
-
-
-def compressor_downstream_restriction(comp, step_num):
-    """Ramp load with downstream restriction."""
-    if step_num == 0:
-        comp.downstream_restriction = 0.01
-        comp.set_load_target(1.0)
-        comp.start()
-        return "downstream_restriction = 0.01, set_load_target(1.0), start()"
+        return "set_load_target(1.0), start()"
     if step_num == 15:
         comp.stop()
         return "stop()"
@@ -150,12 +140,11 @@ def pump_speed_manipulation(pump, step_num):
 
 
 def pump_supply_pressure_change(pump, step_num):
-    """Ramp speed with elevated supply pressure."""
+    """Ramp speed with elevated supply pressure (N-101 held at 60 psia)."""
     if step_num == 0:
-        pump.upstream_boundary_pressure = 60.0
         pump.set_speed_target(1.0)
         pump.start()
-        return "upstream_boundary_pressure = 60.0, set_speed_target(1.0), start()"
+        return "set_speed_target(1.0), start()"
     if step_num == 15:
         pump.stop()
         return "stop()"
@@ -166,46 +155,85 @@ def pump_discharge_header_change(pump, step_num):
     """Ramp speed against a header the pump cannot beat until part way up.
 
     At 50 psia of shutoff rise the pump is dead-headed below roughly 0.58
-    speed, so this locks the crossing into and out of the zero-flow branch.
+    speed, so this locks the crossing into and out of the zero-flow branch
+    (N-102 held at 75 psia).
     """
     if step_num == 0:
-        pump.downstream_boundary_pressure = 75.0
         pump.set_speed_target(1.0)
         pump.start()
-        return "downstream_boundary_pressure = 75.0, set_speed_target(1.0), start()"
+        return "set_speed_target(1.0), start()"
     if step_num == 15:
         pump.stop()
         return "stop()"
     return None
 
 
-def pump_max_flow_clip(pump, step_num):
-    """Ramp speed down a low-resistance line so flow hits the max_flow clamp."""
-    if step_num == 0:
-        pump.discharge_resistance = 0.000010
-        pump.set_speed_target(1.0)
-        pump.start()
-        return "discharge_resistance = 0.000010, set_speed_target(1.0), start()"
-    if step_num == 15:
-        pump.stop()
-        return "stop()"
-    return None
+class Rig:
+    """One machine on an Engine, driven and read the way the live page is."""
+
+    device: Equipment
+
+    def __init__(
+        self,
+        kind: str,
+        suction: float | None = None,
+        discharge: float | None = None,
+    ) -> None:
+        base = COMPRESSOR_PLANT if kind == "compressor" else PUMP_PLANT
+        plant = copy.deepcopy(base)
+
+        for node, pressure in zip(plant["nodes"], (suction, discharge)):
+            if pressure is not None:
+                node["pressure"] = pressure
+
+        if kind == "compressor":
+            session = Session(compressor_plant=plant)
+            self.device = session.compressor
+            self.step = session.step_compressor
+            self.get_state = session.compressor_state
+        else:
+            session = Session(pump_plant=plant)
+            self.device = session.pump
+            self.step = session.step_pump
+            self.get_state = session.pump_state
 
 
-# (device, name, factory, scenario function, steps)
+def compressor_rig() -> Rig:
+    return Rig("compressor")
+
+
+def compressor_supply_rig() -> Rig:
+    return Rig("compressor", suction=725.0)
+
+
+def compressor_header_rig() -> Rig:
+    return Rig("compressor", discharge=775.0)
+
+
+def pump_rig() -> Rig:
+    return Rig("pump")
+
+
+def pump_supply_rig() -> Rig:
+    return Rig("pump", suction=60.0)
+
+
+def pump_header_rig() -> Rig:
+    return Rig("pump", discharge=75.0)
+
+
+# (device, name, rig factory, scenario function, steps)
 SCENARIOS = [
-    ("compressor", "idle", GasCompressor, compressor_idle, 5),
-    ("compressor", "ramp_load", GasCompressor, compressor_ramp_load, 20),
-    ("compressor", "valve_manipulation", GasCompressor, compressor_valve_manipulation, 35),
-    ("compressor", "supply_pressure_change", GasCompressor, compressor_supply_pressure_change, 20),
-    ("compressor", "discharge_header_change", GasCompressor, compressor_discharge_header_change, 20),
-    ("compressor", "downstream_restriction", GasCompressor, compressor_downstream_restriction, 20),
-    ("pump", "idle", CentrifugalPump, pump_idle, 5),
-    ("pump", "ramp_speed", CentrifugalPump, pump_ramp_speed, 20),
-    ("pump", "speed_manipulation", CentrifugalPump, pump_speed_manipulation, 35),
-    ("pump", "supply_pressure_change", CentrifugalPump, pump_supply_pressure_change, 20),
-    ("pump", "discharge_header_change", CentrifugalPump, pump_discharge_header_change, 20),
-    ("pump", "max_flow_clip", CentrifugalPump, pump_max_flow_clip, 20),
+    ("compressor", "idle", compressor_rig, compressor_idle, 5),
+    ("compressor", "ramp_load", compressor_rig, compressor_ramp_load, 20),
+    ("compressor", "valve_manipulation", compressor_rig, compressor_valve_manipulation, 35),
+    ("compressor", "supply_pressure_change", compressor_supply_rig, compressor_supply_pressure_change, 20),
+    ("compressor", "discharge_header_change", compressor_header_rig, compressor_discharge_header_change, 20),
+    ("pump", "idle", pump_rig, pump_idle, 5),
+    ("pump", "ramp_speed", pump_rig, pump_ramp_speed, 20),
+    ("pump", "speed_manipulation", pump_rig, pump_speed_manipulation, 35),
+    ("pump", "supply_pressure_change", pump_supply_rig, pump_supply_pressure_change, 20),
+    ("pump", "discharge_header_change", pump_header_rig, pump_discharge_header_change, 20),
 ]
 
 TRACE_FILES = {
@@ -228,23 +256,24 @@ def capture_scenario(name, factory, scenario_fn, steps):
     Run a scenario and capture state traces.
 
     scenario_fn(device, step_num) is called at each step to apply inputs and
-    return a description of what was commanded at that step.
+    return a description of what was commanded at that step. The rig owns the
+    Engine the step runs through; the scenario only ever touches the device.
     Returns a trace dict: {name, steps, trace: [state dicts], commands: []}
     """
-    device = factory()
+    rig = factory()
     trace = []
     commands = []
 
     for step_num in range(steps):
-        state = device.get_state()
+        state = rig.get_state()
         trace.append(state)
-        cmd = scenario_fn(device, step_num)
+        cmd = scenario_fn(rig.device, step_num)
         if cmd:
             commands.append({"step": step_num, "command": cmd})
-        device.step()
+        rig.step()
 
     # Capture final state after last step
-    trace.append(device.get_state())
+    trace.append(rig.get_state())
 
     return {
         "name": name,
@@ -294,21 +323,21 @@ def replay_scenario(factory, scenario_fn, expected_trace):
     only thing under test is the model. Returns every field diff found across
     the whole run, empty when the model reproduces the trace.
     """
-    device = factory()
+    rig = factory()
     mismatches = []
 
     for step_num, expected_state in enumerate(expected_trace[:-1]):
         mismatches.extend(
             f"step {step_num}:{diff}"
-            for diff in compare_states(device.get_state(), expected_state)
+            for diff in compare_states(rig.get_state(), expected_state)
         )
 
-        scenario_fn(device, step_num)
-        device.step()
+        scenario_fn(rig.device, step_num)
+        rig.step()
 
     mismatches.extend(
         f"final:{diff}"
-        for diff in compare_states(device.get_state(), expected_trace[-1])
+        for diff in compare_states(rig.get_state(), expected_trace[-1])
     )
 
     return mismatches

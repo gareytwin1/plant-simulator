@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "19 September 2026",
-  "main_sha": "d6a6cfb652eda5b12cdf69981e25f71c5e79a58c",
-  "tests_passing_on_main": 448,
+  "main_sha": "b8af231cb6452499abcd70b2133f0d007232d444",
+  "tests_passing_on_main": 464,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -38,7 +38,7 @@
     },
     "M5": {
       "name": "Inventory and Mass Balance",
-      "complete": 0,
+      "complete": 1,
       "total": 5
     },
     "M6": {
@@ -114,8 +114,8 @@
   },
   "totals": {
     "tasks": 97,
-    "complete": 24,
-    "startable_now": 19
+    "complete": 26,
+    "startable_now": 18
   },
   "tasks": [
     {
@@ -643,10 +643,10 @@
       "files": [
         "app/equipment/vessel.py"
       ],
-      "status": "Ready for Review",
-      "status_key": "review",
-      "startable": true,
-      "note": "Receives already settled, and must not redesign: flow-domain semantics (T3-5), C3 named-port wiring (T3-6), and solver orchestration (unchanged, one solver per domain). The vessel is a COUPLING device: it declares a C3 ports map and an EMPTY paths list, so it holds no C2 Branch, appears in no Topology and in no Topology.devices, and its single identity lives in Plant.devices with its ports bound by Port.connect. It terminates one domain and originates another through its ports; a device whose ports attach to nodes in two different domains is valid and is the coupling mechanism. Its level and pressure are slow state advanced by integrate(dt). It does NOT build the boundary-condition update (T5-2) and does NOT widen characteristic(flow). If any of those seem necessary, stop and escalate against docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md, Amendment 1."
+      "status": "Complete",
+      "status_key": "done",
+      "startable": false,
+      "note": "Merged to main as b8af231cb6452499abcd70b2133f0d007232d444 (Merge pull request #23 from gareytwin1/feature/vessel-model), 19 Sep. Adds app/equipment/vessel.py: Vessel (V-101), a coupling device with an inlet and an outlet port and no hydraulic path, so it is in Plant.devices and in no Topology. Level [0, 1] is slow state advanced by integrate(dt) from plain settable inlet_flow / outlet_flow attributes in GPM (the caller writes them, as with the pump's speed_target; the vessel never reads a port, node or branch). Geometry is capacity in gal; residence_time in seconds, None with no outflow. characteristic() returns 0.0 and is not widened. tests/test_vessel.py, 16 tests, wired through load_plant's device_types override. Full suite 464 passed, mypy clean, golden traces unmoved. OPEN: 'vessel' is not registered in DEVICE_TYPES in app/plant/loader.py; register it before T5-5 (T5-2 is the natural place)."
     },
     {
       "id": "T5-2",
@@ -685,10 +685,7 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "T5-1"
-      ]
+      "startable": true
     },
     {
       "id": "T5-4",

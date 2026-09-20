@@ -45,14 +45,18 @@ equipment it has never seen before.
 - **Golden-value regression harness** — pins current numerical behaviour for
   both devices and fails loudly on drift.
 - **Flask API and browser pages** for the compressor and the pump.
-- **297 passing tests**, and a clean `mypy` over `app/`.
+- **Pressure-flow network solver** — a Newton-Raphson solve over the plant
+  graph, driven by the engine on every step: devices publish curves and the
+  solver finds where the plant lands on them.
+- **486 passing tests**, and a clean `mypy` over `app/`.
 
 ### Not built yet
 
-The plant-wide **pressure-flow network solver** does not exist. Devices still
-solve their own operating point through a legacy `step()` path, and the Flask
-routes still call it. Controllers, envelopes, alarms, trips, scenarios, scoring
-and the operator console are specified in the build plan but not implemented.
+Controllers, envelopes, alarms, trips, scenarios, scoring and the operator
+console are specified in the build plan but not implemented. A plant spanning
+more than one flow domain needs a solver per domain, which arrives with T5-2.
+The control valve has no hydraulic path of its own until T7-1, so the
+compressor page's valve strokes without changing flow.
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how current and target
 architecture differ.

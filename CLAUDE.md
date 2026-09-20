@@ -134,40 +134,35 @@ Violating any of these is a contract break, not a style preference.
 **This distinction matters more than anything else in this file.** Documentation
 that blurs it has repeatedly misled sessions into assuming the solver exists.
 
-**What the application actually does today:**
+**What the application actually does today (since T4-4, Checkpoint B):**
 
-The Flask app still drives equipment directly. A browser hits equipment-specific
-routes (`/api/state`, `/api/step`, `/api/pump/step`, …); those call the device's
-own **legacy `step()`**, which runs `integrate(dt)` and then
-`_calculate_operating_point()` — the device solving its *own* operating point
-against its *own* `upstream_boundary_pressure` / `downstream_boundary_pressure`
-attributes. `SessionRegistry` gives each browser its own plant instance.
+The solver is on the request path. A browser hits equipment-specific routes
+(`/api/state`, `/api/step`, `/api/pump/step`, …); each one steps an `Engine`,
+which advances the clock, integrates every device by the elapsed simulated
+time, solves the plant's network, and publishes a `Snapshot`. `Session` holds
+one Engine per page over a small single-device plant built through the C3
+loader, and `SessionRegistry` still gives each browser its own instance.
 
-**The infrastructure that exists alongside it but is not yet on the request
-path:** `Equipment`/`Port` (C1), `EquipmentRegistry`, `SimulationClock`,
-`Engine`, `Snapshot` (C4), `Topology` (C2), plant config schema + validator (C3),
-the plant loader (`app/plant/loader.py`, T3-3) and `SeededRNG` (T2-2). The
-loader builds a solvable `Topology` from a C3 config and rejects unsolvable
-ones at load time; nothing on the request path calls it yet.
+**The legacy per-device operating point is gone.** `step()`,
+`_calculate_operating_point()` and the `upstream_boundary_pressure` /
+`downstream_boundary_pressure` attributes were removed from both
+`GasCompressor` and `CentrifugalPump` at T4-4. A device publishes a curve and
+nothing else: **flow, suction pressure and discharge pressure are solver
+outputs**, held on the branch and its nodes, and they do not exist as device
+attributes. `get_state()` returns slow state only; the snapshot's `nodes` and
+`streams` sections carry the solved numbers.
 
-**What exists but is not yet on the request path:** the plant-wide pressure-flow
-**network solver** (`app/engine/network.py`, T4-2 and T4-3) — merged and tested,
-but nothing calls it. **What does not exist yet:** its wiring into the engine
-(T4-4). Until T4-4 lands:
+**What this bought and what it cost.** The single-device pages lost the suction
+and discharge line resistances and the `max_flow` clamp, which lived only in
+the retired standalone solve. Until T7-1 gives the control valve a branch of
+its own, a page's machine runs against two fixed battery limits with nothing
+between them: flow reads well above `max_flow`, the discharge valve strokes
+but changes nothing hydraulically, and the process spread sits at the boundary
+difference. That is a known interim state, not a bug to fix in passing.
 
-- `Engine.step()` deliberately calls `integrate()` only. It does **not** compute
-  flow or pressure, and a device's flow/pressure do not change when stepped
-  through the Engine.
-- The snapshot's `solver` section reports a trivial converged placeholder.
-- Both `GasCompressor` and `CentrifugalPump` **intentionally retain** `step()`
-  and their standalone operating-point solve, plus the interim
-  `upstream_boundary_pressure` / `downstream_boundary_pressure` attributes.
-
-**Do not "clean up" the legacy `step()` path or those boundary attributes as a
-side effect of another task.** T4-4 is the task that retires them (T4-2 only
-writes the solver, off the request path), and it will do so for both devices at
-once. Removing them early breaks the live Flask
-routes, which still depend on them.
+**Still not on the request path:** `EquipmentRegistry`, `SeededRNG` (T2-2).
+One solver per flow domain arrives with T5-2 — `Engine.from_plant` wires
+against `Plant.topology`, which raises on a multi-domain plant.
 
 **Do not write documentation, comments, or code that implies controllers,
 alarms, envelopes, or scoring already exist.**

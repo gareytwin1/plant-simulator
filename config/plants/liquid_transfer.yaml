@@ -1,0 +1,18 @@
+# Booster pump into transfer pump: one liquid domain, two identical pumps in
+# series with one internal node. Closed-form solution in
+# docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md section 7.1.
+nodes:
+  - {id: N-101, boundary: true, pressure: 50.0, domain: liquid}
+  - {id: N-102, boundary: false, pressure: 50.0, domain: liquid}
+  - {id: N-103, boundary: true, pressure: 180.0, domain: liquid}
+equipment:
+  - tag: P-101
+    type: pump
+    node_in: N-101
+    node_out: N-102
+    design: {speed: 1.0}
+  - tag: P-102
+    type: pump
+    node_in: N-102
+    node_out: N-103
+    design: {speed: 1.0}

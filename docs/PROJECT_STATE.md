@@ -8,10 +8,10 @@ Refresh this file whenever a task merges to `main`.
 
 ---
 
-**Last refreshed:** 19 September 2026 (**T3-5 Ready for Review**, [PR #17](https://github.com/gareytwin1/plant-simulator/pull/17), not merged; `main` unchanged)
-**Current `main`:** `b081ed8` — *Docs: Record flow-domain ADR and re-scope T3-4 (#16)*
-**Last code merge:** `c406ca0` — YAML plant loading, extracted from the parked T3-4 branch. Previous solver merge: `a2a1596` (T4-3). Since then only documentation has changed: the flow-domain architecture decision ([docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md](ADR_0001_FLOW_DOMAIN_SEPARATION.md), merged as `b081ed8`) and its **Amendment 1**, which is what is in the working tree now
-**Full suite on `main`:** **372 passed** (395 on `feature/flow-domains`, which adds 23) (`conda activate plant-simulator && python -m pytest -q`); `python -m mypy` clean
+**Last refreshed:** 19 September 2026 (**T3-5 merged** as `11517f6`, [PR #17](https://github.com/gareytwin1/plant-simulator/pull/17), which also carried ADR 0001 Amendment 1)
+**Current `main`:** `11517f6` — *Merge pull request #17 from gareytwin1/feature/flow-domains*
+**Last code merge:** `11517f6` — T3-5, flow-domain declaration (PR #17). Previous: `c406ca0` YAML plant loading; previous solver merge `a2a1596` (T4-3). ADR 0001 ([docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md](ADR_0001_FLOW_DOMAIN_SEPARATION.md)) and its Amendment 1 are on `main`
+**Full suite on `main`:** **395 passed** (`conda activate plant-simulator && python -m pytest -q`); `python -m mypy` clean
 
 ---
 
@@ -22,11 +22,11 @@ Refresh this file whenever a task merges to `main`.
 | **M0** Baseline Cleanup | **7/7 Complete** |
 | **M1** Equipment Model Contract | **5/5 Complete** — Checkpoint A reached |
 | **M2** Simulation Engine and Clock | 4/6 (T2-5 startable) |
-| **M3** Plant Topology and Streams | 3/6 — **T3-5 Ready for Review** (PR #17); T3-6 waits on T3-5; T3-4 Blocked on T3-5 |
-| **M4** Pressure-Flow Network Solver | 3/5 — T4-1, T4-2, T4-3 Complete; T4-4 (Checkpoint B) waits on T3-5 |
+| **M3** Plant Topology and Streams | 4/6 — T3-5 Complete; **T3-4 and T3-6 startable** |
+| **M4** Pressure-Flow Network Solver | 3/5 — T4-1, T4-2, T4-3 Complete; **T4-4 (Checkpoint B) startable** |
 | M5–M19 | Not started (M5 has 5 tasks: T5-5, the integrated reference plant, was added) |
 
-Overall: **22 of 97 tasks Complete.**
+Overall: **23 of 97 tasks Complete.**
 
 ### Completed and merged to `main`
 
@@ -86,19 +86,18 @@ now genuinely merged.)
   solving and interim `*_boundary_pressure` attributes remain until T4-4.
   T4-3 made a solve's diagnostics *representable* in a snapshot; it did not
   make anything produce one, so the live snapshot's `solver` section is still
-  the placeholder. The `snapshot.py` spine lock is released, but **T4-4 now
-  depends on T3-5** (see "Architecture decisions on file" below), so it is not
-  startable until T3-5 merges.
+  the placeholder. The `snapshot.py` spine lock is released and T3-5, which
+  T4-4 depended on, is merged, so T4-4 is startable.
 - **Reference plant files.** The loader reads `.json`, `.yaml` and `.yml` (YAML
   via `yaml.safe_load`, same C3 validation and `load_plant()` path), but no
   `config/plants/*.yaml` file exists. T3-4 was **re-scoped** by ADR 0001 to two
-  single-domain fixtures (`liquid_transfer.yaml`, `gas_compression.yaml`) and is
-  Blocked only on T3-5. The full `olefins_lite.yaml` train is now T5-5, in M5.
-- **Flow-domain enforcement (T3-5, Ready for Review, not merged).** A topology
-  must be a single flow domain, and on `main` nothing enforces it yet: a mixed
-  pump-plus-compressor config still loads and solves. PR #17 adds the
-  enforcement in the loader (see "Active branches and PRs"); until it merges,
-  treat this as not done.
+  single-domain fixtures (`liquid_transfer.yaml`, `gas_compression.yaml`), now
+  startable since T3-5 merged. The full `olefins_lite.yaml` train is now T5-5, in M5.
+- **Flow-domain enforcement is done for the loader only (T3-5, `11517f6`).**
+  `load_plant` rejects a branch across domains, a domain with no boundary and a
+  domain that is not one connected piece, and partitions into `Plant.topologies`.
+  A `Topology` built by hand is still unchecked, and nothing on the request path
+  calls the loader yet.
 - **Multi-port wiring in C3 (T3-6).** `equipment` still requires exactly
   `node_in` and `node_out`, so no device with more than two ports can be wired
   from config. The `ports` / `paths` contract is settled by ADR 0001 Amendment 1
@@ -288,28 +287,23 @@ and has a task that retires it.
 
 ## Active branches and PRs
 
-**One open PR: [#17](https://github.com/gareytwin1/plant-simulator/pull/17),
-`feature/flow-domains` (T3-5), Ready for Review, not merged.** No spine lock is
-held. ADR 0001 is merged (`b081ed8`, PR #16); its **Amendment 1** lives on
-`docs/flow-domain-amendment` (unmerged, docs-only), and PR #17 is stacked on it,
-so its first three commits are that branch's. Merge the amendment branch first.
-
-T3-5 implements ADR 0001 section 12.5-12.8, domains only: optional
-`nodes[].domain` (undeclared nodes are `DEFAULT_DOMAIN`, never inherited),
-`Plant.topologies` and a flat config-ordered `Plant.nodes`, `Plant.topology` as a
-property that raises on a multi-domain plant, and load-time rejection of a branch
-across domains, a domain with no boundary, and a domain that is not one connected
-piece. `to_config()` walks `Plant.nodes` and emits `domain` only when declared.
-C1, C2, `NetworkSolver`, `validate.py` and the golden traces are untouched.
-Equipment is still emitted from branches in config order; `Plant.devices` is T3-6.
-The worktree is `../plant-simulator-flow-domains`.
+No open PRs and no code branch in flight; **no spine lock is held.** T3-5 merged
+as `11517f6` ([PR #17](https://github.com/gareytwin1/plant-simulator/pull/17)).
+It implements ADR 0001 section 12.5-12.8, domains only: optional `nodes[].domain`
+(undeclared nodes are `DEFAULT_DOMAIN`, never inherited), `Plant.topologies` and
+a flat config-ordered `Plant.nodes`, `Plant.topology` as a property that raises
+on a multi-domain plant, and load-time rejection of a branch across domains, a
+domain with no boundary, and a domain that is not one connected piece.
+`to_config()` walks `Plant.nodes` and emits `domain` only when declared. C1, C2,
+`NetworkSolver`, `validate.py` and the golden traces are untouched. Equipment is
+still emitted from branches in config order; `Plant.devices` is T3-6.
 
 T4-3 merged as `a2a1596` ([PR #14](https://github.com/gareytwin1/plant-simulator/pull/14)) and released `app/engine/snapshot.py`.
 
 **`feature/reference-plant` (T3-4) is a parked staging branch** reset to `main`
 at `c406ca0` with no commits of its own. The YAML work it once carried is
 merged (PR #15). It is now the branch for the two single-domain fixtures
-(T3-4), which wait on T3-5; `olefins_lite.yaml` belongs to T5-5 and does not
+(T3-4), now startable; `olefins_lite.yaml` belongs to T5-5 and does not
 exist. See the T3-4 note below before touching it.
 
 Merged local branches can be deleted at any time.
@@ -323,23 +317,22 @@ reasonable-looking topology as one of three most-likely slip points.
 
 ## Handoff: the next agents
 
-**Everything below is verified against `main`** (372 tests, `mypy` clean). Read
+**Everything below is verified against `main`** (395 tests, `mypy` clean). Read
 [CLAUDE.md](../CLAUDE.md) first, then the build plan entry for your task. Model
 guidance is the **Agent model guidance** section of CLAUDE.md; the column below
 is the build plan's own assignment.
 
 ### Critical path to Checkpoint B
 
-**T4-2, T4-3 (Complete)** -> **T3-5 (flow domains only, satellite, Ready for Review, PR #17)** ->
+**T4-2, T4-3, T3-5 (Complete)** ->
 **T4-4 (wire into engine, spine, freezes other merges)** -> T4-5
-(cause-and-effect suite). T3-5 shares no files with T4-4 and takes no spine lock,
-so the two may be *developed* in parallel, but T3-5 merges first.
+(cause-and-effect suite). T3-5 has merged, so T4-4 is the next step on this path.
 
 `NetworkSolver` is in `app/engine/network.py`, fully tested, with its failure
 policy and diagnostics settled by T4-3 — but it is still not called from
 `Engine.step()` or the Flask request path.
 
-**T4-4 waits on T3-5 (Opus, `refactor/solver-integration`).** No spine lock is
+**T4-4 is startable (Opus, `refactor/solver-integration`).** No spine lock is
 held. It wires the Engine against `Plant.topology`, the single-domain
 convenience T3-5 keeps; one solver per domain arrives with T5-2. **Build the
 Engine's equipment collection from `Plant.devices`, never from
@@ -351,8 +344,7 @@ devices at once. Build the snapshot's solver section with
 snapshot state" below for the contract it presents. Expect golden traces to
 move, and justify any delta in the PR rather than regenerating it away.
 
-**T3-4 (`feature/reference-plant`) is Blocked on T3-5, not on a design
-decision.** ADR 0001 settled the design and re-scoped the task. Verified against
+**T3-4 (`feature/reference-plant`) is startable now that T3-5 has merged.** ADR 0001 settled the design and re-scoped the task. Verified against
 `main` on 19 September:
 
 - The **YAML half is merged** (PR #15, `c406ca0`) — `.json`/`.yaml`/`.yml` in
@@ -398,19 +390,21 @@ is retired: **T3-6** carries the C3 named-port wiring (moved from T3-5 by ADR
 "Seeded RNG" above. `SeededRNG` also has no state save/restore, which T12-1
 (snapshot save and restore) and T14-5 (deterministic replay) will need.
 
-### Startable now (16 tasks)
+### Startable now (19 tasks)
 
 All dependencies are Complete. Two of them (T2-5, T12-1) add *new* isolated
 modules under `app/engine/`, which is satellite work under the **`app/engine/`
 rule** in CLAUDE.md.
 
-**Not startable, on purpose:** T4-4 (Checkpoint B, spine, freezes other merges)
-and T3-4 wait on **T3-5**; **T3-6** waits on T3-5 and **T5-1** now waits on
-T3-6. T3-5 and T3-6 take no spine lock. The startable count fell from 17 to 16
-because T3-5 left the list on going to review; T3-6 is Blocked.
+**Newly startable with T3-5:** T3-4, T3-6 and T4-4. T4-4 is Checkpoint B and a
+spine task that freezes other merges. **T5-1** still waits on T3-6. T3-4 and T3-6
+take no spine lock.
 
 | Task | Name | Model | Branch |
 |---|---|---|---|
+| **T3-4** | Reference plant: two single-domain fixtures | Sonnet | `feature/reference-plant` |
+| **T3-6** | Multi-port equipment wiring (`ports`, `paths`, `Plant.devices`) | Sonnet | `feature/multi-port-wiring` |
+| **T4-4** | Wire the solver into the engine (Checkpoint B) | Opus | `refactor/solver-integration` |
 | **T6-1** | Stream enthalpy and mixing | Opus | `feature/stream-enthalpy` |
 | **T7-1** | Control valve model | Sonnet | `feature/control-valve` |
 | **T13-1** | Malfunction model and registry | Opus | `feature/malfunction-model` |
@@ -486,22 +480,23 @@ solve, not a stuck one. The cap is untouched and is not coupled to damping.
 
 **The build plan's reference-plant acceptance test is deferred, not satisfied.**
 "Residual falls below tolerance on the reference plant" needs a reference plant
-file, and none exists because **T3-4 is Blocked on T3-5**. T4-3 proves
+file, and none exists because **T3-4 has not been done yet**. T4-3 proves
 convergence on a hand-built single-domain series plant instead
 (`tests/test_solver_diagnostics.py`). T3-4's two single-domain fixtures are what
 this criterion will run against; the integrated train (T5-5) comes later.
 
-**Process-domain caveat (design settled, enforcement in PR #17, not merged)**:
+**Process-domain caveat (enforced in the loader as of T3-5)**:
 A `Topology` must be a single flow domain (gas or liquid, not both), and
-`NetworkSolver` solves exactly one. On `main` nothing enforces this yet — C2, C3 and the
-solver carry no domain metadata — so a mixed config still loads and solves to a
-meaningless answer. ADR 0001 decided where the rule is enforced: at load, in the
-loader, via an optional `domain` on C3 nodes, with the solver untouched. **T3-5
-implements it**, and T3-4 and T4-4 depend on it. (T5-1's dependency moved to
-T3-6, the multi-port wiring half of the original T3-5, when Amendment 1 split
-the task.)
+`NetworkSolver` solves exactly one. The loader now enforces this (T3-5, `11517f6`): it partitions
+nodes by declared `domain` into one `Topology` per domain and rejects a branch
+that crosses domains, at load, naming the config path. C2 and the solver still
+carry no domain metadata, so a `Topology` assembled by hand is unchecked. The
+solver is untouched. T4-4 wires the engine against `Plant.topology`, which raises
+on a multi-domain plant; one solver per domain arrives with T5-2. (T5-1's
+dependency moved to T3-6, the multi-port wiring half of the original T3-5, when
+Amendment 1 split the task.)
 
-## Test suite composition (372 tests on `main`)
+## Test suite composition (395 tests on `main`)
 
 | File | Tests | File | Tests |
 |---|---|---|---|
@@ -515,12 +510,11 @@ the task.)
 | `test_snapshot.py` | 16 | `test_random_source_guard.py` | 21 |
 | `test_rng.py` | 10 | `test_network_solver.py` | 36 |
 | `test_solver_diagnostics.py` | 14 | `test_plant_yaml.py` | 17 |
+| `test_plant_domains.py` | 23 | | |
 
 `test_equipment_contract.py` and `test_registry.py` discover device classes
 dynamically, so a new `Equipment` subclass is swept into the contract tests
 automatically — adding one raises the total by more than the tests you wrote.
 (T4-2 added `test_network_solver.py` with 36 tests, taking the total to 336;
 T4-3 added `test_solver_diagnostics.py` with 14 and 5 to `test_snapshot.py`,
-taking it to 355; `test_plant_yaml.py` added 17, taking it to 372. On
-`feature/flow-domains`, `test_plant_domains.py` adds 23 for 395; that is not on
-`main` until PR #17 merges.)
+taking it to 355; `test_plant_yaml.py` added 17, taking it to 372; `test_plant_domains.py` added 23, taking it to 395.)

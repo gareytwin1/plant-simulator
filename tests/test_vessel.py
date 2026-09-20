@@ -217,3 +217,149 @@ def test_vessel_wired_through_load_plant_is_a_coupling_device():
 
     for topology in plant.topologies.values():
         assert "V-101" not in topology.devices
+
+
+# T5-2 — the head the inventory offers, the carryover flag, and the guards
+# that keep a design value from reaching the coupling as nonsense.
+
+
+def test_head_is_linear_in_level():
+    vessel = make_vessel(level=0.0)
+    vessel.head_at_full = 20.0
+
+    assert vessel.head == pytest.approx(0.0)
+
+    vessel.level = 0.25
+    assert vessel.head == pytest.approx(5.0)
+
+    vessel.level = 1.0
+    assert vessel.head == pytest.approx(20.0)
+
+
+def test_head_is_zero_not_a_pressure_when_empty():
+    """An empty vessel offers no head. It does not offer 0 psia — the
+    absolute base belongs to the node, not the vessel.
+    """
+    vessel = make_vessel(level=0.0)
+
+    assert vessel.head == pytest.approx(0.0)
+
+
+def test_carryover_fires_at_the_configured_level():
+    vessel = make_vessel(level=0.5)
+    vessel.carryover_level = 0.8
+
+    assert vessel.carryover is False
+
+    vessel.level = 0.8
+    assert vessel.carryover is True
+
+    vessel.level = 0.95
+    assert vessel.carryover is True
+
+    vessel.level = 0.79
+    assert vessel.carryover is False
+
+
+def test_carryover_is_reported_in_state():
+    vessel = make_vessel(level=0.95)
+
+    assert vessel.get_state()["carryover"] is True
+    assert vessel.get_state()["head"] == pytest.approx(vessel.head_at_full * 0.95)
+
+
+def test_capacity_must_be_positive():
+    vessel = Vessel()
+
+    for bad in (0.0, -1.0, float("nan"), float("inf")):
+        with pytest.raises(ValueError, match="capacity"):
+            vessel.capacity = bad
+
+
+def test_level_must_be_a_fraction():
+    vessel = Vessel()
+
+    for bad in (-0.001, 1.001, float("nan")):
+        with pytest.raises(ValueError, match="level"):
+            vessel.level = bad
+
+    vessel.level = 0.0
+    vessel.level = 1.0
+
+
+def test_head_at_full_must_be_non_negative():
+    vessel = Vessel()
+
+    with pytest.raises(ValueError, match="head_at_full"):
+        vessel.head_at_full = -0.1
+
+    vessel.head_at_full = 0.0
+
+
+def test_carryover_level_must_be_a_fraction():
+    vessel = Vessel()
+
+    with pytest.raises(ValueError, match="carryover_level"):
+        vessel.carryover_level = 1.5
+
+
+def test_head_cannot_be_set_directly():
+    vessel = Vessel()
+
+    with pytest.raises(AttributeError):
+        vessel.head = 10.0
+
+
+def vessel_plant_config(design):
+    return {
+        "nodes": [
+            {"id": "N-01", "boundary": True, "pressure": 50.0},
+            {"id": "N-02", "boundary": True, "pressure": 110.0},
+        ],
+        "equipment": [
+            {
+                "tag": "P-101",
+                "type": "pump",
+                "node_in": "N-01",
+                "node_out": "N-02",
+                "design": {},
+            },
+            {
+                "tag": "V-101",
+                "type": "vessel",
+                "ports": {"inlet": "N-02", "outlet": "N-01"},
+                "paths": [],
+                "design": design,
+            },
+        ],
+    }
+
+
+def test_a_vessel_loads_from_the_default_device_table():
+    plant = load_plant(vessel_plant_config({"head_at_full": 18.0, "level": 0.8}))
+    vessel = plant.devices["V-101"]
+
+    assert isinstance(vessel, Vessel)
+    assert vessel.head == pytest.approx(14.4)
+
+
+def test_a_design_value_out_of_range_is_a_config_error_naming_the_path():
+    from app.plant.loader import PlantConfigError
+
+    with pytest.raises(PlantConfigError) as raised:
+        load_plant(vessel_plant_config({"capacity": 0.0}))
+
+    assert any(
+        error.startswith("$.equipment[1].design.capacity:")
+        and "must be above 0.0" in error
+        for error in raised.value.errors
+    )
+
+
+def test_a_derived_attribute_is_refused_as_a_design_value():
+    from app.plant.loader import PlantConfigError
+
+    with pytest.raises(PlantConfigError) as raised:
+        load_plant(vessel_plant_config({"head": 10.0}))
+
+    assert any("is derived and cannot be set" in error for error in raised.value.errors)

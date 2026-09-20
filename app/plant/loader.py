@@ -47,6 +47,7 @@ import yaml
 from app.equipment.base import INLET, OUTLET, Equipment
 from app.equipment.compressor import GasCompressor
 from app.equipment.pump import CentrifugalPump
+from app.equipment.vessel import Vessel
 from app.plant.topology import Branch, Node, Topology
 from app.plant.validate import validate
 
@@ -69,6 +70,7 @@ PASSTHROUGH_SECTIONS = (
 DEVICE_TYPES: dict[str, type[Equipment]] = {
     "pump": CentrifugalPump,
     "compressor": GasCompressor,
+    "vessel": Vessel,
 }
 
 
@@ -88,7 +90,9 @@ class Plant:
     `to_config()` reads design values back off the live devices, so what it
     returns is the plant as it stands, not a stale copy of the file. For a
     freshly loaded plant that is the same config, which is the round-trip the
-    loader promises.
+    loader promises. Node pressures come from `Node.configured_pressure`
+    rather than the live one, so a plant that has been stepped round-trips to
+    its as-built boundaries.
 
     `nodes` is every node in config order, across all domains; `topologies`
     holds one Topology per flow domain in the order each first appears.
@@ -176,10 +180,14 @@ class Plant:
         return item
 
     def _node_config(self, node: Node) -> dict[str, Any]:
+        # configured_pressure, not pressure: a boundary fed by a coupling
+        # device (T5-2) carries an inventory head on top of its as-built
+        # value, and emitting that would make a stepped plant round-trip to
+        # a config it was never loaded from.
         item: dict[str, Any] = {
             "id": node.id,
             "boundary": node.is_boundary,
-            "pressure": node.pressure,
+            "pressure": node.configured_pressure,
         }
 
         if node.id in self._declared_domains:
@@ -732,6 +740,10 @@ def _apply_design(
             errors.append(
                 f"{path}.{key}: {device.tag}.{key} is derived and cannot be set",
             )
+        except ValueError as error:
+            # A device guarding its own range (Vessel.capacity, .level) says
+            # why in its own words; the loader only adds the config path.
+            errors.append(f"{path}.{key}: {error}")
 
     return errors
 

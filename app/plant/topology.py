@@ -23,10 +23,18 @@ and set_pressure() refuses to move it. A topology with no boundary node has
 nothing anchoring its pressure field; `boundary_nodes` is the primitive the
 loader (T3-3) checks that with at load time, where the failure is readable.
 
+set_boundary_pressure() is the one sanctioned exception, added at T5-2 so a
+coupling device's integrated inventory can supply a boundary condition (ADR
+0001, D11). It is the mirror image of set_pressure(): it refuses on an
+*internal* node, so the solver's writer and the coupling's writer can never
+reach the same node. `configured_pressure` is the as-built value it is meant
+to be offset from, which is what keeps the offset from accumulating.
+
 Units follow docs/UNITS_CONVENTION.md: pressure psia, temperature °F, flow in
 the device's native unit (SCFM gas, GPM liquid), elevation ft.
 """
 
+import math
 from collections.abc import Iterable, Mapping
 
 from app.equipment.base import INLET, OUTLET, Equipment, Port
@@ -50,7 +58,17 @@ class Node:
     `pressure` is read-only and `set_pressure()` refuses on a boundary, so
     the two rules that matter are structural rather than conventional: no
     one writes a node pressure by accident, and no one moves a battery limit
-    at all.
+    inside the plant's own solve.
+
+    A battery limit is moved from *outside* the solve, by the inventory that
+    feeds it, and `set_boundary_pressure()` is that route. It refuses on an
+    internal node, so the two writers partition the graph between them rather
+    than overlapping on it.
+
+    `configured_pressure` is the pressure the node was built with and never
+    changes. The coupling reads its base off that every step instead of off
+    the live pressure it wrote last step, which is what makes an accumulating
+    offset impossible rather than merely avoided.
     """
 
     __slots__ = (
@@ -58,12 +76,14 @@ class Node:
         "is_boundary",
         "elevation",
         "_pressure",
+        "_configured_pressure",
     )
 
     id: str
     is_boundary: bool
     elevation: float
     _pressure: float
+    _configured_pressure: float
 
     def __init__(
         self,
@@ -76,10 +96,22 @@ class Node:
         self.is_boundary = is_boundary
         self.elevation = elevation
         self._pressure = pressure
+        self._configured_pressure = pressure
 
     @property
     def pressure(self) -> float:
         return self._pressure
+
+    @property
+    def configured_pressure(self) -> float:
+        """The pressure this node was built with — the as-built value.
+
+        Fixed at construction and never written again, so it survives every
+        solve and every boundary update. A coupling that offsets a boundary
+        by an inventory head reads its base here, which is why the offset
+        cannot compound over a run.
+        """
+        return self._configured_pressure
 
     def set_pressure(self, pressure: float) -> None:
         """Write a solved pressure. Boundary nodes refuse.
@@ -93,6 +125,38 @@ class Node:
             raise ValueError(
                 f"node {self.id!r} is a boundary — its pressure is held fixed "
                 f"at {self._pressure} psia and cannot be solved for",
+            )
+
+        self._pressure = pressure
+
+    def set_boundary_pressure(self, pressure: float) -> None:
+        """Write a boundary condition from outside the solve. Internal
+        nodes refuse.
+
+        The mirror of set_pressure(). A battery limit is not solved for, but
+        it is not immutable either: under D11 a coupling device's integrated
+        inventory supplies it, and this is the only route that does so. An
+        internal node is refused because its pressure belongs to the solver,
+        and two writers on one node is the failure this pair of methods
+        exists to make unreachable.
+
+        The value must be a finite, strictly positive absolute pressure. The
+        loader already checks that at load time; this is the same rule at
+        runtime, where a boundary is now written every step. It is a hard
+        error rather than a clamp on purpose — a zero or negative psia here
+        means the mapping that produced it is wrong, and flooring it would
+        hide that behind a plant which still solves.
+        """
+        if not self.is_boundary:
+            raise ValueError(
+                f"node {self.id!r} is internal — its pressure is a solver "
+                f"output and cannot be set as a boundary condition",
+            )
+
+        if not math.isfinite(pressure) or pressure <= 0.0:
+            raise ValueError(
+                f"node {self.id!r}: boundary pressure {pressure} is not a "
+                f"finite positive absolute pressure (psia)",
             )
 
         self._pressure = pressure

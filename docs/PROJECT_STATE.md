@@ -8,10 +8,10 @@ Refresh this file whenever a task merges to `main`.
 
 ---
 
-**Last refreshed:** 19 September 2026 (**T3-5 merged** as `11517f6`, [PR #17](https://github.com/gareytwin1/plant-simulator/pull/17), which also carried ADR 0001 Amendment 1)
-**Current `main`:** `11517f6` — *Merge pull request #17 from gareytwin1/feature/flow-domains*
-**Last code merge:** `11517f6` — T3-5, flow-domain declaration (PR #17). Previous: `c406ca0` YAML plant loading; previous solver merge `a2a1596` (T4-3). ADR 0001 ([docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md](ADR_0001_FLOW_DOMAIN_SEPARATION.md)) and its Amendment 1 are on `main`
-**Full suite on `main`:** **395 passed** (`conda activate plant-simulator && python -m pytest -q`); `python -m mypy` clean
+**Last refreshed:** 19 September 2026 (**T3-6 merged** as `2c08bb8`, [PR #20](https://github.com/gareytwin1/plant-simulator/pull/20))
+**Current `main`:** `2c08bb8` — *Merge pull request #20 from gareytwin1/feature/multi-port-wiring*
+**Last code merge:** `2c08bb8` — T3-6, multi-port equipment wiring (PR #20). Previous: `11517f6` T3-5 flow-domain declaration (PR #17); `c406ca0` YAML plant loading; previous solver merge `a2a1596` (T4-3). ADR 0001 ([docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md](ADR_0001_FLOW_DOMAIN_SEPARATION.md)) and its Amendment 1 are on `main`
+**Full suite on `main`:** **428 passed** (`conda activate plant-simulator && python -m pytest -q`); `python -m mypy` clean
 
 ---
 
@@ -22,11 +22,11 @@ Refresh this file whenever a task merges to `main`.
 | **M0** Baseline Cleanup | **7/7 Complete** |
 | **M1** Equipment Model Contract | **5/5 Complete** — Checkpoint A reached |
 | **M2** Simulation Engine and Clock | 4/6 (T2-5 startable) |
-| **M3** Plant Topology and Streams | 4/6 — T3-5 Complete; **T3-6 Ready for Review** (PR #20); T3-4 startable |
+| **M3** Plant Topology and Streams | 5/6 — T3-5 and T3-6 Complete; T3-4 startable |
 | **M4** Pressure-Flow Network Solver | 3/5 — T4-1, T4-2, T4-3 Complete; **T4-4 (Checkpoint B) startable** |
 | M5–M19 | Not started (M5 has 5 tasks: T5-5, the integrated reference plant, was added) |
 
-Overall: **23 of 97 tasks Complete.**
+Overall: **24 of 97 tasks Complete.**
 
 ### Completed and merged to `main`
 
@@ -38,7 +38,8 @@ Overall: **23 of 97 tasks Complete.**
   stream — see the note below) · `T2-3` engine + snapshot (C4) ·
   `T2-4` session/plant registry.
 - **M3** — `T3-1` plant config schema + validator (C3) ·
-  `T3-2` node/branch/stream (C2) · `T3-3` plant loader (`app/plant/loader.py`).
+  `T3-2` node/branch/stream (C2) · `T3-3` plant loader (`app/plant/loader.py`) ·
+  `T3-5` flow-domain declaration · `T3-6` multi-port equipment wiring.
 - **M4** — `T4-1` branch characteristic interface (sign convention,
   `signed_square`, `Branch.characteristic()` / `Branch.residual()`) · `T4-2`
   Newton-Raphson network solver (`NetworkSolver`, standalone, not yet wired
@@ -98,11 +99,11 @@ now genuinely merged.)
   domain that is not one connected piece, and partitions into `Plant.topologies`.
   A `Topology` built by hand is still unchecked, and nothing on the request path
   calls the loader yet.
-- **Multi-port wiring in C3 (T3-6).** `equipment` still requires exactly
-  `node_in` and `node_out`, so no device with more than two ports can be wired
-  from config. The `ports` / `paths` contract is settled by ADR 0001 Amendment 1
-  and section 12; T3-6 implements it. Nothing in `app/` knows the word
-  "domain", "port map" or "path" yet.
+- **Multi-port wiring in C3 is done for the loader only (T3-6, `2c08bb8`).**
+  `equipment` takes `node_in`/`node_out` sugar or `ports` + `paths`; a device with
+  `paths: []` is a coupling device, held in `Plant.devices` and in no `Topology`.
+  No device that uses it exists yet (the vessel is T5-1), and nothing on the
+  request path calls the loader.
 - **Single action endpoint (C5).** Routes are still per-equipment.
 - **Controllers (PID), envelopes, alarms, trips, scenarios, scoring, historian,
   console.** All specified in the build plan, none implemented.
@@ -287,16 +288,18 @@ and has a task that retires it.
 
 ## Active branches and PRs
 
-No open PRs and no code branch in flight; **no spine lock is held.** T3-5 merged
-as `11517f6` ([PR #17](https://github.com/gareytwin1/plant-simulator/pull/17)).
-It implements ADR 0001 section 12.5-12.8, domains only: optional `nodes[].domain`
-(undeclared nodes are `DEFAULT_DOMAIN`, never inherited), `Plant.topologies` and
-a flat config-ordered `Plant.nodes`, `Plant.topology` as a property that raises
-on a multi-domain plant, and load-time rejection of a branch across domains, a
-domain with no boundary, and a domain that is not one connected piece.
-`to_config()` walks `Plant.nodes` and emits `domain` only when declared. C1, C2,
-`NetworkSolver`, `validate.py` and the golden traces are untouched. Equipment is
-still emitted from branches in config order; `Plant.devices` is T3-6.
+No open PRs and no code branch in flight; **no spine lock is held.** T3-6 merged
+as `2c08bb8` ([PR #20](https://github.com/gareytwin1/plant-simulator/pull/20)).
+It implements ADR 0001 section 12.1-12.4, 12.8 and 12.9: `ports` (attachment only)
+and `paths` (one `Branch` each) in C3, one-form-only enforced in the loader, more
+than one path rejected (A6), `Plant.devices` (config-ordered, every device, coupling
+devices included), the dangling-port check moved onto it, and a form-preserving
+`to_config()`. `validate.py` gained `minProperties` and `additionalProperties` as a
+subschema. C1, C2, `NetworkSolver` and `Engine` are untouched. **T4-4 must build
+the Engine's equipment from `Plant.devices`, never `Topology.devices`**, or a
+coupling device would never be integrated.
+
+T3-5 merged as `11517f6` ([PR #17](https://github.com/gareytwin1/plant-simulator/pull/17)): domains only, `Plant.topologies`, flat `Plant.nodes`.
 
 T4-3 merged as `a2a1596` ([PR #14](https://github.com/gareytwin1/plant-simulator/pull/14)) and released `app/engine/snapshot.py`.
 
@@ -317,7 +320,7 @@ reasonable-looking topology as one of three most-likely slip points.
 
 ## Handoff: the next agents
 
-**Everything below is verified against `main`** (395 tests, `mypy` clean). Read
+**Everything below is verified against `main`** (428 tests, `mypy` clean). Read
 [CLAUDE.md](../CLAUDE.md) first, then the build plan entry for your task. Model
 guidance is the **Agent model guidance** section of CLAUDE.md; the column below
 is the build plan's own assignment.
@@ -368,7 +371,7 @@ move, and justify any delta in the PR rather than regenerating it away.
 ### Open questions carried from T3-3
 
 Question 1 still has no task and needs an owner (an Opus decision). Question 2
-is retired: **T3-6** carries the C3 named-port wiring (moved from T3-5 by ADR
+is retired: **T3-6** (merged) carried the C3 named-port wiring (moved from T3-5 by ADR
 0001 Amendment 1).
 
 1. **`Equipment.reset()` drops design values.** The loader applies a config's
@@ -377,12 +380,8 @@ is retired: **T3-6** carries the C3 named-port wiring (moved from T3-5 by ADR
    defaults, not the configured design. Fixing it needs a design/configure hook
    on C1 — a spine change — before anything relies on `reset()` for a loaded
    plant. Also relevant to T12-1 (save/restore).
-2. **C3 cannot wire a multi-port device — now assigned to T3-6.** The schema has
-   only `node_in`/`node_out`. The change is C3 only, but it is **two**
-   declarations, not one: a `ports` attachment map *and* an explicit `paths`
-   list, because a map alone never says which two ports form a `Branch`. Added
-   by T3-6 before T5-1 starts, to the contract in ADR 0001 section 12. T5-1 must
-   not invent it.
+2. **Resolved by T3-6 (`2c08bb8`).** C3 now wires a multi-port device with
+   `ports` and `paths`; T5-1 uses it and must not invent its own.
 
 ### Open question carried from T2-2
 
@@ -396,15 +395,14 @@ All dependencies are Complete. Two of them (T2-5, T12-1) add *new* isolated
 modules under `app/engine/`, which is satellite work under the **`app/engine/`
 rule** in CLAUDE.md.
 
-**Newly startable with T3-5:** T3-4, T3-6 and T4-4. T4-4 is Checkpoint B and a
-spine task that freezes other merges. **T5-1** still waits on T3-6. T3-4 and T3-6
-take no spine lock.
+**Newly startable with T3-6:** T5-1. T4-4 is Checkpoint B and a spine task that
+freezes other merges. T3-4 and T5-1 take no spine lock.
 
 | Task | Name | Model | Branch |
 |---|---|---|---|
 | **T3-4** | Reference plant: two single-domain fixtures | Sonnet | `feature/reference-plant` |
-| **T3-6** | Multi-port equipment wiring (`ports`, `paths`, `Plant.devices`) | Sonnet | `feature/multi-port-wiring` |
 | **T4-4** | Wire the solver into the engine (Checkpoint B) | Opus | `refactor/solver-integration` |
+| **T5-1** | Vessel model (coupling device, empty `paths`) | Sonnet | `feature/vessel-model` |
 | **T6-1** | Stream enthalpy and mixing | Opus | `feature/stream-enthalpy` |
 | **T7-1** | Control valve model | Sonnet | `feature/control-valve` |
 | **T13-1** | Malfunction model and registry | Opus | `feature/malfunction-model` |
@@ -496,7 +494,7 @@ on a multi-domain plant; one solver per domain arrives with T5-2. (T5-1's
 dependency moved to T3-6, the multi-port wiring half of the original T3-5, when
 Amendment 1 split the task.)
 
-## Test suite composition (395 tests on `main`)
+## Test suite composition (428 tests on `main`)
 
 | File | Tests | File | Tests |
 |---|---|---|---|
@@ -510,11 +508,11 @@ Amendment 1 split the task.)
 | `test_snapshot.py` | 16 | `test_random_source_guard.py` | 21 |
 | `test_rng.py` | 10 | `test_network_solver.py` | 36 |
 | `test_solver_diagnostics.py` | 14 | `test_plant_yaml.py` | 17 |
-| `test_plant_domains.py` | 23 | | |
+| `test_plant_domains.py` | 23 | `test_plant_ports.py` | 32 |
 
 `test_equipment_contract.py` and `test_registry.py` discover device classes
 dynamically, so a new `Equipment` subclass is swept into the contract tests
 automatically — adding one raises the total by more than the tests you wrote.
 (T4-2 added `test_network_solver.py` with 36 tests, taking the total to 336;
 T4-3 added `test_solver_diagnostics.py` with 14 and 5 to `test_snapshot.py`,
-taking it to 355; `test_plant_yaml.py` added 17, taking it to 372; `test_plant_domains.py` added 23, taking it to 395.)
+taking it to 355; `test_plant_yaml.py` added 17, taking it to 372; `test_plant_domains.py` added 23, taking it to 395; `test_plant_ports.py` added 32, and `main` runs 428.)

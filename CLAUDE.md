@@ -134,14 +134,29 @@ Violating any of these is a contract break, not a style preference.
 **This distinction matters more than anything else in this file.** Documentation
 that blurs it has repeatedly misled sessions into assuming the solver exists.
 
-**What the application actually does today (since T4-4, Checkpoint B):**
+**What the application actually does today (since T4-4, Checkpoint B; scheduler
+ownership since T2-6):**
 
-The solver is on the request path. A browser hits equipment-specific routes
-(`/api/state`, `/api/step`, `/api/pump/step`, …); each one steps an `Engine`,
-which advances the clock, integrates every device by the elapsed simulated
-time, solves the plant's network, and publishes a `Snapshot`. `Session` holds
-one Engine per page over a small single-device plant built through the C3
-loader, and `SessionRegistry` still gives each browser its own instance.
+The solver is on the request path, but a browser no longer drives it.
+`Session` holds one `Engine` per page over a small single-device plant built
+through the C3 loader, and now also one `Scheduler` per Engine
+(`compressor_scheduler`, `pump_scheduler`), constructed inert and started only
+by the route that renders the page displaying that machine — `/compressor`
+starts `compressor_scheduler`, `/pump` starts `pump_scheduler`, never both for
+one Session. Once started, that worker steps its Engine on its own cadence
+(`app/engine/scheduler.py`) regardless of whether anything is polling it: it
+advances the clock, integrates every device by the elapsed simulated time,
+solves the plant's network, and publishes a `Snapshot`. `/api/state` and
+`/api/pump/state` only read the latest published `Snapshot`; the frontend
+polls them and no longer steps anything itself. `/api/step` and
+`/api/pump/step` remain as manual, test-facing controls and step exactly as
+before while the matching scheduler is stopped, but return HTTP 409 while it
+is running rather than racing a manual step against the background worker. A
+Session's schedulers run until `Session.end()` stops and joins both — called
+directly, by `SessionRegistry.end()`, or by capacity-bounded LRU eviction
+(`config.MAX_SESSIONS`) when a new session is created with the registry full.
+There is deliberately no idle-age expiry yet; that is T18-5's scope, not
+T2-6's. `SessionRegistry` still gives each browser its own instance.
 
 **The legacy per-device operating point is gone.** `step()`,
 `_calculate_operating_point()` and the `upstream_boundary_pressure` /

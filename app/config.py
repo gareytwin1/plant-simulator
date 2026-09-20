@@ -44,3 +44,13 @@ TAG_PREFIXES = {
     "V": "vessel",
     "FV": "control valve",
 }
+
+
+# Session registry
+#
+# An operational guardrail, not a simulation constant: it bounds how many
+# live sessions (and therefore how many background scheduler workers,
+# two per session) SessionRegistry keeps at once. Beyond capacity the
+# least-recently-touched session is ended to make room. See T2-6.
+
+MAX_SESSIONS = 32

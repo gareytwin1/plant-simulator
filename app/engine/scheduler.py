@@ -174,6 +174,25 @@ class Scheduler:
         with self.step_lock:
             return self.engine.snapshot()
 
+    def snapshot_locked(self) -> Snapshot:
+        """The last published snapshot, or a fresh one built directly if
+        nothing has been published yet.
+
+        Contract: the caller already holds `step_lock`. This method must
+        never acquire it itself — `step_lock` is a `threading.Lock`, not
+        reentrant, and acquiring it here would deadlock the caller. Callers
+        that also need a live-device query (one that takes a solved value,
+        such as `characteristic(flow)`) take `step_lock` once, call this
+        instead of `snapshot()`, and make those queries inside the same
+        `with` block so the whole read comes from one coherent step.
+        """
+        latest = self._latest
+
+        if latest is not None:
+            return latest
+
+        return self.engine.snapshot()
+
     def _run(self, stopping: threading.Event) -> None:
         cadence = Cadence(self.step_seconds, self._monotonic())
 

@@ -81,16 +81,6 @@ async function stopPump() {
     updatePumpDisplay(state);
 }
 
-async function stepPump() {
-    const response = await fetch("/api/pump/step", {
-        method: "POST",
-    });
-
-    const state = await response.json();
-
-    updatePumpDisplay(state);
-}
-
 const startButton =
   document.getElementById("start-button");
 
@@ -138,7 +128,9 @@ if (stopButton) {
 
 getPumpState();
 
+// Physics runs on the server's own scheduler now (T2-6); this timer only
+// polls for the state that worker publishes, it no longer steps anything.
 setInterval(
-  stepPump,
+  getPumpState,
   1000,
 );

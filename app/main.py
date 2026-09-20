@@ -36,8 +36,18 @@ def persist_session_cookie(response: Response) -> Response:
     return response
 
 
+STEP_UNAVAILABLE_REASON = (
+    "manual stepping is unavailable while the background scheduler is running"
+)
+
+
 @app.route("/compressor")
 def compressor_page() -> ResponseReturnValue:
+    # A page render is the only real evidence a human is watching this
+    # plant, so it is what starts the worker that keeps it running once the
+    # response is sent. start() is idempotent, so a reload costs nothing.
+    g.plant.compressor_scheduler.start()
+
     return render_template(
         "compressor.html",
         state=g.plant.compressor_state(),
@@ -46,18 +56,24 @@ def compressor_page() -> ResponseReturnValue:
 
 @app.route("/start")
 def start() -> ResponseReturnValue:
-    g.plant.compressor.start()
+    with g.plant.compressor_scheduler.step_lock:
+        g.plant.compressor.start()
+
     return redirect(url_for("compressor_page"))
 
 
 @app.route("/stop")
 def stop() -> ResponseReturnValue:
-    g.plant.compressor.stop()
+    with g.plant.compressor_scheduler.step_lock:
+        g.plant.compressor.stop()
+
     return redirect(url_for("compressor_page"))
 
 
 @app.route("/pump")
 def pump_page() -> ResponseReturnValue:
+    g.plant.pump_scheduler.start()
+
     return render_template(
         "pump.html",
         state=g.plant.pump_state(),
@@ -71,18 +87,25 @@ def api_state() -> ResponseReturnValue:
 
 @app.route("/api/start", methods=["POST"])
 def api_start() -> ResponseReturnValue:
-    g.plant.compressor.start()
+    with g.plant.compressor_scheduler.step_lock:
+        g.plant.compressor.start()
+
     return jsonify(g.plant.compressor_state())
 
 
 @app.route("/api/stop", methods=["POST"])
 def api_stop() -> ResponseReturnValue:
-    g.plant.compressor.stop()
+    with g.plant.compressor_scheduler.step_lock:
+        g.plant.compressor.stop()
+
     return jsonify(g.plant.compressor_state())
 
 
 @app.route("/api/step", methods=["POST"])
 def api_step() -> ResponseReturnValue:
+    if g.plant.compressor_scheduler.running:
+        return jsonify({"error": STEP_UNAVAILABLE_REASON}), 409
+
     g.plant.step_compressor()
     return jsonify(g.plant.compressor_state())
 
@@ -91,9 +114,10 @@ def api_step() -> ResponseReturnValue:
 def set_valve() -> ResponseReturnValue:
     data = request.get_json()
 
-    g.plant.compressor.set_discharge_valve_position(
-        data["discharge_valve_position"]
-    )
+    with g.plant.compressor_scheduler.step_lock:
+        g.plant.compressor.set_discharge_valve_position(
+            data["discharge_valve_position"]
+        )
 
     return jsonify(g.plant.compressor_state())
 
@@ -102,9 +126,10 @@ def set_valve() -> ResponseReturnValue:
 def set_load() -> ResponseReturnValue:
     data = request.get_json()
 
-    g.plant.compressor.set_load_target(
-        float(data["load_target"])
-    )
+    with g.plant.compressor_scheduler.step_lock:
+        g.plant.compressor.set_load_target(
+            float(data["load_target"])
+        )
 
     return jsonify(g.plant.compressor_state())
 
@@ -116,18 +141,25 @@ def api_pump_state() -> ResponseReturnValue:
 
 @app.route("/api/pump/start", methods=["POST"])
 def api_pump_start() -> ResponseReturnValue:
-    g.plant.pump.start()
+    with g.plant.pump_scheduler.step_lock:
+        g.plant.pump.start()
+
     return jsonify(g.plant.pump_state())
 
 
 @app.route("/api/pump/stop", methods=["POST"])
 def api_pump_stop() -> ResponseReturnValue:
-    g.plant.pump.stop()
+    with g.plant.pump_scheduler.step_lock:
+        g.plant.pump.stop()
+
     return jsonify(g.plant.pump_state())
 
 
 @app.route("/api/pump/step", methods=["POST"])
 def api_pump_step() -> ResponseReturnValue:
+    if g.plant.pump_scheduler.running:
+        return jsonify({"error": STEP_UNAVAILABLE_REASON}), 409
+
     g.plant.step_pump()
     return jsonify(g.plant.pump_state())
 
@@ -136,9 +168,10 @@ def api_pump_step() -> ResponseReturnValue:
 def set_pump_speed() -> ResponseReturnValue:
     data = request.get_json()
 
-    g.plant.pump.set_speed_target(
-        float(data["speed_target"])
-    )
+    with g.plant.pump_scheduler.step_lock:
+        g.plant.pump.set_speed_target(
+            float(data["speed_target"])
+        )
 
     return jsonify(g.plant.pump_state())
 

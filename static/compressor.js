@@ -282,17 +282,6 @@ async function stopPlant() {
     updatePlantDisplay(state);
 }
 
-async function stepPlant() {
-    const response = await fetch("/api/step", {
-        method: "POST",
-    });
-
-    const state = await response.json();
-
-    updatePlantDisplay(state);
-    addPressureSample(state);
-}
-
 const startButton =
   document.getElementById("start-button");
 
@@ -375,7 +364,9 @@ if (stopButton) {
 
 getPlantState();
 
+// Physics runs on the server's own scheduler now (T2-6); this timer only
+// polls for the state that worker publishes, it no longer steps anything.
 setInterval(
-  stepPlant,
+  getPlantState,
   1000,
 );

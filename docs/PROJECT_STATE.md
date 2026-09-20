@@ -21,7 +21,7 @@ Refresh this file whenever a task merges to `main`.
 |---|---|
 | **M0** Baseline Cleanup | **7/7 Complete** |
 | **M1** Equipment Model Contract | **5/5 Complete** — Checkpoint A reached |
-| **M2** Simulation Engine and Clock | 5/6 (T2-5 Complete, `06569cc`; **T2-6 startable**) |
+| **M2** Simulation Engine and Clock | 5/6 (T2-5 Complete, `06569cc`; **T2-6 Ready for Review** on `refactor/frontend-read-only`, not merged) |
 | **M3** Plant Topology and Streams | **6/6 Complete** |
 | **M4** Pressure-Flow Network Solver | **5/5 Complete** — Checkpoint B reached; T4-5 was re-scoped before implementation, see [The T4-5 re-scope](#the-t4-5-re-scope) |
 | **M5** Inventory and Mass Balance | 3/5 — T5-1, T5-2, T5-3 Complete; **T5-4 startable**; the engine and topology spine locks are released (M5 has 5 tasks: T5-5, the integrated reference plant, was added) |
@@ -342,7 +342,25 @@ Engine-computes-nothing state; what remains is the consequence of that:
 
 ## Active branches and PRs
 
-**No spine lock is held.** T5-2 merged as `154385c`
+**T2-6 is Ready for Review on `refactor/frontend-read-only`** (not merged,
+no PR opened). Implements the approved design in
+[docs/T2-6_SCHEDULER_OWNERSHIP.md](T2-6_SCHEDULER_OWNERSHIP.md): `Session`
+now owns `compressor_scheduler`/`pump_scheduler`, started only by the
+`/compressor`/`/pump` route that renders the matching page, and stopped only
+by `Session.end()` (direct, `SessionRegistry.end()`, or LRU eviction past the
+new `config.MAX_SESSIONS = 32`); `/api/step` and `/api/pump/step` now 409
+while their scheduler is running; `Scheduler` gained `snapshot_locked()` for
+state reads that also need a live-device query over a solved value
+(`temperature_at`, `characteristic`). Touches `app/engine/sessions.py`
+(spine, lock held), `app/main.py` (highest-conflict, lock held),
+`app/engine/scheduler.py`, `app/config.py`, `static/compressor.js` and, as a
+file-list correction called out in the design note and the PR,
+`static/pump.js` (it independently stepped physics on its own timer the same
+way `compressor.js` did). 752 passed (738 baseline + 14 new), stable across
+repeated runs; `mypy` clean over 24 source files; no golden trace moved.
+Releases the `app/main.py` and `app/engine/sessions.py` locks on merge.
+
+**No other spine lock is held.** T5-2 merged as `154385c`
 ([PR #27](https://github.com/gareytwin1/plant-simulator/pull/27)) and released
 the locks on `app/engine/engine.py` and `app/plant/topology.py`.
 

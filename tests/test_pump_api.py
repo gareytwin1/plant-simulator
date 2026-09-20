@@ -110,6 +110,13 @@ def test_pump_api_speed_target_clamps_below_zero():
 def test_pump_page_renders():
     client = main.app.test_client()
 
-    response = client.get("/pump")
+    try:
+        response = client.get("/pump")
 
-    assert response.status_code == 200
+        assert response.status_code == 200
+    finally:
+        # Rendering the page starts pump_scheduler's worker (T2-6). This is
+        # the one test in the suite that renders a page, so it is the one
+        # that must end its own session rather than leaking that thread.
+        session_id = client.get_cookie(main.SESSION_COOKIE).value
+        main.sessions.end(session_id)

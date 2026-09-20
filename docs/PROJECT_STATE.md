@@ -8,10 +8,10 @@ Refresh this file whenever a task merges to `main`.
 
 ---
 
-**Last refreshed:** 20 September 2026 (**T4-5 merged** as `e261134`, [PR #29](https://github.com/gareytwin1/plant-simulator/pull/29) — **M4 complete**)
-**Current `main`:** `e261134` — *Merge pull request #29 from gareytwin1/test/cause-and-effect*
-**Last code merge:** `e261134` — T4-5, the cause-and-effect assertion suite (PR #29, test-only). Previous: `154385c` T5-2, level to hydraulics coupling and the multi-domain Engine (PR #27). Previous: `0efa5be` T4-4, the solver wired into the engine (PR #25). Previous: `b8af231` T5-1 vessel model (PR #23); `d6a6cfb` T3-4 single-domain reference fixtures (PR #19); `2c08bb8` T3-6 multi-port equipment wiring (PR #20); `11517f6` T3-5 flow-domain declaration (PR #17); `c406ca0` YAML plant loading; previous solver merge `a2a1596` (T4-3). ADR 0001 ([docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md](ADR_0001_FLOW_DOMAIN_SEPARATION.md)) and its Amendment 1 are on `main`
-**Full suite on `main`:** **567 passed** (`conda activate plant-simulator && python -m pytest -q`); `python -m mypy` clean
+**Last refreshed:** 20 September 2026 (**T7-1 merged** as `fefa841`, [PR #32](https://github.com/gareytwin1/plant-simulator/pull/32) — control valve model)
+**Current `main`:** `fefa841` — *Merge pull request #32 from gareytwin1/feat/t7-1-control-valve*
+**Last code merge:** `fefa841` — T7-1, the control valve model (PR #32). Previous: `e261134` T4-5, the cause-and-effect assertion suite (PR #29, test-only). Previous: `154385c` T5-2, level to hydraulics coupling and the multi-domain Engine (PR #27). Previous: `0efa5be` T4-4, the solver wired into the engine (PR #25). Previous: `b8af231` T5-1 vessel model (PR #23); `d6a6cfb` T3-4 single-domain reference fixtures (PR #19); `2c08bb8` T3-6 multi-port equipment wiring (PR #20); `11517f6` T3-5 flow-domain declaration (PR #17); `c406ca0` YAML plant loading; previous solver merge `a2a1596` (T4-3). ADR 0001 ([docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md](ADR_0001_FLOW_DOMAIN_SEPARATION.md)) and its Amendment 1 are on `main`
+**Full suite on `main`:** **681 passed** (`conda activate plant-simulator && python -m pytest -q`); `python -m mypy` clean
 
 ---
 
@@ -25,9 +25,10 @@ Refresh this file whenever a task merges to `main`.
 | **M3** Plant Topology and Streams | **6/6 Complete** |
 | **M4** Pressure-Flow Network Solver | **5/5 Complete** — Checkpoint B reached; T4-5 was re-scoped before implementation, see [The T4-5 re-scope](#the-t4-5-re-scope) |
 | **M5** Inventory and Mass Balance | 2/5 — T5-1, T5-2 Complete; **T5-3 and T5-4 startable**; the engine and topology spine locks are released (M5 has 5 tasks: T5-5, the integrated reference plant, was added) |
-| M6–M19 | Not started |
+| **M7** Control Valves and Final Elements | 1/4 — T7-1 Complete; **T7-3 and T7-4 startable**; T7-2 also needs T5-5 |
+| M6, M8–M19 | Not started |
 
-Overall: **29 of 97 tasks Complete.**
+Overall: **30 of 97 tasks Complete.**
 
 ### Completed and merged to `main`
 
@@ -56,7 +57,11 @@ Overall: **29 of 97 tasks Complete.**
   `Engine.from_plant()` builds equipment from `Plant.devices`; the devices'
   standalone operating point is retired · `T4-5` cause-and-effect assertion
   suite (`e261134`, `tests/test_cause_effect.py`, 26 tests, test-only), re-scoped
-  before implementation — two criteria moved to T7-1.
+  before implementation — two criteria moved to T7-1 · `T7-1` control valve model
+  (`fefa841`, PR #32, `app/equipment/valve.py`, `control_valve` in the loader,
+  domain-resolved flow unit in `coupling.py`, `config/plants/liquid_valve_train.yaml`,
+  `tests/test_control_valve.py`, 103 tests). 681 tests and `mypy` clean over 23
+  source files before merge; no golden trace changed.
 
 ### Seeded RNG: what shipped and what did not (T2-2)
 
@@ -99,7 +104,10 @@ now genuinely merged.)
   and the boundary-condition update couples them through vessel inventory.
   `Engine.topology` survives as a convenience that raises on a multi-domain
   engine, the same bargain `Plant.topology` makes.
-- **The control valve has no hydraulic path (T7-1).** The line resistances and the
+- **The control valve has no hydraulic path on the live pages.** *(T7-1 built the
+  valve and a plant that uses it, `liquid_valve_train.yaml`; the `Session` pages
+  still run one machine between two fixed limits, so the interim state below
+  stands for them.)* The line resistances and the
   `max_flow` clamp lived only in the retired standalone solve, so a page's flow
   runs above `max_flow`, the discharge valve strokes without changing flow, and
   spread equals the boundary difference. Equipment does not clamp; envelopes and
@@ -261,13 +269,16 @@ Engine-computes-nothing state; what remains is the consequence of that:
    boundaries were kept so an idle machine sits at zero flow — exactly zero if it
    has never run, and within a hair of it once stopped; see *A stopped machine
    keeps a small residual flow* under Known technical debt.
-   *Retired by:* **T7-1** (control valve on its own branch).
+   *Retired by:* **T7-1** built the valve; the pages themselves are not yet
+   rewired onto a plant that contains one.
 
 2. **No check valve.** With a boundary differential and a machine slower than it,
    the solver finds reverse flow through the machine, where the retired standalone
    solve clipped at zero. The live pages do not hit it because their boundaries
    are equal; a plant sized for running and started cold would.
-   *Retired by:* **T7-1**, which carries the cold-start criterion.
+   *Retired by:* not retired. **T7-1** carried the cold-start criterion and met
+   it between equal boundaries, but a resistance cannot stop reverse flow against
+   an adverse gradient (see Known technical debt). Needs a check valve.
 
 3. **`get_state()` on a device is slow state only.** Flow and the two pressures
    are not device attributes; the page's row is assembled by
@@ -376,7 +387,7 @@ the `engine.py` spine lock again.
 
 ## Handoff: the next agents
 
-**Everything below is verified against `main`** (567 tests, `mypy` clean). Read
+**Everything below is verified against `main`** (681 tests, `mypy` clean). Read
 [CLAUDE.md](../CLAUDE.md) first, then the build plan entry for your task. Model
 guidance is the **Agent model guidance** section of CLAUDE.md; the column below
 is the build plan's own assignment.
@@ -473,7 +484,7 @@ is retired: **T3-6** (merged) carried the C3 named-port wiring (moved from T3-5 
 "Seeded RNG" above. `SeededRNG` also has no state save/restore, which T12-1
 (snapshot save and restore) and T14-5 (deterministic replay) will need.
 
-### Startable now (17 tasks)
+### Startable now (18 tasks)
 
 All dependencies are Complete. Two of them (T2-5, T12-1) add *new* isolated
 modules under `app/engine/`, which is satellite work under the **`app/engine/`
@@ -481,15 +492,17 @@ rule** in CLAUDE.md.
 
 **Startable:** T4-5 and T5-2 are both merged, so neither appears below. T5-3
 (gas pressure, `app/equipment/vessel.py`) takes no spine lock and is free to
-start now that T5-2 has released that file. **T7-1** carries two cause-and-effect
-criteria moved off T4-5 and depends on T4-4 (Complete), so it stays startable —
-and it is now the task that makes those two criteria expressible at all.
+start now that T5-2 has released that file. **T7-1** is merged (`fefa841`) and carried the
+two cause-and-effect criteria moved off T4-5, so **T7-3** and **T7-4** are newly
+startable. T7-3 edits `app/equipment/valve.py` and should not run beside another
+valve change.
 
 | Task | Name | Model | Branch |
 |---|---|---|---|
 | **T5-3** | Gas-phase pressure accumulation | Sonnet | `feature/gas-inventory` |
 | **T6-1** | Stream enthalpy and mixing | Opus | `feature/stream-enthalpy` |
-| **T7-1** | Control valve model | Sonnet | `feature/control-valve` |
+| **T7-3** | Valve fault modes | Sonnet | `feature/valve-faults` |
+| **T7-4** | Command arbitration | Sonnet | `feature/command-arbitration` |
 | **T13-1** | Malfunction model and registry | Opus | `feature/malfunction-model` |
 | **T2-5** | Background scheduler | Sonnet | `feature/engine-scheduler` |
 | **T12-1** | Plant snapshot save and restore | Sonnet | `feature/state-persistence` |
@@ -581,24 +594,24 @@ plant. (T5-1's
 dependency moved to T3-6, the multi-port wiring half of the original T3-5, when
 Amendment 1 split the task.)
 
-## Test suite composition (567 tests on `main`)
+## Test suite composition (681 tests on `main`)
 
 | File | Tests | File | Tests |
 |---|---|---|---|
-| `test_api.py` | 7 | `test_plant_yaml.py` | 17 |
-| `test_cause_effect.py` | 26 | `test_pump.py` | 9 |
-| `test_clock.py` | 13 | `test_pump_api.py` | 8 |
-| `test_compressor.py` | 19 | `test_random_source_guard.py` | 24 |
+| `test_api.py` | 7 | `test_plant_ports.py` | 32 |
+| `test_cause_effect.py` | 26 | `test_plant_yaml.py` | 17 |
+| `test_clock.py` | 13 | `test_pump.py` | 9 |
+| `test_compressor.py` | 19 | `test_pump_api.py` | 8 |
+| `test_control_valve.py` | 103 | `test_random_source_guard.py` | 25 |
 | `test_engine.py` | 13 | `test_reference_plants.py` | 20 |
-| `test_engine_solver.py` | 17 | `test_registry.py` | 16 |
-| `test_equipment_contract.py` | 67 | `test_rng.py` | 10 |
+| `test_engine_solver.py` | 17 | `test_registry.py` | 17 |
+| `test_equipment_contract.py` | 76 | `test_rng.py` | 10 |
 | `test_golden_regression.py` | 15 | `test_session_isolation.py` | 6 |
 | `test_inventory_coupling.py` | 26 | `test_sessions.py` | 7 |
 | `test_network_solver.py` | 36 | `test_snapshot.py` | 16 |
 | `test_plant_config_validation.py` | 13 | `test_solver_diagnostics.py` | 14 |
 | `test_plant_domains.py` | 23 | `test_topology.py` | 59 |
 | `test_plant_loader.py` | 27 | `test_vessel.py` | 27 |
-| `test_plant_ports.py` | 32 |  |  |
 
 `test_equipment_contract.py` and `test_registry.py` discover device classes
 dynamically, so a new `Equipment` subclass is swept into the contract tests
@@ -608,4 +621,7 @@ hand, because it had drifted twice before T4-5.
 
 Recent movement: T4-4 took `main` to 486; T5-2 added `test_inventory_coupling.py`
 (26) and grew `test_vessel.py`, `test_topology.py` and `test_engine_solver.py`,
-taking it to 541; T4-5 added `test_cause_effect.py` (26), taking it to 567.
+taking it to 541; T4-5 added `test_cause_effect.py` (26), taking it to 567; T7-1
+added `test_control_valve.py` (103) and, because the contract and registry tests
+sweep in the new device class, grew `test_equipment_contract.py` and
+`test_registry.py`, taking it to 681.

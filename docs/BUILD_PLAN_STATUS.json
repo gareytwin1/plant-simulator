@@ -115,7 +115,7 @@
   "totals": {
     "tasks": 97,
     "complete": 23,
-    "startable_now": 19
+    "startable_now": 18
   },
   "tasks": [
     {
@@ -531,10 +531,10 @@
         "app/plant/loader.py",
         "tests/test_plant_ports.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true,
-      "note": "Sonnet. Created by ADR 0001 Amendment 1, split out of T3-5. Implement docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md section 12 (12.1-12.4 and 12.9 are this task) - do not redesign it. Two separate C3 declarations: 'ports' maps a device port name to a node id and means attachment ONLY; 'paths' is a list of {from, to} port-name pairs, each becoming exactly one C2 Branch with explicit from_port/to_port. Nothing is inferred - in the ports form 'paths' is required, and 'paths: []' is the explicit way to say 'coupling device, not in any hydraulic solve'. node_in/node_out is retained unchanged as sugar for the one-inlet-one-outlet case. A device with no path holds no branch, is in NO Topology (Topology.devices is derived from branches and C2 has no device-only registration), and lives in Plant.devices with its ports bound by Port.connect - that is how a vessel couples two domains. A device with MORE THAN ONE path is rejected, because characteristic(flow) is device-wide; the task that widens C1 deletes that check. Do NOT add a oneOf: app/plant/validate.py silently ignores oneOf, additionalProperties-as-subschema and patternProperties, so the wiring-form alternation is enforced in the loader where the error names the config path. The validator gains exactly two generic features, additionalProperties-as-subschema and minProperties, and nothing else. No vessel is needed: test against a stub multi-port Equipment subclass through load_plant's device_types override, as tests/test_plant_loader.py does with ManifoldDouble. The dangling-port check moves from Topology.unconnected_ports() to Plant.devices, because the former cannot see a coupling device. to_config() is form-preserving, not canonicalising. Do NOT modify C1, C2 or NetworkSolver."
+      "status": "Ready for Review",
+      "status_key": "review",
+      "startable": false,
+      "note": "Ready for Review on feature/multi-port-wiring (PR #20), NOT merged. Implements ADR 0001 section 12.1-12.4, 12.8 and 12.9. C3 equipment gains optional ports (port name -> node id, attachment only) and paths ({from, to} pairs, one Branch each); node_in/node_out is optional sugar. The loader enforces the one-form rule and every 12.3 rejection at $.equipment[i]; paths is required with ports and [] marks a coupling device; more than one path is rejected (A6). Branch id stays B-{tag}. Plant.devices is config-ordered and holds every device, coupling devices included, and coupling devices sit in no Topology. The dangling-port check walks Plant.devices. to_config() is form-preserving and round-trips both forms and mixed configs exactly. validate.py gained only minProperties and additionalProperties-as-subschema. C1, C2, NetworkSolver and Engine untouched. 428 tests green (32 new in tests/test_plant_ports.py), mypy clean. One existing test, test_missing_required_field_names_the_path, now deletes design instead of node_out because node_out is no longer required."
     },
     {
       "id": "T4-1",

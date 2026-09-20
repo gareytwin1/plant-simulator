@@ -8,10 +8,10 @@ Refresh this file whenever a task merges to `main`.
 
 ---
 
-**Last refreshed:** 19 September 2026 (**T5-1 merged** as `b8af231`, [PR #23](https://github.com/gareytwin1/plant-simulator/pull/23))
-**Current `main`:** `b8af231` — *Merge pull request #23 from gareytwin1/feature/vessel-model*
-**Last code merge:** `b8af231` — T5-1, vessel model (PR #23). Previous: `d6a6cfb` T3-4 single-domain reference fixtures (PR #19); `2c08bb8` T3-6 multi-port equipment wiring (PR #20); `11517f6` T3-5 flow-domain declaration (PR #17); `c406ca0` YAML plant loading; previous solver merge `a2a1596` (T4-3). ADR 0001 ([docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md](ADR_0001_FLOW_DOMAIN_SEPARATION.md)) and its Amendment 1 are on `main`
-**Full suite on `main`:** **464 passed** (`conda activate plant-simulator && python -m pytest -q`); `python -m mypy` clean
+**Last refreshed:** 20 September 2026 (**T4-4 merged** as `0efa5be`, [PR #25](https://github.com/gareytwin1/plant-simulator/pull/25) — Checkpoint B)
+**Current `main`:** `0efa5be` — *Merge pull request #25 from gareytwin1/refactor/solver-integration*
+**Last code merge:** `0efa5be` — T4-4, the solver wired into the engine (PR #25). Previous: `b8af231` T5-1 vessel model (PR #23); `d6a6cfb` T3-4 single-domain reference fixtures (PR #19); `2c08bb8` T3-6 multi-port equipment wiring (PR #20); `11517f6` T3-5 flow-domain declaration (PR #17); `c406ca0` YAML plant loading; previous solver merge `a2a1596` (T4-3). ADR 0001 ([docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md](ADR_0001_FLOW_DOMAIN_SEPARATION.md)) and its Amendment 1 are on `main`
+**Full suite on `main`:** **486 passed** (`conda activate plant-simulator && python -m pytest -q`); `python -m mypy` clean
 
 ---
 
@@ -23,11 +23,11 @@ Refresh this file whenever a task merges to `main`.
 | **M1** Equipment Model Contract | **5/5 Complete** — Checkpoint A reached |
 | **M2** Simulation Engine and Clock | 4/6 (T2-5 startable) |
 | **M3** Plant Topology and Streams | **6/6 Complete** |
-| **M4** Pressure-Flow Network Solver | 3/5 — T4-1, T4-2, T4-3 Complete; **T4-4 (Checkpoint B) startable** |
-| **M5** Inventory and Mass Balance | 1/5 — T5-1 Complete; **T5-3 startable**; T5-2 waits on T4-4 (M5 has 5 tasks: T5-5, the integrated reference plant, was added) |
+| **M4** Pressure-Flow Network Solver | 4/5 — T4-1, T4-2, T4-3, T4-4 Complete (**Checkpoint B reached**); **T4-5 startable** |
+| **M5** Inventory and Mass Balance | 1/5 — T5-1 Complete; **T5-2 and T5-3 startable**; T5-2 takes the engine spine lock (M5 has 5 tasks: T5-5, the integrated reference plant, was added) |
 | M6–M19 | Not started |
 
-Overall: **26 of 97 tasks Complete.**
+Overall: **27 of 97 tasks Complete.**
 
 ### Completed and merged to `main`
 
@@ -44,9 +44,12 @@ Overall: **26 of 97 tasks Complete.**
 - **M5** — `T5-1` vessel model (`app/equipment/vessel.py`): a coupling device, level integrated from caller-written `inlet_flow` / `outlet_flow` (GPM). **Not registered in `DEVICE_TYPES` yet** — register it before T5-5.
 - **M4** — `T4-1` branch characteristic interface (sign convention,
   `signed_square`, `Branch.characteristic()` / `Branch.residual()`) · `T4-2`
-  Newton-Raphson network solver (`NetworkSolver`, standalone, not yet wired
-  into the engine) · `T4-3` solver diagnostics and failure handling
-  (`SolverResult.failure`, `snapshot.solver_status()`; C4's shape unchanged).
+  Newton-Raphson network solver (`NetworkSolver`) · `T4-3` solver diagnostics
+  and failure handling (`SolverResult.failure`, `snapshot.solver_status()`; C4's
+  shape unchanged) · `T4-4` solver wired into the engine (`0efa5be`): `Engine.step()`
+  integrates, solves and publishes real `solver` / `nodes` / `streams`;
+  `Engine.from_plant()` builds equipment from `Plant.devices`; the devices'
+  standalone operating point is retired.
 
 ### Seeded RNG: what shipped and what did not (T2-2)
 
@@ -72,10 +75,10 @@ now genuinely merged.)
 | `CentrifugalPump` (`P-101`) | `app/equipment/pump.py` | On C1 as of T1-4 |
 | `EquipmentRegistry` | `app/equipment/registry.py` | Tag → device; rejects duplicate tags |
 | `SimulationClock` | `app/engine/clock.py` | Sim time, speed, pause |
-| `Engine` | `app/engine/engine.py` | Integrates all devices, publishes snapshot |
+| `Engine` | `app/engine/engine.py` | Integrates all devices, solves the network, publishes snapshot. `Engine.from_plant()` is single-domain (`Plant.topology`) |
 | `Snapshot` (C4) | `app/engine/snapshot.py` | Immutable; shape frozen |
-| `SessionRegistry` / `Session` | `app/engine/sessions.py` | Per-browser plant isolation |
-| `NetworkSolver` | `app/engine/network.py` | Newton-Raphson solver for plant-wide flows and pressures; standalone, not yet on the request path. Diagnostics and failure policy as of T4-3 |
+| `SessionRegistry` / `Session` | `app/engine/sessions.py` | Per-browser plant isolation; one `Engine` per page over a loader-built single-device plant |
+| `NetworkSolver` | `app/engine/network.py` | Newton-Raphson solver for plant-wide flows and pressures; called by `Engine.step()` since T4-4. Diagnostics and failure policy as of T4-3 |
 | Topology (C2) | `app/plant/topology.py` | `Node`, `Branch`, `Stream`, `Topology`; `Branch.characteristic()` / `residual()` as of T4-1 |
 | Plant config schema (C3) + validator | `config/schema/plant.schema.json`, `app/plant/validate.py` | |
 | Golden regression harness | `tests/golden_regression.py`, `tests/fixtures/golden/` | |
@@ -83,14 +86,15 @@ now genuinely merged.)
 
 ### What intentionally does not exist yet
 
-- **The network solver is not wired into the engine (T4-4).** `NetworkSolver`
-  (T4-2) is complete and tested but standalone — nothing calls it from
-  `Engine.step()` or the Flask request path. Device-owned operating-point
-  solving and interim `*_boundary_pressure` attributes remain until T4-4.
-  T4-3 made a solve's diagnostics *representable* in a snapshot; it did not
-  make anything produce one, so the live snapshot's `solver` section is still
-  the placeholder. The `snapshot.py` spine lock is released and T3-5, which
-  T4-4 depended on, is merged, so T4-4 is startable.
+- **The Engine path is single-domain.** `Engine.from_plant()` wires against
+  `Plant.topology`, which raises on a multi-domain plant. One solver per flow
+  domain, and the boundary-condition update that couples them through vessel
+  inventory, are T5-2.
+- **The control valve has no hydraulic path (T7-1).** The line resistances and the
+  `max_flow` clamp lived only in the retired standalone solve, so a page's flow
+  runs above `max_flow`, the discharge valve strokes without changing flow, and
+  spread equals the boundary difference. Equipment does not clamp; envelopes and
+  alarms own that later. Known interim state, not a bug to fix in passing.
 - **Reference plant files.** The loader reads `.json`, `.yaml` and `.yml` (YAML
   via `yaml.safe_load`, same C3 validation and `load_plant()` path), and T3-4
   (`d6a6cfb`) added the first plant files: `config/plants/liquid_transfer.yaml`
@@ -100,18 +104,19 @@ now genuinely merged.)
 - **Flow-domain enforcement is done for the loader only (T3-5, `11517f6`).**
   `load_plant` rejects a branch across domains, a domain with no boundary and a
   domain that is not one connected piece, and partitions into `Plant.topologies`.
-  A `Topology` built by hand is still unchecked, and nothing on the request path
-  calls the loader yet.
+  A `Topology` built by hand is still unchecked. `Session` calls the loader for
+  the live pages' single-device plants.
 - **Multi-port wiring in C3 is done for the loader only (T3-6, `2c08bb8`).**
   `equipment` takes `node_in`/`node_out` sugar or `ports` + `paths`; a device with
   `paths: []` is a coupling device, held in `Plant.devices` and in no `Topology`.
-  The vessel (T5-1, `b8af231`) is the first device that uses it, and is tested only through the `device_types` override; nothing on the
-  request path calls the loader.
+  The vessel (T5-1, `b8af231`) is the first device that uses it, and is tested only through the `device_types` override. The live pages' `Session`
+  builds its single-device plants through the loader (T4-4); the vessel is still not registered in `DEVICE_TYPES`.
 - **Single action endpoint (C5).** Routes are still per-equipment.
 - **Controllers (PID), envelopes, alarms, trips, scenarios, scoring, historian,
   console.** All specified in the build plan, none implemented.
-- `Snapshot`'s `nodes` / `streams` / `controllers` / `envelope` / `alarms`
-  sections are deliberately empty.
+- `Snapshot`'s `controllers` / `envelope` / `alarms` sections are still empty
+  by design. `nodes` and `streams` are filled from the solved topology since
+  T4-4 for an engine built with one, and empty for `Engine(devices)`.
 
 ### Architecture decisions on file
 
@@ -235,41 +240,29 @@ no bare generics". Tightening further (`disallow_untyped_calls`,
 ## Known temporary compatibility paths
 
 **Do not "fix" these as a side effect of an unrelated task.** Each is deliberate
-and has a task that retires it.
+and has a task that retires it. T4-4 retired the legacy device `step()` path,
+the interim `*_boundary_pressure` attributes, `simulation_speed`, and the
+Engine-computes-nothing state; what remains is the consequence of that:
 
-1. **Legacy device `step()` + standalone operating-point solve.**
-   Both `GasCompressor` and `CentrifugalPump` keep `step()`, which runs
-   `integrate(dt)` then `_calculate_operating_point()`. The live Flask routes
-   (`/api/step`, `/api/pump/step`) call this path, so removing it breaks the app.
-   *Retired by:* **T4-4** (wires the solver into the engine and removes
-   `_calculate_operating_point`; T4-2 only writes the solver).
+1. **A page's machine runs between two fixed battery limits with nothing in
+   between.** The `Session` plants are one machine and two boundary nodes
+   (750/750 psia and 50/50 psia). Flow reads above `max_flow` (compressor 331.7
+   vs 120, pump 2236 vs 1200), the discharge valve strokes without changing
+   flow, and spread equals the boundary difference so temperature is flat. Equal
+   boundaries were kept so an idle machine sits at exactly zero flow.
+   *Retired by:* **T7-1** (control valve on its own branch).
 
-2. **Device-owned `upstream_boundary_pressure` / `downstream_boundary_pressure`.**
-   Interim attributes on both devices, feeding only the standalone solve. They
-   are not node pressures and deliberately avoid the C1 forbidden-attribute
-   names, but in the target architecture the topology owns these.
-   *Retired by:* **T4-4**.
+2. **No check valve.** With a boundary differential and a machine slower than it,
+   the solver finds reverse flow through the machine, where the retired standalone
+   solve clipped at zero. The live pages do not hit it because their boundaries
+   are equal; a plant sized for running and started cold would.
+   *Retired by:* **T7-1**, which carries the cold-start criterion.
 
-3. **`Engine` does not consult `device.simulation_speed`.**
-   The clock is the sole speed authority for anything driven through the Engine.
-   A device's own `simulation_speed` affects only its legacy `step()`. Pinned by
-   `test_compressor_simulation_speed_is_not_consulted_by_the_engine` so the two
-   cannot silently start disagreeing.
-
-4. **`Engine.step()` computes no flow or pressure.**
-   It calls `integrate()` only. Stepping a device through the Engine does not
-   change its flow/pressure. This is correct until T4-4, and the two engine
-   golden tests assert slow-state fields only for exactly this reason.
-
-5. **Legacy `*_pressure_rise` is no longer clamped at zero.**
-   T4-1 removed the `max(..., 0.0)` from both device curves, so on the legacy
-   path `pump_pressure_rise` / `compressor_pressure_rise` can read negative when
-   a machine is overrun. One golden value moved because of it: pump
-   `supply_pressure_change` step 1, `0.0` -> `-1.4` (1 of 3528), edited by hand
-   and equal to the `spread` on the same row. Separately, the reported rise
-   still disagrees with `spread` when the legacy solve dead-heads or clips at
-   `max_flow` — an artifact of the standalone solve, retired with it.
-   *Retired by:* **T4-4**.
+3. **`get_state()` on a device is slow state only.** Flow and the two pressures
+   are not device attributes; the page's row is assembled by
+   `Session.compressor_state()` / `pump_state()` from the snapshot. The
+   compressor's `temperature` became `temperature_at(spread)` because spread is
+   a solver output. Do not put a flow or pressure back on a device.
 
 ## Known technical debt (recorded, not scheduled)
 
@@ -291,15 +284,10 @@ and has a task that retires it.
 
 ## Active branches and PRs
 
-**T4-4 (Checkpoint B) is in flight and holds the spine lock.**
-[PR #25](https://github.com/gareytwin1/plant-simulator/pull/25) from
-`refactor/solver-integration`, rebased on `9720aed`, 486 passed and `mypy`
-clean — **Ready for Review, not merged.** It wires the solver into
-`Engine.step()` and retires both devices' standalone operating point, and it
-also holds `app/main.py` and `app/engine/sessions.py`, which the live routes
-forced into scope. **Freeze other merges until it lands**, and release both
-locks the moment it does. T7-1 only adds a new file, so it is safe to develop
-alongside and merge after.
+No open PRs and no code branch in flight; **no spine lock is held.** T4-4 merged
+as `0efa5be` ([PR #25](https://github.com/gareytwin1/plant-simulator/pull/25)) and
+released `app/engine/engine.py`, `app/equipment/compressor.py`,
+`app/equipment/pump.py`, `app/engine/sessions.py` and `app/main.py`.
 
 T5-1 merged as `b8af231` ([PR #23](https://github.com/gareytwin1/plant-simulator/pull/23)): `Vessel` and `tests/test_vessel.py`, nothing else. T3-4 merged
 as `d6a6cfb` ([PR #19](https://github.com/gareytwin1/plant-simulator/pull/19)): two
@@ -323,39 +311,29 @@ Merged local branches can be deleted at any time.
 
 ## Next integration checkpoint
 
-**Checkpoint B — M4, network solver merged.** This is where the plant stops
-being a collection of independent gauges and becomes connected. It is the single
-largest risk in the plan: the build plan calls out solver non-convergence on a
-reasonable-looking topology as one of three most-likely slip points.
+**Checkpoint B (M4, network solver merged) is reached** (T4-4, `0efa5be`). The
+plant is connected: a step integrates, solves and publishes. The next risk is
+T5-2, which couples the liquid and gas domains through vessel inventory and takes
+the `engine.py` spine lock again.
 
 ## Handoff: the next agents
 
-**Everything below is verified against `main`** (464 tests, `mypy` clean). Read
+**Everything below is verified against `main`** (486 tests, `mypy` clean). Read
 [CLAUDE.md](../CLAUDE.md) first, then the build plan entry for your task. Model
 guidance is the **Agent model guidance** section of CLAUDE.md; the column below
 is the build plan's own assignment.
 
-### Critical path to Checkpoint B
+### Critical path after Checkpoint B
 
-**T4-2, T4-3, T3-5 (Complete)** ->
-**T4-4 (wire into engine, spine, freezes other merges)** -> T4-5
-(cause-and-effect suite). T3-5 has merged, so T4-4 is the next step on this path.
+**T4-4 (Complete)** -> **T4-5** (cause-and-effect suite, test-only) and **T5-2**
+(level-to-hydraulics coupling, spine) -> T5-5 (integrated reference plant, also
+needs T3-4, Complete).
 
-`NetworkSolver` is in `app/engine/network.py`, fully tested, with its failure
-policy and diagnostics settled by T4-3 — but it is still not called from
-`Engine.step()` or the Flask request path.
-
-**T4-4 is startable (Opus, `refactor/solver-integration`).** No spine lock is
-held. It wires the Engine against `Plant.topology`, the single-domain
-convenience T3-5 keeps; one solver per domain arrives with T5-2. **Build the
-Engine's equipment collection from `Plant.devices`, never from
-`Topology.devices`** — a coupling device such as a vessel holds no branch and
-would silently never be integrated (ADR 0001 section 12.6). It wires the solver into the engine and retires the legacy device
-`step()` / `_calculate_operating_point()` / `*_boundary_pressure` path for both
-devices at once. Build the snapshot's solver section with
-`snapshot.solver_status(result)` rather than hand-rolling it — see "Solver and
-snapshot state" below for the contract it presents. Expect golden traces to
-move, and justify any delta in the PR rather than regenerating it away.
+The solver is on the request path. `Engine.step()` calls `NetworkSolver`, the
+snapshot's `solver`, `nodes` and `streams` are real, and topology owns hydraulic
+flow and pressure. **T5-2 must not widen `characteristic(flow)`, and vessel
+pressure stays integrated slow state supplying a boundary condition** — see ADR
+0001 section 3.5.
 
 **T3-4 is Complete (`d6a6cfb`).** ADR 0001 settled the design and re-scoped the task. Verified against
 `main` on 19 September:
@@ -400,18 +378,21 @@ is retired: **T3-6** (merged) carried the C3 named-port wiring (moved from T3-5 
 "Seeded RNG" above. `SeededRNG` also has no state save/restore, which T12-1
 (snapshot save and restore) and T14-5 (deterministic replay) will need.
 
-### Startable now (18 tasks)
+### Startable now (19 tasks)
 
 All dependencies are Complete. Two of them (T2-5, T12-1) add *new* isolated
 modules under `app/engine/`, which is satellite work under the **`app/engine/`
 rule** in CLAUDE.md.
 
-**Startable:** T5-3 (gas pressure, same file as T5-1) takes no spine lock. T4-4 is Checkpoint B and a spine task that
-freezes other merges.
+**Startable:** T4-4 merged, so **T4-5** (test-only) and **T5-2** (spine: `engine.py`
+and, per the plan, a C2 boundary-condition route in `topology.py`) are newly
+startable. T5-3 (gas pressure, same file as T5-1) takes no spine lock. T5-2 and
+T5-3 both touch `app/equipment/vessel.py`, so do not run them concurrently.
 
 | Task | Name | Model | Branch |
 |---|---|---|---|
-| **T4-4** | Wire the solver into the engine (Checkpoint B) | Opus | `refactor/solver-integration` |
+| **T5-2** | Level to hydraulics coupling (spine) | Opus | `feature/inventory-coupling` |
+| **T4-5** | Cause-and-effect assertion suite | Opus | `test/cause-and-effect` |
 | **T5-3** | Gas-phase pressure accumulation | Sonnet | `feature/gas-inventory` |
 | **T6-1** | Stream enthalpy and mixing | Opus | `feature/stream-enthalpy` |
 | **T7-1** | Control valve model | Sonnet | `feature/control-valve` |
@@ -477,8 +458,9 @@ a failed solve cannot arrive looking like one that landed. `pressure_residual`,
 change and its own task. `build_snapshot()` refuses *half* a solver section (a
 residual with no `converged` reads as a clean solve to any consumer that treats
 the flag as optional) and refuses an unexpected key; `solver={}` still means "no
-solve to report", and the default placeholder is unchanged because nothing on
-the request path solves yet (T4-4).
+solve to report". The default placeholder is now only what an `Engine` built
+with no topology reports; an engine built from a plant publishes
+`solver_status(result)` of its real solve every step (T4-4).
 
 **Damping, recorded not retuned.** Heavy under-relaxation (`damping <= 0.25`)
 can exhaust the default 50-iteration cap on a plant that solves in four
@@ -498,31 +480,32 @@ A `Topology` must be a single flow domain (gas or liquid, not both), and
 nodes by declared `domain` into one `Topology` per domain and rejects a branch
 that crosses domains, at load, naming the config path. C2 and the solver still
 carry no domain metadata, so a `Topology` assembled by hand is unchecked. The
-solver is untouched. T4-4 wires the engine against `Plant.topology`, which raises
-on a multi-domain plant; one solver per domain arrives with T5-2. (T5-1's
+solver is untouched. `Engine.from_plant()` wires against `Plant.topology`, which
+raises on a multi-domain plant; one solver per domain arrives with T5-2. (T5-1's
 dependency moved to T3-6, the multi-port wiring half of the original T3-5, when
 Amendment 1 split the task.)
 
-## Test suite composition (464 tests on `main`)
+## Test suite composition (486 tests on `main`)
 
 | File | Tests | File | Tests |
 |---|---|---|---|
-| `test_equipment_contract.py` | 58 | `test_registry.py` | 10 |
-| `test_topology.py` | 47 | `test_pump.py` | 8 |
-| `test_plant_loader.py` | 27 | `test_pump_api.py` | 8 |
-| `test_compressor.py` | 21 | `test_api.py` | 7 |
-| `test_golden_regression.py` | 17 | `test_sessions.py` | 7 |
-| `test_plant_config_validation.py` | 13 | `test_session_isolation.py` | 6 |
-| `test_engine.py` | 13 | `test_clock.py` | 13 |
-| `test_snapshot.py` | 16 | `test_random_source_guard.py` | 21 |
-| `test_rng.py` | 10 | `test_network_solver.py` | 36 |
-| `test_solver_diagnostics.py` | 14 | `test_plant_yaml.py` | 17 |
-| `test_plant_domains.py` | 23 | `test_plant_ports.py` | 32 |
-| `test_reference_plants.py` | 20 | `test_vessel.py` | 16 |
+| `test_api.py` | 7 | `test_pump.py` | 9 |
+| `test_clock.py` | 13 | `test_pump_api.py` | 8 |
+| `test_compressor.py` | 19 | `test_random_source_guard.py` | 23 |
+| `test_engine.py` | 13 | `test_reference_plants.py` | 20 |
+| `test_engine_solver.py` | 15 | `test_registry.py` | 14 |
+| `test_equipment_contract.py` | 67 | `test_rng.py` | 10 |
+| `test_golden_regression.py` | 15 | `test_session_isolation.py` | 6 |
+| `test_network_solver.py` | 36 | `test_sessions.py` | 7 |
+| `test_plant_config_validation.py` | 13 | `test_snapshot.py` | 16 |
+| `test_plant_domains.py` | 23 | `test_solver_diagnostics.py` | 14 |
+| `test_plant_loader.py` | 27 | `test_topology.py` | 47 |
+| `test_plant_ports.py` | 32 | `test_vessel.py` | 15 |
+| `test_plant_yaml.py` | 17 |  |  |
 
 `test_equipment_contract.py` and `test_registry.py` discover device classes
 dynamically, so a new `Equipment` subclass is swept into the contract tests
 automatically — adding one raises the total by more than the tests you wrote.
 (T4-2 added `test_network_solver.py` with 36 tests, taking the total to 336;
 T4-3 added `test_solver_diagnostics.py` with 14 and 5 to `test_snapshot.py`,
-taking it to 355; `test_plant_yaml.py` added 17, taking it to 372; `test_plant_domains.py` added 23, taking it to 395; `test_plant_ports.py` added 32, `test_reference_plants.py` added 20, `test_vessel.py` added 16, and `main` runs 464. The vessel did not raise the sweep counts: the contract tests import only the compressor and pump modules, so `vessel` is not yet swept into them.)
+taking it to 355; `test_plant_yaml.py` added 17, taking it to 372; `test_plant_domains.py` added 23, taking it to 395; `test_plant_ports.py` added 32, `test_reference_plants.py` added 20, `test_vessel.py` added 15, and T4-4 added `test_engine_solver.py` (15) while retiring and rewriting device tests, so `main` runs 486. The vessel did not raise the sweep counts: the contract tests import only the compressor and pump modules, so `vessel` is not yet swept into them.)

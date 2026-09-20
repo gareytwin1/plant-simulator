@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
-  "refreshed": "19 September 2026",
-  "main_sha": "b8af231cb6452499abcd70b2133f0d007232d444",
-  "tests_passing_on_main": 464,
+  "refreshed": "20 September 2026",
+  "main_sha": "0efa5be3ad33fae5ab53735146e501a7d8f864e9",
+  "tests_passing_on_main": 486,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -33,7 +33,7 @@
     },
     "M4": {
       "name": "Pressure-Flow Network Solver",
-      "complete": 3,
+      "complete": 4,
       "total": 5
     },
     "M5": {
@@ -114,8 +114,8 @@
   },
   "totals": {
     "tasks": 97,
-    "complete": 26,
-    "startable_now": 18
+    "complete": 27,
+    "startable_now": 19
   },
   "tasks": [
     {
@@ -606,15 +606,12 @@
         "app/equipment/compressor.py",
         "app/equipment/pump.py",
         "app/engine/sessions.py",
-        "app/main.py",
-        "tests/test_engine_solver.py",
-        "tests/golden_regression.py",
-        "tests/fixtures/golden/*.json"
+        "app/main.py"
       ],
-      "status": "Ready for Review",
-      "status_key": "review",
+      "status": "Complete",
+      "status_key": "done",
       "startable": false,
-      "note": "PR #25 open from refactor/solver-integration, rebased on 9720aed. Full suite 486 passed, mypy clean. NOT MERGED - the spine lock on app/engine/engine.py, app/equipment/compressor.py, app/equipment/pump.py and the exclusive lock on app/main.py are still held; release both the moment it merges.\n\nEngine.step() now does clock -> integrate every device -> NetworkSolver.solve() over the topology -> build_snapshot with the solved nodes and streams, so a solve sees the slow state the same step produced. Engine gained an optional topology and Engine.from_plant(plant), which builds equipment from Plant.devices (never Topology.devices, per ADR 0001 section 12.6) and wires against Plant.topology, raising on a multi-domain plant. Engine(equipment) still works and still integrates only. Non-convergence is published, not raised: the plant keeps the state it had, time and slow state still advance, and the snapshot reports converged=false via snapshot.solver_status(). app/engine/snapshot.py was NOT modified - solver_status() and build_snapshot() already took everything needed, so that spine module stayed untouched.\n\nRetired from both machines: step(), _calculate_operating_point(), upstream_boundary_pressure, downstream_boundary_pressure, simulation_speed, and the flow / suction_pressure / discharge_pressure attributes. get_state() returns slow state only; tests assert those attributes are absent so they cannot creep back. GasCompressor.temperature became temperature_at(spread), since the spread is a solver output now.\n\nSCOPE BEYOND THE PLANNED FILE LIST, decided with the repo owner: app/main.py and app/engine/sessions.py were not listed, but the live routes called device.step(), so retiring it without them was impossible. Session now holds one Engine per page over a single-device plant built through the C3 loader (K-101 between two 750 psia boundary nodes, P-101 between two 50 psia), and compressor_state() / pump_state() assemble the page row from device state plus the solved branch and nodes. No step() shim was left behind.\n\nKNOWN INTERIM REGRESSION, accepted by the repo owner rather than faked: the suction and discharge line resistances, the valve resistance and the max_flow clamp lived only in the retired standalone solve. Until T7-1 gives the control valve a branch of its own, a page's machine runs against two fixed battery limits with nothing between them - flow reads above max_flow (compressor 331.7 vs 120, pump 2236 vs 1200), the discharge valve strokes without changing flow, and the process spread equals the boundary difference so temperature is flat. Equal boundary pressures were kept deliberately so an idle machine still sits at exactly zero flow; the differential-boundary alternative was rejected because a stopped machine would show large reverse flow with nothing to check it.\n\nGOLDEN TRACES regenerated, deltas justified rather than absorbed. Slow state - load, speed, valve stroke, running and every command description - is bit-identical to the old traces in every scenario, which is the evidence integrate() is untouched. Flow and the pressures moved by exactly the removed line resistance: sqrt(0.022/0.002) = 3.3166x for the compressor, sqrt(0.000075/0.000015) = 2.2360x for the pump. Suction and discharge now read the boundary nodes. Two scenarios retired: compressor-downstream_restriction drove an attribute of the standalone solve, and pump-max_flow_clip pinned a clamp that no longer exists.\n\nNew tests/test_engine_solver.py (15): closed-form solves through the Engine on both reference plants (816.4966 GPM / 115.00 psia; 70.7107 SCFM / 270.00 psia), a Vessel in Plant.devices proven integrated while absent from the topology, bit-identical determinism across two runs, a paused engine moving nothing, non-convergence reported with state preserved, and a multi-domain plant refused at wiring time. CLAUDE.md, docs/ARCHITECTURE.md, docs/UNITS_CONVENTION.md and README.md were updated - they all described a runtime where each device solved its own operating point.\n\nNOT DONE, deliberately: 'vessel' is still unregistered in DEVICE_TYPES. A coupling device with no hydraulic path needs loader support to sit outside the topology, which is T5-2's work. Vessel still has no range guard on capacity or level."
+      "note": "Merged to main as 0efa5be3ad33fae5ab53735146e501a7d8f864e9 (PR #25, merge commit from refactor/solver-integration), 20 Sep. Full suite 486 passed and mypy clean on main post-merge. Checkpoint B: Engine.step() now runs clock -> integrate every device -> NetworkSolver.solve() -> snapshot, and the snapshot's solver, nodes and streams sections are real. Ownership after this task: the topology owns hydraulic flow and pressure (Node.pressure, Stream.flow, written only by the solver); equipment owns slow state and its pure characteristic(flow); the Engine owns cadence. Engine.from_plant() builds equipment from Plant.devices, never Topology.devices, and wires against Plant.topology, so the Engine path is still SINGLE-DOMAIN and raises on a multi-domain plant - one solver per domain is T5-2. Engine(equipment) with no topology still integrates only. A solve that does not converge is published in the snapshot with the plant held at its last committed solution; time and slow state still advance. Retired from both machines: step(), _calculate_operating_point(), the boundary-pressure attributes, simulation_speed and the flow/suction/discharge attributes. Session now holds one Engine per page over a loader-built single-device plant, which is why app/engine/sessions.py and app/main.py were in scope. snapshot.py, base.py, topology.py and network.py were untouched.\n\nKnown interim behaviour, owned by T7-1: the line resistances and the max_flow clamp lived only in the retired solve, so a page's flow runs above max_flow, the discharge valve strokes without changing flow, and spread equals the boundary difference. Equipment does not clamp; envelopes and alarms own that downstream. Golden traces were regenerated with slow state bit-identical and only solved fields moved; two scenarios (compressor downstream_restriction, pump max_flow_clip) were retired.\n\nStill deferred, not owned by this task: vessel is unregistered in DEVICE_TYPES and loader support for a coupling device outside the topology belongs to T5-2; Vessel has no range guard on capacity or level."
     },
     {
       "id": "T4-5",
@@ -630,10 +627,11 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
+      "startable": true,
       "blocked_by": [
         "T4-4"
-      ]
+      ],
+      "note": "Startable: T4-4 merged as 0efa5be. Test-only (tests/test_cause_effect.py); no spine lock needed."
     },
     {
       "id": "T5-1",
@@ -669,12 +667,12 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
+      "startable": true,
       "blocked_by": [
         "T5-1",
         "T4-4"
       ],
-      "note": "Owns the sanctioned boundary-condition update: solve each domain against fixed boundary conditions, integrate vessel inventory from the resulting flows, then write the next step's boundary conditions from that slow state. Node.set_pressure() refuses on a boundary by design, so this needs an explicit new route in C2, a spine change that belongs to this task. Vessel pressure is integrated slow state supplying a boundary condition; internal solver pressures must never be written back as vessel inventory state. Opus (core default, unchanged). See docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md section 3.5."
+      "note": "Startable: T4-4 merged as 0efa5be. Takes the app/engine/engine.py spine lock and, per the plan, a new boundary-condition route in C2 (app/plant/topology.py), which is a spine change that belongs to this task. Owns the boundary-condition update: solve each domain against fixed boundary conditions, integrate vessel inventory from the resulting flows, then write the next step's boundary conditions from that slow state. Multi-domain Engine orchestration follows from this, since the Engine path is single-domain after T4-4. Whether vessel loader registration (DEVICE_TYPES) lands here is not settled by the plan; decide it when the task starts."
     },
     {
       "id": "T5-3",

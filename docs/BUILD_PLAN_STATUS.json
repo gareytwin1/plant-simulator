@@ -407,9 +407,9 @@
       "files": [
         "app/engine/scheduler.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true
+      "status": "Ready for Review",
+      "status_key": "review",
+      "note": "app/engine/scheduler.py: one Scheduler per Engine, deadline-scheduled fixed-dt worker thread, step_lock around engine.step, fail-stop on exception, explicit stop()+join. Not yet merged."
     },
     {
       "id": "T2-6",

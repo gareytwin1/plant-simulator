@@ -47,6 +47,7 @@ import yaml
 from app.equipment.base import INLET, OUTLET, Equipment
 from app.equipment.compressor import GasCompressor
 from app.equipment.pump import CentrifugalPump
+from app.equipment.valve import ControlValve
 from app.equipment.vessel import Vessel
 from app.plant.topology import Branch, Node, Topology
 from app.plant.validate import validate
@@ -70,6 +71,7 @@ PASSTHROUGH_SECTIONS = (
 DEVICE_TYPES: dict[str, type[Equipment]] = {
     "pump": CentrifugalPump,
     "compressor": GasCompressor,
+    "control_valve": ControlValve,
     "vessel": Vessel,
 }
 

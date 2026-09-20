@@ -1,5 +1,7 @@
 import threading
 
+import pytest
+
 from app.engine.sessions import Session, SessionRegistry
 
 
@@ -162,3 +164,10 @@ def test_touching_a_session_protects_it_from_eviction():
     assert registry.get("a") is session_a
     assert registry.get("b") is None
     assert registry.get("c") is not None
+
+
+def test_registry_rejects_a_capacity_below_one():
+    # Capacity of zero would make eviction pick a session from an empty
+    # registry, so it is refused at construction rather than at create().
+    with pytest.raises(ValueError):
+        SessionRegistry(max_sessions=0)

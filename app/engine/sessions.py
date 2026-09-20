@@ -186,6 +186,9 @@ class SessionRegistry:
         max_sessions: int = config.MAX_SESSIONS,
         monotonic: Callable[[], float] = time.monotonic,
     ) -> None:
+        if max_sessions < 1:
+            raise ValueError(f"max_sessions must be at least 1, got {max_sessions}")
+
         self._sessions: dict[str, Session] = {}
         self._touched: dict[str, float] = {}
         self._max_sessions = max_sessions

@@ -67,17 +67,19 @@ def test_browser_independence_state_advances_with_no_further_requests():
     # /api/step request is made anywhere in this test, and sim_time still
     # advances twice in a row -- proof the worker, not a client, is the one
     # moving time. Deterministic via poll-until-changed, not a fixed sleep.
+    # Read through scheduler.snapshot(): reading the Engine directly while
+    # the worker steps is the unsynchronized read scheduler.py forbids.
     client = main.app.test_client()
     client.get("/compressor")
     session = session_for(client)
 
     try:
-        assert poll_until(lambda: session.compressor_engine.snapshot().sim_time > 0.0)
-        first = session.compressor_engine.snapshot().sim_time
+        assert poll_until(lambda: session.compressor_scheduler.snapshot().sim_time > 0.0)
+        first = session.compressor_scheduler.snapshot().sim_time
 
         # Client-gone: no further request of any kind for this session, yet
         # a second advance still happens on its own.
-        assert poll_until(lambda: session.compressor_engine.snapshot().sim_time > first)
+        assert poll_until(lambda: session.compressor_scheduler.snapshot().sim_time > first)
     finally:
         session.end()
 

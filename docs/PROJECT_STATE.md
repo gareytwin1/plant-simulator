@@ -306,8 +306,14 @@ the **spine lock on `app/engine/engine.py` and on `app/plant/topology.py`** (the
 C2 boundary-condition route the plan assigns to this task), and also touches
 `app/equipment/vessel.py`, `app/plant/loader.py` and the new
 `app/engine/coupling.py`. Release both locks on merge. **Do not start T5-3** —
-it edits `vessel.py` too. T4-5 (test-only) and T7-1 (adds only `valve.py`) are
-safe alongside it.
+it edits `vessel.py` too.
+
+**T4-5 is also in flight** ([PR #29](https://github.com/gareytwin1/plant-simulator/pull/29),
+`test/cause-and-effect`). It is test-only, so it holds no lock and conflicts
+with nothing here, but it was written against a `main` without the coupling:
+**rebase it after T5-2 merges** and re-run it, because `Engine.from_plant` no
+longer raises on a multi-domain plant and the snapshot's `solver` row is now
+aggregated across domains.
 
 T4-4 merged as `0efa5be`
 ([PR #25](https://github.com/gareytwin1/plant-simulator/pull/25)) and released

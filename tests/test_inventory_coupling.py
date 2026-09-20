@@ -389,22 +389,64 @@ def test_the_level_advances_on_last_steps_flows():
     )
 
 
-def test_a_paused_engine_moves_nothing():
-    """Every step of a paused engine reproduces the one before it, at any
-    dt. The baseline is taken from a paused step rather than from snapshot()
-    because the solver reports its own effort honestly: the first solve after
-    a level change needs iterations and the ones after it need none, which is
-    a difference in the diagnostic, not in the plant.
+def physical(snapshot):
+    """A snapshot with the solver's own diagnostics dropped.
+
+    `solver` reports the effort one solve spent, not the plant: a re-solve
+    that starts already converged honestly needs zero iterations where the
+    one before it needed two. Everything else — sim_time, equipment, nodes,
+    streams — is plant state and must hold exactly.
+    """
+    return {
+        section: value
+        for section, value in snapshot.as_dict().items()
+        if section != "solver"
+    }
+
+
+def test_the_first_paused_step_moves_no_plant_state():
+    """Baselined BEFORE the pause takes effect, because the running -> paused
+    transition is the step most likely to move something. A baseline taken
+    after it would let a bug mutate the plant once and then sit still.
     """
     plant, engine = coupled(level=0.5)
     engine.step(1.0)
     engine.stop()
 
-    before = engine.step(1.0).as_dict()
+    vessel = plant.devices["V-101"]
 
-    assert engine.step(1.0).as_dict() == before
-    assert engine.step(3600.0).as_dict() == before
-    assert before["solver"]["converged"] is True
+    before = physical(engine.snapshot())
+    held_level = vessel.level
+    held_flows = (vessel.inlet_flow, vessel.outlet_flow)
+    held_boundary = plant.nodes["N-101"].pressure
+    held_configured = plant.nodes["N-101"].configured_pressure
+
+    snapshot = engine.step(1.0)
+
+    # Exact, not approximate: nothing moved, so nothing may have drifted.
+    assert physical(snapshot) == before
+    assert vessel.level == held_level
+    assert (vessel.inlet_flow, vessel.outlet_flow) == held_flows
+    assert plant.nodes["N-101"].pressure == held_boundary
+    assert plant.nodes["N-101"].configured_pressure == held_configured
+    assert snapshot.solver["converged"] is True
+
+
+def test_a_paused_engine_stays_where_it_stopped():
+    """And it keeps holding, at any dt, against that same pre-pause
+    baseline — so a slow drift cannot accumulate either.
+    """
+    plant, engine = coupled(level=0.5)
+    engine.step(1.0)
+    engine.stop()
+
+    before = physical(engine.snapshot())
+    held_level = plant.devices["V-101"].level
+
+    for dt in (1.0, 1.0, 60.0, 3600.0, 3600.0):
+        assert physical(engine.step(dt)) == before
+
+    assert plant.devices["V-101"].level == held_level
 
 
 def test_two_identical_runs_are_bit_identical():

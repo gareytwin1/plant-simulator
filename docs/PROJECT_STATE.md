@@ -8,10 +8,10 @@ Refresh this file whenever a task merges to `main`.
 
 ---
 
-**Last refreshed:** 19 September 2026 (**T3-4 merged** as `d6a6cfb`, [PR #19](https://github.com/gareytwin1/plant-simulator/pull/19))
-**Current `main`:** `d6a6cfb` — *Merge pull request #19 from gareytwin1/feature/reference-plant*
-**Last code merge:** `d6a6cfb` — T3-4, single-domain reference fixtures (PR #19). Previous: `2c08bb8` T3-6 multi-port equipment wiring (PR #20); `11517f6` T3-5 flow-domain declaration (PR #17); `c406ca0` YAML plant loading; previous solver merge `a2a1596` (T4-3). ADR 0001 ([docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md](ADR_0001_FLOW_DOMAIN_SEPARATION.md)) and its Amendment 1 are on `main`
-**Full suite on `main`:** **448 passed** (`conda activate plant-simulator && python -m pytest -q`); `python -m mypy` clean
+**Last refreshed:** 19 September 2026 (**T5-1 merged** as `b8af231`, [PR #23](https://github.com/gareytwin1/plant-simulator/pull/23))
+**Current `main`:** `b8af231` — *Merge pull request #23 from gareytwin1/feature/vessel-model*
+**Last code merge:** `b8af231` — T5-1, vessel model (PR #23). Previous: `d6a6cfb` T3-4 single-domain reference fixtures (PR #19); `2c08bb8` T3-6 multi-port equipment wiring (PR #20); `11517f6` T3-5 flow-domain declaration (PR #17); `c406ca0` YAML plant loading; previous solver merge `a2a1596` (T4-3). ADR 0001 ([docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md](ADR_0001_FLOW_DOMAIN_SEPARATION.md)) and its Amendment 1 are on `main`
+**Full suite on `main`:** **464 passed** (`conda activate plant-simulator && python -m pytest -q`); `python -m mypy` clean
 
 ---
 
@@ -24,9 +24,10 @@ Refresh this file whenever a task merges to `main`.
 | **M2** Simulation Engine and Clock | 4/6 (T2-5 startable) |
 | **M3** Plant Topology and Streams | **6/6 Complete** |
 | **M4** Pressure-Flow Network Solver | 3/5 — T4-1, T4-2, T4-3 Complete; **T4-4 (Checkpoint B) startable** |
-| M5–M19 | Not started (M5 has 5 tasks: T5-5, the integrated reference plant, was added) |
+| **M5** Inventory and Mass Balance | 1/5 — T5-1 Complete; **T5-3 startable**; T5-2 waits on T4-4 (M5 has 5 tasks: T5-5, the integrated reference plant, was added) |
+| M6–M19 | Not started |
 
-Overall: **25 of 97 tasks Complete.**
+Overall: **26 of 97 tasks Complete.**
 
 ### Completed and merged to `main`
 
@@ -40,6 +41,7 @@ Overall: **25 of 97 tasks Complete.**
 - **M3** — `T3-1` plant config schema + validator (C3) ·
   `T3-2` node/branch/stream (C2) · `T3-3` plant loader (`app/plant/loader.py`) ·
   `T3-5` flow-domain declaration · `T3-6` multi-port equipment wiring.
+- **M5** — `T5-1` vessel model (`app/equipment/vessel.py`): a coupling device, level integrated from caller-written `inlet_flow` / `outlet_flow` (GPM). **Not registered in `DEVICE_TYPES` yet** — register it before T5-5.
 - **M4** — `T4-1` branch characteristic interface (sign convention,
   `signed_square`, `Branch.characteristic()` / `Branch.residual()`) · `T4-2`
   Newton-Raphson network solver (`NetworkSolver`, standalone, not yet wired
@@ -103,7 +105,7 @@ now genuinely merged.)
 - **Multi-port wiring in C3 is done for the loader only (T3-6, `2c08bb8`).**
   `equipment` takes `node_in`/`node_out` sugar or `ports` + `paths`; a device with
   `paths: []` is a coupling device, held in `Plant.devices` and in no `Topology`.
-  No device that uses it exists yet (the vessel is T5-1), and nothing on the
+  The vessel (T5-1, `b8af231`) is the first device that uses it, and is tested only through the `device_types` override; nothing on the
   request path calls the loader.
 - **Single action endpoint (C5).** Routes are still per-equipment.
 - **Controllers (PID), envelopes, alarms, trips, scenarios, scoring, historian,
@@ -289,7 +291,7 @@ and has a task that retires it.
 
 ## Active branches and PRs
 
-No open PRs and no code branch in flight; **no spine lock is held.** T3-4 merged
+No open PRs and no code branch in flight; **no spine lock is held.** T5-1 merged as `b8af231` ([PR #23](https://github.com/gareytwin1/plant-simulator/pull/23)): `Vessel` and `tests/test_vessel.py`, nothing else. T3-4 merged
 as `d6a6cfb` ([PR #19](https://github.com/gareytwin1/plant-simulator/pull/19)): two
 single-domain reference fixtures and their tests, nothing under `app/`.
 
@@ -318,7 +320,7 @@ reasonable-looking topology as one of three most-likely slip points.
 
 ## Handoff: the next agents
 
-**Everything below is verified against `main`** (448 tests, `mypy` clean). Read
+**Everything below is verified against `main`** (464 tests, `mypy` clean). Read
 [CLAUDE.md](../CLAUDE.md) first, then the build plan entry for your task. Model
 guidance is the **Agent model guidance** section of CLAUDE.md; the column below
 is the build plan's own assignment.
@@ -388,19 +390,19 @@ is retired: **T3-6** (merged) carried the C3 named-port wiring (moved from T3-5 
 "Seeded RNG" above. `SeededRNG` also has no state save/restore, which T12-1
 (snapshot save and restore) and T14-5 (deterministic replay) will need.
 
-### Startable now (19 tasks)
+### Startable now (18 tasks)
 
 All dependencies are Complete. Two of them (T2-5, T12-1) add *new* isolated
 modules under `app/engine/`, which is satellite work under the **`app/engine/`
 rule** in CLAUDE.md.
 
-**Startable:** T5-1 takes no spine lock. T4-4 is Checkpoint B and a spine task that
+**Startable:** T5-3 (gas pressure, same file as T5-1) takes no spine lock. T4-4 is Checkpoint B and a spine task that
 freezes other merges.
 
 | Task | Name | Model | Branch |
 |---|---|---|---|
 | **T4-4** | Wire the solver into the engine (Checkpoint B) | Opus | `refactor/solver-integration` |
-| **T5-1** | Vessel model (coupling device, empty `paths`) | Sonnet | `feature/vessel-model` |
+| **T5-3** | Gas-phase pressure accumulation | Sonnet | `feature/gas-inventory` |
 | **T6-1** | Stream enthalpy and mixing | Opus | `feature/stream-enthalpy` |
 | **T7-1** | Control valve model | Sonnet | `feature/control-valve` |
 | **T13-1** | Malfunction model and registry | Opus | `feature/malfunction-model` |
@@ -491,7 +493,7 @@ on a multi-domain plant; one solver per domain arrives with T5-2. (T5-1's
 dependency moved to T3-6, the multi-port wiring half of the original T3-5, when
 Amendment 1 split the task.)
 
-## Test suite composition (448 tests on `main`)
+## Test suite composition (464 tests on `main`)
 
 | File | Tests | File | Tests |
 |---|---|---|---|
@@ -506,11 +508,11 @@ Amendment 1 split the task.)
 | `test_rng.py` | 10 | `test_network_solver.py` | 36 |
 | `test_solver_diagnostics.py` | 14 | `test_plant_yaml.py` | 17 |
 | `test_plant_domains.py` | 23 | `test_plant_ports.py` | 32 |
-| `test_reference_plants.py` | 20 | | |
+| `test_reference_plants.py` | 20 | `test_vessel.py` | 16 |
 
 `test_equipment_contract.py` and `test_registry.py` discover device classes
 dynamically, so a new `Equipment` subclass is swept into the contract tests
 automatically — adding one raises the total by more than the tests you wrote.
 (T4-2 added `test_network_solver.py` with 36 tests, taking the total to 336;
 T4-3 added `test_solver_diagnostics.py` with 14 and 5 to `test_snapshot.py`,
-taking it to 355; `test_plant_yaml.py` added 17, taking it to 372; `test_plant_domains.py` added 23, taking it to 395; `test_plant_ports.py` added 32, `test_reference_plants.py` added 20, and `main` runs 448.)
+taking it to 355; `test_plant_yaml.py` added 17, taking it to 372; `test_plant_domains.py` added 23, taking it to 395; `test_plant_ports.py` added 32, `test_reference_plants.py` added 20, `test_vessel.py` added 16, and `main` runs 464. The vessel did not raise the sweep counts: the contract tests import only the compressor and pump modules, so `vessel` is not yet swept into them.)

@@ -682,3 +682,82 @@ def test_reverse_flow_raises_the_rise_a_branch_reports():
 
     assert branch.characteristic(-50.0) > branch.characteristic(50.0)
     assert branch.characteristic(-50.0) == pytest.approx(100.0)
+
+
+# T5-2 — set_boundary_pressure(), the one sanctioned route for writing a
+# battery limit from outside the solve, and the as-built value it offsets.
+
+
+def test_configured_pressure_is_the_as_built_value():
+    node = Node("N-01", pressure=80.0, is_boundary=True)
+
+    assert node.configured_pressure == pytest.approx(80.0)
+
+    node.set_boundary_pressure(95.0)
+
+    assert node.pressure == pytest.approx(95.0)
+    assert node.configured_pressure == pytest.approx(80.0)
+
+
+def test_configured_pressure_survives_a_solved_pressure():
+    node = Node("N-01", pressure=80.0)
+
+    node.set_pressure(140.0)
+
+    assert node.pressure == pytest.approx(140.0)
+    assert node.configured_pressure == pytest.approx(80.0)
+
+
+def test_configured_pressure_is_read_only():
+    node = Node("N-01", pressure=80.0, is_boundary=True)
+
+    with pytest.raises(AttributeError):
+        node.configured_pressure = 90.0
+
+
+def test_set_boundary_pressure_refuses_an_internal_node():
+    node = Node("N-01", pressure=80.0)
+
+    with pytest.raises(ValueError, match="is internal"):
+        node.set_boundary_pressure(90.0)
+
+    assert node.pressure == pytest.approx(80.0)
+
+
+def test_set_pressure_still_refuses_a_boundary():
+    node = Node("N-01", pressure=80.0, is_boundary=True)
+
+    with pytest.raises(ValueError, match="is a boundary"):
+        node.set_pressure(90.0)
+
+    assert node.pressure == pytest.approx(80.0)
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [0.0, -1.0, -800.0, float("nan"), float("inf"), float("-inf")],
+)
+def test_set_boundary_pressure_refuses_anything_but_a_positive_absolute(bad):
+    """No clamp, no floor, no epsilon. A non-positive psia here means the
+    mapping that produced it is wrong, and flooring it would hide that
+    behind a plant that still solves.
+    """
+    node = Node("N-01", pressure=80.0, is_boundary=True)
+
+    with pytest.raises(ValueError, match="finite positive"):
+        node.set_boundary_pressure(bad)
+
+    assert node.pressure == pytest.approx(80.0)
+
+
+def test_the_node_state_row_is_unchanged_by_the_new_route():
+    """C4 stays frozen: configured_pressure is not a snapshot field."""
+    node = Node("N-01", pressure=80.0, is_boundary=True)
+
+    node.set_boundary_pressure(95.0)
+
+    assert node.get_state() == {
+        "pressure": pytest.approx(95.0),
+        "is_boundary": True,
+        "elevation": 0.0,
+    }

@@ -1,0 +1,18 @@
+# Two-stage compression with an interstage node: one gas domain, two identical
+# compressors in series with one internal node. Closed-form solution in
+# docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md section 7.1.
+nodes:
+  - {id: N-201, boundary: true, pressure: 60.0, domain: gas}
+  - {id: N-202, boundary: false, pressure: 60.0, domain: gas}
+  - {id: N-203, boundary: true, pressure: 480.0, domain: gas}
+equipment:
+  - tag: K-101
+    type: compressor
+    node_in: N-201
+    node_out: N-202
+    design: {load: 1.0}
+  - tag: K-102
+    type: compressor
+    node_in: N-202
+    node_out: N-203
+    design: {load: 1.0}

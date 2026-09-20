@@ -9,9 +9,14 @@ propagates through all of them to a number a trainee would see.
 
 Everything is asserted through public surfaces only — plants come from
 `load_plant()`, they run through `Engine.from_plant()`, and results are read
-from the snapshot's `nodes` and `streams`, never off a device. T5-2 will
-generalise the Engine to several flow domains and T7-1 will put a valve on its
-own branch; neither should need this file edited.
+from the snapshot's `nodes` and `streams`, never off a device. That was done so
+T5-2's multi-domain Engine and T7-1's valve would not need this file edited.
+T5-2 has since landed — one solver per domain, an aggregated C4 solver row,
+inventory coupled through boundary conditions — and none of it did: every plant
+here is single-domain and holds no coupling device, so it wires one solver as
+before and every number below is unchanged. Multi-domain cause and effect is
+covered by T5-2's own `tests/test_inventory_coupling.py`, deliberately not
+duplicated here.
 
 Directions and closed forms, not recorded numbers. Where a closed form exists
 it is written out from the device's own constants, so a test fails if the
@@ -160,7 +165,14 @@ def idle_bound(resistance):
     the root is a double root — so the tolerance's slack maps to
     sqrt(tolerance / resistance) of flow. Which value inside that bound a run
     lands on is path-dependent, so the bound is the invariant and the value is
-    not. See "A stopped machine keeps a small residual flow" in
+    not, which is why nothing here asserts a residual-flow number.
+
+    T5-2 settled what becomes of that residual downstream, and the answer is
+    that nothing special does: a solved flow is written onto a coupling device
+    and integrated normally, with no clamp and no deadband, so a stopped
+    machine's residual does reach vessel level. That is the decided behaviour
+    rather than an oversight; the residual itself stays recorded as technical
+    debt. See "A stopped machine keeps a small residual flow" in
     docs/PROJECT_STATE.md.
     """
     return math.sqrt(DEFAULT_PRESSURE_TOLERANCE / resistance)

@@ -35,6 +35,7 @@ CHARACTERISTIC_SWEEP = (
 DEVICE_MODULES = (
     "app.equipment.compressor",
     "app.equipment.pump",
+    "app.equipment.valve",
 )
 
 NODE_PRESSURE_ATTRIBUTES = (

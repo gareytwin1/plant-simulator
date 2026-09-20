@@ -21,6 +21,13 @@ branch whose two nodes disagree, where the error can name a config path. A node
 that declares nothing is in DEFAULT_DOMAIN; a domain is never inherited from a
 neighbour.
 
+A device is wired in one of two forms. `node_in` / `node_out` is sugar for a
+device with one inlet and one outlet. `ports` (port name -> node id) declares
+attachment and nothing else, and `paths` ({from, to} port pairs) declares which
+of those become hydraulic branches — one path, one Branch, nothing inferred. A
+device with `paths: []` is a coupling device: it lives on `Plant.devices` and in
+no Topology. See docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md, Amendment 1.
+
 Plant files may be JSON or YAML (`.json`, `.yaml`, `.yml`). The format is
 resolved before validation; after that there is one path.
 
@@ -37,7 +44,7 @@ from typing import Any
 
 import yaml
 
-from app.equipment.base import Equipment
+from app.equipment.base import INLET, OUTLET, Equipment
 from app.equipment.compressor import GasCompressor
 from app.equipment.pump import CentrifugalPump
 from app.plant.topology import Branch, Node, Topology
@@ -45,6 +52,9 @@ from app.plant.validate import validate
 
 
 DEFAULT_DOMAIN = "default"
+
+SUGAR_FORM = "sugar"
+NAMED_FORM = "named"
 
 CONFIG_SUFFIXES = (".json", ".yaml", ".yml")
 
@@ -82,6 +92,11 @@ class Plant:
 
     `nodes` is every node in config order, across all domains; `topologies`
     holds one Topology per flow domain in the order each first appears.
+    `devices` is every device in config order, including coupling devices that
+    sit in no Topology — build an Engine from it, never from Topology.devices.
+
+    `to_config()` is form-preserving: a device loaded with node_in/node_out is
+    emitted with them, a device loaded with ports/paths is emitted with those.
     """
 
     def __init__(
@@ -89,7 +104,10 @@ class Plant:
         topologies: Mapping[str, Topology],
         nodes: Mapping[str, Node],
         declared_domains: Mapping[str, str],
-        branches: Mapping[str, Branch],
+        devices: Mapping[str, Equipment],
+        forms: Mapping[str, str],
+        port_order: Mapping[str, list[str]],
+        paths: Mapping[str, list[tuple[str, str]]],
         design_keys: Mapping[str, list[str]],
         equipment_types: Mapping[str, str],
         passthrough: Mapping[str, Any],
@@ -98,7 +116,11 @@ class Plant:
         self.nodes: dict[str, Node] = dict(nodes)
 
         self._declared_domains = dict(declared_domains)
-        self._branches = dict(branches)
+        self.devices: dict[str, Equipment] = dict(devices)
+
+        self._forms = dict(forms)
+        self._port_order = {tag: list(names) for tag, names in port_order.items()}
+        self._paths = {tag: list(pairs) for tag, pairs in paths.items()}
         self._design_keys = {tag: list(keys) for tag, keys in design_keys.items()}
         self._equipment_types = dict(equipment_types)
         # Decoded JSON of sections no subsystem interprets yet.
@@ -118,17 +140,8 @@ class Plant:
         config: dict[str, Any] = {
             "nodes": [self._node_config(node) for node in self.nodes.values()],
             "equipment": [
-                {
-                    "tag": tag,
-                    "type": self._equipment_types[tag],
-                    "node_in": branch.from_node.id,
-                    "node_out": branch.to_node.id,
-                    "design": {
-                        key: getattr(branch.device, key)
-                        for key in self._design_keys[tag]
-                    },
-                }
-                for tag, branch in self._branches.items()
+                self._equipment_config(tag, device)
+                for tag, device in self.devices.items()
             ],
         }
 
@@ -137,6 +150,30 @@ class Plant:
                 config[section] = copy.deepcopy(self._passthrough[section])
 
         return config
+
+    def _equipment_config(self, tag: str, device: Equipment) -> dict[str, Any]:
+        item: dict[str, Any] = {
+            "tag": tag,
+            "type": self._equipment_types[tag],
+        }
+
+        if self._forms[tag] == SUGAR_FORM:
+            from_port, to_port = self._paths[tag][0]
+
+            item["node_in"] = _attached_node_id(device, from_port)
+            item["node_out"] = _attached_node_id(device, to_port)
+        else:
+            item["ports"] = {
+                name: _attached_node_id(device, name) for name in self._port_order[tag]
+            }
+            item["paths"] = [
+                {"from": from_port, "to": to_port}
+                for from_port, to_port in self._paths[tag]
+            ]
+
+        item["design"] = {key: getattr(device, key) for key in self._design_keys[tag]}
+
+        return item
 
     def _node_config(self, node: Node) -> dict[str, Any]:
         item: dict[str, Any] = {
@@ -167,8 +204,9 @@ def load_plant(
     if errors:
         raise PlantConfigError(errors)
 
-    topologies, nodes, branches, design_keys, errors = _build(config, types)
+    topologies, nodes, devices, wiring, design_keys, errors = _build(config, types)
 
+    errors += _dangling_port_errors(devices)
     errors += _solvability_errors(topologies)
 
     if errors:
@@ -180,7 +218,10 @@ def load_plant(
         declared_domains={
             node["id"]: node["domain"] for node in config["nodes"] if "domain" in node
         },
-        branches=branches,
+        devices=devices,
+        forms={tag: form for tag, (form, _, _) in wiring.items()},
+        port_order={tag: order for tag, (_, order, _) in wiring.items()},
+        paths={tag: pairs for tag, (_, _, pairs) in wiring.items()},
         design_keys=design_keys,
         equipment_types={item["tag"]: item["type"] for item in config["equipment"]},
         passthrough={
@@ -277,21 +318,148 @@ def _reference_errors(
                 f"only {sorted(types)}",
             )
 
-        for end in ("node_in", "node_out"):
-            if item[end] not in node_paths:
+        form = _wiring_form(item)
+
+        if form == SUGAR_FORM:
+            errors += _pair_errors(
+                item["tag"],
+                (item["node_in"], item["node_out"]),
+                path,
+                (f"{path}.node_in", f"{path}.node_out"),
+                node_paths,
+                domains,
+            )
+        elif form == NAMED_FORM:
+            errors += _named_reference_errors(item, path, node_paths, domains)
+        else:
+            errors.append(f"{path}: {_wiring_form_problem(item)}")
+
+    return errors
+
+
+def _wiring_form(item: Mapping[str, Any]) -> str | None:
+    has_sugar = "node_in" in item and "node_out" in item
+    has_named = "ports" in item
+
+    if has_sugar and not has_named and "paths" not in item:
+        return SUGAR_FORM
+
+    if has_named and "node_in" not in item and "node_out" not in item:
+        return NAMED_FORM
+
+    return None
+
+
+def _wiring_form_problem(item: Mapping[str, Any]) -> str:
+    tag = item["tag"]
+
+    if "ports" in item:
+        return (
+            f"{tag!r} mixes wiring forms — 'ports' cannot be combined with "
+            f"'node_in' / 'node_out'"
+        )
+
+    if "paths" in item:
+        return (
+            f"{tag!r} declares 'paths' without 'ports' — paths name ports, "
+            f"and node_in / node_out takes no paths"
+        )
+
+    present = [end for end in ("node_in", "node_out") if end in item]
+
+    if present:
+        return f"{tag!r} has only {present[0]!r} — a wired device needs both node_in and node_out"
+
+    return f"{tag!r} declares no wiring — give node_in and node_out, or ports and paths"
+
+
+def _named_reference_errors(
+    item: Mapping[str, Any],
+    path: str,
+    node_paths: Mapping[str, str],
+    domains: Mapping[str, Mapping[str, Any]],
+) -> list[str]:
+    errors: list[str] = []
+
+    ports = item["ports"]
+
+    for name, node_id in ports.items():
+        if node_id not in node_paths:
+            errors.append(
+                f"{path}.ports.{name}: unknown node {node_id!r}, "
+                f"only {sorted(node_paths)}",
+            )
+
+    if "paths" not in item:
+        errors.append(
+            f"{path}: {item['tag']!r} declares 'ports' without 'paths' — "
+            f"'paths' is required with 'ports', and [] says the device is in "
+            f"no hydraulic solve",
+        )
+
+        return errors
+
+    paths = item["paths"]
+
+    if len(paths) > 1:
+        errors.append(
+            f"{path}.paths: {item['tag']!r} declares {len(paths)} paths, only "
+            f"one is supported — characteristic(flow) is device-wide, so a "
+            f"second path would publish the same curve, in the same flow "
+            f"unit, into a second branch",
+        )
+
+        return errors
+
+    if paths:
+        pair = paths[0]
+        where = f"{path}.paths[0]"
+
+        for end in ("from", "to"):
+            if pair[end] not in ports:
                 errors.append(
-                    f"{path}.{end}: unknown node {item[end]!r}, "
+                    f"{where}.{end}: {pair[end]!r} is not a key of "
+                    f"{path}.ports, only {sorted(ports)}",
+                )
+
+        if pair["from"] in ports and pair["to"] in ports:
+            errors += _pair_errors(
+                item["tag"],
+                (ports[pair["from"]], ports[pair["to"]]),
+                where,
+                (f"{path}.ports.{pair['from']}", f"{path}.ports.{pair['to']}"),
+                node_paths,
+                domains,
+                report_unknown=False,
+            )
+
+    return errors
+
+
+def _pair_errors(
+    tag: str,
+    ends: tuple[str, str],
+    path: str,
+    end_paths: tuple[str, str],
+    node_paths: Mapping[str, str],
+    domains: Mapping[str, Mapping[str, Any]],
+    report_unknown: bool = True,
+) -> list[str]:
+    errors: list[str] = []
+
+    if report_unknown:
+        for node_id, end_path in zip(ends, end_paths):
+            if node_id not in node_paths:
+                errors.append(
+                    f"{end_path}: unknown node {node_id!r}, "
                     f"only {sorted(node_paths)}",
                 )
 
-        if item["node_in"] == item["node_out"]:
-            errors.append(
-                f"{path}: {item['tag']!r} starts and ends at node "
-                f"{item['node_in']!r}",
-            )
+    if ends[0] == ends[1]:
+        errors.append(f"{path}: {tag!r} starts and ends at node {ends[0]!r}")
 
-        if item["node_in"] in node_paths and item["node_out"] in node_paths:
-            errors += _domain_agreement_errors(item, path, domains)
+    if ends[0] in node_paths and ends[1] in node_paths:
+        errors += _domain_agreement_errors(tag, ends, path, domains)
 
     return errors
 
@@ -331,11 +499,12 @@ def _boundary_errors(config: Mapping[str, Any]) -> list[str]:
 
 
 def _domain_agreement_errors(
-    item: Mapping[str, Any],
+    tag: str,
+    node_ids: tuple[str, str],
     path: str,
     nodes: Mapping[str, Mapping[str, Any]],
 ) -> list[str]:
-    ends = [nodes[item["node_in"]], nodes[item["node_out"]]]
+    ends = [nodes[node_ids[0]], nodes[node_ids[1]]]
 
     if _domain_of(ends[0]) == _domain_of(ends[1]):
         return []
@@ -351,7 +520,7 @@ def _domain_agreement_errors(
         described.append(text)
 
     return [
-        f"{path}: {item['tag']!r} joins two flow domains, "
+        f"{path}: {tag!r} joins two flow domains, "
         f"{described[0]} but {described[1]} — a branch cannot cross domains",
     ]
 
@@ -362,7 +531,8 @@ def _build(
 ) -> tuple[
     dict[str, Topology],
     dict[str, Node],
-    dict[str, Branch],
+    dict[str, Equipment],
+    dict[str, tuple[str, list[str], list[tuple[str, str]]]],
     dict[str, list[str]],
     list[str],
 ]:
@@ -385,7 +555,10 @@ def _build(
         for name in _domain_names(config)
     }
 
-    branches: dict[str, Branch] = {}
+    devices: dict[str, Equipment] = {}
+    # Per tag: the wiring form, the port names in config order, and the paths
+    # as (from, to) port-name pairs — what to_config() needs to reproduce it.
+    wiring: dict[str, tuple[str, list[str], list[tuple[str, str]]]] = {}
     design_keys: dict[str, list[str]] = {}
 
     for i, item in enumerate(config["equipment"]):
@@ -398,25 +571,136 @@ def _build(
         errors += design_errors
         design_keys[item["tag"]] = list(item["design"])
 
-        # Domain agreement was checked with the references, so both ends are
-        # in one topology here.
-        topology = topologies[node_domains[item["node_in"]]]
+        if _wiring_form(item) == SUGAR_FORM:
+            built = _build_sugar(item, device, topologies, node_domains, path)
+        else:
+            built = _build_named(item, device, topologies, nodes, node_domains, path)
 
-        try:
-            branch = Branch(
-                id=f"B-{item['tag']}",
-                from_node=topology.node(item["node_in"]),
-                to_node=topology.node(item["node_out"]),
-                device=device,
+        if isinstance(built, list):
+            errors += built
+            continue
+
+        devices[item["tag"]] = device
+        wiring[item["tag"]] = built
+
+    return topologies, nodes, devices, wiring, design_keys, errors
+
+
+def _build_sugar(
+    item: Mapping[str, Any],
+    device: Equipment,
+    topologies: Mapping[str, Topology],
+    node_domains: Mapping[str, str],
+    path: str,
+) -> list[str] | tuple[str, list[str], list[tuple[str, str]]]:
+    # Domain agreement was checked with the references, so both ends are in one
+    # topology here.
+    topology = topologies[node_domains[item["node_in"]]]
+
+    try:
+        branch = Branch(
+            id=f"B-{item['tag']}",
+            from_node=topology.node(item["node_in"]),
+            to_node=topology.node(item["node_out"]),
+            device=device,
+        )
+
+        topology.add_branch(branch)
+    except ValueError as error:
+        return [f"{path}: {error}"]
+
+    names = [branch.from_port.name, branch.to_port.name]
+
+    return (SUGAR_FORM, names, [(names[0], names[1])])
+
+
+def _build_named(
+    item: Mapping[str, Any],
+    device: Equipment,
+    topologies: Mapping[str, Topology],
+    nodes: Mapping[str, Node],
+    node_domains: Mapping[str, str],
+    path: str,
+) -> list[str] | tuple[str, list[str], list[tuple[str, str]]]:
+    ports: Mapping[str, str] = item["ports"]
+    paths: list[Mapping[str, str]] = item["paths"]
+
+    errors: list[str] = []
+
+    for name in ports:
+        if name not in device.ports:
+            errors.append(
+                f"{path}.ports.{name}: {device.tag} has no port {name!r}, "
+                f"only {sorted(device.ports)}",
             )
 
-            topology.add_branch(branch)
-        except ValueError as error:
-            errors.append(f"{path}: {error}")
-        else:
-            branches[item["tag"]] = branch
+    for name, port in device.ports.items():
+        if name not in ports:
+            errors.append(
+                f"{path}.ports: {device.tag} port {name!r} ({port.direction}) "
+                f"is not wired to any node",
+            )
 
-    return topologies, nodes, branches, design_keys, errors
+    if errors:
+        return errors
+
+    if paths:
+        pair = paths[0]
+        where = f"{path}.paths[0]"
+
+        if device.ports[pair["from"]].direction != INLET:
+            errors.append(
+                f"{where}.from: port {pair['from']!r} is an "
+                f"{device.ports[pair['from']].direction}, a path must start at an inlet",
+            )
+
+        if device.ports[pair["to"]].direction != OUTLET:
+            errors.append(
+                f"{where}.to: port {pair['to']!r} is an "
+                f"{device.ports[pair['to']].direction}, a path must end at an outlet",
+            )
+
+        if errors:
+            return errors
+
+        topology = topologies[node_domains[ports[pair["from"]]]]
+
+        try:
+            topology.add_branch(
+                Branch(
+                    id=f"B-{item['tag']}",
+                    from_node=topology.node(ports[pair["from"]]),
+                    to_node=topology.node(ports[pair["to"]]),
+                    device=device,
+                    from_port=pair["from"],
+                    to_port=pair["to"],
+                ),
+            )
+        except ValueError as error:
+            return [f"{where}: {error}"]
+
+    # A port no path claims is attached directly. With `paths: []` that is
+    # every port, and this is the only place a coupling device is wired.
+    claimed = {pair[end] for pair in paths for end in ("from", "to")}
+
+    for name, node_id in ports.items():
+        if name not in claimed:
+            device.port(name).connect(nodes[node_id])
+
+    return (
+        NAMED_FORM,
+        list(ports),
+        [(pair["from"], pair["to"]) for pair in paths],
+    )
+
+
+def _attached_node_id(device: Equipment, port_name: str) -> str:
+    node = device.port(port_name).node
+
+    if node is None:
+        raise ValueError(f"{device.tag} port {port_name!r} is not wired to any node")
+
+    return node.id
 
 
 def _apply_design(
@@ -464,16 +748,22 @@ def _same_kind(current: Any, value: Any) -> bool:
     return isinstance(value, type(current))
 
 
+def _dangling_port_errors(devices: Mapping[str, Equipment]) -> list[str]:
+    # Walks Plant.devices, not Topology.unconnected_ports(), which cannot see a
+    # coupling device that sits in no topology.
+    return [
+        f"device {tag}: port {port.name!r} ({port.direction}) is not "
+        f"wired to any node"
+        for tag, device in devices.items()
+        for port in device.ports.values()
+        if not port.connected
+    ]
+
+
 def _solvability_errors(topologies: Mapping[str, Topology]) -> list[str]:
     errors: list[str] = []
 
     for name, topology in topologies.items():
-        for tag, port in topology.unconnected_ports():
-            errors.append(
-                f"device {tag}: port {port.name!r} ({port.direction}) is not "
-                f"wired to any node",
-            )
-
         components = _components(topology)
 
         if len(components) > 1:

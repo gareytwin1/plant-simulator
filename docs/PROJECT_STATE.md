@@ -21,7 +21,7 @@ Refresh this file whenever a task merges to `main`.
 |---|---|
 | **M0** Baseline Cleanup | **7/7 Complete** |
 | **M1** Equipment Model Contract | **5/5 Complete** — Checkpoint A reached |
-| **M2** Simulation Engine and Clock | 4/6 (T2-5 startable) |
+| **M2** Simulation Engine and Clock | 4/6 (**T2-5 Ready for Review**, `feature/engine-scheduler`; T2-6 waits on its merge) |
 | **M3** Plant Topology and Streams | **6/6 Complete** |
 | **M4** Pressure-Flow Network Solver | **5/5 Complete** — Checkpoint B reached; T4-5 was re-scoped before implementation, see [The T4-5 re-scope](#the-t4-5-re-scope) |
 | **M5** Inventory and Mass Balance | 3/5 — T5-1, T5-2, T5-3 Complete; **T5-4 startable**; the engine and topology spine locks are released (M5 has 5 tasks: T5-5, the integrated reference plant, was added) |
@@ -538,7 +538,7 @@ valve change.
 | **T7-3** | Valve fault modes | Sonnet | `feature/valve-faults` |
 | **T7-4** | Command arbitration | Sonnet | `feature/command-arbitration` |
 | **T13-1** | Malfunction model and registry | Opus | `feature/malfunction-model` |
-| **T2-5** | Background scheduler | Sonnet | `feature/engine-scheduler` |
+| **T2-5** | Background scheduler — *Ready for Review, not merged* | Sonnet | `feature/engine-scheduler` |
 | **T12-1** | Plant snapshot save and restore | Sonnet | `feature/state-persistence` |
 | **T8-1** | PID block | Sonnet | `feature/pid-block` |
 | **T9-1** | Envelope evaluator | Sonnet | `feature/envelope-evaluator` |

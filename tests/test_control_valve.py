@@ -802,18 +802,28 @@ def test_a_vessel_beside_a_valve_in_a_liquid_domain_resolves_gpm_and_couples():
     assert vessel.outlet_flow == pytest.approx(flow(snapshot, "FV-101"))
 
 
-def test_a_vessel_beside_a_valve_in_a_gas_domain_resolves_scfm_and_is_left_uncoupled():
+def test_a_vessel_beside_a_valve_in_a_gas_domain_resolves_scfm_and_couples_to_gas():
     plant, couplings = couplings_for(vessel_beside_valve("gas"))
 
     assert len(couplings) == 1
-    assert couplings[0].attachments == ()
+    assert [(a.port.name, a.unit) for a in couplings[0].attachments] == [
+        ("inlet", SCFM),
+        ("outlet", SCFM),
+    ]
 
     engine = Engine.from_plant(plant)
     engine.step(STEP)
     vessel = plant.devices["V-101"]
 
+    # SCFM lands in the gas attributes and never in the GPM ones.
     assert vessel.inlet_flow == pytest.approx(0.0)
     assert vessel.outlet_flow == pytest.approx(0.0)
+    # Both valve nodes now carry the vessel's one pressure, so there is no
+    # drop across the valve and nothing flows.
+    assert plant.nodes["N-101"].pressure == vessel.pressure
+    assert plant.nodes["N-102"].pressure == vessel.pressure
+    assert vessel.gas_inlet_flow == pytest.approx(0.0)
+    assert vessel.gas_outlet_flow == pytest.approx(0.0)
 
 
 def test_a_valve_in_the_default_domain_next_to_a_vessel_is_refused():

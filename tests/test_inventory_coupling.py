@@ -539,10 +539,12 @@ def gas_side_config():
     }
 
 
-def test_a_gas_attachment_is_left_alone_rather_than_read_as_gpm():
-    """SCFM must not reach a GPM attribute, and a liquid head must not reach
-    a gas boundary. The gas side is T5-3's; until then this port is simply
-    not coupled.
+def test_a_gas_attachment_couples_to_the_gas_attributes_and_never_the_gpm_ones():
+    """Replaces the T5-2 test that left a gas port uncoupled. SCFM must still
+    not reach a GPM attribute, and a liquid head must still not reach a gas
+    boundary: the gas port now writes its own pair of attributes, and the
+    boundary it supplies is the vessel's pressure, not the configured
+    pressure plus a head.
     """
     plant = load_plant(gas_side_config())
     engine = Engine.from_plant(plant)
@@ -551,18 +553,28 @@ def test_a_gas_attachment_is_left_alone_rather_than_read_as_gpm():
     engine.step(60.0)
 
     assert vessel.outlet_flow == pytest.approx(0.0)
-    assert plant.nodes["N-201"].pressure == pytest.approx(100.0)
-    # The liquid side is coupled normally.
+    assert vessel.gas_inlet_flow == pytest.approx(0.0)
+    # K-101 is stopped, so it is a bare resistance and the 400 psia boundary
+    # pushes gas back through it into the vessel: a negative outflow, in SCFM.
+    assert vessel.gas_outlet_flow == pytest.approx(
+        -math.sqrt((400.0 - vessel.pressure) / 0.002),
+    )
+    # The compressor's SCFM never lands in a GPM attribute.
     assert vessel.inlet_flow == pytest.approx(FEED_FLOW)
+    assert vessel.head > 0.0
+    assert plant.nodes["N-201"].pressure == pytest.approx(vessel.pressure)
+    assert plant.nodes["N-201"].pressure != pytest.approx(100.0 + vessel.head)
 
 
-def test_only_the_confirmed_liquid_port_becomes_an_attachment():
+def test_each_confirmed_port_becomes_an_attachment_carrying_its_unit():
     plant = load_plant(gas_side_config())
 
     coupling = build_couplings(plant.devices.values(), plant.topologies)[0]
 
-    assert [attachment.port.name for attachment in coupling.attachments] == ["inlet"]
-    assert coupling.attachments[0].domain == "liquid"
+    assert [
+        (attachment.port.name, attachment.domain, attachment.unit)
+        for attachment in coupling.attachments
+    ] == [("inlet", "liquid", "GPM"), ("outlet", "gas", "SCFM")]
 
 
 def test_a_node_whose_branches_disagree_on_flow_unit_is_refused():

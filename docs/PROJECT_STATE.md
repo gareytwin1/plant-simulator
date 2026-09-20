@@ -23,7 +23,7 @@ Refresh this file whenever a task merges to `main`.
 | **M1** Equipment Model Contract | **5/5 Complete** — Checkpoint A reached |
 | **M2** Simulation Engine and Clock | 4/6 (T2-5 startable) |
 | **M3** Plant Topology and Streams | **6/6 Complete** |
-| **M4** Pressure-Flow Network Solver | 4/5 — T4-1, T4-2, T4-3, T4-4 Complete (**Checkpoint B reached**); **T4-5 startable** |
+| **M4** Pressure-Flow Network Solver | 4/5 — T4-1, T4-2, T4-3, T4-4 Complete (**Checkpoint B reached**); **T4-5 startable**, re-scoped 20 Sep — see [The T4-5 re-scope](#the-t4-5-re-scope) |
 | **M5** Inventory and Mass Balance | 1/5 — T5-1 Complete; **T5-2 and T5-3 startable**; T5-2 takes the engine spine lock (M5 has 5 tasks: T5-5, the integrated reference plant, was added) |
 | M6–M19 | Not started |
 
@@ -325,9 +325,9 @@ is the build plan's own assignment.
 
 ### Critical path after Checkpoint B
 
-**T4-4 (Complete)** -> **T4-5** (cause-and-effect suite, test-only) and **T5-2**
-(level-to-hydraulics coupling, spine) -> T5-5 (integrated reference plant, also
-needs T3-4, Complete).
+**T4-4 (Complete)** -> **T4-5** (cause-and-effect suite, test-only, re-scoped —
+see below) and **T5-2** (level-to-hydraulics coupling, spine) -> T5-5 (integrated
+reference plant, also needs T3-4, Complete).
 
 The solver is on the request path. `Engine.step()` calls `NetworkSolver`, the
 snapshot's `solver`, `nodes` and `streams` are real, and topology owns hydraulic
@@ -357,6 +357,42 @@ pressure stays integrated slow state supplying a boundary condition** — see AD
   boundaries are sized for running and a started one runs away if they are sized
   for cold. That criterion moved to T7-1.
 
+### The T4-5 re-scope
+
+**Agreed 20 September 2026, before any test was written.** The build plan's
+original four acceptance criteria for T4-5 predate T4-4, which retired the
+devices' standalone solve and with it the line resistances and the `max_flow`
+clamp. Two of the four cannot be written against `main` at all:
+
+| Original criterion | Now |
+|---|---|
+| Closing a downstream valve lowers flow and raises upstream pressure | **Moved to T7-1** |
+| Added restriction raises upstream pressure | **Moved to T7-1** |
+| More compressor load raises flow and discharge pressure | Kept, sharpened |
+| Two parallel pumps raise flow by less than 2x | Kept, sharpened |
+
+Both moved criteria need a second resistance in the network. Until T7-1 gives the
+control valve a branch of its own, a machine runs between two fixed battery
+limits with nothing between them and the compressor's discharge valve strokes
+without changing anything hydraulically — item 1 of *Known temporary
+compatibility paths*. They moved rather than merging as permanently skipped
+tests, and **M4 is not held open waiting for T7-1**: T4-5 completes on what is
+expressible now. T7-1 gained both criteria and a `T4-4` dependency, since a
+valve's effect on a plant is asserted through `Engine.from_plant()`.
+
+T4-5's kept criteria are joined by speed affinity, boundary response, stopping,
+node mass balance and run-twice determinism. Two traps a session writing that
+suite must not rediscover:
+
+- **Backflow hides inside a "flow rises" assertion.** On the reference gas plant
+  (60 -> 480 psia) raising `K-101`'s load 0.8 -> 0.9 -> 1.0 gives −121.7, −73.8,
+  +70.7 SCFM. Flow does rise, so a naive assertion passes while the machine
+  backflows. **Assert `flow > 0` in every compared state**, and pick a boundary
+  difference the machines clear — 60 -> 300 psia gives forward flow on the series
+  gas plant from about 0.75 load.
+- **Assert only on settled states.** Load ramps at 0.05 per second, so a
+  mid-ramp state can sit in the backflow regime.
+
 ### Open questions carried from T3-3
 
 Question 1 still has no task and needs an owner (an Opus decision). Question 2
@@ -384,10 +420,13 @@ All dependencies are Complete. Two of them (T2-5, T12-1) add *new* isolated
 modules under `app/engine/`, which is satellite work under the **`app/engine/`
 rule** in CLAUDE.md.
 
-**Startable:** T4-4 merged, so **T4-5** (test-only) and **T5-2** (spine: `engine.py`
-and, per the plan, a C2 boundary-condition route in `topology.py`) are newly
-startable. T5-3 (gas pressure, same file as T5-1) takes no spine lock. T5-2 and
-T5-3 both touch `app/equipment/vessel.py`, so do not run them concurrently.
+**Startable:** T4-4 merged, so **T4-5** (test-only, and re-scoped — read [The
+T4-5 re-scope](#the-t4-5-re-scope) before writing a line of it) and **T5-2**
+(spine: `engine.py` and, per the plan, a C2 boundary-condition route in
+`topology.py`) are newly startable. T5-3 (gas pressure, same file as T5-1) takes
+no spine lock. T5-2 and T5-3 both touch `app/equipment/vessel.py`, so do not run
+them concurrently. **T7-1** now also carries two cause-and-effect criteria moved
+off T4-5, and depends on T4-4 (Complete), so it stays startable.
 
 | Task | Name | Model | Branch |
 |---|---|---|---|

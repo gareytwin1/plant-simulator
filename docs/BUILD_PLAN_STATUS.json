@@ -826,19 +826,22 @@
       "milestone": "M7",
       "name": "Control valve model",
       "category": "dep",
-      "branch": "feature/control-valve",
+      "branch": "feat/t7-1-control-valve",
       "depends_on": [
         "T1-2",
         "T4-1",
         "T4-4"
       ],
       "files": [
-        "app/equipment/valve.py"
+        "app/equipment/valve.py",
+        "app/plant/loader.py",
+        "app/engine/coupling.py",
+        "config/plants/liquid_valve_train.yaml",
+        "tests/test_control_valve.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true,
-      "note": "Also inherits the cold-start criterion dropped from T3-4: a reference fixture reaches a plausible steady state from cold once the valve supplies a system curve. See docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md section 2.9.\n\nGained two acceptance criteria from the T4-5 re-scope, 20 Sep 2026: 'Closing a downstream valve lowers flow and raises upstream pressure' and 'Added restriction raises upstream pressure'. Neither can be written until a valve sits on its own branch - after T4-4 the network has no resistance but the machine's own, and the compressor's discharge valve strokes without changing flow. T4-4 was added to depends_on for that reason: a valve's effect on a plant is asserted through Engine.from_plant() and the snapshot, the way tests/test_cause_effect.py does."
+      "status": "Ready for Review",
+      "status_key": "review",
+      "note": "Also inherits the cold-start criterion dropped from T3-4: a reference fixture reaches a plausible steady state from cold once the valve supplies a system curve. See docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md section 2.9.\n\nGained two acceptance criteria from the T4-5 re-scope, 20 Sep 2026: 'Closing a downstream valve lowers flow and raises upstream pressure' and 'Added restriction raises upstream pressure'. Neither can be written until a valve sits on its own branch - after T4-4 the network has no resistance but the machine's own, and the compressor's discharge valve strokes without changing flow. T4-4 was added to depends_on for that reason: a valve's effect on a plant is asserted through Engine.from_plant() and the snapshot, the way tests/test_cause_effect.py does.\n\nReady for Review: 681 tests and mypy green, golden traces unmoved. ControlValve (linear / equal-percentage, rate-limited stroke, min_position floor, fail-open / fail-closed); flow unit resolved from the domain in coupling.py (liquid GPM, gas SCFM; default and unknown domains refuse). Config key is flow_characteristic because Equipment.characteristic is a method. Reference plant config/plants/liquid_valve_train.yaml. Touches coupling.py, so T5-3 should start after this merges."
     },
     {
       "id": "T7-2",

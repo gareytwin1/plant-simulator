@@ -38,7 +38,7 @@
     },
     "M5": {
       "name": "Inventory and Mass Balance",
-      "complete": 1,
+      "complete": 2,
       "total": 5
     },
     "M6": {
@@ -115,7 +115,7 @@
   "totals": {
     "tasks": 97,
     "complete": 29,
-    "startable_now": 18
+    "startable_now": 17
   },
   "tasks": [
     {

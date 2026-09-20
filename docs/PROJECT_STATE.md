@@ -94,10 +94,11 @@ now genuinely merged.)
 
 ### What intentionally does not exist yet
 
-- **The Engine path is single-domain.** `Engine.from_plant()` wires against
-  `Plant.topology`, which raises on a multi-domain plant. One solver per flow
-  domain, and the boundary-condition update that couples them through vessel
-  inventory, are T5-2.
+- **~~The Engine path is single-domain~~ — delivered by T5-2 (`154385c`).**
+  `Engine.from_plant()` now wires one solver per entry in `Plant.topologies`,
+  and the boundary-condition update couples them through vessel inventory.
+  `Engine.topology` survives as a convenience that raises on a multi-domain
+  engine, the same bargain `Plant.topology` makes.
 - **The control valve has no hydraulic path (T7-1).** The line resistances and the
   `max_flow` clamp lived only in the retired standalone solve, so a page's flow
   runs above `max_flow`, the discharge valve strokes without changing flow, and
@@ -456,7 +457,7 @@ is retired: **T3-6** (merged) carried the C3 named-port wiring (moved from T3-5 
 "Seeded RNG" above. `SeededRNG` also has no state save/restore, which T12-1
 (snapshot save and restore) and T14-5 (deterministic replay) will need.
 
-### Startable now (18 tasks)
+### Startable now (17 tasks)
 
 All dependencies are Complete. Two of them (T2-5, T12-1) add *new* isolated
 modules under `app/engine/`, which is satellite work under the **`app/engine/`
@@ -470,7 +471,6 @@ and it is now the task that makes those two criteria expressible at all.
 
 | Task | Name | Model | Branch |
 |---|---|---|---|
-| **T5-2** | Level to hydraulics coupling (spine) | Opus | `feature/inventory-coupling` |
 | **T5-3** | Gas-phase pressure accumulation | Sonnet | `feature/gas-inventory` |
 | **T6-1** | Stream enthalpy and mixing | Opus | `feature/stream-enthalpy` |
 | **T7-1** | Control valve model | Sonnet | `feature/control-valve` |
@@ -558,8 +558,10 @@ A `Topology` must be a single flow domain (gas or liquid, not both), and
 nodes by declared `domain` into one `Topology` per domain and rejects a branch
 that crosses domains, at load, naming the config path. C2 and the solver still
 carry no domain metadata, so a `Topology` assembled by hand is unchecked. The
-solver is untouched. `Engine.from_plant()` wires against `Plant.topology`, which
-raises on a multi-domain plant; one solver per domain arrives with T5-2. (T5-1's
+solver is untouched — `NetworkSolver` still solves exactly one domain per
+invocation. What changed at T5-2 is the caller: `Engine.from_plant()` builds one
+solver per entry in `Plant.topologies` and no longer raises on a multi-domain
+plant. (T5-1's
 dependency moved to T3-6, the multi-port wiring half of the original T3-5, when
 Amendment 1 split the task.)
 

@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "20 September 2026",
-  "main_sha": "42dc22776a2f8dcec2686b4395ae61e8e24cbe47",
-  "tests_passing_on_main": 738,
+  "main_sha": "60c252e9227a425bf973932a1ce09b2d88ba7fe1",
+  "tests_passing_on_main": 753,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -29,7 +29,7 @@
     "M3": {
       "name": "Plant Topology and Streams",
       "complete": 6,
-      "total": 6
+      "total": 7
     },
     "M4": {
       "name": "Pressure-Flow Network Solver",
@@ -39,7 +39,7 @@
     "M5": {
       "name": "Inventory and Mass Balance",
       "complete": 3,
-      "total": 5
+      "total": 7
     },
     "M6": {
       "name": "Energy Balance and Temperature",
@@ -49,7 +49,7 @@
     "M7": {
       "name": "Control Valves and Final Elements",
       "complete": 1,
-      "total": 4
+      "total": 5
     },
     "M8": {
       "name": "PID Controllers and Modes",
@@ -113,9 +113,9 @@
     }
   },
   "totals": {
-    "tasks": 97,
-    "complete": 32,
-    "startable_now": 18
+    "tasks": 101,
+    "complete": 33,
+    "startable_now": 19
   },
   "tasks": [
     {
@@ -131,7 +131,7 @@
       ],
       "status": "Complete",
       "status_key": "done",
-      "note": "Merged to main as 7b19c31 (ff from chore/retire-duplicate-simulator), 18 Sep. app/simulator.py deleted; grep for PlantSimulator is clean. test_api.py's reset fixture assigned main.simulator, a name main never held \u2014 now builds a fresh GasCompressor on main.compressor. With a real reset, test_api_step's old expectations (load 0.10 / pressure 751.25 / temp 75.04) were exposed as readings of leaked state from test_api_stop; corrected to one clean step (0.05 / 750.3125 / 75.01), which matches test_step_once_with_load in test_compressor.py. Verified: 26 pass full suite, test_api.py passes per-test in isolation and with the whole suite in reverse collection order. Note for T1-1: golden traces must be captured from this tree, not pre-merge main.",
+      "note": "Merged to main as 7b19c31 (ff from chore/retire-duplicate-simulator), 18 Sep. app/simulator.py deleted; grep for PlantSimulator is clean. test_api.py's reset fixture assigned main.simulator, a name main never held — now builds a fresh GasCompressor on main.compressor. With a real reset, test_api_step's old expectations (load 0.10 / pressure 751.25 / temp 75.04) were exposed as readings of leaked state from test_api_stop; corrected to one clean step (0.05 / 750.3125 / 75.01), which matches test_step_once_with_load in test_compressor.py. Verified: 26 pass full suite, test_api.py passes per-test in isolation and with the whole suite in reverse collection order. Note for T1-1: golden traces must be captured from this tree, not pre-merge main.",
       "planned_files_not_on_main": [
         "app/simulator.py"
       ]
@@ -148,7 +148,7 @@
       ],
       "status": "Complete",
       "status_key": "done",
-      "note": "Committed directly to main as 7742609 (18 Sep) \u2014 added url_for to the Flask import and two regression tests (test_start_redirect, test_stop_redirect). Full suite 34/34 green. Landed on main rather than fix/url-for-import because a peer session fast-forward-merged docs/units-convention into local main mid-task; harmless, just skipped the intermediate branch."
+      "note": "Committed directly to main as 7742609 (18 Sep) — added url_for to the Flask import and two regression tests (test_start_redirect, test_stop_redirect). Full suite 34/34 green. Landed on main rather than fix/url-for-import because a peer session fast-forward-merged docs/units-convention into local main mid-task; harmless, just skipped the intermediate branch."
     },
     {
       "id": "T0-3",
@@ -180,7 +180,7 @@
       ],
       "status": "Complete",
       "status_key": "done",
-      "note": "Merged to main as e1430f4. docs/UNITS_CONVENTION.md freezes pressure (psia), temperature (\u00b0F), flow (SCFM/GPM), load/speed ([0,1]).",
+      "note": "Merged to main as e1430f4. docs/UNITS_CONVENTION.md freezes pressure (psia), temperature (°F), flow (SCFM/GPM), load/speed ([0,1]).",
       "planned_files_not_on_main": [
         "docs/units.md"
       ]
@@ -229,16 +229,8 @@
         "requirements-dev.txt",
         "app/statetypes.py",
         "app/equipment/base.py",
-        "app/equipment/registry.py",
-        "app/equipment/compressor.py",
-        "app/equipment/pump.py",
-        "app/engine/clock.py",
-        "app/engine/engine.py",
-        "app/engine/snapshot.py",
-        "app/engine/sessions.py",
+        "app/engine/",
         "app/plant/topology.py",
-        "app/plant/validate.py",
-        "app/main.py",
         "CLAUDE.md",
         "DEVELOPMENT.md",
         "docs/PROJECT_STATE.md"
@@ -260,7 +252,7 @@
       ],
       "status": "Complete",
       "status_key": "done",
-      "note": "Merged to main as 6a1c1f6, then completed in 92286e9 (ff from test/golden-regression-pump), 18 Sep. The first merge covered the compressor only and shipped no proof the harness would fail if the numbers moved, so two of the task's own merge criteria were unmet; both are now closed. Six pump scenarios added in tests/fixtures/golden/pump_traces.json, mirroring the compressor's and chosen to pin the branches a refactor is most likely to break: discharge_header_change crosses into and back out of the dead-headed zero-flow branch, max_flow_clip lands on the max_flow clamp exactly. Replay now drives each run through the same scenario function that captured it \u2014 it previously re-derived the script by substring-matching the recorded command descriptions, so the replay could silently diverge from the run that produced the numbers it was checking. Tolerances documented with their reasoning and pinned from both sides: 1e-5 relative / 1e-7 absolute sits ten orders above double-precision noise and three below the 1% drift the harness exists to catch; tests assert a 1% injected change is caught on both devices (135 field diffs on the compressor, first at step 1, each naming the field, both values and the delta) and that 1e-9 noise is ignored. compressor_traces.json is byte-identical after regeneration, so the restructure moved nothing already locked. Full suite 74 green. Pushed to origin/main.",
+      "note": "Merged to main as 6a1c1f6, then completed in 92286e9 (ff from test/golden-regression-pump), 18 Sep. The first merge covered the compressor only and shipped no proof the harness would fail if the numbers moved, so two of the task's own merge criteria were unmet; both are now closed. Six pump scenarios added in tests/fixtures/golden/pump_traces.json, mirroring the compressor's and chosen to pin the branches a refactor is most likely to break: discharge_header_change crosses into and back out of the dead-headed zero-flow branch, max_flow_clip lands on the max_flow clamp exactly. Replay now drives each run through the same scenario function that captured it — it previously re-derived the script by substring-matching the recorded command descriptions, so the replay could silently diverge from the run that produced the numbers it was checking. Tolerances documented with their reasoning and pinned from both sides: 1e-5 relative / 1e-7 absolute sits ten orders above double-precision noise and three below the 1% drift the harness exists to catch; tests assert a 1% injected change is caught on both devices (135 field diffs on the compressor, first at step 1, each naming the field, both values and the delta) and that 1e-9 noise is ignored. compressor_traces.json is byte-identical after regeneration, so the restructure moved nothing already locked. Full suite 74 green. Pushed to origin/main.",
       "planned_files_not_on_main": [
         "tests/test_golden.py"
       ]
@@ -279,7 +271,7 @@
       ],
       "status": "Complete",
       "status_key": "done",
-      "note": "Merged to main as c82436d + 22066fa (ff from refactor/equipment-contract), 18 Sep, and pushed to origin/main. Branch deleted. Checkpoint A reached \u2014 C1 is frozen. Review found the branch carried a duplicate of T0-2 (55bd80d re-added the url_for fix and both redirect tests, already on main as 7742609); rebased onto main dropping it, so the merge is purely additive: app/equipment/base.py + tests/test_equipment_contract.py, nothing else touched. Added one fix during review (22066fa): Port now has __slots__, because the docstring and C1 both claim there is nowhere on a port to put a pressure or a flow, but Port was a plain object \u2014 the claim was a convention, not a guarantee. Full suite 63 green at merge (74 after T1-1 completion). Two things for the spine owner, deliberately NOT changed since C1 freezes here: (1) every contract test constructs device_class() with no arguments, so zero-arg construction is now implicitly part of C1 and each device must hard-code a default tag \u2014 that collides with T1-5, where the registry is meant to own tags; resolve it as its own task rather than as a side effect. (2) REGISTERED is computed at test-module import time, so an Equipment subclass defined in a module imported later silently escapes the parameterised contract tests. Also note the contract tests currently parameterise over the two test doubles only (Machine, Valve) \u2014 GasCompressor and CentrifugalPump do not subclass Equipment until T1-3/T1-4, at which point the DEVICE_MODULES import hook pulls them in automatically."
+      "note": "Merged to main as c82436d + 22066fa (ff from refactor/equipment-contract), 18 Sep, and pushed to origin/main. Branch deleted. Checkpoint A reached — C1 is frozen. Review found the branch carried a duplicate of T0-2 (55bd80d re-added the url_for fix and both redirect tests, already on main as 7742609); rebased onto main dropping it, so the merge is purely additive: app/equipment/base.py + tests/test_equipment_contract.py, nothing else touched. Added one fix during review (22066fa): Port now has __slots__, because the docstring and C1 both claim there is nowhere on a port to put a pressure or a flow, but Port was a plain object — the claim was a convention, not a guarantee. Full suite 63 green at merge (74 after T1-1 completion). Two things for the spine owner, deliberately NOT changed since C1 freezes here: (1) every contract test constructs device_class() with no arguments, so zero-arg construction is now implicitly part of C1 and each device must hard-code a default tag — that collides with T1-5, where the registry is meant to own tags; resolve it as its own task rather than as a side effect. (2) REGISTERED is computed at test-module import time, so an Equipment subclass defined in a module imported later silently escapes the parameterised contract tests. Also note the contract tests currently parameterise over the two test doubles only (Machine, Valve) — GasCompressor and CentrifugalPump do not subclass Equipment until T1-3/T1-4, at which point the DEVICE_MODULES import hook pulls them in automatically."
     },
     {
       "id": "T1-3",
@@ -296,7 +288,7 @@
       ],
       "status": "Complete",
       "status_key": "done",
-      "note": "Merged to main as a416ff6 (fast-forward from refactor/compressor-onto-base), pushed to origin/main, branch deleted (local + remote). Full suite 93/93 green on main post-merge. GasCompressor now subclasses Equipment: ports suction(inlet)/discharge(outlet), integrate(dt) moves load and valve position only (no flow/pressure touch, satisfies integrate(0) no-op), characteristic(flow) publishes max(shutoff_pressure_rise*load**2 - compressor_resistance*flow**2, 0.0) as a pure function. step() stays as GasCompressor's own method (calls integrate(dt) then _calculate_operating_point()) since no plant-wide solver exists yet to drive devices externally \u2014 that's still M4 (T4-2). supply_pressure/discharge_header_pressure renamed to upstream_boundary_pressure/downstream_boundary_pressure so a fresh device has no attribute matching NODE_PRESSURE_ATTRIBUTES in the contract test; _calculate_operating_point's available_pressure_rise is now derived from characteristic(0.0) instead of duplicating the shutoff/load term, and the duplicate _move_toward static method is dropped in favor of Equipment's. Default tag is 'K-101', matching T1-2's note that zero-arg construction is implicitly part of C1 \u2014 same collision with T1-5's registry ownership of tags applies here too, not resolved as part of this task. Updated tests/test_compressor.py's two boundary-pressure lines and the two compressor scenario functions in tests/golden_regression.py (pump scenarios left for T1-4) to the new attribute names. Golden traces reproduce exactly; regenerating them changed only the two recorded command-description strings that named the old attributes (compressor_traces.json), pump_traces.json byte-identical. Heads up for T1-4 review: GasCompressor kept its own step()/operating-point solve (no plant-wide solver exists yet); a concurrent pump refactor observed in progress appeared to drop step() and the self-solve entirely \u2014 worth reconciling the two approaches so satellites depending on Equipment devices can assume one consistent shape."
+      "note": "Merged to main as a416ff6 (fast-forward from refactor/compressor-onto-base), pushed to origin/main, branch deleted (local + remote). Full suite 93/93 green on main post-merge. GasCompressor now subclasses Equipment: ports suction(inlet)/discharge(outlet), integrate(dt) moves load and valve position only (no flow/pressure touch, satisfies integrate(0) no-op), characteristic(flow) publishes max(shutoff_pressure_rise*load**2 - compressor_resistance*flow**2, 0.0) as a pure function. step() stays as GasCompressor's own method (calls integrate(dt) then _calculate_operating_point()) since no plant-wide solver exists yet to drive devices externally — that's still M4 (T4-2). supply_pressure/discharge_header_pressure renamed to upstream_boundary_pressure/downstream_boundary_pressure so a fresh device has no attribute matching NODE_PRESSURE_ATTRIBUTES in the contract test; _calculate_operating_point's available_pressure_rise is now derived from characteristic(0.0) instead of duplicating the shutoff/load term, and the duplicate _move_toward static method is dropped in favor of Equipment's. Default tag is 'K-101', matching T1-2's note that zero-arg construction is implicitly part of C1 — same collision with T1-5's registry ownership of tags applies here too, not resolved as part of this task. Updated tests/test_compressor.py's two boundary-pressure lines and the two compressor scenario functions in tests/golden_regression.py (pump scenarios left for T1-4) to the new attribute names. Golden traces reproduce exactly; regenerating them changed only the two recorded command-description strings that named the old attributes (compressor_traces.json), pump_traces.json byte-identical. Heads up for T1-4 review: GasCompressor kept its own step()/operating-point solve (no plant-wide solver exists yet); a concurrent pump refactor observed in progress appeared to drop step() and the self-solve entirely — worth reconciling the two approaches so satellites depending on Equipment devices can assume one consistent shape."
     },
     {
       "id": "T1-4",
@@ -313,7 +305,7 @@
       ],
       "status": "Complete",
       "status_key": "done",
-      "note": "Merged to main as 5e1a9f0512d9474f04b3fe3a69a252f983eb8415 (no-ff merge commit of PR #1, from refactor/pump-onto-base @ 4751cc1), 19 Sep. Full suite 202/202 green on main post-merge.\n\nCentrifugalPump is now on the C1 Equipment contract: tag 'P-101', suction(inlet)/discharge(outlet) ports, integrate(dt) owns slow-state speed ramping only, characteristic(flow) is a pure published curve. Renamed supply_pressure/discharge_header_pressure -> upstream_boundary_pressure/downstream_boundary_pressure so no device attribute matches the contract's forbidden node-pressure names. get_state() shape unchanged, so main.py, templates/pump.html, static/pump.js, test_pump_api.py and test_pump.py needed zero changes. Golden trace values are numerically unchanged \u2014 only two recorded command-description strings naming the old attributes moved.\n\nThe pump now works through Engine: Engine.step() drives it via integrate() and Snapshot publishes its state generically by tag, with no pump-specific code in Engine/Snapshot. Closed the coverage gap T2-3 documented ('Pump coverage belongs here once T1-4 merges') by adding test_pump_golden_slow_state_reproduces_through_the_engine to tests/test_engine.py, mirroring the compressor version. CentrifugalPump is also picked up automatically by the parametrized C1 contract tests and the registry round-trip test (+7 tests on merge; 194 -> 201, +1 new engine golden test = 202).\n\nINTENTIONALLY TEMPORARY, do not 'clean up' as a side effect of another task: both GasCompressor and CentrifugalPump retain their own step() plus _calculate_operating_point() standalone solve, and the Flask routes still call that legacy path. T4-2 (network solver) is the task that retires equipment-owned operating-point solving and the interim upstream/downstream_boundary_pressure attributes. Until then Engine deliberately calls integrate() only and does not compute flow/pressure.\n\nRebase history: originally branched from 63b1a0a (pre T1-3/T1-5/T2-3/T3-1/T3-2); rebased cleanly onto current main with zero conflicts before merge, since the branch only ever touched pump.py, golden_regression.py and the pump golden fixture."
+      "note": ""
     },
     {
       "id": "T1-5",
@@ -330,7 +322,7 @@
       ],
       "status": "Complete",
       "status_key": "done",
-      "note": "Merged to main as 5ea07cb, pushed to origin/main. Branch feature/equipment-registry deleted locally (was never pushed to origin, so no remote delete needed). Full suite green (98 tracked tests at merge time: 93 pre-existing + 5 new). EquipmentRegistry (app/equipment/registry.py) maps tag -> device instance: register() raises ValueError naming the device already holding a tag instead of silently overwriting it, resolve() raises KeyError naming the missing tag plus every tag that is registered. app/config.py gets an appended TAG_PREFIXES section documenting the ISA-style convention (K/P/E/V/FV) referenced from the registry's docstring. tests/test_registry.py round-trips every class currently in Equipment.registered() (same DEVICE_MODULES/dynamic-discovery idiom as test_equipment_contract.py, so it automatically picks up CentrifugalPump once T1-4 lands) plus duplicate/unknown-tag cases. Not wired into app/main.py or any Plant object yet \u2014 that's for whichever later task actually builds a Plant from config (T3-3) or gives sessions their own registry (T2-4); T1-5 only builds the mechanism. Process note, not a code issue: while committing, this shared working tree's checked-out branch got switched out from under me mid-task (another session created feature/plant-config-schema fresh off main between my `checkout -b` and `commit`), so my first commit attempt (d41949a) landed on THAT branch instead of mine. I cherry-picked it onto the correct feature/equipment-registry branch (now merged as 5ea07cb) but could not clean up the stray d41949a on feature/plant-config-schema \u2014 the sandbox blocked both `reset --hard` and `git revert` on that branch as cross-workload interference, correctly, since another session owns it. By the time I could react, that session had already committed T3-1 on top of it and pushed (5b2ad19). See the note on T3-1 for what that means for their branch."
+      "note": "Merged to main as 5ea07cb, pushed to origin/main. Branch feature/equipment-registry deleted locally (was never pushed to origin, so no remote delete needed). Full suite green (98 tracked tests at merge time: 93 pre-existing + 5 new). EquipmentRegistry (app/equipment/registry.py) maps tag -> device instance: register() raises ValueError naming the device already holding a tag instead of silently overwriting it, resolve() raises KeyError naming the missing tag plus every tag that is registered. app/config.py gets an appended TAG_PREFIXES section documenting the ISA-style convention (K/P/E/V/FV) referenced from the registry's docstring. tests/test_registry.py round-trips every class currently in Equipment.registered() (same DEVICE_MODULES/dynamic-discovery idiom as test_equipment_contract.py, so it automatically picks up CentrifugalPump once T1-4 lands) plus duplicate/unknown-tag cases. Not wired into app/main.py or any Plant object yet — that's for whichever later task actually builds a Plant from config (T3-3) or gives sessions their own registry (T2-4); T1-5 only builds the mechanism. Process note, not a code issue: while committing, this shared working tree's checked-out branch got switched out from under me mid-task (another session created feature/plant-config-schema fresh off main between my `checkout -b` and `commit`), so my first commit attempt (d41949a) landed on THAT branch instead of mine. I cherry-picked it onto the correct feature/equipment-registry branch (now merged as 5ea07cb) but could not clean up the stray d41949a on feature/plant-config-schema — the sandbox blocked both `reset --hard` and `git revert` on that branch as cross-workload interference, correctly, since another session owns it. By the time I could react, that session had already committed T3-1 on top of it and pushed (5b2ad19). See the note on T3-1 for what that means for their branch."
     },
     {
       "id": "T2-1",
@@ -343,7 +335,8 @@
         "app/engine/clock.py"
       ],
       "status": "Complete",
-      "status_key": "done"
+      "status_key": "done",
+      "note": ""
     },
     {
       "id": "T2-2",
@@ -375,7 +368,7 @@
       ],
       "status": "Complete",
       "status_key": "done",
-      "note": "Merged to local main as 1eeb089 + 209662c (ff from refactor/simulation-engine, rebased onto origin/main's 07d4d1d worktree-docs commit \u2014 clean, no code overlap). /code-review high ran 8 finder agents in parallel; 5 independently converged on the same root cause (Engine.running was a second, unsynchronized running flag that step() never checked \u2014 stop() didn't stop anything). Fixed by deleting the flag: start()/stop() now delegate to SimulationClock.pause()/resume(), snapshot's running field reads off clock.paused. Also fixed from review: SimulationClock.step() now returns elapsed sim-time instead of Engine re-deriving it by diffing; Engine's constructor takes an iterable (not a pre-keyed dict) so equipment dict keys can't diverge from device.tag; Snapshot._frozen() now deep-copies (matching base.py's _snapshot() precedent) instead of shallow-copying; alarms entries are now deep-frozen too (previously only the outer tuple was immutable, contradicting the module's own docstring); solver=None vs explicit solver={} are now distinguished. Documented+pinned rather than fixed (would require touching satellite-owned compressor.py/pump.py, out of scope): device.simulation_speed is not consulted by Engine \u2014 a new test proves this explicitly rather than relying on both defaulting to 1.0 by coincidence. Rejected: removing the C4 placeholder sections (violates T2-3's own 'matches C4 exactly' requirement), dropping MappingProxyType immutability (contradicts Port's __slots__ precedent + breaks leak tests), and 6 efficiency suggestions (memoization/parallel-gather) that target throughput problems this 1Hz poll-driven simulator doesn't have. Full suite 130 green. NOT YET PUSHED to origin \u2014 checking with the user first since this is spine work with high blast radius (unblocks feature/plant-topology next)."
+      "note": "Merged to local main as 1eeb089 + 209662c (ff from refactor/simulation-engine, rebased onto origin/main's 07d4d1d worktree-docs commit — clean, no code overlap). /code-review high ran 8 finder agents in parallel; 5 independently converged on the same root cause (Engine.running was a second, unsynchronized running flag that step() never checked — stop() didn't stop anything). Fixed by deleting the flag: start()/stop() now delegate to SimulationClock.pause()/resume(), snapshot's running field reads off clock.paused. Also fixed from review: SimulationClock.step() now returns elapsed sim-time instead of Engine re-deriving it by diffing; Engine's constructor takes an iterable (not a pre-keyed dict) so equipment dict keys can't diverge from device.tag; Snapshot._frozen() now deep-copies (matching base.py's _snapshot() precedent) instead of shallow-copying; alarms entries are now deep-frozen too (previously only the outer tuple was immutable, contradicting the module's own docstring); solver=None vs explicit solver={} are now distinguished. Documented+pinned rather than fixed (would require touching satellite-owned compressor.py/pump.py, out of scope): device.simulation_speed is not consulted by Engine — a new test proves this explicitly rather than relying on both defaulting to 1.0 by coincidence. Rejected: removing the C4 placeholder sections (violates T2-3's own 'matches C4 exactly' requirement), dropping MappingProxyType immutability (contradicts Port's __slots__ precedent + breaks leak tests), and 6 efficiency suggestions (memoization/parallel-gather) that target throughput problems this 1Hz poll-driven simulator doesn't have. Full suite 130 green. NOT YET PUSHED to origin — checking with the user first since this is spine work with high blast radius (unblocks feature/plant-topology next)."
     },
     {
       "id": "T2-4",
@@ -409,7 +402,7 @@
       ],
       "status": "Complete",
       "status_key": "done",
-      "note": "app/engine/scheduler.py: one Scheduler per Engine, deadline-scheduled fixed-dt worker thread, step_lock around engine.step, fail-stop on exception, explicit stop()+join. Merged to main (06569cc), PR #36."
+      "note": "Merged to main (06569cc), PR #36; completion recorded in bbbfa60. One Scheduler per Engine, deadline-scheduled fixed-dt worker, step_lock around engine.step, fail-stop on exception, explicit stop()+join. 22 tests; suite 738 green."
     },
     {
       "id": "T2-6",
@@ -421,16 +414,11 @@
         "T2-5"
       ],
       "files": [
-        "static/compressor.js",
-        "static/pump.js",
-        "app/engine/sessions.py",
-        "app/engine/scheduler.py",
-        "app/main.py",
-        "app/config.py"
+        "static/compressor.js"
       ],
       "status": "Complete",
       "status_key": "done",
-      "note": "File-list correction: the build plan named only static/compressor.js, but static/pump.js independently steps pump physics via /api/pump/step on the same 1-second timer -- left alone it would keep one browser-driven engine alive and double-step against its own scheduler, so it changed too. Design settled first in docs/T2-6_SCHEDULER_OWNERSHIP.md (approved): Session creates compressor_scheduler/pump_scheduler and starts neither; /compressor and /pump each start only their own; Session.end() (direct, SessionRegistry.end(), or LRU eviction past config.MAX_SESSIONS=32) stops and joins both; /api/step and /api/pump/step return 409 while their scheduler runs; Scheduler gained snapshot_locked() for state reads that also need a live-device query over a solved value. 753 passed (738 baseline + 15 new), stable across repeated runs; mypy clean over 24 source files; no golden trace moved. Merged to main (4e48949), PR #38."
+      "note": "Merged to main (4e48949), PR #38; completion recorded in f8aab59 (PR #39). Session owns a Scheduler per Engine, started by the page render and stopped by Session.end() or LRU eviction past MAX_SESSIONS=32; /api/step and /api/pump/step return 409 while running; Scheduler.snapshot_locked() for coherent live-device reads. File-list correction: static/pump.js also stopped stepping physics. T18-5 still owns idle-session reclamation. Suite 753 green."
     },
     {
       "id": "T3-1",
@@ -445,7 +433,7 @@
       ],
       "status": "Complete",
       "status_key": "done",
-      "note": "Merged to main (211fa3f). History carries T1-5 twice (d41949a + 5ea07cb, identical content) \u2014 already pushed, not rewritten."
+      "note": "Merged to main (211fa3f). History carries T1-5 twice (d41949a + 5ea07cb, identical content) — already pushed, not rewritten."
     },
     {
       "id": "T3-2",
@@ -461,7 +449,7 @@
       ],
       "status": "Complete",
       "status_key": "done",
-      "note": "Merged to main as 2e56c48 (fast-forward from feature/plant-topology, rebased onto origin/main's T2-3 first), 19 Sep. Pushed to origin/main; feature branch deleted (remote + local worktree). gh's stored PR credentials were invalid (keyring token bad), so this landed as a direct fast-forward push rather than through a GitHub PR \u2014 no GitHub PR record exists for T3-2. Full suite 168 passed on merge (131 at review, +37 from T2-3 landing on main in the interim; rebase was clean, no conflicts). Checkpoint B is now one step closer \u2014 app/plant/topology.py is released from spine claim.\n\nC2 as implemented: Node(id, pressure, is_boundary, elevation), Branch(id, from_node, to_node, device, flow), Stream(flow, pressure, temperature, composition), plus a Topology container. Solver-owned values are read-only properties written only via set_pressure()/set_flow() \u2014 `node.pressure = 800` raises AttributeError, a boundary node refuses set_pressure() entirely, and flow is stored once on the branch's stream (Branch.flow is a property over it).\n\nTwo decisions for T3-3/T4-1/T4-2 to build against:\n(1) Port binding by direction, with explicit from_port/to_port override for devices with more than one inlet or outlet (an exchanger's utility side, a vessel's vent are a second branch on the same device \u2014 duplicate-tag check is identity-based).\n(2) A branch must hold a device \u2014 Branch(..., device=None) is refused; a bare line is a resistance device, not a special case.\n\nDeliberately NOT in this task: characteristic sign convention / reverse flow (T4-1), all solvability checks \u2014 dangling port, disconnected subgraph, zero boundary pressure, duplicate config tag (T3-3's loader, where the error can name the config path). T3-3's primitives: boundary_nodes / internal_nodes, branches_from / branches_to / branches_at, unconnected_ports(), device(tag), identity-checked add_node/add_branch.\n\nFor the snapshot owner (C4): Topology.get_state() returns nodes/branches/streams as flat JSON-safe rows, streams keyed by branch id (remap freely, no identity of their own yet). describe()/str() prints the graph for debugging.\n\nOpen note carried over from review, still true: tests/test_topology.py's Equipment double (Device) lands in REGISTERED and runs through the C1 parameterised contract tests if collected before test_equipment_contract.py \u2014 passes either way, but is a live instance of the import-order gap T1-2 flagged; not fixed here since it's out of scope for C2."
+      "note": "Merged to main as 2e56c48 (fast-forward from feature/plant-topology, rebased onto origin/main's T2-3 first), 19 Sep. Pushed to origin/main; feature branch deleted (remote + local worktree). gh's stored PR credentials were invalid (keyring token bad), so this landed as a direct fast-forward push rather than through a GitHub PR — no GitHub PR record exists for T3-2. Full suite 168 passed on merge (131 at review, +37 from T2-3 landing on main in the interim; rebase was clean, no conflicts). Checkpoint B is now one step closer — app/plant/topology.py is released from spine claim.\n\nC2 as implemented: Node(id, pressure, is_boundary, elevation), Branch(id, from_node, to_node, device, flow), Stream(flow, pressure, temperature, composition), plus a Topology container. Solver-owned values are read-only properties written only via set_pressure()/set_flow() — `node.pressure = 800` raises AttributeError, a boundary node refuses set_pressure() entirely, and flow is stored once on the branch's stream (Branch.flow is a property over it).\n\nTwo decisions for T3-3/T4-1/T4-2 to build against:\n(1) Port binding by direction, with explicit from_port/to_port override for devices with more than one inlet or outlet (an exchanger's utility side, a vessel's vent are a second branch on the same device — duplicate-tag check is identity-based).\n(2) A branch must hold a device — Branch(..., device=None) is refused; a bare line is a resistance device, not a special case.\n\nDeliberately NOT in this task: characteristic sign convention / reverse flow (T4-1), all solvability checks — dangling port, disconnected subgraph, zero boundary pressure, duplicate config tag (T3-3's loader, where the error can name the config path). T3-3's primitives: boundary_nodes / internal_nodes, branches_from / branches_to / branches_at, unconnected_ports(), device(tag), identity-checked add_node/add_branch.\n\nFor the snapshot owner (C4): Topology.get_state() returns nodes/branches/streams as flat JSON-safe rows, streams keyed by branch id (remap freely, no identity of their own yet). describe()/str() prints the graph for debugging.\n\nOpen note carried over from review, still true: tests/test_topology.py's Equipment double (Device) lands in REGISTERED and runs through the C1 parameterised contract tests if collected before test_equipment_contract.py — passes either way, but is a live instance of the import-order gap T1-2 flagged; not fixed here since it's out of scope for C2."
     },
     {
       "id": "T3-3",
@@ -478,7 +466,7 @@
       ],
       "status": "Complete",
       "status_key": "done",
-      "note": "Merged to main as b2656a5 (PR #7, merge commit from feature/plant-loader, rebased on the T4-1 merge). app/plant/loader.py: load_plant(config) / load_plant_file(path) validate against the C3 schema, build a Topology and return a Plant; a bad config raises one PlantConfigError listing every problem with its config path (duplicate node ids and tags, unknown node references, boundary pressure <= 0 or no boundary, disconnected subgraphs including orphan nodes, unwired ports, device types with no model yet, unknown or wrongly-typed design keys). Plant.to_config() reads design values back off the live devices, so plant -> config -> plant round-trips identically; limits/controllers/interlocks pass through untouched. Only pump and compressor have device classes, so the other C3 type enum values are rejected until their models land. tests/test_plant_loader.py: 27 tests. Full suite 266 passed, mypy clean.\n\nTwo open questions, NOT settled here and needing an owner: (1) Equipment.reset() restores the state captured at the end of __init__, and design values are applied after construction, so a reset device returns to class defaults rather than the configured design. Fixing it needs a design/configure hook on C1 (spine change, Opus decision) before T4-2/T3-4 rely on reset() for loaded plants. (2) C3 has only node_in/node_out, so a device with more than one inlet or outlet (a vessel with a vent) cannot be wired from config; it needs from_port/to_port in the schema, which T3-1 owns. Do it when the first multi-port device (T5-1) lands. Not included: YAML loading (pyyaml is not in requirements.txt; T3-4's olefins_lite.yaml needs it) and cross-checking tags referenced by limits/controllers/interlocks."
+      "note": "Merged to main as b2656a5 (PR #7, merge commit from feature/plant-loader, rebased on the T4-1 merge). Full suite 266 passed, mypy clean."
     },
     {
       "id": "T3-4",
@@ -496,8 +484,7 @@
       ],
       "status": "Complete",
       "status_key": "done",
-      "note": "Merged to main as d6a6cfb652eda5b12cdf69981e25f71c5e79a58c (PR #19, merge commit from feature/reference-plant, rebased on the T3-6 merge), 19 Sep. Adds config/plants/liquid_transfer.yaml and gas_compression.yaml (every node declares its domain; design speed 1.0 / load 1.0) and tests/test_reference_plants.py, 20 tests, which the task's file list omitted. Full suite 448 passed and mypy clean. Numbers re-run on main and unchanged from the ADR: liquid 816.4966 GPM with N-102 at 115.00 psia (5 iterations); gas 70.7107 SCFM with N-202 at 270.00 psia (4 iterations). Expected values are computed in the tests from the ADR 7.1 closed-form formulas and the device constants, not pasted from solver output. Internal nodes are seeded at the low boundary pressure so the fixtures do not embed the answer. Tests also cover mass balance at the internal node, plant -> config -> plant round trip, and mixed-domain rejection naming the branch. No cold-start assertion (moved to T7-1, ADR section 2.9). Nothing under app/ changed.",
-      "startable": false
+      "note": "Merged to main as d6a6cfb652eda5b12cdf69981e25f71c5e79a58c (PR #19, merge commit from feature/reference-plant, rebased on the T3-6 merge), 19 Sep. Adds config/plants/liquid_transfer.yaml and gas_compression.yaml (every node declares its domain; design speed 1.0 / load 1.0) and tests/test_reference_plants.py, 20 tests, which the task's file list omitted. Full suite 448 passed and mypy clean. Numbers re-run on main and unchanged from the ADR: liquid 816.4966 GPM with N-102 at 115.00 psia (5 iterations); gas 70.7107 SCFM with N-202 at 270.00 psia (4 iterations). Expected values are computed in the tests from the ADR 7.1 closed-form formulas and the device constants, not pasted from solver output. Internal nodes are seeded at the low boundary pressure so the fixtures do not embed the answer. Tests also cover mass balance at the internal node, plant -> config -> plant round trip, and mixed-domain rejection naming the branch. No cold-start assertion (moved to T7-1, ADR section 2.9). Nothing under app/ changed."
     },
     {
       "id": "T3-5",
@@ -515,8 +502,7 @@
       ],
       "status": "Complete",
       "status_key": "done",
-      "startable": false,
-      "note": "Merged to main as 11517f66eed467211aed7837bcf54ac97d65162e (Merge pull request #17 from gareytwin1/feature/flow-domains), 19 Sep. Full suite 395/395 green, mypy clean. The PR carried the three ADR Amendment 1 docs commits, so Amendment 1 reached main with it. Implements ADR 0001 section 12.5-12.8 (domains only). Optional nodes[].domain in the C3 schema; undeclared nodes are DEFAULT_DOMAIN ('default') and never inherit a neighbour's domain. The loader partitions nodes into one Topology per domain (Plant.topologies, ordered by first appearance in config), adds a flat config-ordered Plant.nodes, and makes Plant.topology a property that raises ValueError on a multi-domain plant. Load-time rejections name the config path: a branch across domains (both nodes and domains named, default-by-omission called out), a domain with no boundary node (global wording kept for a single-domain plant), and a domain that is not one connected piece. to_config() walks Plant.nodes and emits domain only when declared, so legacy configs round-trip exactly. The app/engine/network.py docstring now points at the loader (comment only). C1, C2, NetworkSolver, validate.py and golden traces untouched. 395 tests green (23 new in tests/test_plant_domains.py), mypy clean. T3-6 will move equipment emission to Plant.devices."
+      "note": "Merged to main as 11517f66eed467211aed7837bcf54ac97d65162e (Merge pull request #17 from gareytwin1/feature/flow-domains), 19 Sep. Implements ADR 0001 section 12.5-12.8 (domains only; ports and paths are T3-6). Optional nodes[].domain; undeclared nodes are DEFAULT_DOMAIN and never inherit. Loader partitions into Plant.topologies, adds flat config-ordered Plant.nodes, Plant.topology raises on a multi-domain plant, and rejects a branch across domains, a domain with no boundary and a domain that is not one connected piece. C1, C2, NetworkSolver, validate.py and golden traces untouched. 395 tests green, mypy clean. The PR also carried ADR 0001 Amendment 1."
     },
     {
       "id": "T3-6",
@@ -535,8 +521,27 @@
       ],
       "status": "Complete",
       "status_key": "done",
-      "startable": false,
-      "note": "Merged to main as 2c08bb8 (Merge pull request #20 from gareytwin1/feature/multi-port-wiring), 19 Sep. Full suite 428/428 green, mypy clean. Implements ADR 0001 section 12.1-12.4, 12.8 and 12.9. C3 equipment gains optional ports (port name -> node id, attachment only) and paths ({from, to} pairs, one Branch each); node_in/node_out is optional sugar. The loader enforces the one-form rule and every 12.3 rejection at $.equipment[i]; paths is required with ports and [] marks a coupling device; more than one path is rejected (A6). Branch id stays B-{tag}. Plant.devices is config-ordered and holds every device; coupling devices sit in no Topology and are bound with Port.connect. The dangling-port check walks Plant.devices. to_config() is form-preserving and round-trips both forms and mixed configs exactly. validate.py gained only minProperties and additionalProperties-as-subschema. C1, C2, NetworkSolver and Engine untouched. 32 new tests in tests/test_plant_ports.py. One existing test, test_missing_required_field_names_the_path, now deletes design instead of node_out because node_out is no longer required. T4-4 must build Engine equipment from Plant.devices, never Topology.devices."
+      "note": "Merged to main as 2c08bb8ab9c231d7ae61d2c80432606026e7a4d4 (Merge pull request #20 from gareytwin1/feature/multi-port-wiring), 19 Sep. Implements ADR 0001 section 12.1-12.4, 12.8 and 12.9. C3 equipment gains optional ports (attachment only) and paths ({from, to}, one Branch each); node_in/node_out is optional sugar. Loader enforces the one-form rule and every 12.3 rejection at $.equipment[i]; paths required with ports, [] marks a coupling device; more than one path rejected (A6). Plant.devices is config-ordered and holds every device; coupling devices sit in no Topology. Dangling-port check walks Plant.devices; to_config() is form-preserving. validate.py gained only minProperties and additionalProperties-as-subschema. C1, C2, NetworkSolver, Engine untouched. 428 tests green, mypy clean. T4-4 must build Engine equipment from Plant.devices, never Topology.devices. Unblocks T5-1."
+    },
+    {
+      "id": "T3-7",
+      "milestone": "M3",
+      "name": "Typed ports — phase and service",
+      "category": "core",
+      "branch": "feature/typed-ports",
+      "depends_on": [
+        "T3-6"
+      ],
+      "files": [
+        "app/equipment/base.py",
+        "config/schema/plant.schema.json",
+        "app/plant/loader.py",
+        "tests/test_typed_ports.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": true,
+      "note": "NEW, added 20 Sep 2026 by docs/ADR_0002_TYPED_PORTS.md section 8.1. Startable now: its only dependency, T3-6, is Complete. This is the next architecture task on main. SPINE - takes the app/equipment/base.py lock. Port gains phase and service; direction is unchanged and no axis is derived from another. Port names become identifiers only. phase mixed is reserved and rejected at load. The C3 string-or-object alternation for a ports entry is enforced in the loader, never in the schema, because the validator silently ignores oneOf (ADR 0002 section 2.6). Do not touch coupling.py - aggregation and retiring DOMAIN_UNITS are T5-6. CLAUDE.md gains the port-name and service invariants only once this lands (ADR 0002 section 8.3)."
     },
     {
       "id": "T4-1",
@@ -554,7 +559,7 @@
       ],
       "status": "Complete",
       "status_key": "done",
-      "note": "Sign convention for characteristic(flow) is outlet minus inlet, positive inlet to outlet, defined for every real flow including negative, and non-increasing in flow everywhere. signed_square(q)=|q|*q in app/equipment/base.py is the primitive that makes reverse flow well defined; both devices now write their quadratic term against it. Branch gains characteristic() and residual() (the branch equation T4-2 drives to zero). The max(...,0) clamp is removed from both device curves. One golden value moves: pump supply_pressure_change step 1 pump_pressure_rise 0.0 to -1.4, which agrees with the spread recorded on the same row; edited by hand, not regenerated. compressor.py and pump.py are touched beyond the listed files because reverse flow cannot be defined in base.py alone. 238 tests green, mypy clean. Spine lock released at merge. Merged to main as 57d5c8f0d142bde1914b7427e2b2dbdc97079696 (no-ff merge commit of PR #5, from feature/branch-characteristic @ 86ef7f4), 19 Sep. Full suite 238/238 green and mypy clean on main post-merge. Unblocks T7-1; T4-2 still also needs T3-3."
+      "note": "Merged to main as 57d5c8f0d142bde1914b7427e2b2dbdc97079696 (no-ff merge commit of PR #5, from feature/branch-characteristic @ 86ef7f4), 19 Sep. Full suite 238/238 green and mypy clean on main post-merge."
     },
     {
       "id": "T4-2",
@@ -571,8 +576,7 @@
       ],
       "status": "Complete",
       "status_key": "done",
-      "startable": false,
-      "note": "Merged to main as 7d05323 (PR #13). NetworkSolver in app/engine/network.py solves branch flows and internal node pressures simultaneously: one branch equation per branch (built on T4-1's Branch.residual) and one mass balance per internal node, square, Newton-Raphson with a backtracking line search under a damping cap and an iteration cap. No numerical dependency - thirty lines of Gaussian elimination with partial pivoting, because the V1 train is a handful of branches. Ordering is by sorted id, so a solve is bit-reproducible whatever order the graph was assembled in. Pressure and flow residuals carry separate tolerances and are never added together. A non-converged solve writes nothing and restores the pressures it found. Nothing calls it: Engine.step(), the Flask routes, device step(), _calculate_operating_point() and the interim *_boundary_pressure attributes are all unchanged - T4-4 retires those, T4-3 owns full diagnostics. Full suite 336 passed, mypy clean, golden traces untouched. A failed solve is atomic: unless solve() returns converged and commits, pressures and flows are exactly what they were on entry, including when an exception escapes mid-iteration. One process-domain caveat is recorded as unenforced - a topology must be a single hydraulic domain and nothing enforces that, because C2/C3/NetworkSolver carry no flow-domain metadata; T3-4 and the vessel work decide the liquid/gas split."
+      "note": "Merged to main as 7d05323d2e246a8325f3704cdcc33f12faf58496 (PR #13, no-ff merge commit from feature/network-solver @ 2dcaf0a), 19 Sep. Full suite 336 passed and mypy clean on main post-merge. NetworkSolver (app/engine/network.py) solves branch flows and internal node pressures simultaneously: one branch equation per branch (T4-1's Branch.residual) plus one mass balance per internal node, Newton-Raphson with a backtracking line search under a damping cap and an iteration cap. No numerical dependency - dense Gaussian elimination with partial pivoting. Deterministic: sorted-id ordering, bit-identical regardless of graph build order. Failure is atomic: unless solve() returns converged and commits, node pressures and branch flows are exactly as they were on entry, including when an exception escapes mid-iteration. Nothing calls it yet - Engine.step(), Flask, device step(), _calculate_operating_point() and the interim *_boundary_pressure attributes are unchanged; T4-4 wires it in, T4-3 owns full diagnostics. Open issue recorded, not fixed: process-domain compatibility (GPM vs SCFM in one topology) is unenforced because C2/C3/NetworkSolver carry no flow-domain metadata; the reference plant and vessel work decide the liquid/gas split. Reference-plant convergence test still to add once T3-4 merges. Unblocks T4-3."
     },
     {
       "id": "T4-3",
@@ -589,8 +593,7 @@
       ],
       "status": "Complete",
       "status_key": "done",
-      "startable": false,
-      "note": "Merged to main as a2a1596f48554733a0e295ec6105ac3bfc1adba9 (PR #14, merge commit from feature/solver-diagnostics @ 8db8267), 19 Sep. Full suite 355 passed and mypy clean on main post-merge. Failure policy is explicit and two-sided: an ill-posed network raises SolverError (no boundary node to anchor the pressure field, an unknown appearing in no equation), while ordinary numerical non-convergence returns SolverResult(converged=False) with a `failure` field naming the wall hit - iteration_cap or line_search_stall. converged and failure cannot disagree (refused at construction); raise_if_not_converged() is the opt-in escalation for a caller that wants the exception, describe() gives one diagnostic line. solve_network() still delegates, so there is one policy and not two. T4-2's atomicity invariant is untouched and re-asserted at the diagnostic seam: a flagged solve leaves every node pressure and branch flow exactly as it found them.\n\nC4's shape is UNCHANGED - the snapshot solver section is still exactly converged/iterations/residual, projected by snapshot.solver_status(result) through a structural SolverDiagnostics Protocol so the read contract does not import the solver. pressure_residual, flow_residual and failure deliberately stay off C4; widening it is a contract change and its own task. build_snapshot() refuses half a solver section (iterations and residual with no converged reads as a clean solve to any consumer treating the flag as optional) and refuses an unexpected key so C4 cannot grow one by accident; solver={} still means 'no solve to report' and the default placeholder is unchanged.\n\nDamping made legible without retuning: damping 0.25 exhausts the default 50-iteration cap on a plant that solves in 4 at full step and reports iteration_cap at ~25x tolerance - a slow solve, not a stuck one. No solver mathematics changed, the cap is untouched and is not coupled to damping.\n\nNothing was wired into the engine: app/engine/engine.py, app/main.py, the Flask routes, both devices' step()/_calculate_operating_point()/*_boundary_pressure and every golden trace are untouched - T4-4 owns that and is now unblocked. The snapshot.py spine lock is released. New tests/test_solver_diagnostics.py (14) covers the seam; test_snapshot.py +5.\n\nDEFERRED, not satisfied: the build plan's 'residual falls below tolerance on the reference plant' acceptance test. config/plants/olefins_lite.yaml does not exist because T3-4 is Blocked, so convergence is proved on a hand-built single-domain series plant and the test says so. Re-run that criterion once a reference plant lands. Note the merge commit carries GitHub's default subject rather than the convention's 'Merge T4-3: ...' - already pushed, deliberately not rewritten."
+      "note": "Merged to main as a2a1596f48554733a0e295ec6105ac3bfc1adba9 (PR #14, merge commit from feature/solver-diagnostics @ 8db8267), 19 Sep. Full suite 355 passed and mypy clean on main post-merge. Failure policy is explicit and two-sided: an ill-posed network raises SolverError (no boundary anchor, an unknown in no equation), while ordinary numerical non-convergence returns SolverResult(converged=False) with a `failure` field naming the wall hit - iteration_cap or line_search_stall. converged and failure cannot disagree (refused at construction); raise_if_not_converged() is the opt-in escalation, describe() gives one diagnostic line. solve_network() still delegates, so there is one policy and not two. T4-2's atomicity invariant is untouched and re-asserted at the seam: a flagged solve leaves every pressure and flow as it found them. C4's shape is UNCHANGED - snapshot solver is still exactly converged/iterations/residual, projected by snapshot.solver_status(result) through a structural Protocol so the read contract does not import the solver; pressure_residual, flow_residual and failure stay off C4 deliberately. build_snapshot() refuses half a solver section (iterations+residual with no converged reads as a clean solve) and an unexpected key; solver={} still means 'no solve to report' and the default placeholder is unchanged. Damping made legible without retuning: 0.25 exhausts the default 50-iteration cap on a plant that solves in 4 at full step and reports iteration_cap at ~25x tolerance - slow, not stuck. No solver mathematics changed, cap untouched, not coupled to damping. Nothing wired into the engine: engine.py, app/main.py, Flask routes, both devices' step()/_calculate_operating_point()/*_boundary_pressure and every golden trace untouched - T4-4 owns that and is now unblocked; the snapshot.py spine lock is released. New tests/test_solver_diagnostics.py (14) covers the seam; test_snapshot.py +5. DEFERRED, not satisfied: 'residual falls below tolerance on the reference plant' - config/plants/olefins_lite.yaml does not exist because T3-4 is Blocked, so convergence is proved on a hand-built single-domain series plant and the test says so. Re-run that criterion once a reference plant lands. The merge commit carries GitHub's default subject rather than the convention's 'Merge T4-3: ...' - already pushed, deliberately not rewritten."
     },
     {
       "id": "T4-4",
@@ -606,14 +609,11 @@
       "files": [
         "app/engine/engine.py",
         "app/equipment/compressor.py",
-        "app/equipment/pump.py",
-        "app/engine/sessions.py",
-        "app/main.py"
+        "app/equipment/pump.py"
       ],
       "status": "Complete",
       "status_key": "done",
-      "startable": false,
-      "note": "Merged to main as 0efa5be3ad33fae5ab53735146e501a7d8f864e9 (PR #25, merge commit from refactor/solver-integration), 20 Sep. Full suite 486 passed and mypy clean on main post-merge. Checkpoint B: Engine.step() now runs clock -> integrate every device -> NetworkSolver.solve() -> snapshot, and the snapshot's solver, nodes and streams sections are real. Ownership after this task: the topology owns hydraulic flow and pressure (Node.pressure, Stream.flow, written only by the solver); equipment owns slow state and its pure characteristic(flow); the Engine owns cadence. Engine.from_plant() builds equipment from Plant.devices, never Topology.devices, and wires against Plant.topology, so the Engine path is still SINGLE-DOMAIN and raises on a multi-domain plant - one solver per domain is T5-2. Engine(equipment) with no topology still integrates only. A solve that does not converge is published in the snapshot with the plant held at its last committed solution; time and slow state still advance. Retired from both machines: step(), _calculate_operating_point(), the boundary-pressure attributes, simulation_speed and the flow/suction/discharge attributes. Session now holds one Engine per page over a loader-built single-device plant, which is why app/engine/sessions.py and app/main.py were in scope. snapshot.py, base.py, topology.py and network.py were untouched.\n\nKnown interim behaviour, owned by T7-1: the line resistances and the max_flow clamp lived only in the retired solve, so a page's flow runs above max_flow, the discharge valve strokes without changing flow, and spread equals the boundary difference. Equipment does not clamp; envelopes and alarms own that downstream. Golden traces were regenerated with slow state bit-identical and only solved fields moved; two scenarios (compressor downstream_restriction, pump max_flow_clip) were retired.\n\nStill deferred, not owned by this task: vessel is unregistered in DEVICE_TYPES and loader support for a coupling device outside the topology belongs to T5-2; Vessel has no range guard on capacity or level."
+      "note": "Merged to main as 0efa5be3ad33fae5ab53735146e501a7d8f864e9 (PR #25, merge commit from refactor/solver-integration), 20 Sep. Full suite 486 passed and mypy clean on main post-merge. Checkpoint B: Engine.step() now runs clock -> integrate every device -> NetworkSolver.solve() -> snapshot, and the snapshot's solver, nodes and streams sections are real. Ownership: topology owns hydraulic flow and pressure (written only by the solver); equipment owns slow state and its pure characteristic(flow); the Engine owns cadence. Engine.from_plant() builds equipment from Plant.devices, never Topology.devices, and wires against Plant.topology, so the Engine path is still SINGLE-DOMAIN and raises on a multi-domain plant - one solver per domain is T5-2. A non-converged solve is published in the snapshot with the plant held at its last committed solution. Retired from both machines: step(), _calculate_operating_point(), the boundary-pressure attributes, simulation_speed and the flow/suction/discharge attributes. Session now holds one Engine per page over a loader-built single-device plant, so app/engine/sessions.py and app/main.py were in scope; their locks are released. Known interim behaviour owned by T7-1: line resistances and the max_flow clamp lived only in the retired solve, so page flow runs above max_flow and the discharge valve strokes without changing flow. Golden traces regenerated with slow state bit-identical; two scenarios retired. Deferred, not owned here: vessel not registered in DEVICE_TYPES, Vessel has no range guard. Newly startable: T4-5, T5-2."
     },
     {
       "id": "T4-5",
@@ -629,8 +629,7 @@
       ],
       "status": "Complete",
       "status_key": "done",
-      "startable": false,
-      "note": "Merged to main as e2611340f735b4ba4fbf94891aa645801174cff4 (PR #29, merge commit from test/cause-and-effect), 20 Sep. Full suite 567 passed and mypy clean on main post-merge. One new file, tests/test_cause_effect.py, 26 tests; nothing under app/, config/ or tests/fixtures/golden/ touched and the solver and its tolerances unchanged. No test skipped or xfailed.\n\nRE-SCOPED before implementation, merged separately as 4751b08 (PR #28). Two of the plan's four original criteria could not be written against main after T4-4 retired the line resistances and the max_flow clamp - 'Closing a downstream valve lowers flow and raises upstream pressure' and 'Added restriction raises upstream pressure' both need a second resistance in the network - and MOVED TO T7-1's acceptance rather than merging as permanently skipped tests. The other two, compressor load response and parallel pumps, are covered and sharpened.\n\nWhat the suite asserts: parallel boosters raise flow by less than 2x and land on q^2 = (2*shutoff - delta) / (R * (1 + n^2)) for n = 1, 2, 3, with the two-booster gain 2*sqrt(2/5) independent of the header; a series train where raising the UPSTREAM load raises flow and the interstage while raising the DOWNSTREAM load raises flow and LOWERS the interstage (the half a single machine between fixed boundaries cannot show); pump flow exactly proportional to speed at equal boundaries; a higher header or a lower supply lowering flow; stopping a pump and a compressor; mass balance at an internal node; and a run-twice bit-identical test.\n\nThree things a later task must not undo. (1) Forward flow is asserted in every compared state: with no check valve, on the reference gas plant at 60->480 psia raising K-101's load 0.8 -> 0.9 -> 1.0 gives -121.7, -73.8, +70.7 SCFM, so a bare 'flow rises' assertion passes while the machine backflows. (2) The stopping bound is derived, sqrt(DEFAULT_PRESSURE_TOLERANCE / resistance), never a recorded residual value, because the value inside that bound is path-dependent. (3) Stopping one of two PARALLEL boosters is deliberately not asserted: with no check valve the stopped machine is a low-resistance path back to supply and the plant reverses outright (P-201 from +1032.80 to -552.99 GPM), so such an assertion passes for reasons unrelated to its name. A comment in the file records this; do not add one back here. It belongs with later check-valve work.\n\nRebased onto T5-2 (154385c) before merge and re-verified rather than assumed: every plant here is single-domain and holds no coupling device, so build_couplings() returns [] and one solver is wired as before, and all eight reference values are bit-identical. T5-2's multi-domain cause and effect is covered by tests/test_inventory_coupling.py and deliberately not duplicated."
+      "note": "Merged to main as e2611340f735b4ba4fbf94891aa645801174cff4 (PR #29, merge commit from test/cause-and-effect), 20 Sep. Completion docs merged as 9159591 (PR #31). Full suite 567 passed and mypy clean on main post-merge. M4 IS NOW 5/5 COMPLETE. One new file, tests/test_cause_effect.py, 26 tests; nothing under app/, config/ or tests/fixtures/golden/ touched and the solver and its tolerances unchanged. No test skipped or xfailed.\n\nRE-SCOPED before implementation, merged separately as 4751b08 (PR #28). Two of the plan's four original criteria could not be written against main after T4-4 retired the line resistances and the max_flow clamp - 'Closing a downstream valve lowers flow and raises upstream pressure' and 'Added restriction raises upstream pressure' both need a second resistance in the network - and MOVED TO T7-1's acceptance rather than merging as permanently skipped tests. The other two, compressor load response and parallel pumps, are covered and sharpened.\n\nWhat the suite asserts: parallel boosters raise flow by less than 2x and land on q^2 = (2*shutoff - delta) / (R * (1 + n^2)) for n = 1, 2, 3, with the two-booster gain 2*sqrt(2/5) independent of the header; a series train where raising the UPSTREAM load raises flow and the interstage while raising the DOWNSTREAM load raises flow and LOWERS the interstage (the half a single machine between fixed boundaries cannot show); pump flow exactly proportional to speed at equal boundaries; a higher header or a lower supply lowering flow; stopping a pump and a compressor; mass balance at an internal node; and a run-twice bit-identical test.\n\nThree things a later task must not undo. (1) Forward flow is asserted in every compared state: with no check valve, on the reference gas plant at 60->480 psia raising K-101's load 0.8 -> 0.9 -> 1.0 gives -121.7, -73.8, +70.7 SCFM, so a bare 'flow rises' assertion passes while the machine backflows. (2) The stopping bound is derived, sqrt(DEFAULT_PRESSURE_TOLERANCE / resistance), never a recorded residual value, because the value inside that bound is path-dependent. (3) Stopping one of two PARALLEL boosters is deliberately not asserted: with no check valve the stopped machine is a low-resistance path back to supply and the plant reverses outright (P-201 from +1032.80 to -552.99 GPM), so such an assertion passes for reasons unrelated to its name. A comment in the file records this; do not add one back. It belongs with later check-valve work.\n\nRebased onto T5-2 (154385c) before merge and re-verified rather than assumed: every plant here is single-domain and holds no coupling device, so build_couplings() returns [] and one solver is wired as before, and all eight reference values are bit-identical. T5-2's multi-domain cause and effect is covered by tests/test_inventory_coupling.py and deliberately not duplicated."
     },
     {
       "id": "T5-1",
@@ -647,7 +646,6 @@
       ],
       "status": "Complete",
       "status_key": "done",
-      "startable": false,
       "note": "Merged to main as b8af231cb6452499abcd70b2133f0d007232d444 (Merge pull request #23 from gareytwin1/feature/vessel-model), 19 Sep. Adds app/equipment/vessel.py: Vessel (V-101), a coupling device with an inlet and an outlet port and no hydraulic path, so it is in Plant.devices and in no Topology. Level [0, 1] is slow state advanced by integrate(dt) from plain settable inlet_flow / outlet_flow attributes in GPM (the caller writes them, as with the pump's speed_target; the vessel never reads a port, node or branch). Geometry is capacity in gal; residence_time in seconds, None with no outflow. characteristic() returns 0.0 and is not widened. tests/test_vessel.py, 16 tests, wired through load_plant's device_types override. Full suite 464 passed, mypy clean, golden traces unmoved. OPEN: 'vessel' is not registered in DEVICE_TYPES in app/plant/loader.py; register it before T5-5 (T5-2 is the natural place)."
     },
     {
@@ -666,9 +664,7 @@
       ],
       "status": "Complete",
       "status_key": "done",
-      "startable": false,
-      "blocked_by": [],
-      "note": "Merged to main as 154385c (Merge T5-2: Couple vessel level to hydraulics, PR #27), 20 Sep, rebased onto 4751b08 first. Full suite 541 passed and mypy clean on main post-merge; golden traces unmoved and config/plants untouched. Spine locks on app/engine/engine.py and app/plant/topology.py RELEASED - T5-3 is free to start.\n\nC2 gained exactly two members, no more: Node.set_boundary_pressure(), which refuses on an INTERNAL node (the mirror of set_pressure(), so the solver's writer and the coupling's writer partition the graph) and rejects any pressure that is not finite and strictly positive psia with no clamp, floor or epsilon; and Node.configured_pressure, the read-only as-built value. Node.get_state() is unchanged, so C4 stays frozen.\n\nCoupling rule, exactly: vessel_head = head_at_full * level (psi); boundary_pressure = node.configured_pressure + vessel_head (psia). The head is a CONTRIBUTION, never an absolute pressure, so an empty vessel leaves the boundary at its positive as-built value. It lands on the OUTLET-port attachment node only; the inlet-side node keeps its configured pressure. The base is read off configured_pressure every step, which makes accumulation structurally impossible rather than merely avoided - and is also why Plant._node_config() now emits configured_pressure, so a stepped plant still round-trips to the config it was loaded from.\n\nThe exchange back up is the net signed flow at the attachment node - arrivals minus departures for an INLET, departures minus arrivals for an OUTLET - signed by port.direction and never by port name. Exact because a boundary node carries no mass-balance equation in the solver. More than one branch may meet the node and they are summed. This lives in app/engine/coupling.py, never in Vessel: the vessel still reads no port, node or branch, pinned by an AST import guard.\n\nStep order inside one step(): clock -> integrate every device -> write boundary pressures from slow state -> solve every domain -> read flows back onto the coupling devices -> snapshot. Explicit Euler with the lag on the vessel's FLOWS, so a published snapshot's boundary pressure is the one its level produces. The same pass runs at construction, so a fresh engine already reports a plant whose boundaries reflect the inventory in it.\n\nMulti-domain Engine: Engine.from_plant() wires one NetworkSolver per entry in Plant.topologies instead of raising. Domains are independent within a step because each is solved against boundaries held fixed for the whole step, so solve order cannot matter. Node and branch ids are unique plant-wide, so C4's nodes and streams sections merge without collision and C4 is NOT widened; its one solver row is converged only if every domain converged, reporting the worst iteration count and the worst (dimensionless) residual. A domain that did not converge is left exactly as it was (T4-3 policy, per domain) and no vessel flow is read from it. Engine(equipment, topology) and the integrate-only form still work; .topology, .solver and .solver_result are single-domain accessors that raise on a plant spanning several.\n\nUnits (decision 4, settled with the user): a port is coupled only where the flow unit can be CONFIRMED GPM from the devices on the branches meeting it, via FLOW_UNITS in app/engine/coupling.py (CentrifugalPump GPM, GasCompressor SCFM). A gas attachment is left uncoupled - the gas side is T5-3's - and a node with no branches to read a unit from is also left alone rather than assumed liquid. An unclassifiable device or two units at one node raises when the Engine is built. NO C3 schema change was needed. T7-1 must add the control valve to FLOW_UNITS, or a vessel attached beside one will refuse at construction.\n\nA7 enforced here as the ADR deferred: a coupled attachment must be a boundary node of its domain; a liquid attachment on an internal node raises at Engine construction (not at load, so an inventory device attached mid-line stays loadable).\n\nVessel housekeeping: 'vessel' registered in DEVICE_TYPES, so a plant with one loads without a device_types override. New head_at_full (psi at level 1.0, default 5.0) and carryover_level (default 0.90); head and carryover are derived and appear in get_state(). capacity, level, head_at_full and carryover_level guard their own ranges on every write, because design values arrive by setattr from the loader; the loader turns that ValueError into a config error naming the path. tests/test_plant_yaml.py's 'type with no model' example moved from vessel to furnace.\n\nNo alarms, no envelopes, no controllers, no gas accumulation (T5-3), no olefins_lite.yaml (T5-5). characteristic(flow) not widened, base.py untouched, no golden trace regenerated, no clamp anywhere.\n\nReview correction applied: test_a_paused_engine_moves_nothing took its baseline AFTER the first paused step, so a bug that moved plant state once and then settled would have passed. Split into test_the_first_paused_step_moves_no_plant_state, which baselines BEFORE the pause takes effect and asserts level, both vessel flows, the boundary pressure, configured_pressure and every non-solver snapshot section exactly, and test_a_paused_engine_stays_where_it_stopped, which holds every later step at several dt against that same pre-pause baseline. Solver diagnostics are excluded because a re-solve starting already converged honestly reports zero iterations. Verified by mutation: a one-shot nudge to level placed before the boundary write passes the old shape and fails the new one. No production code changed for it.\n\nKnown interaction, NOT fixed here and deliberately no clamp added: the residual flow a stopped machine keeps (PROJECT_STATE technical debt, 0.055 GPM on the pump) is read by the coupling like any other solved flow and integrates into level, about 3.3 gal/hour against a 1000 gal vessel. That is the recorded debt behaving as documented; equipment does not clamp and neither does the coupling. Distinct from the paused case, where integrate(0) is a no-op and nothing moves at all."
+      "note": "Merged to main as 154385cf336968218ff8a9e41e56605bdd1c4238 (Merge T5-2: Couple vessel level to hydraulics, PR #27), 20 Sep, rebased onto 4751b08 (the T4-5 re-scope) first. Full suite 541 passed and mypy clean on main post-merge; golden traces unmoved and config/plants untouched. Spine locks on app/engine/engine.py and app/plant/topology.py RELEASED. THE EXACT RULE: vessel_head = head_at_full * level (psi); boundary_pressure = node.configured_pressure + vessel_head (psia). A head CONTRIBUTION, never an absolute pressure, so an empty vessel leaves the boundary at its positive as-built value and no clamp, floor or epsilon exists anywhere. It lands on the OUTLET-port attachment node only; the inlet-side node keeps its configured pressure. The base is read off configured_pressure every step, which makes accumulation structurally impossible - and is why Plant._node_config() now emits configured_pressure, so a stepped plant still round-trips. C2 gained exactly two members: Node.set_boundary_pressure(), which refuses on an INTERNAL node (the mirror of set_pressure(), so solver and coupling partition the graph) and rejects any pressure that is not finite and strictly positive psia; and the read-only Node.configured_pressure. Node.get_state() unchanged, so C4 stays frozen. BACK UP: net signed flow at the attachment node - arrivals minus departures for an INLET, departures minus arrivals for an OUTLET - signed by port.direction, never by port name, and exact because a boundary node carries no mass-balance equation. Several branches at one node are summed. Lives in the new app/engine/coupling.py, never in Vessel, pinned by an AST import guard. STEP ORDER: clock -> integrate -> write boundaries -> solve every domain -> read flows back -> snapshot. Explicit Euler with the lag on the vessel's FLOWS, so a published snapshot's boundary is the one its level produces; the same pass runs at construction. MULTI-DOMAIN ENGINE: one NetworkSolver per entry in Plant.topologies instead of raising. Domains are independent within a step because boundaries are held fixed for the whole step. Node and branch ids are unique plant-wide, so C4's nodes/streams merge without collision and C4 is NOT widened; its one solver row is converged only if every domain converged, reporting the worst iteration count and worst (dimensionless) residual. A domain that did not converge is left as it was and no vessel flow is read from it. Engine(equipment, topology) still works; .topology/.solver/.solver_result raise on a multi-domain plant. UNITS: a port is coupled only where the flow unit is CONFIRMED GPM from the devices on the branches meeting it, via FLOW_UNITS (CentrifugalPump GPM, GasCompressor SCFM). Gas attachments are left to T5-3; a node with no branches is left alone rather than assumed liquid; an unclassifiable device or two units at one node raises at Engine construction. NO C3 schema change. T7-1 MUST add the control valve to FLOW_UNITS or a vessel beside one refuses at construction. A7 enforced as deferred: a coupled attachment must be a boundary node, checked at Engine construction, not at load. VESSEL: 'vessel' registered in DEVICE_TYPES; new head_at_full (default 5.0 psi) and carryover_level (default 0.90); head and carryover derived into get_state(); capacity, level, head_at_full and carryover_level guard their own ranges on every write and the loader turns that ValueError into a config error naming the path. test_plant_yaml's 'type with no model' example moved from vessel to furnace. REVIEW CORRECTION: the paused-state test baselined AFTER the first paused step, so a bug that moved plant state once and settled would have passed; split into test_the_first_paused_step_moves_no_plant_state (baselines BEFORE the pause, asserts level, both flows, boundary and configured pressure and every non-solver section exactly) and test_a_paused_engine_stays_where_it_stopped. Solver diagnostics excluded because a re-solve starting converged honestly reports zero iterations. Verified by mutation; no production code changed for it. KNOWN, not fixed, no clamp added: the residual flow a stopped machine keeps (PROJECT_STATE technical debt, 0.055 GPM on the pump) is read like any other solved flow and integrates into level, about 3.3 gal/hour against a 1000 gal vessel. Not alarms, envelopes, controllers, gas accumulation (T5-3) or olefins_lite.yaml (T5-5); characteristic(flow) not widened, base.py untouched. Newly startable: T5-3, T5-4. T4-5 (PR #29) was opened against a main without the coupling; it was rebased onto 154385c, re-verified and merged as e261134 - no assertion moved, because each of its plants is single-domain and holds no coupling device, so build_couplings() returns [] and one solver is wired as before. Nothing further is owed there."
     },
     {
       "id": "T5-3",
@@ -684,8 +680,7 @@
       ],
       "status": "Complete",
       "status_key": "done",
-      "startable": false,
-      "note": "Merged to main as 42dc227 (PR #35, merge commit from feature/gas-inventory, based on 4259617, no rebase needed), 20 Sep. Full suite 715 passed and mypy clean on main post-merge. Vessel gains a gas phase beside its liquid one: pressure (psia) integrated as dP/dt = P_std * (Q_in - Q_out) / V_gas, P_std = 14.696 psia (config.STANDARD_PRESSURE, 1 atm per UNITS_CONVENTION), isothermal at the SCFM standard temperature, no Z-factor. Separate gas_inlet_flow / gas_outlet_flow (SCFM); the confirmed flow unit at each attachment, never the port name, picks GPM or SCFM attributes. Vessel pressure REPLACES the boundary at every gas attachment (inlet and outlet), configured_pressure untouched; liquid keeps head-as-offset on the outlet only. Gas is attachment-driven: a liquid-only vessel never activates it and its get_state() is unchanged. Files: app/equipment/vessel.py, app/engine/coupling.py, app/config.py (append-only), tests/test_gas_inventory.py (34 tests) and three pre-T5-3 tests rewritten on purpose. engine.py, topology.py, base.py, network.py, compressor.py untouched; no golden trace moved. Known limit: square-root curves have infinite slope at zero flow, so Euler crosses a zero-flow point by about (a*dt)^2/4 with a = P_std*C/(60*V); supported at 10 ft^3 and up at dt = 1 s, a vessel of 0.3 ft^3 raises on non-positive pressure rather than clamping. Task statuses live in the plan's shared database; that entry still needs updating."
+      "note": "Merged to main as 42dc22776a2f8dcec2686b4395ae61e8e24cbe47 (PR #35, merge commit from feature/gas-inventory, based on 4259617, no rebase needed), 20 Sep. Full suite 715 passed and mypy clean on main post-merge; no golden trace moved; engine.py, topology.py, base.py, network.py and compressor.py untouched. Files: app/equipment/vessel.py, app/engine/coupling.py, app/config.py (append-only), tests/test_gas_inventory.py (34 tests).\n\nRATE LAW: dP/dt = P_std * (Q_in - Q_out) / V_gas (psi/min, SCFM, ft^3), lumped isothermal ideal gas at the SCFM standard temperature, P_std = 14.696 psia (config.STANDARD_PRESSURE, 1 atm per UNITS_CONVENTION). No Z-factor, no temperature dynamics. Standard-volume inventory P*V/P_std (scf) changes by exactly the net SCFM. Hand check: 70.7 SCFM into 100 ft^3 = 10.39 psi/min.\n\nROUTING: a Vessel keeps GPM (inlet_flow, outlet_flow) and SCFM (gas_inlet_flow, gas_outlet_flow) apart. The flow unit confirmed at each attachment picks the pair, never the port name. New state: gas_volume, initial_pressure, pressure, gas_inventory. Gas is attachment-driven: a confirmed SCFM attachment activates it (Vessel.activate_gas(), called by the coupling); a liquid-only vessel never integrates pressure and its get_state() is unchanged.\n\nBOUNDARIES: vessel pressure REPLACES the runtime boundary at EVERY gas attachment, inlet and outlet, so the inlet machine sees the back-pressure. configured_pressure untouched; Plant.to_config() still round-trips. Liquid keeps head-as-offset on the outlet only; a liquid head never reaches a gas boundary.\n\nREFERENCE (tests/test_gas_inventory.py): compressor 60 psia, shutoff 220, R 0.002 into the vessel; vent ControlValve capacity 20 to 14.696 psia. Balance 162.09 psia / 242.8 SCFM; linearised time constant V/(P_std*1.853) = 220 s for 100 ft^3, measured within 10%.\n\nKNOWN LIMIT, not fixed, no clamp: the compressor curve and valve are square-root laws with infinite slope at zero flow, so explicit Euler crosses a zero-flow point (vent pressure, shutoff) by about (a*dt)^2/4, a = P_std*C/(60*V): 0.0006 psi at 100 ft^3, 0.06 psi at 10 ft^3 (dt = 1 s), a bounded limit cycle near 1 ft^3; at 0.3 ft^3 pressure would go negative and the strictly-positive guard raises. Supported: 10 ft^3 and up at a one-second step.\n\nThree pre-T5-3 tests that encoded 'gas is not coupled yet' were rewritten, not weakened (SCFM never reaches GPM, head never reaches gas, unclassifiable node still raises)."
     },
     {
       "id": "T5-4",
@@ -694,7 +689,8 @@
       "category": "dep",
       "branch": "test/mass-balance",
       "depends_on": [
-        "T5-2"
+        "T5-2",
+        "T5-5"
       ],
       "files": [
         "tests/test_mass_balance.py"
@@ -703,9 +699,9 @@
       "status_key": "todo",
       "startable": false,
       "blocked_by": [
-        "T5-2"
+        "T5-5"
       ],
-      "note": "Startable: T5-2 merged as 154385c; the vessel.py and engine.py locks are released."
+      "note": "RE-SEQUENCED 20 Sep 2026 by docs/ADR_0002_TYPED_PORTS.md section 8.2: now depends on T5-5 as well as T5-2. Its original 10,000-steps-at-steady-state criterion was written against a vessel that fills monotonically, where ending the run early was the only way to pass; T5-5's separator reaches a genuine steady state instead. It also INHERITS ADR 0002 section 7.1 and owns documenting it: Engine._couple() runs in the constructor, so each integrate consumes the flow solved on the previous pass. The identity is delta_inventory = sum over n = 0..N-1 of q_n * dt / 60, with q_0 read from engine.snapshot() before the first step; summing the N published flows instead is wrong by (q_N - q_0)*dt/60, measured at 2.36 scf over 10,000 gas steps (0.09%), and hides entirely on a constant-flow domain. Assert a pressure asymptote, not a final flow (ADR 0002 section 7.2)."
     },
     {
       "id": "T5-5",
@@ -715,19 +711,63 @@
       "branch": "feature/integrated-plant",
       "depends_on": [
         "T3-4",
-        "T5-2"
+        "T5-2",
+        "T3-7",
+        "T5-6"
       ],
       "files": [
         "config/plants/olefins_lite.yaml"
+      ],
+      "status": "Blocked",
+      "status_key": "block",
+      "startable": false,
+      "blocked_by": [
+        "T3-7",
+        "T5-6"
+      ],
+      "note": "BLOCKED behind T3-7 and T5-6 as of 20 Sep 2026, per docs/ADR_0002_TYPED_PORTS.md sections 3 and 8.2. The design investigation against f8aab59 found the train as specified could not do what a separator must do: the vessel fills monotonically with no liquid draw, so the only way to pass a conservation test was to stop the run before level clamped. Two vessel ports on two domains also lose flow silently, and the only wiring that computes correctly today requires the port names to lie. T5-5 therefore waits for typed ports (T3-7) and an aggregating coupling (T5-6). Re-specified: V-101 gains a liquid feed and draw plus a process vapor outlet alongside a separate pressure-control outlet; PV-101 and LV-101 ship as MANUAL valves at fixed position and the fixture contains NO controller - M8 owns the automatic loops, and shipping working pressure control here would invert the T8-3 edge and deadlock M5 against M8. Acceptance moves from a horizon-bounded conservation test to a steady-state one and gains: changing PV-101 or LV-101 position changes vessel pressure or level in the expected direction. Use the shared-node idiom, not bespoke vessel plumbing. ADR 0002 section 7.3 is this task's: cold-start pump backflow and K-101 reversal are fixed by choosing design values, never by shortening a horizon. Still owns creation of config/plants/olefins_lite.yaml, which T7-2, T8-3, T9-2 and T11-1 edit."
+    },
+    {
+      "id": "T5-6",
+      "milestone": "M5",
+      "name": "Coupling aggregates typed connections",
+      "category": "core",
+      "branch": "feature/coupling-aggregation",
+      "depends_on": [
+        "T3-7",
+        "T5-2"
+      ],
+      "files": [
+        "app/engine/coupling.py",
+        "tests/test_coupling_aggregation.py"
       ],
       "status": "Not Started",
       "status_key": "todo",
       "startable": false,
       "blocked_by": [
-        "T3-4",
-        "T5-2"
+        "T3-7"
       ],
-      "note": "The full supply -> pump -> separator -> compressor -> discharge train, split out of the original T3-4 by docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md. Two hydraulic domains coupled through V-101 inventory, never one mixed mass-balance topology. T5-2 transitively carries T5-1 and T4-4; T3-4 carries T3-5. Do not add those edges directly. Owns creation of config/plants/olefins_lite.yaml, which T7-2, T8-3, T9-2 and T11-1 edit and therefore depend on it."
+      "note": "NEW, added 20 Sep 2026 by docs/ADR_0002_TYPED_PORTS.md section 8.1. Waits on T3-7. SPINE by the app/engine/ rule in CLAUDE.md - it modifies an existing module there. Fixes the defect measured in ADR 0002 section 2.3: VesselCoupling.write_flows assigns to one of four fixed attributes, so a second vapor attachment overwrote the first and 141.4214 SCFM (26.1% of the withdrawal) left the pressure balance silently. The fix is to SUM matching typed ports. It must not reject multiple nozzles sharing a (phase, direction) pair - prohibition was considered and rejected in ADR 0002 section 4. service never alters a balance. DOMAIN_UNITS is retired here."
+    },
+    {
+      "id": "T5-7",
+      "milestone": "M5",
+      "name": "Vessel configurable nozzle set",
+      "category": "dep",
+      "branch": "feature/vessel-nozzles",
+      "depends_on": [
+        "T5-5"
+      ],
+      "files": [
+        "app/equipment/vessel.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T5-5"
+      ],
+      "note": "NEW, added 20 Sep 2026 by docs/ADR_0002_TYPED_PORTS.md section 8.1. Waits on T5-5 deliberately (ADR 0002 section 6): generalising the vessel to an arbitrary configured nozzle set before the typed connection contract has been proven by a real separator fixture would be designing against an untested contract. It does not block T5-5 and nothing waits on it."
     },
     {
       "id": "T6-1",
@@ -743,7 +783,8 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": true
+      "startable": true,
+      "note": ""
     },
     {
       "id": "T6-2",
@@ -762,7 +803,8 @@
       "startable": false,
       "blocked_by": [
         "T6-1"
-      ]
+      ],
+      "note": ""
     },
     {
       "id": "T6-3",
@@ -781,7 +823,8 @@
       "startable": false,
       "blocked_by": [
         "T6-1"
-      ]
+      ],
+      "note": ""
     },
     {
       "id": "T6-4",
@@ -800,7 +843,8 @@
       "startable": false,
       "blocked_by": [
         "T6-1"
-      ]
+      ],
+      "note": ""
     },
     {
       "id": "T6-5",
@@ -819,31 +863,26 @@
       "status_key": "todo",
       "startable": false,
       "blocked_by": [
-        "T6-1",
-        "T4-4"
-      ]
+        "T6-1"
+      ],
+      "note": ""
     },
     {
       "id": "T7-1",
       "milestone": "M7",
       "name": "Control valve model",
       "category": "dep",
-      "branch": "feat/t7-1-control-valve",
+      "branch": "feature/control-valve",
       "depends_on": [
         "T1-2",
         "T4-1",
         "T4-4"
       ],
       "files": [
-        "app/equipment/valve.py",
-        "app/plant/loader.py",
-        "app/engine/coupling.py",
-        "config/plants/liquid_valve_train.yaml",
-        "tests/test_control_valve.py"
+        "app/equipment/valve.py"
       ],
       "status": "Complete",
       "status_key": "done",
-      "startable": false,
       "note": "Also inherits the cold-start criterion dropped from T3-4: a reference fixture reaches a plausible steady state from cold once the valve supplies a system curve. See docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md section 2.9.\n\nGained two acceptance criteria from the T4-5 re-scope, 20 Sep 2026: 'Closing a downstream valve lowers flow and raises upstream pressure' and 'Added restriction raises upstream pressure'. Neither can be written until a valve sits on its own branch - after T4-4 the network has no resistance but the machine's own, and the compressor's discharge valve strokes without changing flow. T4-4 was added to depends_on for that reason: a valve's effect on a plant is asserted through Engine.from_plant() and the snapshot, the way tests/test_cause_effect.py does.\n\nMerged to main as fefa8411be9867a3585b44ac4052cc9870300e7d (fefa841, PR #32, merge commit from feat/t7-1-control-valve), 20 Sep. 681 tests passed and mypy clean over 23 source files on the branch before merge; the merge was clean and added nothing further. No golden traces changed. ControlValve (linear / equal-percentage, rate-limited stroke, min_position floor, fail-open / fail-closed); flow unit resolved from the domain in coupling.py (liquid GPM, gas SCFM; default and unknown domains refuse). Config key is flow_characteristic because Equipment.characteristic is a method. Reference plant config/plants/liquid_valve_train.yaml. Touched coupling.py, so T5-3 starts from fefa841 or later."
     },
     {
@@ -865,8 +904,6 @@
       "status_key": "todo",
       "startable": false,
       "blocked_by": [
-        "T7-1",
-        "T4-4",
         "T5-5"
       ],
       "note": "Depends on T5-5, which creates config/plants/olefins_lite.yaml; explicit because milestone ordering alone is too implicit for agents (docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md)."
@@ -885,7 +922,8 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": true
+      "startable": true,
+      "note": ""
     },
     {
       "id": "T7-4",
@@ -901,7 +939,28 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": true
+      "startable": true,
+      "note": ""
+    },
+    {
+      "id": "T7-5",
+      "milestone": "M7",
+      "name": "Relief device",
+      "category": "dep",
+      "branch": "feature/relief-valve",
+      "depends_on": [
+        "T3-7"
+      ],
+      "files": [
+        "app/equipment/relief.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T3-7"
+      ],
+      "note": "NEW, added 20 Sep 2026 by docs/ADR_0002_TYPED_PORTS.md section 8.1. Waits on T3-7 and blocks nothing. Relief is a third branch on the vapor node and changes nothing structural; it needs typed ports so a relief path can be told apart from a process path in the snapshot. service is metadata and must never change the conservation math (ADR 0002 section 3.4)."
     },
     {
       "id": "T8-1",
@@ -915,7 +974,8 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": true
+      "startable": true,
+      "note": ""
     },
     {
       "id": "T8-2",
@@ -934,7 +994,8 @@
       "startable": false,
       "blocked_by": [
         "T8-1"
-      ]
+      ],
+      "note": ""
     },
     {
       "id": "T8-3",
@@ -979,7 +1040,8 @@
       "startable": false,
       "blocked_by": [
         "T8-3"
-      ]
+      ],
+      "note": ""
     },
     {
       "id": "T8-5",
@@ -998,7 +1060,8 @@
       "startable": false,
       "blocked_by": [
         "T8-4"
-      ]
+      ],
+      "note": ""
     },
     {
       "id": "T9-1",
@@ -1012,7 +1075,8 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": true
+      "startable": true,
+      "note": ""
     },
     {
       "id": "T9-2",
@@ -1055,7 +1119,8 @@
       "startable": false,
       "blocked_by": [
         "T9-1"
-      ]
+      ],
+      "note": ""
     },
     {
       "id": "T9-4",
@@ -1077,7 +1142,8 @@
       "blocked_by": [
         "T9-2",
         "T9-3"
-      ]
+      ],
+      "note": ""
     },
     {
       "id": "T10-1",
@@ -1091,7 +1157,8 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": true
+      "startable": true,
+      "note": ""
     },
     {
       "id": "T10-2",
@@ -1112,7 +1179,8 @@
       "blocked_by": [
         "T9-1",
         "T10-1"
-      ]
+      ],
+      "note": ""
     },
     {
       "id": "T10-3",
@@ -1132,7 +1200,8 @@
       "startable": false,
       "blocked_by": [
         "T10-2"
-      ]
+      ],
+      "note": ""
     },
     {
       "id": "T10-4",
@@ -1151,7 +1220,8 @@
       "startable": false,
       "blocked_by": [
         "T10-2"
-      ]
+      ],
+      "note": ""
     },
     {
       "id": "T10-5",
@@ -1171,7 +1241,8 @@
       "startable": false,
       "blocked_by": [
         "T10-3"
-      ]
+      ],
+      "note": ""
     },
     {
       "id": "T11-1",
@@ -1216,7 +1287,8 @@
       "blocked_by": [
         "T11-1",
         "T7-4"
-      ]
+      ],
+      "note": ""
     },
     {
       "id": "T11-3",
@@ -1235,7 +1307,8 @@
       "startable": false,
       "blocked_by": [
         "T11-2"
-      ]
+      ],
+      "note": ""
     },
     {
       "id": "T11-4",
@@ -1254,7 +1327,8 @@
       "startable": false,
       "blocked_by": [
         "T11-2"
-      ]
+      ],
+      "note": ""
     },
     {
       "id": "T12-1",
@@ -1270,7 +1344,8 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": true
+      "startable": true,
+      "note": ""
     },
     {
       "id": "T12-2",
@@ -1289,7 +1364,8 @@
       "startable": false,
       "blocked_by": [
         "T12-1"
-      ]
+      ],
+      "note": ""
     },
     {
       "id": "T12-3",
@@ -1308,7 +1384,8 @@
       "startable": false,
       "blocked_by": [
         "T11-3"
-      ]
+      ],
+      "note": ""
     },
     {
       "id": "T12-4",
@@ -1330,7 +1407,8 @@
       "blocked_by": [
         "T12-3",
         "T12-2"
-      ]
+      ],
+      "note": ""
     },
     {
       "id": "T13-1",
@@ -1347,7 +1425,8 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": true
+      "startable": true,
+      "note": ""
     },
     {
       "id": "T13-2",
@@ -1368,7 +1447,8 @@
       "startable": false,
       "blocked_by": [
         "T13-1"
-      ]
+      ],
+      "note": ""
     },
     {
       "id": "T13-3",
@@ -1387,7 +1467,8 @@
       "startable": false,
       "blocked_by": [
         "T13-1"
-      ]
+      ],
+      "note": ""
     },
     {
       "id": "T13-4",
@@ -1410,7 +1491,8 @@
         "T13-1",
         "T13-2",
         "T7-3"
-      ]
+      ],
+      "note": ""
     },
     {
       "id": "T13-5",
@@ -1424,7 +1506,8 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": true
+      "startable": true,
+      "note": ""
     },
     {
       "id": "T14-1",
@@ -1438,7 +1521,8 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": true
+      "startable": true,
+      "note": ""
     },
     {
       "id": "T14-2",
@@ -1458,7 +1542,8 @@
       "startable": false,
       "blocked_by": [
         "T14-1"
-      ]
+      ],
+      "note": ""
     },
     {
       "id": "T14-3",
@@ -1479,7 +1564,8 @@
       "blocked_by": [
         "T14-1",
         "T9-3"
-      ]
+      ],
+      "note": ""
     },
     {
       "id": "T14-4",
@@ -1503,7 +1589,8 @@
         "T14-2",
         "T14-3",
         "T12-2"
-      ]
+      ],
+      "note": ""
     },
     {
       "id": "T14-5",
@@ -1525,7 +1612,8 @@
       "blocked_by": [
         "T14-4",
         "T15-1"
-      ]
+      ],
+      "note": ""
     },
     {
       "id": "T14-6",
@@ -1546,7 +1634,8 @@
       "blocked_by": [
         "T14-4",
         "T13-4"
-      ]
+      ],
+      "note": ""
     },
     {
       "id": "T15-1",
@@ -1563,7 +1652,8 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": true
+      "startable": true,
+      "note": ""
     },
     {
       "id": "T15-2",
@@ -1586,7 +1676,8 @@
         "T15-1",
         "T9-3",
         "T10-3"
-      ]
+      ],
+      "note": ""
     },
     {
       "id": "T15-3",
@@ -1606,7 +1697,8 @@
       "startable": false,
       "blocked_by": [
         "T15-2"
-      ]
+      ],
+      "note": ""
     },
     {
       "id": "T15-4",
@@ -1620,7 +1712,8 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": true
+      "startable": true,
+      "note": ""
     },
     {
       "id": "T16-1",
@@ -1635,7 +1728,8 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": true
+      "startable": true,
+      "note": ""
     },
     {
       "id": "T16-2",
@@ -1651,10 +1745,8 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "T2-5"
-      ]
+      "startable": true,
+      "note": ""
     },
     {
       "id": "T16-3",
@@ -1676,7 +1768,8 @@
       "blocked_by": [
         "T16-1",
         "T16-2"
-      ]
+      ],
+      "note": ""
     },
     {
       "id": "T16-4",
@@ -1697,7 +1790,8 @@
       "blocked_by": [
         "T16-1",
         "T8-2"
-      ]
+      ],
+      "note": ""
     },
     {
       "id": "T16-5",
@@ -1716,7 +1810,8 @@
       "startable": false,
       "blocked_by": [
         "T16-2"
-      ]
+      ],
+      "note": ""
     },
     {
       "id": "T17-1",
@@ -1730,7 +1825,8 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": true
+      "startable": true,
+      "note": ""
     },
     {
       "id": "T17-2",
@@ -1749,7 +1845,8 @@
       "startable": false,
       "blocked_by": [
         "T17-1"
-      ]
+      ],
+      "note": ""
     },
     {
       "id": "T17-3",
@@ -1770,7 +1867,8 @@
       "blocked_by": [
         "T17-1",
         "T17-2"
-      ]
+      ],
+      "note": ""
     },
     {
       "id": "T17-4",
@@ -1791,7 +1889,8 @@
       "blocked_by": [
         "T17-3",
         "T16-1"
-      ]
+      ],
+      "note": ""
     },
     {
       "id": "T18-1",
@@ -1808,7 +1907,8 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": true
+      "startable": true,
+      "note": ""
     },
     {
       "id": "T18-2",
@@ -1824,7 +1924,8 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": true
+      "startable": true,
+      "note": ""
     },
     {
       "id": "T18-3",
@@ -1843,7 +1944,8 @@
       "startable": false,
       "blocked_by": [
         "T15-1"
-      ]
+      ],
+      "note": ""
     },
     {
       "id": "T18-4",
@@ -1861,11 +1963,8 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "T2-5",
-        "T4-3"
-      ]
+      "startable": true,
+      "note": ""
     },
     {
       "id": "T18-5",
@@ -1886,7 +1985,8 @@
       "startable": false,
       "blocked_by": [
         "T14-1"
-      ]
+      ],
+      "note": ""
     },
     {
       "id": "T19-1",
@@ -1906,7 +2006,8 @@
       "startable": false,
       "blocked_by": [
         "T15-4"
-      ]
+      ],
+      "note": ""
     },
     {
       "id": "T19-2",
@@ -1927,7 +2028,8 @@
       "blocked_by": [
         "T16-2",
         "T13-1"
-      ]
+      ],
+      "note": ""
     },
     {
       "id": "T19-3",
@@ -1946,7 +2048,8 @@
       "startable": false,
       "blocked_by": [
         "T19-2"
-      ]
+      ],
+      "note": ""
     }
   ]
 }

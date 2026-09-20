@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "19 September 2026",
-  "main_sha": "2c08bb8ab9c231d7ae61d2c80432606026e7a4d4",
-  "tests_passing_on_main": 428,
+  "main_sha": "d6a6cfb652eda5b12cdf69981e25f71c5e79a58c",
+  "tests_passing_on_main": 448,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -28,7 +28,7 @@
     },
     "M3": {
       "name": "Plant Topology and Streams",
-      "complete": 5,
+      "complete": 6,
       "total": 6
     },
     "M4": {
@@ -492,10 +492,10 @@
         "config/plants/liquid_transfer.yaml",
         "config/plants/gas_compression.yaml"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "note": "Re-scoped by docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md from the full mixed-phase train to two single-domain fixtures; the full train is now T5-5. Unblocked: T3-5 (flow-domain declaration) merged as 11517f6. YAML plant loading is already merged (c406ca0, PR #15). Fixtures validated against main at 7b54ec9: liquid_transfer (N-101 50 psia -> P-101 -> N-102 -> P-102 -> N-103 180 psia, speed 1.0) solves to 816.50 GPM with N-102 at 115.00 psia in 5 iterations; gas_compression (N-201 60 psia -> K-101 -> N-202 -> K-102 -> N-203 480 psia, load 1.0) solves to 70.71 SCFM with N-202 at 270.00 psia in 4 iterations. Both answers are closed-form and hand-checkable. The old criterion 'reaches a plausible steady state from cold' is DROPPED and moved to T7-1: with no check valve, line resistance or control valve, no boundary pair is sane both cold and running (ADR section 2.9). Worktree ../plant-simulator-reference-plant and branch feature/reference-plant are preserved. ADR 0001 Amendment 1 split T3-5; T3-4 depends on T3-5 only - its fixtures are ordinary two-port devices and need nothing from T3-6.",
-      "startable": true
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged to main as d6a6cfb652eda5b12cdf69981e25f71c5e79a58c (PR #19, merge commit from feature/reference-plant, rebased on the T3-6 merge), 19 Sep. Adds config/plants/liquid_transfer.yaml and gas_compression.yaml (every node declares its domain; design speed 1.0 / load 1.0) and tests/test_reference_plants.py, 20 tests, which the task's file list omitted. Full suite 448 passed and mypy clean. Numbers re-run on main and unchanged from the ADR: liquid 816.4966 GPM with N-102 at 115.00 psia (5 iterations); gas 70.7107 SCFM with N-202 at 270.00 psia (4 iterations). Expected values are computed in the tests from the ADR 7.1 closed-form formulas and the device constants, not pasted from solver output. Internal nodes are seeded at the low boundary pressure so the fixtures do not embed the answer. Tests also cover mass balance at the internal node, plant -> config -> plant round trip, and mixed-domain rejection naming the branch. No cold-start assertion (moved to T7-1, ADR section 2.9). Nothing under app/ changed.",
+      "startable": false
     },
     {
       "id": "T3-5",

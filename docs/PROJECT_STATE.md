@@ -11,7 +11,7 @@ Refresh this file whenever a task merges to `main`.
 **Last refreshed:** 20 September 2026 (**T5-3 merged** as `42dc227`, [PR #35](https://github.com/gareytwin1/plant-simulator/pull/35) — gas-phase pressure accumulation)
 **Current `main`:** `42dc227` — *Merge pull request #35 from gareytwin1/feature/gas-inventory*
 **Last code merge:** `42dc227` — T5-3, gas-phase pressure accumulation (PR #35). Previous: `fefa841` T7-1, the control valve model (PR #32); `e261134` T4-5, the cause-and-effect assertion suite (PR #29, test-only). Previous: `154385c` T5-2, level to hydraulics coupling and the multi-domain Engine (PR #27). Previous: `0efa5be` T4-4, the solver wired into the engine (PR #25). Previous: `b8af231` T5-1 vessel model (PR #23); `d6a6cfb` T3-4 single-domain reference fixtures (PR #19); `2c08bb8` T3-6 multi-port equipment wiring (PR #20); `11517f6` T3-5 flow-domain declaration (PR #17); `c406ca0` YAML plant loading; previous solver merge `a2a1596` (T4-3). ADR 0001 ([docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md](ADR_0001_FLOW_DOMAIN_SEPARATION.md)) and its Amendment 1 are on `main`
-**Full suite on `main`:** **715 passed** (`conda activate plant-simulator && python -m pytest -q`); `python -m mypy` clean
+**Full suite on `main`:** **738 passed** (`conda activate plant-simulator && python -m pytest -q`); `python -m mypy` clean
 
 ---
 
@@ -21,14 +21,14 @@ Refresh this file whenever a task merges to `main`.
 |---|---|
 | **M0** Baseline Cleanup | **7/7 Complete** |
 | **M1** Equipment Model Contract | **5/5 Complete** — Checkpoint A reached |
-| **M2** Simulation Engine and Clock | 4/6 (**T2-5 Ready for Review**, `feature/engine-scheduler`; T2-6 waits on its merge) |
+| **M2** Simulation Engine and Clock | 5/6 (T2-5 Complete, `06569cc`; **T2-6 startable**) |
 | **M3** Plant Topology and Streams | **6/6 Complete** |
 | **M4** Pressure-Flow Network Solver | **5/5 Complete** — Checkpoint B reached; T4-5 was re-scoped before implementation, see [The T4-5 re-scope](#the-t4-5-re-scope) |
 | **M5** Inventory and Mass Balance | 3/5 — T5-1, T5-2, T5-3 Complete; **T5-4 startable**; the engine and topology spine locks are released (M5 has 5 tasks: T5-5, the integrated reference plant, was added) |
 | **M7** Control Valves and Final Elements | 1/4 — T7-1 Complete; **T7-3 and T7-4 startable**; T7-2 also needs T5-5 |
 | M6, M8–M19 | Not started |
 
-Overall: **31 of 97 tasks Complete.**
+Overall: **32 of 97 tasks Complete.**
 
 ### Completed and merged to `main`
 
@@ -538,7 +538,6 @@ valve change.
 | **T7-3** | Valve fault modes | Sonnet | `feature/valve-faults` |
 | **T7-4** | Command arbitration | Sonnet | `feature/command-arbitration` |
 | **T13-1** | Malfunction model and registry | Opus | `feature/malfunction-model` |
-| **T2-5** | Background scheduler — *Ready for Review, not merged* | Sonnet | `feature/engine-scheduler` |
 | **T12-1** | Plant snapshot save and restore | Sonnet | `feature/state-persistence` |
 | **T8-1** | PID block | Sonnet | `feature/pid-block` |
 | **T9-1** | Envelope evaluator | Sonnet | `feature/envelope-evaluator` |

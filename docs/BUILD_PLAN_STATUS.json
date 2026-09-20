@@ -115,7 +115,7 @@
   "totals": {
     "tasks": 97,
     "complete": 22,
-    "startable_now": 17
+    "startable_now": 16
   },
   "tasks": [
     {
@@ -513,10 +513,10 @@
         "app/plant/loader.py",
         "tests/test_plant_domains.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true,
-      "note": "Sonnet. Re-scoped by ADR 0001 Amendment 1: multi-port wiring split out to T3-6, because a named ports map says which node each port attaches to and does NOT say which two ports form a C2 Branch. Implement docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md section 12 (12.5-12.8 are this task) - do not redesign it. Satellite: app/plant/loader.py is not a spine file and this takes no lock. Additive C3 only: optional nodes[].domain, absent meaning DEFAULT_DOMAIN ('default'). Domains do NOT propagate along the graph - an undeclared node is in DEFAULT_DOMAIN and does not inherit a neighbour's, so a branch between a 'gas' node and an undeclared one is a mismatch and is rejected. The loader partitions into Plant.topologies, adds Plant.nodes (flat, config order), and makes Plant.topology a property that returns the sole topology and raises on a multi-domain plant. Four rejections: branch nodes disagreeing on domain, a domain with no boundary, a domain that is not one connected piece (today's _components check, moved inside the partition), and nothing else - 'a port wired across domains' was a category error and is withdrawn (Amendment 1, A5). A domain with nodes but no branches is LEGAL. Do NOT add ports, paths, Plant.devices or any validate.py change; that is T3-6. Do NOT modify C1, C2 or NetworkSolver. to_config() must be driven by the config-ordered Plant.nodes, not by walking topologies, and must emit 'domain' only where the config declared it - tests/test_plant_loader.py asserts exact dict equality on the round trip."
+      "status": "Ready for Review",
+      "status_key": "review",
+      "startable": false,
+      "note": "Ready for Review on feature/flow-domains (PR #17), NOT merged. Implements ADR 0001 section 12.5-12.8 (domains only). Optional nodes[].domain in the C3 schema; undeclared nodes are DEFAULT_DOMAIN ('default') and never inherit a neighbour's domain. The loader partitions nodes into one Topology per domain (Plant.topologies, ordered by first appearance in config), adds a flat config-ordered Plant.nodes, and makes Plant.topology a property that raises ValueError on a multi-domain plant. Load-time rejections name the config path: a branch across domains (both nodes and domains named, default-by-omission called out), a domain with no boundary node (global wording kept for a single-domain plant), and a domain that is not one connected piece. to_config() walks Plant.nodes and emits domain only when declared, so legacy configs round-trip exactly. The app/engine/network.py docstring now points at the loader (comment only). C1, C2, NetworkSolver, validate.py and golden traces untouched. 395 tests green (23 new in tests/test_plant_domains.py), mypy clean. The PR is stacked on docs/flow-domain-amendment (unmerged, docs-only), so its first three commits are that branch's. T3-6 will move equipment emission to Plant.devices."
     },
     {
       "id": "T3-6",

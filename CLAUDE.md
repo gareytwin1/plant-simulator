@@ -160,9 +160,26 @@ between them: flow reads well above `max_flow`, the discharge valve strokes
 but changes nothing hydraulically, and the process spread sits at the boundary
 difference. That is a known interim state, not a bug to fix in passing.
 
+**Inventory is coupled to the hydraulics (since T5-2).** `Engine.from_plant`
+wires one `NetworkSolver` per entry in `Plant.topologies`, so a multi-domain
+plant runs. What joins two domains is a coupling device's inventory, never a
+shared flow variable: a vessel's `head_at_full * level` is *added to* the
+`configured_pressure` of the boundary node its OUTLET port attaches to, and
+its flows are read back as the net signed flow at each attachment node. A
+step is clock → integrate → write boundaries → solve every domain → read
+flows back → snapshot. That is explicit Euler with one step of lag on the
+vessel's flows; nothing iterates between the integrator and the solver.
+
+`app/engine/coupling.py` owns that join and is the only place it lives. A
+device still never reads a node or a branch, and `Node.set_boundary_pressure`
+(C2, added at T5-2) refuses on an internal node, so the solver's writer and
+the coupling's writer partition the graph between them. A port is coupled
+only where its flow unit can be confirmed GPM from the devices on the
+branches meeting it — **a new device model on a branch must be added to
+`FLOW_UNITS`**, or a vessel attached beside it refuses at Engine
+construction. Gas-phase accumulation is T5-3 and does not exist.
+
 **Still not on the request path:** `EquipmentRegistry`, `SeededRNG` (T2-2).
-One solver per flow domain arrives with T5-2 — `Engine.from_plant` wires
-against `Plant.topology`, which raises on a multi-domain plant.
 
 **Do not write documentation, comments, or code that implies controllers,
 alarms, envelopes, or scoring already exist.**
@@ -263,7 +280,8 @@ landed, and it is what the build plan intends for `scheduler.py` (T2-5) and
 `persistence.py` (T12-1).
 
 The existing spine modules there are `clock.py`, `engine.py`, `snapshot.py` and
-`sessions.py`. **If a satellite task discovers that it must modify one of them,
+`sessions.py`. `coupling.py` (T5-2) is a new module but landed inside a spine
+task, because the Engine change and the coupling are one design. **If a satellite task discovers that it must modify one of them,
 it stops and escalates or acquires the spine lock; it does not expand scope
 silently.** T4-3 (`snapshot.py`) and T4-4 (`engine.py`) are spine tasks for
 exactly this reason.

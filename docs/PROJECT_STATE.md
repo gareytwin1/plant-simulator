@@ -301,10 +301,18 @@ Engine-computes-nothing state; what remains is the consequence of that:
 
 ## Active branches and PRs
 
-No open PRs and no code branch in flight; **no spine lock is held.** T4-4 merged
-as `0efa5be` ([PR #25](https://github.com/gareytwin1/plant-simulator/pull/25)) and
-released `app/engine/engine.py`, `app/equipment/compressor.py`,
-`app/equipment/pump.py`, `app/engine/sessions.py` and `app/main.py`.
+**In flight: `feature/inventory-coupling` (T5-2), Ready for Review.** It holds
+the **spine lock on `app/engine/engine.py` and on `app/plant/topology.py`** (the
+C2 boundary-condition route the plan assigns to this task), and also touches
+`app/equipment/vessel.py`, `app/plant/loader.py` and the new
+`app/engine/coupling.py`. Release both locks on merge. **Do not start T5-3** —
+it edits `vessel.py` too. T4-5 (test-only) and T7-1 (adds only `valve.py`) are
+safe alongside it.
+
+T4-4 merged as `0efa5be`
+([PR #25](https://github.com/gareytwin1/plant-simulator/pull/25)) and released
+`app/equipment/compressor.py`, `app/equipment/pump.py`,
+`app/engine/sessions.py` and `app/main.py`.
 
 T5-1 merged as `b8af231` ([PR #23](https://github.com/gareytwin1/plant-simulator/pull/23)): `Vessel` and `tests/test_vessel.py`, nothing else. T3-4 merged
 as `d6a6cfb` ([PR #19](https://github.com/gareytwin1/plant-simulator/pull/19)): two

@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "20 September 2026",
-  "main_sha": "154385cf336968218ff8a9e41e56605bdd1c4238",
-  "tests_passing_on_main": 541,
+  "main_sha": "e2611340f735b4ba4fbf94891aa645801174cff4",
+  "tests_passing_on_main": 567,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -33,12 +33,12 @@
     },
     "M4": {
       "name": "Pressure-Flow Network Solver",
-      "complete": 4,
+      "complete": 5,
       "total": 5
     },
     "M5": {
       "name": "Inventory and Mass Balance",
-      "complete": 1,
+      "complete": 2,
       "total": 5
     },
     "M6": {
@@ -114,8 +114,8 @@
   },
   "totals": {
     "tasks": 97,
-    "complete": 28,
-    "startable_now": 19
+    "complete": 29,
+    "startable_now": 17
   },
   "tasks": [
     {
@@ -625,10 +625,10 @@
       "files": [
         "tests/test_cause_effect.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true,
-      "note": "Startable: T4-4 merged as 0efa5be. Test-only (tests/test_cause_effect.py); no spine lock needed.\n\nRE-SCOPED 20 Sep 2026, before implementation. The plan's original four acceptance criteria predate T4-4, which retired the devices' standalone solve and with it the suction and discharge line resistances and the max_flow clamp. Two of the four cannot be written against main: 'Closing a downstream valve lowers flow and raises upstream pressure' and 'Added restriction raises upstream pressure' both need a second resistance in the network, and the compressor's discharge valve strokes without changing anything hydraulically. Both MOVED TO T7-1's acceptance rather than merging as permanently skipped tests. The other two criteria - compressor load response and parallel pumps - are kept and sharpened, and the suite also covers speed affinity, boundary response, stopping, node mass balance and run-twice determinism. M4 is not held open waiting for T7-1: T4-5 completes on what is expressible now.\n\nImplementation constraints: build plants with load_plant() and Engine.from_plant() and read results only from the snapshot's nodes and streams, so the suite survives T5-2's multi-domain Engine and T7-1's valve without edits; touch nothing under app/, config/ or tests/fixtures/golden/. Assert flow > 0 in every compared state - with no check valve, most of the load range on a widely-spread boundary pair is reverse flow, so a naive 'flow rises' assertion passes while the machine backflows. Assert on settled states only (load ramps at 0.05/s) and assert directions and closed forms rather than absolute values."
+      "status": "Complete",
+      "status_key": "done",
+      "startable": false,
+      "note": "Merged to main as e2611340f735b4ba4fbf94891aa645801174cff4 (PR #29, merge commit from test/cause-and-effect), 20 Sep. Full suite 567 passed and mypy clean on main post-merge. One new file, tests/test_cause_effect.py, 26 tests; nothing under app/, config/ or tests/fixtures/golden/ touched and the solver and its tolerances unchanged. No test skipped or xfailed.\n\nRE-SCOPED before implementation, merged separately as 4751b08 (PR #28). Two of the plan's four original criteria could not be written against main after T4-4 retired the line resistances and the max_flow clamp - 'Closing a downstream valve lowers flow and raises upstream pressure' and 'Added restriction raises upstream pressure' both need a second resistance in the network - and MOVED TO T7-1's acceptance rather than merging as permanently skipped tests. The other two, compressor load response and parallel pumps, are covered and sharpened.\n\nWhat the suite asserts: parallel boosters raise flow by less than 2x and land on q^2 = (2*shutoff - delta) / (R * (1 + n^2)) for n = 1, 2, 3, with the two-booster gain 2*sqrt(2/5) independent of the header; a series train where raising the UPSTREAM load raises flow and the interstage while raising the DOWNSTREAM load raises flow and LOWERS the interstage (the half a single machine between fixed boundaries cannot show); pump flow exactly proportional to speed at equal boundaries; a higher header or a lower supply lowering flow; stopping a pump and a compressor; mass balance at an internal node; and a run-twice bit-identical test.\n\nThree things a later task must not undo. (1) Forward flow is asserted in every compared state: with no check valve, on the reference gas plant at 60->480 psia raising K-101's load 0.8 -> 0.9 -> 1.0 gives -121.7, -73.8, +70.7 SCFM, so a bare 'flow rises' assertion passes while the machine backflows. (2) The stopping bound is derived, sqrt(DEFAULT_PRESSURE_TOLERANCE / resistance), never a recorded residual value, because the value inside that bound is path-dependent. (3) Stopping one of two PARALLEL boosters is deliberately not asserted: with no check valve the stopped machine is a low-resistance path back to supply and the plant reverses outright (P-201 from +1032.80 to -552.99 GPM), so such an assertion passes for reasons unrelated to its name. A comment in the file records this; do not add one back here. It belongs with later check-valve work.\n\nRebased onto T5-2 (154385c) before merge and re-verified rather than assumed: every plant here is single-domain and holds no coupling device, so build_couplings() returns [] and one solver is wired as before, and all eight reference values are bit-identical. T5-2's multi-domain cause and effect is covered by tests/test_inventory_coupling.py and deliberately not duplicated."
     },
     {
       "id": "T5-1",

@@ -1,0 +1,36 @@
+# Two pumps in series through a control valve, between equal battery limits:
+# one liquid domain, the first plant whose only resistance is not a machine's
+# own. The valve's capacity is sized so the running plant reproduces
+# liquid_transfer's 816.5 GPM, and because the boundaries are equal the exact
+# cold solution is zero flow. Every device is loaded at its design point and
+# then started and commanded to it by the tests, as the loader leaves devices
+# stopped.
+nodes:
+  - {id: N-101, boundary: true, pressure: 50.0, domain: liquid}
+  - {id: N-102, boundary: false, pressure: 50.0, domain: liquid}
+  - {id: N-103, boundary: false, pressure: 50.0, domain: liquid}
+  - {id: N-104, boundary: true, pressure: 50.0, domain: liquid}
+equipment:
+  - tag: P-101
+    type: pump
+    node_in: N-101
+    node_out: N-102
+    design: {speed: 1.0}
+  - tag: P-102
+    type: pump
+    node_in: N-102
+    node_out: N-103
+    design: {speed: 1.0}
+  - tag: FV-101
+    type: control_valve
+    node_in: N-103
+    node_out: N-104
+    design:
+      capacity: 71.61
+      flow_characteristic: linear
+      rangeability: 50.0
+      min_position: 0.10
+      stroke_rate: 0.05
+      fail_action: closed
+      position: 1.0
+      position_target: 1.0

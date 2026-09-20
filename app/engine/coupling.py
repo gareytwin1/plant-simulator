@@ -33,10 +33,12 @@ its name — decides the sign.
 **Units.** A vessel's flows are GPM. A vessel port may legitimately attach to
 a gas node, and SCFM summed into a GPM attribute would be silently wrong
 rather than loudly wrong, so a port is coupled only where the flow unit can
-be *confirmed* GPM from the devices on the branches that meet it. A gas
-attachment is left alone — the gas side is T5-3's. A node whose devices this
-module cannot classify, or whose devices disagree, raises when the Engine is
-built, because guessing is the failure mode this check exists to prevent.
+be *confirmed* GPM from the devices on the branches that meet it. A machine
+declares its unit; a resistance such as the control valve has none of its own
+and takes it from the domain it sits in (`liquid` GPM, `gas` SCFM), refusing
+any other domain name. A gas attachment is left alone — the gas side is
+T5-3's. A node whose devices this module cannot classify, or whose devices
+disagree, raises when the Engine is built, because guessing is the failure mode this check exists to prevent.
 
 **Where the attachment must be.** A coupled node has to be a boundary node of
 its domain. That is what ADR 0001 A7 says every coupling attachment will be,
@@ -51,6 +53,7 @@ from collections.abc import Iterable, Mapping
 from app.equipment.base import INLET, Equipment, Port
 from app.equipment.compressor import GasCompressor
 from app.equipment.pump import CentrifugalPump
+from app.equipment.valve import ControlValve
 from app.equipment.vessel import Vessel
 from app.plant.topology import Node, Topology
 
@@ -64,6 +67,18 @@ SCFM = "SCFM"
 FLOW_UNITS: dict[type[Equipment], str] = {
     CentrifugalPump: GPM,
     GasCompressor: SCFM,
+}
+
+# A device with no unit of its own: a resistance is written in whatever flow
+# unit the line it sits in carries, so that is read off the domain it is
+# installed in. Domain names are semantically load-bearing for exactly these
+# devices — an undeclared name, and DEFAULT_DOMAIN, are refused rather than
+# guessed at.
+DOMAIN_RESOLVED: frozenset[type[Equipment]] = frozenset({ControlValve})
+
+DOMAIN_UNITS: dict[str, str] = {
+    "liquid": GPM,
+    "gas": SCFM,
 }
 
 # What a Vessel's inlet_flow and outlet_flow are measured in.
@@ -227,7 +242,7 @@ def _attachment(
     domain, topology = located
     node = topology.node(port.node.id)
 
-    if _unit_at(device, port, topology, node) != INVENTORY_UNIT:
+    if _unit_at(device, port, domain, topology, node) != INVENTORY_UNIT:
         return None
 
     if not node.is_boundary:
@@ -256,6 +271,7 @@ def _locate(
 def _unit_at(
     device: Vessel,
     port: Port,
+    domain: str,
     topology: Topology,
     node: Node,
 ) -> str | None:
@@ -270,7 +286,7 @@ def _unit_at(
     units = set()
 
     for branch in topology.branches_at(node.id):
-        unit = _flow_unit(branch.device)
+        unit = _flow_unit(branch.device, domain)
 
         if unit is None:
             raise ValueError(
@@ -293,9 +309,19 @@ def _unit_at(
     return units.pop() if units else None
 
 
-def _flow_unit(device: Equipment) -> str | None:
+def _flow_unit(device: Equipment, domain: str) -> str | None:
     for kind in type(device).__mro__:
         if kind in FLOW_UNITS:
             return FLOW_UNITS[kind]
+
+        if kind in DOMAIN_RESOLVED:
+            if domain not in DOMAIN_UNITS:
+                raise ValueError(
+                    f"{device.tag} ({type(device).__name__}) takes its flow "
+                    f"unit from its domain, but domain {domain!r} has no "
+                    f"declared flow unit — only {sorted(DOMAIN_UNITS)}",
+                )
+
+            return DOMAIN_UNITS[domain]
 
     return None

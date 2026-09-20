@@ -297,6 +297,22 @@ Engine-computes-nothing state; what remains is the consequence of that:
   deadband**, so a stopped machine's residual reaches vessel level at 0.055 GPM,
   or 3.3 gal/hour against a 1000 gal vessel. That is the decided behaviour; what
   stays recorded here is the numerical residual itself.
+- **The `Equipment.characteristic` docstring overstates the Jacobian.** It says a
+  non-increasing curve "keeps the Jacobian from going singular". For
+  `-K * signed_square(q)` the derivative is `-2K|q|`, **zero at q = 0**, so the
+  diagonal does vanish at zero flow — for a valve, a pipe and a machine alike.
+  The curve is monotone non-increasing with exactly one root; that is all the
+  docstring can claim. The vanishing diagonal is the double-root behaviour
+  behind the residual-flow entry above. `base.py` is frozen, so it was not
+  edited at T7-1; whoever next opens C1 should correct the wording.
+- **A resistance-only valve cannot stop reverse flow, and it absorbs most of
+  the drop.** Against an adverse boundary pair (50 -> 180 psia) a cold plant
+  backflows through a wide-open valve (-1000 GPM at Cv 100), and closing it only
+  trims that by the square root of the added resistance. Only a check valve or a
+  non-adverse boundary pair stops it. Separately, with the valve the only
+  resistance the reference plant's valve takes 107-139 psi of the 150 psi the
+  pumps make, 70-93% of system drop against 10-30% in a real plant. A pipe or
+  resistance device is needed for line loss; no task owns one yet.
 - **`app/init.py` is a misnamed empty file** — it is not `__init__.py`. `app`
   resolves as a namespace package so imports work anyway. Harmless; has never
   had a task.

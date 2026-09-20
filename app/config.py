@@ -15,6 +15,11 @@ DISCHARGE_VALVE_RATE_PER_SECOND = 0.05
 PUMP_SPEED_RATE_PER_SECOND = 0.10
 
 
+# Control valve timing
+
+VALVE_STROKE_RATE_PER_SECOND = 0.05
+
+
 # Equipment tag prefixes
 #
 # ISA-style equipment codes: a tag is PREFIX-NNN. This is the reference

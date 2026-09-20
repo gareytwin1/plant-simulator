@@ -69,11 +69,11 @@ def test_missing_required_top_level_key_fails():
 
 def test_missing_required_field_names_the_path():
     config = valid_config()
-    del config["equipment"][0]["node_out"]
+    del config["equipment"][0]["design"]
 
     errors = validate(config)
 
-    assert errors == ["$.equipment[0]: missing required property 'node_out'"]
+    assert errors == ["$.equipment[0]: missing required property 'design'"]
 
 
 def test_unknown_top_level_key_rejected():

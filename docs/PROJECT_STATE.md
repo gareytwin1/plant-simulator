@@ -249,7 +249,9 @@ Engine-computes-nothing state; what remains is the consequence of that:
    (750/750 psia and 50/50 psia). Flow reads above `max_flow` (compressor 331.7
    vs 120, pump 2236 vs 1200), the discharge valve strokes without changing
    flow, and spread equals the boundary difference so temperature is flat. Equal
-   boundaries were kept so an idle machine sits at exactly zero flow.
+   boundaries were kept so an idle machine sits at zero flow — exactly zero if it
+   has never run, and within a hair of it once stopped; see *A stopped machine
+   keeps a small residual flow* under Known technical debt.
    *Retired by:* **T7-1** (control valve on its own branch).
 
 2. **No check valve.** With a boundary differential and a machine slower than it,
@@ -266,6 +268,21 @@ Engine-computes-nothing state; what remains is the consequence of that:
 
 ## Known technical debt (recorded, not scheduled)
 
+- **A stopped machine keeps a small residual flow.** A machine that has never run
+  reads exactly `0.0`. One that has been *stopped* settles just off zero and
+  stays there: **0.055 GPM** on the pump page, **0.004 SCFM** on the compressor,
+  unchanged after a further 2200 simulated seconds. Convergence is measured in
+  psia, and at shutoff the branch curve is flat — the root is a double root, so
+  the 1e-7 psia of slack the tolerance allows maps to `sqrt(tolerance /
+  resistance)` of flow, 0.08 GPM and 0.007 SCFM. The solver then reports
+  `converged` at **`iterations: 0`**, because the residual is already inside
+  tolerance on entry and nothing drives the flow the rest of the way down. The
+  exact solution is still zero; only the reported one is not. Not a defect and
+  not a reason to retune the tolerance — `tests/test_network_solver.py` has
+  asserted `approx(0.0, abs=0.05)` on a stopped pump, with the reason in a
+  comment, since T4-2. **Do not assert an idle flow of exactly zero**, and
+  **T5-2 should know** that a residual which never decays integrates into level
+  once inventory is coupled: 0.055 GPM is 3.3 gal/hour against a 1000 gal vessel.
 - **`app/init.py` is a misnamed empty file** — it is not `__init__.py`. `app`
   resolves as a namespace package so imports work anyway. Harmless; has never
   had a task.

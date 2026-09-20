@@ -8,10 +8,10 @@ Refresh this file whenever a task merges to `main`.
 
 ---
 
-**Last refreshed:** 20 September 2026 (**T5-3 merged** as `42dc227`, [PR #35](https://github.com/gareytwin1/plant-simulator/pull/35) — gas-phase pressure accumulation)
-**Current `main`:** `42dc227` — *Merge pull request #35 from gareytwin1/feature/gas-inventory*
-**Last code merge:** `42dc227` — T5-3, gas-phase pressure accumulation (PR #35). Previous: `fefa841` T7-1, the control valve model (PR #32); `e261134` T4-5, the cause-and-effect assertion suite (PR #29, test-only). Previous: `154385c` T5-2, level to hydraulics coupling and the multi-domain Engine (PR #27). Previous: `0efa5be` T4-4, the solver wired into the engine (PR #25). Previous: `b8af231` T5-1 vessel model (PR #23); `d6a6cfb` T3-4 single-domain reference fixtures (PR #19); `2c08bb8` T3-6 multi-port equipment wiring (PR #20); `11517f6` T3-5 flow-domain declaration (PR #17); `c406ca0` YAML plant loading; previous solver merge `a2a1596` (T4-3). ADR 0001 ([docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md](ADR_0001_FLOW_DOMAIN_SEPARATION.md)) and its Amendment 1 are on `main`
-**Full suite on `main`:** **738 passed** (`conda activate plant-simulator && python -m pytest -q`); `python -m mypy` clean
+**Last refreshed:** 20 September 2026 (**T2-6 merged** as `4e48949`, [PR #38](https://github.com/gareytwin1/plant-simulator/pull/38) — frontend stops driving physics)
+**Current `main`:** `4e48949` — *Merge pull request #38 from gareytwin1/refactor/frontend-read-only*
+**Last code merge:** `4e48949` — T2-6, the scheduler owns simulated time (PR #38). Previous: `06569cc` T2-5 background scheduler (PR #36); `42dc227` T5-3, gas-phase pressure accumulation (PR #35); `fefa841` T7-1, the control valve model (PR #32); `e261134` T4-5, the cause-and-effect assertion suite (PR #29, test-only). Previous: `154385c` T5-2, level to hydraulics coupling and the multi-domain Engine (PR #27). Previous: `0efa5be` T4-4, the solver wired into the engine (PR #25). Previous: `b8af231` T5-1 vessel model (PR #23); `d6a6cfb` T3-4 single-domain reference fixtures (PR #19); `2c08bb8` T3-6 multi-port equipment wiring (PR #20); `11517f6` T3-5 flow-domain declaration (PR #17); `c406ca0` YAML plant loading; previous solver merge `a2a1596` (T4-3). ADR 0001 ([docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md](ADR_0001_FLOW_DOMAIN_SEPARATION.md)) and its Amendment 1 are on `main`
+**Full suite on `main`:** **753 passed** (`conda activate plant-simulator && python -m pytest -q`); `python -m mypy` clean
 
 ---
 
@@ -21,14 +21,14 @@ Refresh this file whenever a task merges to `main`.
 |---|---|
 | **M0** Baseline Cleanup | **7/7 Complete** |
 | **M1** Equipment Model Contract | **5/5 Complete** — Checkpoint A reached |
-| **M2** Simulation Engine and Clock | 5/6 (T2-5 Complete, `06569cc`; **T2-6 Ready for Review** on `refactor/frontend-read-only`, not merged) |
+| **M2** Simulation Engine and Clock | **6/6 Complete** — T2-5 `06569cc`, T2-6 `4e48949` |
 | **M3** Plant Topology and Streams | **6/6 Complete** |
 | **M4** Pressure-Flow Network Solver | **5/5 Complete** — Checkpoint B reached; T4-5 was re-scoped before implementation, see [The T4-5 re-scope](#the-t4-5-re-scope) |
 | **M5** Inventory and Mass Balance | 3/5 — T5-1, T5-2, T5-3 Complete; **T5-4 startable**; the engine and topology spine locks are released (M5 has 5 tasks: T5-5, the integrated reference plant, was added) |
 | **M7** Control Valves and Final Elements | 1/4 — T7-1 Complete; **T7-3 and T7-4 startable**; T7-2 also needs T5-5 |
 | M6, M8–M19 | Not started |
 
-Overall: **32 of 97 tasks Complete.**
+Overall: **33 of 97 tasks Complete.**
 
 ### Completed and merged to `main`
 
@@ -342,23 +342,9 @@ Engine-computes-nothing state; what remains is the consequence of that:
 
 ## Active branches and PRs
 
-**T2-6 is Ready for Review on `refactor/frontend-read-only`** (not merged,
-no PR opened). Implements the approved design in
-[docs/T2-6_SCHEDULER_OWNERSHIP.md](T2-6_SCHEDULER_OWNERSHIP.md): `Session`
-now owns `compressor_scheduler`/`pump_scheduler`, started only by the
-`/compressor`/`/pump` route that renders the matching page, and stopped only
-by `Session.end()` (direct, `SessionRegistry.end()`, or LRU eviction past the
-new `config.MAX_SESSIONS = 32`); `/api/step` and `/api/pump/step` now 409
-while their scheduler is running; `Scheduler` gained `snapshot_locked()` for
-state reads that also need a live-device query over a solved value
-(`temperature_at`, `characteristic`). Touches `app/engine/sessions.py`
-(spine, lock held), `app/main.py` (highest-conflict, lock held),
-`app/engine/scheduler.py`, `app/config.py`, `static/compressor.js` and, as a
-file-list correction called out in the design note and the PR,
-`static/pump.js` (it independently stepped physics on its own timer the same
-way `compressor.js` did). 752 passed (738 baseline + 14 new), stable across
-repeated runs; `mypy` clean over 24 source files; no golden trace moved.
-Releases the `app/main.py` and `app/engine/sessions.py` locks on merge.
+**No branch is in flight.** T2-6 merged as `4e48949` ([PR #38](https://github.com/gareytwin1/plant-simulator/pull/38)): `Session` owns `compressor_scheduler` / `pump_scheduler`, started only by the `/compressor` or `/pump` page render and stopped only by `Session.end()` (direct, `SessionRegistry.end()`, or LRU eviction past `config.MAX_SESSIONS = 32`). Design: [docs/T2-6_SCHEDULER_OWNERSHIP.md](T2-6_SCHEDULER_OWNERSHIP.md). The build plan's file list named only `static/compressor.js`; `static/pump.js` changed too, because it stepped pump physics on its own timer. The `app/main.py` and `app/engine/sessions.py` locks are released.
+
+**T18-5 still owns idle-session reclamation.** The T2-6 cap is only the bounded-resource guard that makes scheduler ownership safe; it is not idle expiry and does not close out T18-5.
 
 **No other spine lock is held.** T5-2 merged as `154385c`
 ([PR #27](https://github.com/gareytwin1/plant-simulator/pull/27)) and released

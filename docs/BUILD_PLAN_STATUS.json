@@ -23,7 +23,7 @@
     },
     "M2": {
       "name": "Simulation Engine and Clock",
-      "complete": 5,
+      "complete": 6,
       "total": 6
     },
     "M3": {
@@ -428,9 +428,9 @@
         "app/main.py",
         "app/config.py"
       ],
-      "status": "Ready for Review",
-      "status_key": "review",
-      "note": "File-list correction: the build plan named only static/compressor.js, but static/pump.js independently steps pump physics via /api/pump/step on the same 1-second timer -- left alone it would keep one browser-driven engine alive and double-step against its own scheduler, so it changed too. Design settled first in docs/T2-6_SCHEDULER_OWNERSHIP.md (approved): Session creates compressor_scheduler/pump_scheduler and starts neither; /compressor and /pump each start only their own; Session.end() (direct, SessionRegistry.end(), or LRU eviction past config.MAX_SESSIONS=32) stops and joins both; /api/step and /api/pump/step return 409 while their scheduler runs; Scheduler gained snapshot_locked() for state reads that also need a live-device query over a solved value. 752 passed (738 baseline + 14 new), stable across repeated runs; mypy clean over 24 source files; no golden trace moved. Not pushed, no PR opened, not merged."
+      "status": "Complete",
+      "status_key": "done",
+      "note": "File-list correction: the build plan named only static/compressor.js, but static/pump.js independently steps pump physics via /api/pump/step on the same 1-second timer -- left alone it would keep one browser-driven engine alive and double-step against its own scheduler, so it changed too. Design settled first in docs/T2-6_SCHEDULER_OWNERSHIP.md (approved): Session creates compressor_scheduler/pump_scheduler and starts neither; /compressor and /pump each start only their own; Session.end() (direct, SessionRegistry.end(), or LRU eviction past config.MAX_SESSIONS=32) stops and joins both; /api/step and /api/pump/step return 409 while their scheduler runs; Scheduler gained snapshot_locked() for state reads that also need a live-device query over a solved value. 753 passed (738 baseline + 15 new), stable across repeated runs; mypy clean over 24 source files; no golden trace moved. Merged to main (4e48949), PR #38."
     },
     {
       "id": "T3-1",

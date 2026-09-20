@@ -558,6 +558,36 @@ rather than assignment targets, and reject the contradictions ADR 0002 section
 **Then T5-5**, which is Blocked until both land. **T5-4 now follows T5-5**, not
 T5-2 — see *T5-4 and the conservation identity* below.
 
+#### T5-5 resumes at construction, not at design
+
+**There is no second architecture phase for T5-5, and starting one is a
+mistake.** T5-5's design phase already ran; its output is ADR 0002. Section 1
+of that ADR describes the investigation in the past tense — *"A design
+investigation against `f8aab59` was asked to confirm the train's intent before
+writing design values"* — and it is a record of work that finished, **not a
+template for doing it again**.
+
+Once T3-7 and T5-6 are merged, T5-5 goes straight into plant construction:
+write `config/plants/olefins_lite.yaml`, choose and justify design values, size
+the train, write the tests, meet the acceptance criteria. Every structural
+question is already answered and is to be *implemented*, not reopened:
+
+| Question | Settled by |
+|---|---|
+| How is the vessel wired? | Shared-node idiom — one node per phase (ADR 0002 §3.8) |
+| What does a port declare? | `phase` and `service`, delivered by T3-7 (§3.1–3.2) |
+| How do several nozzles combine? | Summed over matching typed ports, delivered by T5-6 (§3.3) |
+| Are the valves controlled? | No. PV-101 and LV-101 are **manual at fixed position**; M8 owns the loops (§3.7) |
+| Is composition modelled? | No. No flash, no K-values, no component balances (§3.6) |
+
+**The one thing that warrants stopping.** If no choice of design values gives
+both a credible cold start *and* a credible running point, that is the missing
+**check valve** — see ADR 0001 section 2.9 and *A resistance-only valve cannot
+stop reverse flow* under Known technical debt. Escalate it as its own task.
+Do **not** redesign the vessel connection model, and do **not** shorten a test
+horizon to hide it — hiding it behind a horizon is the precise defect ADR 0002
+was written to remove.
+
 ### Critical path after Checkpoint B
 
 **M4 and the coupling are both done.** T4-4, **T4-5** (cause-and-effect suite,

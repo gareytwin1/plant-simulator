@@ -643,8 +643,8 @@
       "files": [
         "app/equipment/vessel.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
+      "status": "Ready for Review",
+      "status_key": "review",
       "startable": true,
       "note": "Receives already settled, and must not redesign: flow-domain semantics (T3-5), C3 named-port wiring (T3-6), and solver orchestration (unchanged, one solver per domain). The vessel is a COUPLING device: it declares a C3 ports map and an EMPTY paths list, so it holds no C2 Branch, appears in no Topology and in no Topology.devices, and its single identity lives in Plant.devices with its ports bound by Port.connect. It terminates one domain and originates another through its ports; a device whose ports attach to nodes in two different domains is valid and is the coupling mechanism. Its level and pressure are slow state advanced by integrate(dt). It does NOT build the boundary-condition update (T5-2) and does NOT widen characteristic(flow). If any of those seem necessary, stop and escalate against docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md, Amendment 1."
     },

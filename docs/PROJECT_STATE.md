@@ -291,7 +291,17 @@ and has a task that retires it.
 
 ## Active branches and PRs
 
-No open PRs and no code branch in flight; **no spine lock is held.** T5-1 merged as `b8af231` ([PR #23](https://github.com/gareytwin1/plant-simulator/pull/23)): `Vessel` and `tests/test_vessel.py`, nothing else. T3-4 merged
+**T4-4 (Checkpoint B) is in flight and holds the spine lock.**
+[PR #25](https://github.com/gareytwin1/plant-simulator/pull/25) from
+`refactor/solver-integration`, rebased on `9720aed`, 486 passed and `mypy`
+clean — **Ready for Review, not merged.** It wires the solver into
+`Engine.step()` and retires both devices' standalone operating point, and it
+also holds `app/main.py` and `app/engine/sessions.py`, which the live routes
+forced into scope. **Freeze other merges until it lands**, and release both
+locks the moment it does. T7-1 only adds a new file, so it is safe to develop
+alongside and merge after.
+
+T5-1 merged as `b8af231` ([PR #23](https://github.com/gareytwin1/plant-simulator/pull/23)): `Vessel` and `tests/test_vessel.py`, nothing else. T3-4 merged
 as `d6a6cfb` ([PR #19](https://github.com/gareytwin1/plant-simulator/pull/19)): two
 single-domain reference fixtures and their tests, nothing under `app/`.
 

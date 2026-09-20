@@ -1,5 +1,5 @@
 """
-Coupling: the one place slow state pushes back on the hydraulics — T5-2.
+Coupling: the one place slow state pushes back on the hydraulics — T5-2, T5-3.
 
 `NetworkSolver` solves one flow domain against fixed boundary conditions and
 knows nothing about any other domain. What joins two domains is a coupling
@@ -30,15 +30,27 @@ that sum is exactly what crossed the battery limit and needs no correction.
 More than one branch may meet the node, and the port's `direction` — never
 its name — decides the sign.
 
-**Units.** A vessel's flows are GPM. A vessel port may legitimately attach to
-a gas node, and SCFM summed into a GPM attribute would be silently wrong
-rather than loudly wrong, so a port is coupled only where the flow unit can
-be *confirmed* GPM from the devices on the branches that meet it. A machine
-declares its unit; a resistance such as the control valve has none of its own
-and takes it from the domain it sits in (`liquid` GPM, `gas` SCFM), refusing
-any other domain name. A gas attachment is left alone — the gas side is
-T5-3's. A node whose devices this module cannot classify, or whose devices
-disagree, raises when the Engine is built, because guessing is the failure mode this check exists to prevent.
+**Units.** A vessel holds two phases and keeps their flows apart: GPM in
+`inlet_flow` / `outlet_flow`, SCFM in `gas_inlet_flow` / `gas_outlet_flow`.
+A vessel port may attach to either kind of node, and SCFM summed into a GPM
+attribute would be silently wrong rather than loudly wrong, so a port is
+coupled only where the flow unit can be *confirmed* from the devices on the
+branches that meet it, and that unit — never the port's name — picks the
+attributes. A machine declares its unit; a resistance such as the control
+valve has none of its own and takes it from the domain it sits in (`liquid`
+GPM, `gas` SCFM), refusing any other domain name. A node whose devices this
+module cannot classify, or whose devices disagree, raises when the Engine is
+built, because guessing is the failure mode this check exists to prevent. A
+node with no branches to read a unit from is left alone.
+
+**Gas (T5-3).** The vessel's pressure is integrated slow state and is written
+as the runtime boundary at *every* gas attachment, inlet and outlet alike:
+the gas space is one well-mixed pressure, and an inlet-side machine has to
+see it rise as the vessel fills or a blocked outlet would be an unbounded
+ramp instead of a back-pressure. That is a replacement, where the liquid head
+is an offset from the as-built pressure, and it never touches
+`configured_pressure`. The liquid head is never applied to a gas boundary.
+A confirmed SCFM attachment is also what activates the vessel's gas phase.
 
 **Where the attachment must be.** A coupled node has to be a boundary node of
 its domain. That is what ADR 0001 A7 says every coupling attachment will be,
@@ -81,8 +93,8 @@ DOMAIN_UNITS: dict[str, str] = {
     "gas": SCFM,
 }
 
-# What a Vessel's inlet_flow and outlet_flow are measured in.
-INVENTORY_UNIT = GPM
+# The two phases a Vessel carries, by the flow unit that identifies each.
+INVENTORY_UNITS: frozenset[str] = frozenset({GPM, SCFM})
 
 
 class Attachment:
@@ -95,12 +107,14 @@ class Attachment:
     __slots__ = (
         "port",
         "domain",
+        "unit",
         "topology",
         "node",
     )
 
     port: Port
     domain: str
+    unit: str
     topology: Topology
     node: Node
 
@@ -108,11 +122,13 @@ class Attachment:
         self,
         port: Port,
         domain: str,
+        unit: str,
         topology: Topology,
         node: Node,
     ) -> None:
         self.port = port
         self.domain = domain
+        self.unit = unit
         self.topology = topology
         self.node = node
 
@@ -146,7 +162,7 @@ class Attachment:
 
 
 class VesselCoupling:
-    """One vessel and the confirmed-liquid attachments it couples through.
+    """One vessel and the confirmed attachments it couples through.
 
     A vessel with no confirmed attachment still gets a Coupling, holding
     none. It integrates on whatever flows a caller writes, exactly as it did
@@ -162,17 +178,24 @@ class VesselCoupling:
         self.attachments: tuple[Attachment, ...] = tuple(attachments)
 
     def write_boundary_pressures(self) -> None:
-        """Push the inventory head down into the plant.
+        """Push the inventory down into the plant.
 
-        The head lands on the outlet attachment only — the node the vessel
-        *supplies*. An inlet attachment is a node the plant delivers to, and
-        its pressure stays the battery limit the config gave it.
+        A liquid head lands on the outlet attachment only — the node the
+        vessel *supplies*. An inlet attachment is a node the plant delivers
+        to, and its pressure stays the battery limit the config gave it.
+        Gas pressure is the vessel's own and lands on every gas attachment.
         """
         for attachment in self.attachments:
-            if attachment.port.direction == INLET:
+            node = attachment.node
+
+            if attachment.unit == SCFM:
+                self.vessel.activate_gas()
+                node.set_boundary_pressure(self.vessel.pressure)
+
                 continue
 
-            node = attachment.node
+            if attachment.port.direction == INLET:
+                continue
 
             node.set_boundary_pressure(
                 node.configured_pressure + self.vessel.head,
@@ -192,10 +215,18 @@ class VesselCoupling:
             if attachment.domain not in solved:
                 continue
 
-            if attachment.port.direction == INLET:
-                self.vessel.inlet_flow = attachment.net_flow
+            flow = attachment.net_flow
+            inlet = attachment.port.direction == INLET
+
+            if attachment.unit == SCFM:
+                if inlet:
+                    self.vessel.gas_inlet_flow = flow
+                else:
+                    self.vessel.gas_outlet_flow = flow
+            elif inlet:
+                self.vessel.inlet_flow = flow
             else:
-                self.vessel.outlet_flow = attachment.net_flow
+                self.vessel.outlet_flow = flow
 
     def __repr__(self) -> str:
         return f"VesselCoupling({self.vessel.tag!r}, {list(self.attachments)})"
@@ -208,7 +239,7 @@ def build_couplings(
     """Bind every coupling device in the plant to the graph around it.
 
     Raises where an attachment cannot be coupled safely — an unclassifiable
-    flow unit, two domains meeting at one node, or a liquid attachment on an
+    flow unit, two domains meeting at one node, or an attachment on an
     internal node. All three are modelling errors, and the Engine is built
     once per plant, so this is the cheapest place to find them.
     """
@@ -242,7 +273,9 @@ def _attachment(
     domain, topology = located
     node = topology.node(port.node.id)
 
-    if _unit_at(device, port, domain, topology, node) != INVENTORY_UNIT:
+    unit = _unit_at(device, port, domain, topology, node)
+
+    if unit not in INVENTORY_UNITS:
         return None
 
     if not node.is_boundary:
@@ -252,7 +285,9 @@ def _attachment(
             f"node of the domain it terminates (ADR 0001, A7)",
         )
 
-    return Attachment(port, domain, topology, node)
+    assert unit is not None
+
+    return Attachment(port, domain, unit, topology, node)
 
 
 def _locate(

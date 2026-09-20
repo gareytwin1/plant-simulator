@@ -47,6 +47,7 @@ import yaml
 from app.equipment.base import INLET, OUTLET, Equipment
 from app.equipment.compressor import GasCompressor
 from app.equipment.pump import CentrifugalPump
+from app.equipment.vessel import Vessel
 from app.plant.topology import Branch, Node, Topology
 from app.plant.validate import validate
 
@@ -69,6 +70,7 @@ PASSTHROUGH_SECTIONS = (
 DEVICE_TYPES: dict[str, type[Equipment]] = {
     "pump": CentrifugalPump,
     "compressor": GasCompressor,
+    "vessel": Vessel,
 }
 
 
@@ -738,6 +740,10 @@ def _apply_design(
             errors.append(
                 f"{path}.{key}: {device.tag}.{key} is derived and cannot be set",
             )
+        except ValueError as error:
+            # A device guarding its own range (Vessel.capacity, .level) says
+            # why in its own words; the loader only adds the config path.
+            errors.append(f"{path}.{key}: {error}")
 
     return errors
 

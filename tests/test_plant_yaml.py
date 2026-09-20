@@ -175,16 +175,17 @@ def test_yaml_cannot_smuggle_python_objects(tmp_path):
     assert rejected_file(path)
 
 
-# The reference train needs a separator. No vessel model exists, so a plant
-# naming one must be refused rather than loaded with a stand-in.
+# C3's `type` enum names more kinds than exist. A type with no model must be
+# refused rather than loaded with a stand-in. The vessel gained its model at
+# T5-2, so the furnace carries this now.
 
 
-def test_a_vessel_is_refused_until_a_vessel_model_exists(tmp_path):
+def test_a_type_with_no_model_is_refused_rather_than_stood_in_for(tmp_path):
     config = valid_config()
     config["equipment"].append(
         {
-            "tag": "V-101",
-            "type": "vessel",
+            "tag": "F-101",
+            "type": "furnace",
             "node_in": "N-02",
             "node_out": "N-03",
             "design": {},
@@ -193,4 +194,4 @@ def test_a_vessel_is_refused_until_a_vessel_model_exists(tmp_path):
 
     errors = rejected_file(write(tmp_path, "plant.yaml", config))
 
-    assert any("'vessel' has no device model yet" in error for error in errors)
+    assert any("'furnace' has no device model yet" in error for error in errors)

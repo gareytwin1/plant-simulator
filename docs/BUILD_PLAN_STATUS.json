@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "20 September 2026",
-  "main_sha": "e2611340f735b4ba4fbf94891aa645801174cff4",
-  "tests_passing_on_main": 567,
+  "main_sha": "fefa8411be9867a3585b44ac4052cc9870300e7d",
+  "tests_passing_on_main": 681,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -48,7 +48,7 @@
     },
     "M7": {
       "name": "Control Valves and Final Elements",
-      "complete": 0,
+      "complete": 1,
       "total": 4
     },
     "M8": {
@@ -114,8 +114,8 @@
   },
   "totals": {
     "tasks": 97,
-    "complete": 29,
-    "startable_now": 17
+    "complete": 30,
+    "startable_now": 18
   },
   "tasks": [
     {
@@ -839,9 +839,10 @@
         "config/plants/liquid_valve_train.yaml",
         "tests/test_control_valve.py"
       ],
-      "status": "Ready for Review",
-      "status_key": "review",
-      "note": "Also inherits the cold-start criterion dropped from T3-4: a reference fixture reaches a plausible steady state from cold once the valve supplies a system curve. See docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md section 2.9.\n\nGained two acceptance criteria from the T4-5 re-scope, 20 Sep 2026: 'Closing a downstream valve lowers flow and raises upstream pressure' and 'Added restriction raises upstream pressure'. Neither can be written until a valve sits on its own branch - after T4-4 the network has no resistance but the machine's own, and the compressor's discharge valve strokes without changing flow. T4-4 was added to depends_on for that reason: a valve's effect on a plant is asserted through Engine.from_plant() and the snapshot, the way tests/test_cause_effect.py does.\n\nReady for Review: 681 tests and mypy green, golden traces unmoved. ControlValve (linear / equal-percentage, rate-limited stroke, min_position floor, fail-open / fail-closed); flow unit resolved from the domain in coupling.py (liquid GPM, gas SCFM; default and unknown domains refuse). Config key is flow_characteristic because Equipment.characteristic is a method. Reference plant config/plants/liquid_valve_train.yaml. Touches coupling.py, so T5-3 should start after this merges."
+      "status": "Complete",
+      "status_key": "done",
+      "startable": false,
+      "note": "Also inherits the cold-start criterion dropped from T3-4: a reference fixture reaches a plausible steady state from cold once the valve supplies a system curve. See docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md section 2.9.\n\nGained two acceptance criteria from the T4-5 re-scope, 20 Sep 2026: 'Closing a downstream valve lowers flow and raises upstream pressure' and 'Added restriction raises upstream pressure'. Neither can be written until a valve sits on its own branch - after T4-4 the network has no resistance but the machine's own, and the compressor's discharge valve strokes without changing flow. T4-4 was added to depends_on for that reason: a valve's effect on a plant is asserted through Engine.from_plant() and the snapshot, the way tests/test_cause_effect.py does.\n\nMerged to main as fefa8411be9867a3585b44ac4052cc9870300e7d (fefa841, PR #32, merge commit from feat/t7-1-control-valve), 20 Sep. 681 tests passed and mypy clean over 23 source files on the branch before merge; the merge was clean and added nothing further. No golden traces changed. ControlValve (linear / equal-percentage, rate-limited stroke, min_position floor, fail-open / fail-closed); flow unit resolved from the domain in coupling.py (liquid GPM, gas SCFM; default and unknown domains refuse). Config key is flow_characteristic because Equipment.characteristic is a method. Reference plant config/plants/liquid_valve_train.yaml. Touches coupling.py, so T5-3 should start after this merges."
     },
     {
       "id": "T7-2",
@@ -882,10 +883,7 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "T7-1"
-      ]
+      "startable": true
     },
     {
       "id": "T7-4",
@@ -901,10 +899,7 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "T7-1"
-      ]
+      "startable": true
     },
     {
       "id": "T8-1",

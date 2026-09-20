@@ -11,9 +11,15 @@ one per attempt. A config with a typo'd node id usually has three more, and
 fixing them one load at a time is the slow way to find out.
 
 Solvability here means: every reference resolves, every tag and id is unique,
-every device port is wired, there is at least one boundary and each boundary
-holds a positive absolute pressure, and the graph is one connected piece.
-Whether the solver then *converges* is the solver's business (T4-2).
+every device port is wired, every flow domain has at least one boundary and each
+boundary holds a positive absolute pressure, and each domain is one connected
+piece. Whether the solver then *converges* is the solver's business (T4-2).
+
+A node may declare a flow `domain`. `NetworkSolver` solves one domain only, so
+the loader partitions the plant into one Topology per domain and rejects a
+branch whose two nodes disagree, where the error can name a config path. A node
+that declares nothing is in DEFAULT_DOMAIN; a domain is never inherited from a
+neighbour.
 
 Plant files may be JSON or YAML (`.json`, `.yaml`, `.yml`). The format is
 resolved before validation; after that there is one path.
@@ -37,6 +43,8 @@ from app.equipment.pump import CentrifugalPump
 from app.plant.topology import Branch, Node, Topology
 from app.plant.validate import validate
 
+
+DEFAULT_DOMAIN = "default"
 
 CONFIG_SUFFIXES = (".json", ".yaml", ".yml")
 
@@ -65,50 +73,62 @@ class PlantConfigError(ValueError):
 
 
 class Plant:
-    """A loaded plant: its topology, plus the config that produced it.
+    """A loaded plant: its topologies, plus the config that produced it.
 
     `to_config()` reads design values back off the live devices, so what it
     returns is the plant as it stands, not a stale copy of the file. For a
     freshly loaded plant that is the same config, which is the round-trip the
     loader promises.
+
+    `nodes` is every node in config order, across all domains; `topologies`
+    holds one Topology per flow domain in the order each first appears.
     """
 
     def __init__(
         self,
-        topology: Topology,
+        topologies: Mapping[str, Topology],
+        nodes: Mapping[str, Node],
+        declared_domains: Mapping[str, str],
+        branches: Mapping[str, Branch],
         design_keys: Mapping[str, list[str]],
         equipment_types: Mapping[str, str],
         passthrough: Mapping[str, Any],
     ) -> None:
-        self.topology = topology
+        self.topologies: dict[str, Topology] = dict(topologies)
+        self.nodes: dict[str, Node] = dict(nodes)
 
+        self._declared_domains = dict(declared_domains)
+        self._branches = dict(branches)
         self._design_keys = {tag: list(keys) for tag, keys in design_keys.items()}
         self._equipment_types = dict(equipment_types)
         # Decoded JSON of sections no subsystem interprets yet.
         self._passthrough: dict[str, Any] = copy.deepcopy(dict(passthrough))
 
+    @property
+    def topology(self) -> Topology:
+        if len(self.topologies) != 1:
+            raise ValueError(
+                f"plant spans {len(self.topologies)} flow domains "
+                f"{list(self.topologies)}, use Plant.topologies",
+            )
+
+        return next(iter(self.topologies.values()))
+
     def to_config(self) -> dict[str, Any]:
         config: dict[str, Any] = {
-            "nodes": [
-                {
-                    "id": node.id,
-                    "boundary": node.is_boundary,
-                    "pressure": node.pressure,
-                }
-                for node in self.topology.nodes.values()
-            ],
+            "nodes": [self._node_config(node) for node in self.nodes.values()],
             "equipment": [
                 {
-                    "tag": branch.device.tag,
-                    "type": self._equipment_types[branch.device.tag],
+                    "tag": tag,
+                    "type": self._equipment_types[tag],
                     "node_in": branch.from_node.id,
                     "node_out": branch.to_node.id,
                     "design": {
                         key: getattr(branch.device, key)
-                        for key in self._design_keys[branch.device.tag]
+                        for key in self._design_keys[tag]
                     },
                 }
-                for branch in self.topology.branches.values()
+                for tag, branch in self._branches.items()
             ],
         }
 
@@ -117,6 +137,18 @@ class Plant:
                 config[section] = copy.deepcopy(self._passthrough[section])
 
         return config
+
+    def _node_config(self, node: Node) -> dict[str, Any]:
+        item: dict[str, Any] = {
+            "id": node.id,
+            "boundary": node.is_boundary,
+            "pressure": node.pressure,
+        }
+
+        if node.id in self._declared_domains:
+            item["domain"] = self._declared_domains[node.id]
+
+        return item
 
 
 def load_plant(
@@ -135,15 +167,20 @@ def load_plant(
     if errors:
         raise PlantConfigError(errors)
 
-    topology, design_keys, errors = _build(config, types)
+    topologies, nodes, branches, design_keys, errors = _build(config, types)
 
-    errors += _solvability_errors(topology)
+    errors += _solvability_errors(topologies)
 
     if errors:
         raise PlantConfigError(errors)
 
     return Plant(
-        topology=topology,
+        topologies=topologies,
+        nodes=nodes,
+        declared_domains={
+            node["id"]: node["domain"] for node in config["nodes"] if "domain" in node
+        },
+        branches=branches,
         design_keys=design_keys,
         equipment_types={item["tag"]: item["type"] for item in config["equipment"]},
         passthrough={
@@ -217,10 +254,9 @@ def _reference_errors(
                 f"absolute pressure to anchor the network",
             )
 
-    if not any(node["boundary"] for node in config["nodes"]):
-        errors.append(
-            "$.nodes: no boundary node — nothing anchors the pressure field",
-        )
+    errors += _boundary_errors(config)
+
+    domains = {node["id"]: node for node in config["nodes"]}
 
     tag_paths: dict[str, str] = {}
 
@@ -254,26 +290,102 @@ def _reference_errors(
                 f"{item['node_in']!r}",
             )
 
+        if item["node_in"] in node_paths and item["node_out"] in node_paths:
+            errors += _domain_agreement_errors(item, path, domains)
+
     return errors
+
+
+def _domain_of(node: Mapping[str, Any]) -> str:
+    return str(node.get("domain", DEFAULT_DOMAIN))
+
+
+def _domain_names(config: Mapping[str, Any]) -> list[str]:
+    # Order of first appearance in config["nodes"], which fixes the order of
+    # Plant.topologies.
+    return list(dict.fromkeys(_domain_of(node) for node in config["nodes"]))
+
+
+def _boundary_errors(config: Mapping[str, Any]) -> list[str]:
+    names = _domain_names(config)
+
+    errors: list[str] = []
+
+    for name in names:
+        if any(
+            node["boundary"] for node in config["nodes"] if _domain_of(node) == name
+        ):
+            continue
+
+        if len(names) == 1:
+            errors.append(
+                "$.nodes: no boundary node — nothing anchors the pressure field",
+            )
+        else:
+            errors.append(
+                f"$.nodes: domain {name!r} has no boundary node — nothing "
+                f"anchors its pressure field",
+            )
+
+    return errors
+
+
+def _domain_agreement_errors(
+    item: Mapping[str, Any],
+    path: str,
+    nodes: Mapping[str, Mapping[str, Any]],
+) -> list[str]:
+    ends = [nodes[item["node_in"]], nodes[item["node_out"]]]
+
+    if _domain_of(ends[0]) == _domain_of(ends[1]):
+        return []
+
+    described = []
+
+    for node in ends:
+        text = f"{node['id']!r} is in domain {_domain_of(node)!r}"
+
+        if "domain" not in node:
+            text += f" (the default, no domain was declared for {node['id']!r})"
+
+        described.append(text)
+
+    return [
+        f"{path}: {item['tag']!r} joins two flow domains, "
+        f"{described[0]} but {described[1]} — a branch cannot cross domains",
+    ]
 
 
 def _build(
     config: Mapping[str, Any],
     types: Mapping[str, type[Equipment]],
-) -> tuple[Topology, dict[str, list[str]], list[str]]:
+) -> tuple[
+    dict[str, Topology],
+    dict[str, Node],
+    dict[str, Branch],
+    dict[str, list[str]],
+    list[str],
+]:
     errors: list[str] = []
 
-    topology = Topology(
-        nodes=[
-            Node(
-                id=node["id"],
-                pressure=node["pressure"],
-                is_boundary=node["boundary"],
-            )
-            for node in config["nodes"]
-        ],
-    )
+    nodes = {
+        node["id"]: Node(
+            id=node["id"],
+            pressure=node["pressure"],
+            is_boundary=node["boundary"],
+        )
+        for node in config["nodes"]
+    }
+    node_domains = {node["id"]: _domain_of(node) for node in config["nodes"]}
 
+    topologies = {
+        name: Topology(
+            nodes=[nodes[node_id] for node_id, d in node_domains.items() if d == name],
+        )
+        for name in _domain_names(config)
+    }
+
+    branches: dict[str, Branch] = {}
     design_keys: dict[str, list[str]] = {}
 
     for i, item in enumerate(config["equipment"]):
@@ -286,19 +398,25 @@ def _build(
         errors += design_errors
         design_keys[item["tag"]] = list(item["design"])
 
+        # Domain agreement was checked with the references, so both ends are
+        # in one topology here.
+        topology = topologies[node_domains[item["node_in"]]]
+
         try:
-            topology.add_branch(
-                Branch(
-                    id=f"B-{item['tag']}",
-                    from_node=topology.node(item["node_in"]),
-                    to_node=topology.node(item["node_out"]),
-                    device=device,
-                ),
+            branch = Branch(
+                id=f"B-{item['tag']}",
+                from_node=topology.node(item["node_in"]),
+                to_node=topology.node(item["node_out"]),
+                device=device,
             )
+
+            topology.add_branch(branch)
         except ValueError as error:
             errors.append(f"{path}: {error}")
+        else:
+            branches[item["tag"]] = branch
 
-    return topology, design_keys, errors
+    return topologies, nodes, branches, design_keys, errors
 
 
 def _apply_design(
@@ -346,26 +464,28 @@ def _same_kind(current: Any, value: Any) -> bool:
     return isinstance(value, type(current))
 
 
-def _solvability_errors(topology: Topology) -> list[str]:
+def _solvability_errors(topologies: Mapping[str, Topology]) -> list[str]:
     errors: list[str] = []
 
-    for tag, port in topology.unconnected_ports():
-        errors.append(
-            f"device {tag}: port {port.name!r} ({port.direction}) is not "
-            f"wired to any node",
-        )
+    for name, topology in topologies.items():
+        for tag, port in topology.unconnected_ports():
+            errors.append(
+                f"device {tag}: port {port.name!r} ({port.direction}) is not "
+                f"wired to any node",
+            )
 
-    components = _components(topology)
+        components = _components(topology)
 
-    if len(components) > 1:
-        described = "; ".join(
-            "{" + ", ".join(component) + "}" for component in components
-        )
+        if len(components) > 1:
+            described = "; ".join(
+                "{" + ", ".join(component) + "}" for component in components
+            )
+            where = "the graph" if len(topologies) == 1 else f"domain {name!r}"
 
-        errors.append(
-            f"$.nodes: the graph is not one connected piece, "
-            f"{len(components)} disconnected subgraphs: {described}",
-        )
+            errors.append(
+                f"$.nodes: {where} is not one connected piece, "
+                f"{len(components)} disconnected subgraphs: {described}",
+            )
 
     return errors
 

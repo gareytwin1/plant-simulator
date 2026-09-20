@@ -2,9 +2,9 @@
 
 | | |
 |---|---|
-| **Status** | Accepted 19 September 2026. Applied to `docs/BUILD_PLAN.html`, the live build-plan artifact, `docs/BUILD_PLAN_STATUS.json` and `CLAUDE.md`. No code, schema, loader or solver change has been made. `docs/PROJECT_STATE.md` has **not** been refreshed and still describes T3-4 as undecided and T4-4 and T5-1 as startable. |
+| **Status** | Accepted 19 September 2026, **amended 19 September 2026 by [Amendment 1](#amendment-1--the-connection-model-what-ports-means-and-where-an-inventory-device-lives)**, which corrects D7, D8 and D9 and splits T3-5. Read Section 3 together with the amendment: where the two disagree, the amendment wins. Applied to `docs/BUILD_PLAN.html`, the live build-plan artifact, `docs/BUILD_PLAN_STATUS.json` and `CLAUDE.md`. No code, schema, loader or solver change has been made. `docs/PROJECT_STATE.md` has **not** been refreshed and still describes T3-4 as undecided and T4-4 and T5-1 as startable. |
 | **Date** | 19 September 2026 |
-| **Decides for** | T3-4, T3-5 (new), T4-4 ordering, T5-1, T5-2, T5-5 (new) |
+| **Decides for** | T3-4, T3-5 (new), T3-6 (new, Amendment 1), T4-4 ordering, T5-1, T5-2, T5-5 (new) |
 | **Verified against** | `main` at `7b54ec9`, 372 tests passing, `mypy` clean |
 | **Supersedes** | The two open questions recorded in the T3-3 note (multi-port C3 wiring, flow-domain metadata) |
 
@@ -97,6 +97,15 @@ correctly de-duplicated in `Topology.devices`.
 > **The immediate multi-port configuration gap is C3, and only C3.**
 > Do not propose a C1 or C2 rewrite to solve it.
 
+**Amended.** The finding is true of a multi-port *branch* device and was
+over-generalised to the separator. A `Branch` needs an explicit `from_port` /
+`to_port` **pair**; a named-port map says only which node each port attaches to
+and does not name pairs, so it cannot build branches on its own. And under D7
+the separator is not a branch device at all, so C2 is not where it lives. See
+[Amendment 1](#amendment-1--the-connection-model-what-ports-means-and-where-an-inventory-device-lives),
+A1 and A4. The conclusion — no C1 or C2 rewrite — survives; the reasoning does
+not.
+
 ### 2.4 Confirmed — C3 is the wiring gap
 
 `config/schema/plant.schema.json` requires `tag`, `type`, `node_in`, `node_out`
@@ -115,6 +124,11 @@ through this interface.
 Recorded as a known limitation. **This ADR does not widen the C1 characteristic
 contract**, and under the decision below the limitation does not block anything:
 the separator is not modelled as one branch device carrying both domains.
+
+**Amendment 1 makes the limitation enforced rather than latent.** C2 accepts a
+device on two branches, so the limitation is reachable from config the moment
+named ports exist. A6 turns it into a load-time rejection: at most one hydraulic
+path per device until a task explicitly widens C1.
 
 ### 2.6 Corrected (this ADR's own earlier draft) — domain is not device-wide
 
@@ -222,6 +236,11 @@ The critical invariant, stated once:
 > **D7.** The separator is **not** a branch device carrying both domains. It
 > terminates the liquid domain and originates the gas domain. This is why
 > finding 2.5 (`characteristic(flow)` is device-wide) does not block anything.
+>
+> **Amended by A4.** D7 is upheld and made concrete: a device in no hydraulic
+> path is in **no `Topology` at all**, because `Topology.devices` is derived
+> from `Topology.branches` and C2 has no device-only registration. Its identity
+> lives on `Plant`. D7 stated what the vessel is not; A4 states where it is.
 
 ```
    LIQUID DOMAIN  ·  GPM                              GAS DOMAIN  ·  SCFM
@@ -246,6 +265,17 @@ The critical invariant, stated once:
 >
 > **D9.** C3 gains named-port wiring for genuine multi-port devices, as an
 > **additive** change that keeps `node_in` / `node_out` working unchanged.
+>
+> **D8 amended — conclusion upheld, premise replaced.** C1 and C2 are still not
+> modified, but not because "multi-port support already exists". It is because
+> an inventory device lives **outside** C2 (A4) and its port-to-node binding is
+> made with `Port.connect()`, which is existing C1 API. See A9, A10, A12.
+>
+> **D9 amended — a named-port map is not sufficient wiring.** It says which node
+> each port attaches to and nothing about which two ports form a branch. C3 needs
+> a **second, separate** declaration for hydraulic paths (A2), and the
+> `oneOf` this ADR assumed cannot be used, because the C3 validator silently
+> ignores `oneOf` (finding A-E3). See A2 and A11.
 >
 > **D10.** `characteristic(flow)` is **not** widened in this work.
 
@@ -471,6 +501,13 @@ nodes and therefore no mass balance at all.
 
 ### 7.2 T3-5 — new, the one prerequisite task
 
+> **Superseded by [Amendment 1](#amendment-1--the-connection-model-what-ports-means-and-where-an-inventory-device-lives), A11.**
+> T3-5 is split. The task block below — which folds named-port wiring into T3-5
+> and describes it as a schema `oneOf` — is retained only as the record of what
+> was decided on the first pass. **Do not implement it.** The current
+> specification of T3-5 and of the new T3-6 is A11, and the applied build-plan
+> text is in `docs/BUILD_PLAN.html`.
+
 ```js
   {id:"T3-5",m:"M3",cat:"dep",n:"Flow-domain declaration and multi-port wiring",
    p:"Make the single-domain rule enforceable instead of conventional. A mixed liquid/gas topology currently loads and solves to a confident, meaningless answer; this rejects it at load, where the error can name a config path. Carries C3's named-port wiring in the same schema pass, so T5-1 never has to invent it.",
@@ -663,7 +700,9 @@ Recorded so a later session finds it rather than rediscovering it.
 |---|---|---|
 | The boundary-condition update API | **T5-2** | Needs the vessel to exist. D11 fixes the rule it must obey. |
 | `Port.domain` self-declaration in C1 | Optional hardening, unscheduled | The loader can compute port domains from config alone (D-note in 3.4). Would only add device-side validation, e.g. catching a pump wired into a gas node. |
-| Widening `characteristic(flow)` with a port or branch argument | Unscheduled | Not needed under D7. Raise a new ADR if a genuine multi-branch branch device appears. |
+| Widening `characteristic(flow)` with a port or branch argument | Unscheduled | Not needed under D7. Raise a new ADR if a genuine multi-branch branch device appears. **A6 now enforces the limitation at load** — more than one hydraulic path on one device is rejected — so the widening task is also the task that deletes that check. |
+| Requiring a coupling device's attachment node to be a boundary node | **T5-2** | It will be one in every plant T5-2 builds, because that is the node the vessel's integrated pressure is written to (D11). Enforcing it in T3-6 would forbid an inventory device attached mid-line before anything has tried one. See A7. |
+| Extending the C3 validator with `oneOf` | Unscheduled, and discouraged | A combinator failure cannot name which alternative the author meant, and C3's whole error-quality bet is naming the offending path. A2 expresses the alternation in the loader instead. |
 | **"Reaches a plausible steady state from cold"** | **T7-1** (control valve) | Finding 2.9: unachievable with no check valve, line resistance or control valve. The network's only resistance is the machine's own. |
 | A parallel-pump fixture | T4-5 | The cause-and-effect suite already specifies *"two parallel pumps raise flow by less than 2x"*. Measured: parallel boosters at 516.4 GPM each feeding a transfer pump at 1032.8 GPM — mass balance exact, but close to the 1200 rating and over it at some boundary choices, so it needs sizing care. |
 | Cross-checking tags in `limits` / `controllers` / `interlocks` | Unscheduled | Recorded at T3-3, unaffected by this ADR. |
@@ -730,6 +769,606 @@ This ADR does **not**, and the work it proposes must not:
 - create the integrated plant — T5-5 does that;
 - regenerate any golden trace;
 - rewrite `CLAUDE.md` beyond the three surgical edits in Section 10.
+
+---
+
+## Amendment 1 — the connection model: what `ports` means, and where an inventory device lives
+
+| | |
+|---|---|
+| **Status** | Accepted 19 September 2026. Amends D7, D8 and D9 of this record. Applied to `docs/BUILD_PLAN.html`, `docs/BUILD_PLAN_STATUS.json` and `docs/PROJECT_STATE.md`. No code, schema or loader change has been made. |
+| **Raised by** | The T3-5 implementation session, which stopped before editing anything. It was right to stop. |
+| **Verified against** | `main` at `b081ed8`, worktree `../plant-simulator-flow-domains` clean |
+| **Amends** | D7 (upheld, made concrete), D8 (conclusion upheld, premise replaced), D9 (corrected), Section 7.2 (superseded) |
+
+### A.0 The contradiction, confirmed
+
+Three contradictions, not two. All three are confirmed.
+
+**C-1 — a named-port map cannot build a branch.** `ports: {liquid_in: N-101,
+liquid_out: N-102, vapor_out: N-201}` states which node each port attaches to.
+`Branch.__init__` needs a **pair** — `from_port` and `to_port` — and
+`_resolve_port` falls back to `_sole_port` only when direction alone is
+unambiguous, which for one inlet and two outlets it is not. Nothing in the map
+says whether the branch is `liquid_in → liquid_out` or `liquid_in → vapor_out`.
+Every way of guessing (declaration order, inlet×outlet cross product, parsing
+`liquid_*` / `vapor_*`, a "primary" outlet) is forbidden, and correctly so.
+Finding 2.3 was true of a multi-port *branch* device and was over-generalised.
+
+**C-2 — "a port wired across domains" is a category error.** A port is wired to
+exactly one node, so it sits in exactly one domain; a *port* cannot span
+domains. The check named in the first-pass T3-5 note is therefore either vacuous
+or, read as "a device whose ports span domains", forbids precisely the separator
+that D7 requires. It is withdrawn and replaced by A5.
+
+**C-3 — new, and not previously recorded: C3's validator cannot express a
+`oneOf`.** `app/plant/validate.py` walks a deliberate subset of JSON Schema —
+`type`, `enum`, `properties`, `required`, `additionalProperties: false`,
+`items`, `minItems`, `minLength`, `minimum`. `oneOf` is **silently ignored**, as
+are `additionalProperties` given as a subschema and `patternProperties`
+(evidence A-E3). D9's prescription "the schema becomes a `oneOf` over it and the
+new `ports` form" would therefore have produced a schema clause nothing
+enforces: validation theatre in the contract whose entire value is being
+checkable.
+
+### A.1 — `ports` is attachment, and only attachment
+
+> **A1.** A C3 `ports` entry binds **one device port to one node**. It declares
+> attachment. It declares **nothing** about flow, about pairing, or about
+> whether the device is in the hydraulic solve at all.
+
+An attachment is `Port.connect(node)` — the binding C1 already models, and the
+only thing C1 lets a port hold. The map is a map of exactly that.
+
+### A.2 — hydraulic paths are declared separately and explicitly
+
+> **A2.** A C3 `paths` entry names an ordered pair of **this device's port
+> names** — `{from: <inlet port>, to: <outlet port>}` — and becomes exactly one
+> C2 `Branch`. One path, one branch, no inference, ever.
+
+`ports` and `paths` are the two concepts of Option C, kept apart because they
+answer different questions: *where is this port* and *what flows through this
+device*. A device may have ports and no paths (A4), or ports and one path. It
+may never have a path whose ports are not in its `ports` map.
+
+**In the `ports` form, `paths` is required, including when it is empty.** An
+empty list is how a config says "this device is not in any hydraulic solve", and
+that statement must be explicit, because the alternative is the loader inferring
+a branch for a device the author meant as a coupler. `paths: []` is the shape of
+that sentence.
+
+**`node_in` / `node_out` is sugar, and is defined by rewriting.** An item
+carrying `node_in` / `node_out` means exactly:
+
+```
+ports: {<the sole inlet port>: node_in, <the sole outlet port>: node_out}
+paths: [{from: <the sole inlet port>, to: <the sole outlet port>}]
+```
+
+There is one connection model, not two. The sugar form is unambiguous by
+construction: a device without exactly one inlet and one outlet cannot use it,
+and is rejected today by `_sole_port` with a message naming the item. That is the
+only place inference exists, and it exists because there is nothing to infer.
+
+### A.3 — the alternation is enforced in the loader, not in the schema
+
+> **A3.** The schema declares `node_in`, `node_out`, `ports` and `paths` as
+> **optional** properties with their own types, and the loader enforces that an
+> item carries exactly one wiring form.
+
+Forced by C-3: `oneOf` is ignored by the validator, and adding it would give an
+error that cannot name which alternative the author meant. The loader's errors
+name `$.equipment[i]`, which is C3's stated bar.
+
+The validator does gain two small, generic additions, because without them a
+`ports` map's values are wholly unchecked: **`additionalProperties` as a
+subschema** and **`minProperties`**. Both are ordinary extensions of the
+existing generic walk and both produce path-named errors. `oneOf` is **not**
+added (Section 9).
+
+### A.4 — a device with no hydraulic path lives on `Plant`, not in a `Topology`
+
+> **A4.** A device whose `paths` is empty is a **coupling device**. It is in no
+> `Topology`, appears in no `Topology.devices`, and `NetworkSolver` never sees
+> it. Its one identity lives in `Plant.devices`, and its ports are bound to
+> their nodes with `Port.connect()`.
+
+This is the concrete form of D7, and it is forced by the code rather than
+chosen: `Topology.devices` is a property derived from `Topology.branches`, and
+C2 has **no** device-only registration (evidence A-E1). A device in no branch
+cannot be in a topology at all. Either C2 grows a device collection — a spine
+change to a frozen contract, for a device that by D7 is not part of the
+hydraulic graph — or the coupling device lives one layer up. It lives one layer
+up.
+
+One object, one slow-state identity, one row in the snapshot. A separator
+touching two domains is **not** duplicated, and `Plant.topologies` holds no
+reference to it.
+
+### A.5 — the cross-domain invariant, stated precisely
+
+> **A5.** Both nodes of a hydraulic **path** must be in the same domain. That is
+> the whole of the cross-domain rule.
+>
+> A **device** whose *ports* attach to nodes in different domains is **valid**,
+> and is the mechanism by which domains are coupled. There is no device-level
+> port-domain rule, and "a port wired across domains" is not a thing that can
+> happen.
+
+D5 is unchanged and is what this serves: no mass-balance node and no solver
+invocation mixes domains. A coupling device introduces no mass-balance row, so
+it cannot violate D5.
+
+### A.6 — at most one hydraulic path per device, enforced at load
+
+> **A6.** A device declaring more than one `paths` entry is **rejected at
+> load**, with an error saying why: `characteristic(flow)` is device-wide, so a
+> second path would publish the same curve — in the same flow unit — into a
+> second branch.
+
+C2 accepts a device on two branches, and accepts two branches sharing one port
+when they meet at the same node (evidence A-E2), so this is reachable from
+config the moment `paths` exists. Finding 2.5 recorded the limitation; leaving
+it latent would make it exactly the class of silent wrongness this ADR was
+written to end. It is now a readable load error instead.
+
+`paths` stays an **array**, because the shape is right and the restriction is
+temporary. The task that widens `characteristic(flow)` is the task that deletes
+this check; nothing before then needs more than one path — the pump, compressor
+and control valve have one each, the vessel has none, and T6-3's heat exchanger
+is a single-leg UA duty model with no utility-side hydraulics.
+
+### A.7 — what a coupling device's attachment node is expected to be
+
+Not enforced, stated so it is not rediscovered. Under D11 a vessel's integrated
+pressure supplies a **boundary condition** to the domain it originates, so in
+every plant T5-2 builds, a coupling device's attachment node is a **boundary
+node** of that domain. T3-6 does not enforce it: enforcing it would forbid an
+inventory device attached mid-line before anything has tried one, and the
+enforcement belongs with the coupling, which is T5-2's.
+
+A consequence worth having in advance: in T5-5, the liquid domain is
+`N-101 →[P-101]→ N-102` with **N-102 a boundary**, and the gas domain is
+`N-201 →[K-101]→ N-202` with **N-201 a boundary**. V-101 attaches to N-102 and
+N-201 and couples them. Each domain is a complete square system on its own.
+
+### A.8 — a domain may be legal with no branches in it
+
+> **A8.** A domain that contains nodes but no branches loads. It must still have
+> a boundary node. Nothing hands it to `NetworkSolver`; what gets solved is
+> T5-2's decision.
+
+The realistic case is a T5-1 or T5-2 fixture: a vessel venting to a gas boundary
+with no gas equipment built yet. Rejecting it would forbid the smallest honest
+vessel test. The boundary requirement is kept because it is right and because it
+is where the vessel pressure will be written.
+
+### A.9 — C1's role
+
+Unchanged, and no file under `app/equipment/` is edited.
+
+`Port.connect(node)` is the attachment primitive, and the loader calling it
+directly is the same act `Branch.__init__` performs today. The `Port` docstring's
+"the node the topology attached it to" is to be read as *the plant-building
+layer* — for a coupling device that is the loader, because by A4 there is no
+topology to do it. That reading is recorded here rather than edited into
+`app/equipment/base.py`, which is a spine file and is not opened by this work.
+
+`characteristic(flow)` is not widened (D10 stands). `Equipment` gains no domain
+property (2.6 stands). `Port` gains no `domain` field (Section 9 stands).
+
+### A.10 — C2's role, and whether it needs a new abstraction
+
+> **A10.** C2 is **not changed**, and **no** `PortBinding`, `Attachment` or
+> `Connection` abstraction is created.
+
+`Branch` remains the only connection type in C2, and it remains strictly
+hydraulic: two nodes, one device, one flow, one pair of ports. Everything C2
+holds is something the solver reads.
+
+The attachment needed no new type because it already had one: the binding **is**
+`Port.node`, and the lookup is `Plant.devices` plus `Plant.nodes`. A new class
+would have held one pointer that `Port` already holds, in a contract that by A4
+does not own the object.
+
+`Topology.unconnected_ports()` is kept unchanged and stays the right primitive
+for a topology — but it is **no longer the loader's dangling-port check**,
+because it walks `Topology.devices` and therefore cannot see a coupling device
+at all. A9 of the implementation contract moves that check to `Plant.devices`.
+
+### A.11 — T3-5 is split
+
+T3-5 as written carries domain declaration, named-port attachment, hydraulic
+paths, a `Plant` restructure, a validator extension and a `to_config()` rewrite.
+That is two tasks, and only the first is on the critical path.
+
+> **A11.** **T3-5** keeps flow-domain declaration and partitioning. **T3-6**, new
+> in M3, takes C3 multi-port wiring — `ports`, `paths`, `Plant.devices` and the
+> attachment semantics.
+
+- **T3-4** and **T4-4** depend on **T3-5** only. Neither needs a named port, so
+  Checkpoint B is unblocked by the smaller task — the split shortens the
+  critical path rather than lengthening it.
+- **T5-1** moves from T3-5 to **T3-6**, which is what it actually needs.
+- The graph stays acyclic: `T3-3 → T3-5 → T3-6 → T5-1 → T5-2 → T5-5`, with
+  `T3-5 → T3-4 → T5-5` and `T3-5 → T4-4 → T5-2`.
+
+**T3-6 has no circular dependency on T5-1.** `load_plant()` already takes a
+`device_types` override, so T3-6 tests named-port wiring against a stub
+multi-port `Equipment` subclass in its own test file, exactly as
+`tests/test_plant_loader.py` already does with `ManifoldDouble`. No vessel is
+needed to specify or to test the wiring that the vessel will use.
+
+### A.12 — the hold, and what T3-5 must get right
+
+The implementation session's recommended hold **was correct to take** — under
+the first-pass ADR, `Plant.to_config()` and equipment identity genuinely did
+depend on an unmade decision.
+
+**The hold is now lifted for T3-5's revised scope.** A4 fixes equipment identity
+(coupling devices on `Plant`, never in a `Topology`), so nothing T3-5 builds is
+at risk of rework from T3-6. Two requirements make that true, and both are in
+the implementation contract: `to_config()` must be driven by a config-ordered
+`Plant.nodes`, not by walking partitioned topologies; and `Plant` must be built
+expecting to grow a `devices` mapping in T3-6.
+
+### A.13 — options, and why Option C
+
+| Option | Verdict |
+|---|---|
+| **A — `ports` plus explicit paths, one concept** | This *is* Option C once the vessel question is answered, and A leaves that question open: it never says what a port in no path means. Folded into C. |
+| **B — branchless attachments only, no path declaration** | Correct for the vessel, insufficient for everything else. A pump still needs a branch, and a >2-port hydraulic device still needs a pair named. B alone cannot express a plant. |
+| **C — both concepts, explicitly separated** | **Chosen.** It is the only option that answers both questions without either inferring a pair or denying that a coupling device exists. Verified against C1 and C2 rather than adopted because it was suggested: A4 and A6 are both things the code decided, and neither was in the proposal. |
+| **D — revise C1/C2 more fundamentally** | Not needed. The premise of D8 was wrong, but its conclusion survives for a better reason (A4, A10). The one place the code genuinely pushed back — a device cannot exist in a topology without a branch — is answered one layer up, in the layer that owns configuration, rather than by reopening a frozen contract. |
+
+### A.14 — what a future session must be able to answer
+
+- **A hydraulic branch** is a C2 `Branch`: two nodes in one domain, one device,
+  one flow, one named port pair. It comes from exactly one C3 `paths` entry.
+  It is the only thing `NetworkSolver` sees.
+- **A port attachment** is `Port.node`, set from one C3 `ports` entry. It says
+  where a port is and nothing else.
+- **A domain** is a label on a node (`nodes[].domain`, defaulting to
+  `"default"`). Branches and topologies derive theirs from their nodes.
+  Equipment never has one.
+- **An inventory device** lives in `Plant.devices` and in no `Topology`.
+- **Domains are coupled** by one device attaching ports in each, and by that
+  device's integrated slow state supplying each domain's boundary condition
+  (D11). Never by a shared flow variable, and never by a branch.
+- **`NetworkSolver` receives** one `Topology` from `Plant.topologies`: one
+  domain, one flow unit, one square system. Exactly as today.
+
+### Amendment evidence
+
+Reproducible on `main` at `b081ed8` with `PYTHONPATH=.`.
+
+**A-E1 — C2 has no device-only registration.** `Topology.devices` is a property
+computed from `Topology.branches`; there is no `add_device`. Three ports of a
+separator bound with `Port.connect()` across two topologies leave
+`liq.devices == {}`, `gas.devices == {}` and `liq.unconnected_ports() == ()` —
+the device is bound, and the topology cannot see it. `reset()` preserves the
+binding, as C1 promises.
+
+**A-E2 — one port can be claimed by two branches.** `Branch._bind` refuses a
+second claim only when the second branch attaches the port to a *different*
+node. Two branches leaving the same node through one inlet port are accepted,
+giving one device two branches that return the identical curve — the reachable
+form of finding 2.5, and the reason for A6.
+
+**A-E3 — the C3 validator ignores `oneOf`.** A schema whose item carries
+`"oneOf": [{"required":["node_in","node_out"]}, {"required":["ports"]}]`
+validates `{"tag": "P-101"}` with **no errors**. `additionalProperties` given as
+a subschema and `patternProperties` are likewise ignored: `{"ports": {"a": 123}}`
+validates clean against both.
+
+---
+
+## 12. Implementation contract for T3-5 and T3-6
+
+Frozen by Amendment 1. An implementation session follows this; it does not
+re-decide any of it. Where a rule is owned by one of the two tasks, the task is
+named. **T3-5 implements only what is marked T3-5.**
+
+### 12.1 C3 schema — exact shape
+
+**`nodes[]` items (T3-5).** One property added, optional:
+
+```jsonc
+{
+  "type": "object",
+  "required": ["id", "boundary", "pressure"],
+  "additionalProperties": false,
+  "properties": {
+    "id":       {"type": "string", "minLength": 1},
+    "boundary": {"type": "boolean"},
+    "pressure": {"type": "number"},
+    "domain":   {"type": "string", "minLength": 1}   // NEW, optional
+  }
+}
+```
+
+**`equipment[]` items (T3-6).** `node_in` / `node_out` leave `required` and two
+properties are added. The item schema stays `additionalProperties: false`:
+
+```jsonc
+{
+  "type": "object",
+  "required": ["tag", "type", "design"],            // node_in/node_out removed
+  "additionalProperties": false,
+  "properties": {
+    "tag":  {"type": "string", "minLength": 1},
+    "type": {"type": "string", "enum": [ ...unchanged... ]},
+
+    "node_in":  {"type": "string", "minLength": 1},  // now optional
+    "node_out": {"type": "string", "minLength": 1},  // now optional
+
+    "ports": {                                        // NEW
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {"type": "string", "minLength": 1}
+    },
+    "paths": {                                        // NEW
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["from", "to"],
+        "additionalProperties": false,
+        "properties": {
+          "from": {"type": "string", "minLength": 1},
+          "to":   {"type": "string", "minLength": 1}
+        }
+      }
+    },
+
+    "design": {"type": "object"}
+  }
+}
+```
+
+`node_in` / `node_out` becoming optional is a deliberate schema *weakening*,
+compensated in the loader by A3: every wiring-form rule is a loader error naming
+`$.equipment[i]`. **No `oneOf`** — the validator ignores it (A-E3).
+
+**`app/plant/validate.py` (T3-6) gains exactly two generic features**, because
+without them the `ports` map's values are unchecked:
+
+- `additionalProperties` given as a **subschema** — apply it to every property
+  not named in `properties`. `additionalProperties: false` keeps its current
+  meaning.
+- `minProperties` on an object.
+
+Nothing else. No `oneOf`, no `patternProperties`. Both additions are generic
+walk extensions and both report `$.path`-style errors.
+
+### 12.2 Every new field, exactly
+
+| Field | Owner | Meaning |
+|---|---|---|
+| `nodes[].domain` | T3-5 | The flow domain this node's mass balance is written in. Free string; `"liquid"` and `"gas"` are conventional, not enumerated. Absent means `DEFAULT_DOMAIN`. |
+| `equipment[].ports` | T3-6 | Attachment map, **port name → node id**. Nothing more (A1). Keys are this device's port names; values are node ids. |
+| `equipment[].paths` | T3-6 | Hydraulic paths. Each `{from, to}` names two of this device's **ports** and becomes one `Branch` (A2). Required whenever `ports` is used; `[]` is the explicit "coupling device, not in any solve". |
+| `equipment[].node_in/out` | unchanged | Sugar for the one-inlet-one-outlet case; defined by the rewrite in A2. |
+
+`DEFAULT_DOMAIN = "default"` — a module constant in `app/plant/loader.py`. The
+literal string is part of this contract: it appears in error messages, so an
+author who labelled some nodes and not others can see why the two disagree.
+
+### 12.3 Branch construction — exact algorithm
+
+Run per `equipment` item, in config order, after reference checks pass.
+
+1. **Pick the form.**
+   - `node_in` **and** `node_out` present, `ports` and `paths` absent → **sugar
+     form**.
+   - `ports` present, `node_in` and `node_out` absent → **named form**.
+   - Anything else → reject `$.equipment[i]`: both forms, neither form, `paths`
+     without `ports`, or only one of `node_in` / `node_out`.
+2. **Sugar form** — build as today: `Branch(id=f"B-{tag}", from_node=node_in,
+   to_node=node_out, device=device)` with `from_port` / `to_port` left `None`,
+   so `_sole_port` resolves them. A device without exactly one inlet and one
+   outlet is rejected there, unchanged, and
+   `test_a_device_with_more_ports_than_the_config_can_wire_is_rejected` keeps
+   passing. Exactly one branch, and one path for the purposes of every rule
+   below.
+3. **Named form** — in this order:
+   1. Every key of `ports` must be a port of the device (`device.ports`);
+      otherwise reject `$.equipment[i].ports.<key>` naming the device's real
+      ports.
+   2. Every port of the device must appear as a key; a missing one is rejected
+      as a dangling port at `$.equipment[i].ports`, before anything is built.
+   3. Every value must be a known node id; otherwise reject
+      `$.equipment[i].ports.<key>`.
+   4. `paths` must be present. Reject `$.equipment[i]` if it is not.
+   5. `len(paths) > 1` → reject `$.equipment[i].paths` per A6.
+   6. For the single path, if present: `from` and `to` must be keys of `ports`;
+      `from`'s port must be an `INLET` and `to`'s an `OUTLET`; their two nodes
+      must differ; their two nodes must share a domain (12.5). Each failure is
+      its own error at `$.equipment[i].paths[0]`.
+   7. **Branch**: `Branch(id=<12.4>, from_node=ports[path.from],
+      to_node=ports[path.to], device=device, from_port=path.from,
+      to_port=path.to)`, added to the topology of that domain.
+   8. **Attachment**: for every port **not** named by the path — which is every
+      port when `paths` is `[]` — call `port.connect(node)` directly with the
+      node from `ports`. This is the only new binding route, and it is existing
+      C1 API (A9).
+4. **Record the device** in `Plant.devices` under its tag, whether or not it
+   holds a branch.
+
+No step consults declaration order, port names, or a notion of a primary
+outlet. Rule 3.4 is what makes that possible.
+
+### 12.4 Branch ids
+
+- A device with exactly one path (which includes every sugar-form device):
+  **`B-{tag}`**, unchanged. Every existing config keeps its branch ids, so the
+  round trip, the loader tests and any future golden trace are untouched.
+- More than one path is rejected today (A6). When A6 is lifted, the id is
+  **`B-{tag}-{from_port}-{to_port}`** — deterministic, readable, and stable
+  under reordering `paths`, which an index-based id would not be. Recorded here
+  so the task that lifts A6 does not re-decide it.
+
+### 12.5 Domain validation — exact rules (T3-5)
+
+Resolve first: `domain_of(node) = node_config.get("domain", DEFAULT_DOMAIN)`.
+
+1. **No inheritance.** A node without `domain` is in `DEFAULT_DOMAIN`. It does
+   **not** take a domain from a neighbour, a branch, or a device. There is no
+   graph-based propagation of any kind. The implementation session's reading is
+   **confirmed**: with one node declaring `"gas"` and its neighbour declaring
+   nothing, the branch between them is a mismatch and is rejected.
+2. **Path/branch agreement.** Both nodes of a branch must be in the same domain.
+   Reject at the equipment item, naming both nodes, both domains, and — when
+   either side is `DEFAULT_DOMAIN` by omission — saying that it is the default
+   because no `domain` was declared.
+3. **Partition.** `Plant.topologies` gets one `Topology` per distinct domain.
+   Every node goes into its domain's topology; every branch into the topology of
+   its (single, agreed) domain.
+4. **Boundary per domain.** Every domain must hold at least one boundary node.
+   This replaces the single global check. The existing global "no boundary node"
+   error keeps its wording for a single-domain plant.
+5. **Connectedness per domain.** The existing `_components` check runs **inside
+   each domain**, not across the plant. A plant with a liquid domain and a gas
+   domain is no longer "two disconnected subgraphs" — that is the point. Within
+   one domain, more than one component is still rejected, naming the domain.
+6. **Branchless domain.** Legal (A8). Rules 4 and 5 still apply to it; a single
+   node is one connected piece.
+7. **No device-level port-domain rule.** A device whose ports attach across
+   domains is valid (A5). Nothing checks it, now or later.
+
+Every error is collected into the one `PlantConfigError`, as today.
+
+### 12.6 `Plant.topologies` (T3-5)
+
+```python
+self.topologies: dict[str, Topology]   # domain -> topology
+self.nodes: dict[str, Node]            # every node, flat, CONFIG ORDER
+self.devices: dict[str, Equipment]     # every device, CONFIG ORDER  (T3-6)
+```
+
+- Key order is the order each domain **first appears** in `config["nodes"]`, so
+  a single-domain plant has exactly one entry and a two-domain plant is listed
+  the way its file reads.
+- `Plant.nodes` is flat and config-ordered across all domains. It is what makes
+  the round trip exact (12.8) and what lets T5-2 find a coupling device's node
+  by id without knowing its domain.
+- `Plant.devices` (T3-6) holds **every** device — branch devices and coupling
+  devices alike. **T4-4 builds `Engine`'s equipment from `Plant.devices`, never
+  from `Topology.devices`**, or a coupling device would silently never be
+  integrated.
+
+### 12.7 `Plant.topology` compatibility (T3-5)
+
+```python
+@property
+def topology(self) -> Topology:
+```
+
+- Exactly one domain → returns it. Every existing caller and every existing test
+  is unaffected, and this is what T4-4 wires against.
+- More than one → raises `ValueError` naming the domains and pointing at
+  `Plant.topologies`. Loud, at the call site, rather than silently returning one
+  of them.
+
+It is a property, not an attribute; `Plant.__init__` no longer stores
+`self.topology`.
+
+### 12.8 Round trip and canonicalization
+
+`to_config()` is **form-preserving, not canonicalizing**. It reproduces the
+config it was given, field for field, so
+`test_round_trip_plant_to_config_to_plant_is_identical` keeps asserting exact
+dict equality.
+
+- **Nodes** are emitted by walking `Plant.nodes` — config order, never by
+  iterating `topologies` (T3-5). `domain` is emitted **only if the config
+  declared it**; a plant that never mentioned a domain round-trips without one.
+- **Equipment** is emitted by walking `Plant.devices` in config order (T3-6),
+  not by walking branches, or a coupling device would vanish from the output.
+- Each item is emitted **in the form it was loaded in**: a sugar-form device
+  emits `node_in` / `node_out`; a named-form device emits `ports` and `paths`.
+  The loader records that per tag beside `_design_keys`. `ports` keys keep config
+  order; `paths` keeps config order.
+- Design values are still read back off the live device, unchanged.
+
+### 12.9 Unconnected ports
+
+- `Topology.unconnected_ports()` is **unchanged** and stays in C2.
+- It is **no longer** what the loader checks (A10) — it walks
+  `Topology.devices`, so it cannot see a coupling device.
+- **T3-6 moves the check to `Plant.devices`:** after building, any port of any
+  loaded device with `port.connected is False` is an error naming the tag, the
+  port and its direction. For a sugar-form device this reports exactly what it
+  reports today. For a named-form device it is unreachable, because 3.3.2
+  already required every port in the map — belt and braces, and cheap.
+
+### 12.10 C1's role
+
+Unchanged. No file under `app/equipment/` is opened by either task.
+
+`Port.connect()` is the attachment primitive. `characteristic(flow)` is not
+widened. `Equipment` gains no domain, `Port` gains no `domain`.
+
+### 12.11 C2's role
+
+Unchanged. `app/plant/topology.py` is not opened by either task. `Branch` stays
+strictly hydraulic; `Topology` stays the graph the solver walks and holds only
+devices that are in it through a branch.
+
+### 12.12 New C2 abstraction
+
+**None.** No `PortBinding`, `Attachment` or `Connection` type is created — see
+A10 for why one would hold nothing that `Port` does not already hold.
+
+### 12.13 Task scope after the ruling
+
+**T3-5 — Flow-domain declaration** (`feature/flow-domains`, Sonnet, satellite,
+no lock). Depends on T3-3.
+
+*In:* `nodes[].domain` in the schema · `DEFAULT_DOMAIN` · partitioning ·
+`Plant.topologies` · `Plant.nodes` · `Plant.topology` as a raising property ·
+the five domain rules in 12.5 (1–6) · `to_config()` driven by `Plant.nodes` with
+`domain` emitted only when declared.
+
+*Out:* `ports` · `paths` · `Plant.devices` · any `validate.py` change · any
+equipment-schema change · anything in `app/equipment/`, `app/plant/topology.py`,
+`app/engine/`.
+
+*Files:* `config/schema/plant.schema.json`, `app/plant/loader.py`,
+`tests/test_plant_domains.py`.
+
+**T3-6 — Multi-port equipment wiring** (`feature/multi-port-wiring`, Sonnet,
+satellite, no lock). Depends on T3-5.
+
+*In:* the `equipment` schema shape in 12.1 · the two `validate.py` additions ·
+form selection and every rule in 12.3 · `Plant.devices` · branch ids (12.4) ·
+attachment via `Port.connect` · A6's one-path rejection · form-preserving
+`to_config()` · the dangling-port check moved to `Plant.devices`.
+
+*Out:* the vessel (tested against a stub multi-port `Equipment` subclass through
+`load_plant`'s existing `device_types` override, as `ManifoldDouble` already
+is) · any `app/equipment/` change · `NetworkSolver` · `Engine`.
+
+*Files:* `config/schema/plant.schema.json`, `app/plant/validate.py`,
+`app/plant/loader.py`, `tests/test_plant_ports.py`.
+
+**Neither task** touches `NetworkSolver`. The one permissible edit to
+`app/engine/network.py` remains the docstring paragraph beginning *"That
+assumption is not checked here"*, which T3-5 may rewrite to point at the loader.
+
+### 12.14 Build-plan and dependency edits
+
+| Task | Before | After |
+|---|---|---|
+| T3-5 | `T3-3`; named-port wiring in scope | `T3-3`; **domains only** |
+| **T3-6** *(new, M3)* | — | **`T3-5`** |
+| T3-4 | `T3-3`, `T3-5` | unchanged |
+| T4-4 | `T4-2`, `T2-3`, `T3-5` | unchanged; note gains **"build `Engine`'s equipment from `Plant.devices`, not `Topology.devices`"** |
+| T5-1 | `T1-2`, `T3-5` | `T1-2`, **`T3-6`** |
+| T5-2 | `T5-1`, `T4-4` | unchanged |
+| T5-5 | `T3-4`, `T5-2` | unchanged |
+
+Counts: M3 5 → **6**, totals 96 → **97**, startable-now unchanged at 18 (T3-6 is
+Blocked on T3-5, which is startable). The graph stays acyclic.
 
 ---
 

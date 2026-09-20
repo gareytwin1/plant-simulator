@@ -1,6 +1,6 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
-  "refreshed": "2026-09-19",
+  "refreshed": "19 September 2026",
   "main_sha": "c406ca0164882eb8a154cf12ca2f8fcdf3326e18",
   "tests_passing_on_main": 372,
   "status_vocabulary": {
@@ -29,7 +29,7 @@
     "M3": {
       "name": "Plant Topology and Streams",
       "complete": 3,
-      "total": 5
+      "total": 6
     },
     "M4": {
       "name": "Pressure-Flow Network Solver",
@@ -113,9 +113,9 @@
     }
   },
   "totals": {
-    "tasks": 96,
+    "tasks": 97,
     "complete": 22,
-    "startable_now": 17
+    "startable_now": 16
   },
   "tasks": [
     {
@@ -497,12 +497,12 @@
       "blocked_by": [
         "T3-5"
       ],
-      "note": "Re-scoped by docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md from the full mixed-phase train to two single-domain fixtures; the full train is now T5-5. Blocked only on T3-5 (flow-domain declaration), not on a design decision - the design is settled. YAML plant loading is already merged (c406ca0, PR #15). Fixtures validated against main at 7b54ec9: liquid_transfer (N-101 50 psia -> P-101 -> N-102 -> P-102 -> N-103 180 psia, speed 1.0) solves to 816.50 GPM with N-102 at 115.00 psia in 5 iterations; gas_compression (N-201 60 psia -> K-101 -> N-202 -> K-102 -> N-203 480 psia, load 1.0) solves to 70.71 SCFM with N-202 at 270.00 psia in 4 iterations. Both answers are closed-form and hand-checkable. The old criterion 'reaches a plausible steady state from cold' is DROPPED and moved to T7-1: with no check valve, line resistance or control valve, no boundary pair is sane both cold and running (ADR section 2.9). Worktree ../plant-simulator-reference-plant and branch feature/reference-plant are preserved."
+      "note": "Re-scoped by docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md from the full mixed-phase train to two single-domain fixtures; the full train is now T5-5. Blocked only on T3-5 (flow-domain declaration), not on a design decision - the design is settled. YAML plant loading is already merged (c406ca0, PR #15). Fixtures validated against main at 7b54ec9: liquid_transfer (N-101 50 psia -> P-101 -> N-102 -> P-102 -> N-103 180 psia, speed 1.0) solves to 816.50 GPM with N-102 at 115.00 psia in 5 iterations; gas_compression (N-201 60 psia -> K-101 -> N-202 -> K-102 -> N-203 480 psia, load 1.0) solves to 70.71 SCFM with N-202 at 270.00 psia in 4 iterations. Both answers are closed-form and hand-checkable. The old criterion 'reaches a plausible steady state from cold' is DROPPED and moved to T7-1: with no check valve, line resistance or control valve, no boundary pair is sane both cold and running (ADR section 2.9). Worktree ../plant-simulator-reference-plant and branch feature/reference-plant are preserved. ADR 0001 Amendment 1 split T3-5; T3-4 depends on T3-5 only - its fixtures are ordinary two-port devices and need nothing from T3-6."
     },
     {
       "id": "T3-5",
       "milestone": "M3",
-      "name": "Flow-domain declaration and multi-port wiring",
+      "name": "Flow-domain declaration",
       "category": "dep",
       "branch": "feature/flow-domains",
       "depends_on": [
@@ -513,10 +513,33 @@
         "app/plant/loader.py",
         "tests/test_plant_domains.py"
       ],
+      "status": "Ready for Review",
+      "status_key": "review",
+      "startable": false,
+      "note": "Ready for Review on feature/flow-domains (PR #17), NOT merged. Implements ADR 0001 section 12.5-12.8 (domains only). Optional nodes[].domain in the C3 schema; undeclared nodes are DEFAULT_DOMAIN ('default') and never inherit a neighbour's domain. The loader partitions nodes into one Topology per domain (Plant.topologies, ordered by first appearance in config), adds a flat config-ordered Plant.nodes, and makes Plant.topology a property that raises ValueError on a multi-domain plant. Load-time rejections name the config path: a branch across domains (both nodes and domains named, default-by-omission called out), a domain with no boundary node (global wording kept for a single-domain plant), and a domain that is not one connected piece. to_config() walks Plant.nodes and emits domain only when declared, so legacy configs round-trip exactly. The app/engine/network.py docstring now points at the loader (comment only). C1, C2, NetworkSolver, validate.py and golden traces untouched. 395 tests green (23 new in tests/test_plant_domains.py), mypy clean. The PR is stacked on docs/flow-domain-amendment (unmerged, docs-only), so its first three commits are that branch's. T3-6 will move equipment emission to Plant.devices."
+    },
+    {
+      "id": "T3-6",
+      "milestone": "M3",
+      "name": "Multi-port equipment wiring",
+      "category": "dep",
+      "branch": "feature/multi-port-wiring",
+      "depends_on": [
+        "T3-5"
+      ],
+      "files": [
+        "config/schema/plant.schema.json",
+        "app/plant/validate.py",
+        "app/plant/loader.py",
+        "tests/test_plant_ports.py"
+      ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": true,
-      "note": "Sonnet. Design settled by docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md - implement it, do not redesign it. Satellite: app/plant/loader.py is not a spine file and this takes no lock. Additive C3 only: optional nodes[].domain, and a named ports map as a oneOf alongside node_in/node_out, which is retained unchanged. The loader partitions by domain into Plant.topologies, keeps Plant.topology as a single-domain convenience that raises on a multi-domain plant, and gains four rejections: branch nodes disagreeing on domain, a port wired across domains, a domain with no boundary, and a domain that is not one connected piece (today's _components check, moved inside the partition). Do NOT modify C1, C2 or NetworkSolver. tests/test_plant_loader.py asserts exact dict equality on the round trip, so partitioning must preserve config node order. Retires both open questions in the T3-3 note."
+      "startable": false,
+      "blocked_by": [
+        "T3-5"
+      ],
+      "note": "Sonnet. Created by ADR 0001 Amendment 1, split out of T3-5. Implement docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md section 12 (12.1-12.4 and 12.9 are this task) - do not redesign it. Two separate C3 declarations: 'ports' maps a device port name to a node id and means attachment ONLY; 'paths' is a list of {from, to} port-name pairs, each becoming exactly one C2 Branch with explicit from_port/to_port. Nothing is inferred - in the ports form 'paths' is required, and 'paths: []' is the explicit way to say 'coupling device, not in any hydraulic solve'. node_in/node_out is retained unchanged as sugar for the one-inlet-one-outlet case. A device with no path holds no branch, is in NO Topology (Topology.devices is derived from branches and C2 has no device-only registration), and lives in Plant.devices with its ports bound by Port.connect - that is how a vessel couples two domains. A device with MORE THAN ONE path is rejected, because characteristic(flow) is device-wide; the task that widens C1 deletes that check. Do NOT add a oneOf: app/plant/validate.py silently ignores oneOf, additionalProperties-as-subschema and patternProperties, so the wiring-form alternation is enforced in the loader where the error names the config path. The validator gains exactly two generic features, additionalProperties-as-subschema and minProperties, and nothing else. No vessel is needed: test against a stub multi-port Equipment subclass through load_plant's device_types override, as tests/test_plant_loader.py does with ManifoldDouble. The dangling-port check moves from Topology.unconnected_ports() to Plant.devices, because the former cannot see a coupling device. to_config() is form-preserving, not canonicalising. Do NOT modify C1, C2 or NetworkSolver."
     },
     {
       "id": "T4-1",
@@ -591,7 +614,7 @@
       "status": "Not Started",
       "status_key": "todo",
       "startable": false,
-      "note": "Blocked only on T3-5 (Opus, refactor/solver-integration). Dependencies T4-2 and T2-3 are Complete and T4-3 released the app/engine/snapshot.py spine lock on merge. This is Checkpoint B and it touches three core files at once (app/engine/engine.py, app/equipment/compressor.py, app/equipment/pump.py) - freeze other merges while it lands. It retires the legacy device step() path, _calculate_operating_point() and the interim *_boundary_pressure attributes for BOTH devices at once, since the live Flask routes depend on them. Build snapshots with snapshot.solver_status(result) from T4-3 rather than hand-rolling the solver section, and expect golden traces to move - the engine's two golden tests assert slow-state fields only because Engine.step() computes no flow or pressure today. Any delta needs justifying in the PR, not regenerating away. ADR 0001 added the T3-5 dependency so the Engine is wired knowing plants hold one topology per flow domain; wire against Plant.topology (the single-domain convenience), and one solver per domain arrives with T5-2. T3-5 shares no files with this task and takes no spine lock. See docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md section 6.2 for the ordering argument and its counterargument.",
+      "note": "Blocked only on T3-5 (Opus, refactor/solver-integration). Dependencies T4-2 and T2-3 are Complete and T4-3 released the app/engine/snapshot.py spine lock on merge. This is Checkpoint B and it touches three core files at once (app/engine/engine.py, app/equipment/compressor.py, app/equipment/pump.py) - freeze other merges while it lands. It retires the legacy device step() path, _calculate_operating_point() and the interim *_boundary_pressure attributes for BOTH devices at once, since the live Flask routes depend on them. Build snapshots with snapshot.solver_status(result) from T4-3 rather than hand-rolling the solver section, and expect golden traces to move - the engine's two golden tests assert slow-state fields only because Engine.step() computes no flow or pressure today. Any delta needs justifying in the PR, not regenerating away. ADR 0001 added the T3-5 dependency so the Engine is wired knowing plants hold one topology per flow domain; wire against Plant.topology (the single-domain convenience), and one solver per domain arrives with T5-2. T3-5 shares no files with this task and takes no spine lock. See docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md section 6.2 for the ordering argument and its counterargument. Build the Engine's equipment collection from Plant.devices, never from Topology.devices, or a coupling device (a vessel) would silently never be integrated - see ADR 0001 section 12.6. T3-5 is now domains only, so Checkpoint B is unblocked by the smaller of the two tasks; T3-6 is not a dependency of T4-4.",
       "blocked_by": [
         "T3-5"
       ]
@@ -623,7 +646,7 @@
       "branch": "feature/vessel-model",
       "depends_on": [
         "T1-2",
-        "T3-5"
+        "T3-6"
       ],
       "files": [
         "app/equipment/vessel.py"
@@ -632,9 +655,9 @@
       "status_key": "todo",
       "startable": false,
       "blocked_by": [
-        "T3-5"
+        "T3-6"
       ],
-      "note": "Receives already settled, and must not redesign: C3 named-port wiring and flow-domain semantics (T3-5), and solver orchestration (unchanged, one solver per domain). The vessel is an inventory device, not a branch device carrying both phases; it terminates one domain and originates another. Its level and pressure are slow state advanced by integrate(dt). It does NOT build the boundary-condition update (T5-2) and does NOT widen characteristic(flow). If any of those seem necessary, stop and escalate against docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md."
+      "note": "Receives already settled, and must not redesign: flow-domain semantics (T3-5), C3 named-port wiring (T3-6), and solver orchestration (unchanged, one solver per domain). The vessel is a COUPLING device: it declares a C3 ports map and an EMPTY paths list, so it holds no C2 Branch, appears in no Topology and in no Topology.devices, and its single identity lives in Plant.devices with its ports bound by Port.connect. It terminates one domain and originates another through its ports; a device whose ports attach to nodes in two different domains is valid and is the coupling mechanism. Its level and pressure are slow state advanced by integrate(dt). It does NOT build the boundary-condition update (T5-2) and does NOT widen characteristic(flow). If any of those seem necessary, stop and escalate against docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md, Amendment 1."
     },
     {
       "id": "T5-2",

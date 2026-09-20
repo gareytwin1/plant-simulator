@@ -16,7 +16,8 @@
         "properties": {
           "id": {"type": "string", "minLength": 1},
           "boundary": {"type": "boolean"},
-          "pressure": {"type": "number"}
+          "pressure": {"type": "number"},
+          "domain": {"type": "string", "minLength": 1}
         }
       }
     },

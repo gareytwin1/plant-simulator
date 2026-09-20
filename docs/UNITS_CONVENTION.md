@@ -178,13 +178,11 @@ Before the C1 refactor, devices owned `supply_pressure` and
 solver output; it belongs to a `Node` in the topology
 (`app/plant/topology.py`), not to a device.
 
-Both devices currently carry interim `upstream_boundary_pressure` /
-`downstream_boundary_pressure` attributes, in psia, feeding only the legacy
-standalone `step()` path. These are **temporary** and are retired by **T4-4**,
-which wires the network solver into the engine — T4-2 only writes the solver
-and leaves the legacy path exactly as it found it. Do not add new device
-attributes that hold a plant pressure, and do not treat the interim ones as the
-pattern to copy.
+The interim `upstream_boundary_pressure` / `downstream_boundary_pressure`
+attributes those devices carried were **retired by T4-4**, along with the
+standalone `step()` path they fed. No device holds a plant pressure or a flow
+any more, and none may: a pressure belongs to a `Node`, a flow to the `Stream`
+its `Branch` carries.
 
 In the target model:
 

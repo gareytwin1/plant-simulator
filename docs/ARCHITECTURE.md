@@ -4,10 +4,11 @@ How Plant Simulator is put together — what runs today, what it is being built
 toward, and who owns which piece of state.
 
 The two are kept strictly separate in this document. Blurring them has already
-misled sessions into assuming the plant solves as a network. **It does not.**
-The solver module exists as of T4-2, but nothing calls it: `Engine.step()` and
-the Flask routes reach no part of it, and the running application still has
-each device solving its own operating point.
+misled sessions. As of **T4-4 (Checkpoint B) the plant does solve as a
+network**: `Engine.step()` integrates, solves and publishes, and the Flask
+routes run through it. What is still ahead is everything the solved plant
+feeds — controllers, alarms, envelopes, scoring — and the second solver a
+multi-domain plant needs (T5-2). None of those exist.
 
 For current status and task-level detail see
 [PROJECT_STATE.md](PROJECT_STATE.md); for the rules that constrain changes see
@@ -30,19 +31,28 @@ Flask routes  ·  app/main.py
   │   @before_request resolves a session cookie
   ▼
 SessionRegistry → Session  ·  app/engine/sessions.py
-  │   one GasCompressor + one CentrifugalPump per browser session
+  │   one Engine per page, each over a single-device plant built by the
+  │   C3 loader: K-101 between two 750 psia nodes, P-101 between two 50 psia
   ▼
-Device  ·  app/equipment/{compressor,pump}.py
-  │
-  └── device.step(dt)                         ← LEGACY standalone path
-        ├── integrate(dt)                     ← slow state: load / speed / valve
-        └── _calculate_operating_point()      ← device solves its OWN operating
-              point against its OWN upstream_boundary_pressure and
-              downstream_boundary_pressure, and writes its own
-              flow / suction_pressure / discharge_pressure
+Engine.step(dt)  ·  app/engine/engine.py
+  │   ├── clock → elapsed simulated time
+  │   ├── integrate(elapsed) on every device in Plant.devices
+  │   ├── NetworkSolver.solve() over Plant.topology
+  │   └── build_snapshot(...) with the solved nodes and streams
   ▼
-get_state()  →  JSON  →  browser display
+Session.compressor_state() / pump_state()
+  │   the page's row: device slow state + solved flow and node pressures
+  ▼
+JSON  →  browser display
 ```
+
+**Interim, until T7-1 gives the control valve a branch:** a page's machine sits
+between two fixed battery limits with no line resistance and no valve in
+between. Flow is therefore whatever the machine curve gives against that fixed
+differential — above `max_flow`, which nothing clamps any more — the discharge
+valve strokes without changing flow, and the process spread equals the boundary
+difference. The retired standalone solve is where those resistances used to
+live.
 
 **Infrastructure that exists but is not on this request path yet:**
 
@@ -52,45 +62,24 @@ Engine            app/engine/engine.py     integrate() cadence + snapshot publis
 Snapshot (C4)     app/engine/snapshot.py   immutable read contract
 Equipment (C1)    app/equipment/base.py    the interface both devices implement
 EquipmentRegistry app/equipment/registry.py tag → device
-Topology (C2)     app/plant/topology.py    Node / Branch / Stream / Topology
-Plant config (C3) config/schema/plant.schema.json + app/plant/validate.py
-Plant loader      app/plant/loader.py      C3 config → solvable Topology
-NetworkSolver     app/engine/network.py    the plant-wide pressure-flow solve
 SeededRNG         app/engine/rng.py        the only allowed random source
 ```
 
-`Engine` works and is fully tested, but nothing in the Flask request path calls
-it. When it *is* driven (in tests), it calls `integrate()` only:
+An `Engine` built with no topology — `Engine(devices)`, the form that predates
+T4-4 — still integrates and nothing more; its snapshot reports the trivial
+converged placeholder and empty `nodes` and `streams`. The snapshot's
+`controllers`, `envelope` and `alarms` sections are still empty for every
+engine, connected or not: nothing fills them yet.
 
-```text
-Engine.step(dt)
-  ├── elapsed = SimulationClock.step(dt)      # 0.0 while paused
-  ├── for every device: device.integrate(elapsed)
-  └── build_snapshot(...)  →  Snapshot
-```
-
-It does **not** compute flow or pressure — there is no plant-wide solve yet, so
-a device's flow and pressure do not change when stepped through the Engine. The
-snapshot's `solver` section is a trivial converged placeholder, and its `nodes`,
-`streams`, `controllers`, `envelope` and `alarms` sections are deliberately
-empty.
+A solve that fails to converge is reported, never raised and never guessed at:
+the plant keeps the state it had, `Engine.step()` still advances time and slow
+state, and the snapshot's `solver` section carries `converged: false` with the
+iteration count and residual that came with it.
 
 ## 2. Target architecture
 
-Where this is going once milestone M4 is done. **No part of the solver path
-below is reached at runtime today.** Two separate tasks get it there, and only
-the second changes what the application does:
-
-| Task | What it does | What changes at runtime |
-|---|---|---|
-| **T4-2** | Builds the network solver (`app/engine/network.py`) as a standalone module. **Done** — `NetworkSolver` solves a `Topology` and writes the result through `Node.set_pressure` / `Branch.set_flow` | **Nothing.** The solver exists but nothing calls it. |
-| **T4-4** | Wires the solver into `Engine.step()`, makes the topology the live owner of solved pressure and flow, and retires the legacy device operating-point path | The plant becomes connected (Checkpoint B). |
-
-T4-2 does **not** wire the solver into `Engine.step()`, remove `step()` or
-`_calculate_operating_point()` from the devices, remove the interim
-`upstream_boundary_pressure` / `downstream_boundary_pressure` attributes, or
-touch the live Flask request path. Every "target" statement below describes the
-state **after T4-4**.
+Where this is going. **The solver path below is live as of T4-4**; the
+consumers hanging off the snapshot are not.
 
 ```text
 Browser / API client
@@ -106,8 +95,7 @@ Engine.step(dt)
   │                                     valve stroke, level, metal temperature
   │                                     (never flow, never pressure)
   │
-  ├── 3. plant network solver        → app/engine/network.py (built by T4-2,
-  │                                     called from the Engine by T4-4)
+  ├── 3. plant network solver        → app/engine/network.py (live since T4-4)
   │        iterates, calling each device's pure characteristic(flow)
   │        as many times as convergence needs
   │
@@ -126,28 +114,27 @@ Engine.step(dt)
             └── operator console   process graphic + faceplates  [M16]
 ```
 
-At T4-4 the device's own `step()` and `_calculate_operating_point()` are
-**removed**, along with the interim `upstream_boundary_pressure` /
-`downstream_boundary_pressure` attributes. Boundary pressures become properties
-of boundary `Node`s in the topology, which is where they belong.
+T4-4 **removed** the device's own `step()` and `_calculate_operating_point()`,
+along with the interim `upstream_boundary_pressure` /
+`downstream_boundary_pressure` attributes. Boundary pressures are properties of
+boundary `Node`s in the topology, which is where they belong.
 
 ## 3. State ownership
 
 This table is the heart of the architecture. Most contract violations are an
-ownership violation. "Owner in target" means the owner **after T4-4**; T4-2
-alone changes none of these owners.
+ownership violation. Since T4-4 the two columns agree.
 
 | State | Owner today | Owner in target | Rule |
 |---|---|---|---|
-| **Node pressure** | Device (`*_boundary_pressure`, interim) | **Topology** (`Node.pressure`, written only by the solver via `set_pressure`) | A device must never read or write a node pressure. A boundary pressure owned by a device is a solver output in disguise. |
-| **Stream flow** | Device (`self.flow`, from its own solve) | **Topology** (`Stream.flow`, written only by the solver via `set_flow`) | Same rule. `Branch.flow` is a read-only property over the stream. |
+| **Node pressure** | **Topology** (`Node.pressure`, written only by the solver via `set_pressure`) | Same | A device must never read or write a node pressure. A boundary pressure owned by a device is a solver output in disguise. |
+| **Stream flow** | **Topology** (`Stream.flow`, written only by the solver via `set_flow`) | Same | Same rule. `Branch.flow` is a read-only property over the stream. |
 | **Slow actuator state** (load, speed, valve position, level, metal temp) | **Device** | **Device** — unchanged | Mutated *only* by `integrate(dt)`. `integrate(0)` must be a no-op. |
 | **Equipment characteristic curve** | **Device** | **Device** — unchanged | `characteristic(flow)` is pure: reads slow state, returns a number, mutates nothing. The solver may call it many times per timestep. |
 | **Port wiring** | `Port` (`node` only) | `Port` — unchanged | Wiring, not process state. `__slots__` makes it structurally impossible to store a pressure or flow on a port. Survives `reset()`. |
 | **Simulated time** | **`SimulationClock`** | **`SimulationClock`** — unchanged | Never `time.time()`. Time enters a model only through injected `dt`. |
-| **Integration cadence** | **`Engine`** | **`Engine`** — unchanged | Engine consults the clock's speed only, never a device's `simulation_speed`. |
+| **Integration cadence** | **`Engine`** | **`Engine`** — unchanged | Engine consults the clock's speed only. No device has a speed of its own since T4-4. |
 | **Snapshot publication** | **`Engine`** → `Snapshot` | **`Engine`** → `Snapshot` — unchanged | Immutable; the only thing downstream consumers read. |
-| **Plant structure** | `Topology` built by the **plant loader** (`load_plant`, T3-3) from validated config (C3) — in tests only; the app's routes do not use it yet | Same, with the Engine driving it | Adding equipment must stop requiring a code change. |
+| **Plant structure** | `Topology` built by the **plant loader** (`load_plant`, T3-3) from validated config (C3), driven by the Engine | Same | Adding equipment must stop requiring a code change. |
 
 ## 4. The C1 equipment contract in one page
 

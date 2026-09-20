@@ -65,8 +65,12 @@ def test_api_step():
     assert response.status_code == 200
     assert state["running"] is True
     assert state["load"] == pytest.approx(0.05)
-    assert state["pressure"] == pytest.approx(750.3125)
-    assert state["temperature"] == pytest.approx(75.01)
+    # The page's plant is one machine between two 750 psia battery limits, so
+    # the solver puts the whole curve into flow and none into spread until a
+    # valve or line resistance exists to drop pressure across (T7-1).
+    assert state["flow"] == pytest.approx((220.0 * 0.05 ** 2 / 0.002) ** 0.5)
+    assert state["pressure"] == pytest.approx(750.0)
+    assert state["temperature"] == pytest.approx(75.0)
 
 def test_api_set_load():
     client = main.app.test_client()

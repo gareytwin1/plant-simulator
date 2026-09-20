@@ -13,14 +13,14 @@ be.
 
 import pytest
 
-from app.equipment.compressor import GasCompressor
-from app.equipment.pump import CentrifugalPump
 from tests.golden_regression import (
     SCENARIOS,
     TRACE_FILES,
     compressor_ramp_load,
+    compressor_rig,
     load_traces,
     pump_ramp_speed,
+    pump_rig,
     replay_scenario,
     trace_path,
 )
@@ -32,10 +32,10 @@ SCENARIO_IDS = [
 ]
 
 
-# (device, scenario name, factory, scenario function, attribute to drift)
+# (device, scenario name, rig factory, scenario function, attribute to drift)
 INJECTION_CASES = [
-    ("compressor", "ramp_load", GasCompressor, compressor_ramp_load, "shutoff_pressure_rise"),
-    ("pump", "ramp_speed", CentrifugalPump, pump_ramp_speed, "shutoff_pressure_rise"),
+    ("compressor", "ramp_load", compressor_rig, compressor_ramp_load, "shutoff_pressure_rise"),
+    ("pump", "ramp_speed", pump_rig, pump_ramp_speed, "shutoff_pressure_rise"),
 ]
 
 INJECTION_IDS = [
@@ -45,12 +45,13 @@ INJECTION_IDS = [
 
 
 def drifted(factory, attribute, factor):
-    """Build a device whose one coefficient is off by a known factor."""
+    """Build a rig whose device has one coefficient off by a known factor."""
     def build():
-        device = factory()
+        rig = factory()
+        device = rig.device
         setattr(device, attribute, getattr(device, attribute) * factor)
 
-        return device
+        return rig
 
     return build
 

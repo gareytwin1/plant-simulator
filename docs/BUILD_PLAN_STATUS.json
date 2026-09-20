@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "20 September 2026",
-  "main_sha": "fefa8411be9867a3585b44ac4052cc9870300e7d",
-  "tests_passing_on_main": 681,
+  "main_sha": "42dc22776a2f8dcec2686b4395ae61e8e24cbe47",
+  "tests_passing_on_main": 715,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -38,7 +38,7 @@
     },
     "M5": {
       "name": "Inventory and Mass Balance",
-      "complete": 2,
+      "complete": 3,
       "total": 5
     },
     "M6": {
@@ -680,10 +680,10 @@
       "files": [
         "app/equipment/vessel.py"
       ],
-      "status": "Ready for Review",
-      "status_key": "review",
+      "status": "Complete",
+      "status_key": "done",
       "startable": false,
-      "note": "Ready for Review on feature/gas-inventory, based on 4259617; not merged. Full suite 715 passed and mypy clean. Vessel gains a gas phase beside its liquid one: pressure (psia) integrated as dP/dt = P_std * (Q_in - Q_out) / V_gas, P_std = 14.696 psia (config.STANDARD_PRESSURE, 1 atm per UNITS_CONVENTION), isothermal at the SCFM standard temperature, no Z-factor. Separate gas_inlet_flow / gas_outlet_flow (SCFM); the confirmed flow unit at each attachment, never the port name, picks GPM or SCFM attributes. Vessel pressure REPLACES the boundary at every gas attachment (inlet and outlet), configured_pressure untouched; liquid keeps head-as-offset on the outlet only. Gas is attachment-driven: a liquid-only vessel never activates it and its get_state() is unchanged. Files: app/equipment/vessel.py, app/engine/coupling.py, app/config.py (append-only), tests/test_gas_inventory.py (34 tests) and three pre-T5-3 tests rewritten on purpose. engine.py, topology.py, base.py, network.py, compressor.py untouched; no golden trace moved. Known limit: square-root curves have infinite slope at zero flow, so Euler crosses a zero-flow point by about (a*dt)^2/4 with a = P_std*C/(60*V); supported at 10 ft^3 and up at dt = 1 s, a vessel of 0.3 ft^3 raises on non-positive pressure rather than clamping. Task statuses live in the plan's shared database; that entry still needs updating."
+      "note": "Merged to main as 42dc227 (PR #35, merge commit from feature/gas-inventory, based on 4259617, no rebase needed), 20 Sep. Full suite 715 passed and mypy clean on main post-merge. Vessel gains a gas phase beside its liquid one: pressure (psia) integrated as dP/dt = P_std * (Q_in - Q_out) / V_gas, P_std = 14.696 psia (config.STANDARD_PRESSURE, 1 atm per UNITS_CONVENTION), isothermal at the SCFM standard temperature, no Z-factor. Separate gas_inlet_flow / gas_outlet_flow (SCFM); the confirmed flow unit at each attachment, never the port name, picks GPM or SCFM attributes. Vessel pressure REPLACES the boundary at every gas attachment (inlet and outlet), configured_pressure untouched; liquid keeps head-as-offset on the outlet only. Gas is attachment-driven: a liquid-only vessel never activates it and its get_state() is unchanged. Files: app/equipment/vessel.py, app/engine/coupling.py, app/config.py (append-only), tests/test_gas_inventory.py (34 tests) and three pre-T5-3 tests rewritten on purpose. engine.py, topology.py, base.py, network.py, compressor.py untouched; no golden trace moved. Known limit: square-root curves have infinite slope at zero flow, so Euler crosses a zero-flow point by about (a*dt)^2/4 with a = P_std*C/(60*V); supported at 10 ft^3 and up at dt = 1 s, a vessel of 0.3 ft^3 raises on non-positive pressure rather than clamping. Task statuses live in the plan's shared database; that entry still needs updating."
     },
     {
       "id": "T5-4",

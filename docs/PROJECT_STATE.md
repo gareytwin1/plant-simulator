@@ -8,10 +8,10 @@ Refresh this file whenever a task merges to `main`.
 
 ---
 
-**Last refreshed:** 20 September 2026 (**T7-1 merged** as `fefa841`, [PR #32](https://github.com/gareytwin1/plant-simulator/pull/32) — control valve model)
-**Current `main`:** `fefa841` — *Merge pull request #32 from gareytwin1/feat/t7-1-control-valve*
-**Last code merge:** `fefa841` — T7-1, the control valve model (PR #32). Previous: `e261134` T4-5, the cause-and-effect assertion suite (PR #29, test-only). Previous: `154385c` T5-2, level to hydraulics coupling and the multi-domain Engine (PR #27). Previous: `0efa5be` T4-4, the solver wired into the engine (PR #25). Previous: `b8af231` T5-1 vessel model (PR #23); `d6a6cfb` T3-4 single-domain reference fixtures (PR #19); `2c08bb8` T3-6 multi-port equipment wiring (PR #20); `11517f6` T3-5 flow-domain declaration (PR #17); `c406ca0` YAML plant loading; previous solver merge `a2a1596` (T4-3). ADR 0001 ([docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md](ADR_0001_FLOW_DOMAIN_SEPARATION.md)) and its Amendment 1 are on `main`
-**Full suite on `main`:** **681 passed** (`conda activate plant-simulator && python -m pytest -q`); `python -m mypy` clean
+**Last refreshed:** 20 September 2026 (**T5-3 merged** as `42dc227`, [PR #35](https://github.com/gareytwin1/plant-simulator/pull/35) — gas-phase pressure accumulation)
+**Current `main`:** `42dc227` — *Merge pull request #35 from gareytwin1/feature/gas-inventory*
+**Last code merge:** `42dc227` — T5-3, gas-phase pressure accumulation (PR #35). Previous: `fefa841` T7-1, the control valve model (PR #32); `e261134` T4-5, the cause-and-effect assertion suite (PR #29, test-only). Previous: `154385c` T5-2, level to hydraulics coupling and the multi-domain Engine (PR #27). Previous: `0efa5be` T4-4, the solver wired into the engine (PR #25). Previous: `b8af231` T5-1 vessel model (PR #23); `d6a6cfb` T3-4 single-domain reference fixtures (PR #19); `2c08bb8` T3-6 multi-port equipment wiring (PR #20); `11517f6` T3-5 flow-domain declaration (PR #17); `c406ca0` YAML plant loading; previous solver merge `a2a1596` (T4-3). ADR 0001 ([docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md](ADR_0001_FLOW_DOMAIN_SEPARATION.md)) and its Amendment 1 are on `main`
+**Full suite on `main`:** **715 passed** (`conda activate plant-simulator && python -m pytest -q`); `python -m mypy` clean
 
 ---
 
@@ -24,11 +24,11 @@ Refresh this file whenever a task merges to `main`.
 | **M2** Simulation Engine and Clock | 4/6 (T2-5 startable) |
 | **M3** Plant Topology and Streams | **6/6 Complete** |
 | **M4** Pressure-Flow Network Solver | **5/5 Complete** — Checkpoint B reached; T4-5 was re-scoped before implementation, see [The T4-5 re-scope](#the-t4-5-re-scope) |
-| **M5** Inventory and Mass Balance | 2/5 — T5-1, T5-2 Complete; **T5-3 Ready for Review** (`feature/gas-inventory`, not merged); **T5-4 startable**; the engine and topology spine locks are released (M5 has 5 tasks: T5-5, the integrated reference plant, was added) |
+| **M5** Inventory and Mass Balance | 3/5 — T5-1, T5-2, T5-3 Complete; **T5-4 startable**; the engine and topology spine locks are released (M5 has 5 tasks: T5-5, the integrated reference plant, was added) |
 | **M7** Control Valves and Final Elements | 1/4 — T7-1 Complete; **T7-3 and T7-4 startable**; T7-2 also needs T5-5 |
 | M6, M8–M19 | Not started |
 
-Overall: **30 of 97 tasks Complete.**
+Overall: **31 of 97 tasks Complete.**
 
 ### Completed and merged to `main`
 
@@ -346,8 +346,8 @@ Engine-computes-nothing state; what remains is the consequence of that:
 ([PR #27](https://github.com/gareytwin1/plant-simulator/pull/27)) and released
 the locks on `app/engine/engine.py` and `app/plant/topology.py`.
 
-**T5-3 is Ready for Review** on `feature/gas-inventory` (based on `4259617`, not
-merged; 715 tests, `mypy` clean). It touches `app/equipment/vessel.py`,
+**T5-3 merged** as `42dc227` ([PR #35](https://github.com/gareytwin1/plant-simulator/pull/35),
+based on `4259617`; 715 tests, `mypy` clean on `main`). It touches `app/equipment/vessel.py`,
 `app/engine/coupling.py` and `app/config.py` only.
 
 - **Rate law.** `dP/dt = P_std * (Q_in - Q_out) / V_gas` (psi/min, SCFM, ft^3),
@@ -527,7 +527,7 @@ modules under `app/engine/`, which is satellite work under the **`app/engine/`
 rule** in CLAUDE.md.
 
 **Startable:** T4-5 and T5-2 are both merged, so neither appears below. T5-3 is
-Ready for Review and no longer startable. **T7-1** is merged (`fefa841`) and carried the
+merged (`42dc227`) and no longer appears below. **T7-1** is merged (`fefa841`) and carried the
 two cause-and-effect criteria moved off T4-5, so **T7-3** and **T7-4** are newly
 startable. T7-3 edits `app/equipment/valve.py` and should not run beside another
 valve change.

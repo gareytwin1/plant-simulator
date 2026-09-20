@@ -186,21 +186,22 @@ def test_determinism_same_steps_give_bit_identical_snapshots():
     assert run() == run()
 
 
-def test_compressor_simulation_speed_is_not_consulted_by_the_engine():
-    """GasCompressor.simulation_speed only affects its own legacy step();
-    Engine.step() drives integrate() directly and consults only the
-    clock's speed. Pinned here so a future change can't let the two
-    silently start disagreeing (they'd currently agree by coincidence,
-    since both default to 1.0)."""
+def test_the_clock_is_the_only_speed_authority():
+    """A device has no speed multiplier of its own to consult — T4-4 retired
+    the legacy step() that was the only thing reading one. The clock's speed
+    is what scales a step, and nothing else does.
+    """
     compressor = GasCompressor()
-    compressor.simulation_speed = 5.0
     compressor.set_load_target(1.0)
     compressor.start()
 
+    assert not hasattr(compressor, "simulation_speed")
+
     engine = Engine([compressor])
+    engine.clock.set_speed(5.0)
     engine.step(1.0)
 
-    assert compressor.load == pytest.approx(config.LOAD_RATE_PER_SECOND)
+    assert compressor.load == pytest.approx(5.0 * config.LOAD_RATE_PER_SECOND)
 
 
 def _assert_field_matches(step_num, field, actual, expected):

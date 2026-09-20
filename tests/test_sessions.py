@@ -42,7 +42,7 @@ def test_two_sessions_have_independent_equipment_with_no_cross_talk():
 
     session_a.compressor.set_load_target(0.8)
     session_a.compressor.start()
-    session_a.compressor.step()
+    session_a.step_compressor()
 
     assert session_a.compressor.running is True
     assert session_b.compressor.running is False

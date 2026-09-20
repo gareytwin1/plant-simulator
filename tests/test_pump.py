@@ -9,42 +9,49 @@ def test_initial_pump_state():
     assert pump.running is False
     assert pump.speed == pytest.approx(0.0)
     assert pump.speed_target == pytest.approx(0.0)
-    assert pump.flow == pytest.approx(0.0)
-    assert pump.suction_pressure == pytest.approx(50.0)
-    assert pump.discharge_pressure == pytest.approx(50.0)
 
 
-def test_pump_reaches_full_speed_operating_point():
+def test_the_pump_owns_no_flow_or_pressure():
+    """T4-4 moved the operating point to the solver — see the matching
+    compressor test.
+    """
+    pump = CentrifugalPump()
+
+    for attribute in (
+        "flow",
+        "suction_pressure",
+        "discharge_pressure",
+        "upstream_boundary_pressure",
+        "downstream_boundary_pressure",
+        "step",
+    ):
+        assert not hasattr(pump, attribute)
+
+
+def test_pump_speed_reaches_its_target_and_holds():
     pump = CentrifugalPump()
 
     pump.set_speed_target(1.0)
     pump.start()
 
     for _ in range(10):
-        pump.step()
+        pump.integrate(1.0)
 
     assert pump.speed == pytest.approx(1.0)
-    assert pump.flow == pytest.approx(1000.0)
-    assert pump.suction_pressure == pytest.approx(40.0)
-    assert pump.discharge_pressure == pytest.approx(100.0)
-    assert pump.spread == pytest.approx(60.0)
-    assert pump.pump_pressure_rise == pytest.approx(60.0)
+    assert pump.characteristic(0.0) == pytest.approx(75.0)
 
 
-def test_pump_half_speed_operating_point():
+def test_pump_half_speed_curve_follows_the_affinity_law():
     pump = CentrifugalPump()
 
     pump.set_speed_target(0.50)
     pump.start()
 
     for _ in range(5):
-        pump.step()
+        pump.integrate(1.0)
 
     assert pump.speed == pytest.approx(0.50)
-    assert pump.flow == pytest.approx(500.0)
-    assert pump.suction_pressure == pytest.approx(47.5)
-    assert pump.discharge_pressure == pytest.approx(62.5)
-    assert pump.spread == pytest.approx(15.0)
+    assert pump.characteristic(0.0) == pytest.approx(75.0 * 0.25)
 
 
 def test_pump_stop_reduces_speed():
@@ -54,10 +61,10 @@ def test_pump_stop_reduces_speed():
     pump.start()
 
     for _ in range(10):
-        pump.step()
+        pump.integrate(1.0)
 
     pump.stop()
-    pump.step()
+    pump.integrate(1.0)
 
     assert pump.running is False
     assert pump.speed_target == pytest.approx(0.0)

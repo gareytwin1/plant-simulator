@@ -40,7 +40,7 @@ def persist_session_cookie(response: Response) -> Response:
 def compressor_page() -> ResponseReturnValue:
     return render_template(
         "compressor.html",
-        state=g.plant.compressor.get_state(),
+        state=g.plant.compressor_state(),
     )
 
 
@@ -60,31 +60,31 @@ def stop() -> ResponseReturnValue:
 def pump_page() -> ResponseReturnValue:
     return render_template(
         "pump.html",
-        state=g.plant.pump.get_state(),
+        state=g.plant.pump_state(),
     )
 
 
 @app.route("/api/state")
 def api_state() -> ResponseReturnValue:
-    return jsonify(g.plant.compressor.get_state())
+    return jsonify(g.plant.compressor_state())
 
 
 @app.route("/api/start", methods=["POST"])
 def api_start() -> ResponseReturnValue:
     g.plant.compressor.start()
-    return jsonify(g.plant.compressor.get_state())
+    return jsonify(g.plant.compressor_state())
 
 
 @app.route("/api/stop", methods=["POST"])
 def api_stop() -> ResponseReturnValue:
     g.plant.compressor.stop()
-    return jsonify(g.plant.compressor.get_state())
+    return jsonify(g.plant.compressor_state())
 
 
 @app.route("/api/step", methods=["POST"])
 def api_step() -> ResponseReturnValue:
-    g.plant.compressor.step()
-    return jsonify(g.plant.compressor.get_state())
+    g.plant.step_compressor()
+    return jsonify(g.plant.compressor_state())
 
 
 @app.post("/api/valve")
@@ -95,7 +95,7 @@ def set_valve() -> ResponseReturnValue:
         data["discharge_valve_position"]
     )
 
-    return jsonify(g.plant.compressor.get_state())
+    return jsonify(g.plant.compressor_state())
 
 
 @app.post("/api/load")
@@ -106,30 +106,30 @@ def set_load() -> ResponseReturnValue:
         float(data["load_target"])
     )
 
-    return jsonify(g.plant.compressor.get_state())
+    return jsonify(g.plant.compressor_state())
 
 
 @app.route("/api/pump/state")
 def api_pump_state() -> ResponseReturnValue:
-    return jsonify(g.plant.pump.get_state())
+    return jsonify(g.plant.pump_state())
 
 
 @app.route("/api/pump/start", methods=["POST"])
 def api_pump_start() -> ResponseReturnValue:
     g.plant.pump.start()
-    return jsonify(g.plant.pump.get_state())
+    return jsonify(g.plant.pump_state())
 
 
 @app.route("/api/pump/stop", methods=["POST"])
 def api_pump_stop() -> ResponseReturnValue:
     g.plant.pump.stop()
-    return jsonify(g.plant.pump.get_state())
+    return jsonify(g.plant.pump_state())
 
 
 @app.route("/api/pump/step", methods=["POST"])
 def api_pump_step() -> ResponseReturnValue:
-    g.plant.pump.step()
-    return jsonify(g.plant.pump.get_state())
+    g.plant.step_pump()
+    return jsonify(g.plant.pump_state())
 
 
 @app.post("/api/pump/speed")
@@ -140,7 +140,7 @@ def set_pump_speed() -> ResponseReturnValue:
         float(data["speed_target"])
     )
 
-    return jsonify(g.plant.pump.get_state())
+    return jsonify(g.plant.pump_state())
 
 
 if __name__ == "__main__":

@@ -8,10 +8,10 @@ Refresh this file whenever a task merges to `main`.
 
 ---
 
-**Last refreshed:** 19 September 2026 (**T3-6 merged** as `2c08bb8`, [PR #20](https://github.com/gareytwin1/plant-simulator/pull/20))
-**Current `main`:** `2c08bb8` — *Merge pull request #20 from gareytwin1/feature/multi-port-wiring*
-**Last code merge:** `2c08bb8` — T3-6, multi-port equipment wiring (PR #20). Previous: `11517f6` T3-5 flow-domain declaration (PR #17); `c406ca0` YAML plant loading; previous solver merge `a2a1596` (T4-3). ADR 0001 ([docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md](ADR_0001_FLOW_DOMAIN_SEPARATION.md)) and its Amendment 1 are on `main`
-**Full suite on `main`:** **428 passed** (`conda activate plant-simulator && python -m pytest -q`); `python -m mypy` clean
+**Last refreshed:** 19 September 2026 (**T3-4 merged** as `d6a6cfb`, [PR #19](https://github.com/gareytwin1/plant-simulator/pull/19))
+**Current `main`:** `d6a6cfb` — *Merge pull request #19 from gareytwin1/feature/reference-plant*
+**Last code merge:** `d6a6cfb` — T3-4, single-domain reference fixtures (PR #19). Previous: `2c08bb8` T3-6 multi-port equipment wiring (PR #20); `11517f6` T3-5 flow-domain declaration (PR #17); `c406ca0` YAML plant loading; previous solver merge `a2a1596` (T4-3). ADR 0001 ([docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md](ADR_0001_FLOW_DOMAIN_SEPARATION.md)) and its Amendment 1 are on `main`
+**Full suite on `main`:** **448 passed** (`conda activate plant-simulator && python -m pytest -q`); `python -m mypy` clean
 
 ---
 
@@ -22,11 +22,11 @@ Refresh this file whenever a task merges to `main`.
 | **M0** Baseline Cleanup | **7/7 Complete** |
 | **M1** Equipment Model Contract | **5/5 Complete** — Checkpoint A reached |
 | **M2** Simulation Engine and Clock | 4/6 (T2-5 startable) |
-| **M3** Plant Topology and Streams | 5/6 — T3-5 and T3-6 Complete; T3-4 startable |
+| **M3** Plant Topology and Streams | **6/6 Complete** |
 | **M4** Pressure-Flow Network Solver | 3/5 — T4-1, T4-2, T4-3 Complete; **T4-4 (Checkpoint B) startable** |
 | M5–M19 | Not started (M5 has 5 tasks: T5-5, the integrated reference plant, was added) |
 
-Overall: **24 of 97 tasks Complete.**
+Overall: **25 of 97 tasks Complete.**
 
 ### Completed and merged to `main`
 
@@ -90,10 +90,11 @@ now genuinely merged.)
   the placeholder. The `snapshot.py` spine lock is released and T3-5, which
   T4-4 depended on, is merged, so T4-4 is startable.
 - **Reference plant files.** The loader reads `.json`, `.yaml` and `.yml` (YAML
-  via `yaml.safe_load`, same C3 validation and `load_plant()` path), but no
-  `config/plants/*.yaml` file exists. T3-4 was **re-scoped** by ADR 0001 to two
-  single-domain fixtures (`liquid_transfer.yaml`, `gas_compression.yaml`), now
-  startable since T3-5 merged. The full `olefins_lite.yaml` train is now T5-5, in M5.
+  via `yaml.safe_load`, same C3 validation and `load_plant()` path), and T3-4
+  (`d6a6cfb`) added the first plant files: `config/plants/liquid_transfer.yaml`
+  and `gas_compression.yaml`, two single-domain fixtures checked against
+  closed-form values in `tests/test_reference_plants.py`. The full
+  `olefins_lite.yaml` train is T5-5, in M5, and does not exist.
 - **Flow-domain enforcement is done for the loader only (T3-5, `11517f6`).**
   `load_plant` rejects a branch across domains, a domain with no boundary and a
   domain that is not one connected piece, and partitions into `Plant.topologies`.
@@ -288,8 +289,11 @@ and has a task that retires it.
 
 ## Active branches and PRs
 
-No open PRs and no code branch in flight; **no spine lock is held.** T3-6 merged
-as `2c08bb8` ([PR #20](https://github.com/gareytwin1/plant-simulator/pull/20)).
+No open PRs and no code branch in flight; **no spine lock is held.** T3-4 merged
+as `d6a6cfb` ([PR #19](https://github.com/gareytwin1/plant-simulator/pull/19)): two
+single-domain reference fixtures and their tests, nothing under `app/`.
+
+T3-6 merged as `2c08bb8` ([PR #20](https://github.com/gareytwin1/plant-simulator/pull/20)).
 It implements ADR 0001 section 12.1-12.4, 12.8 and 12.9: `ports` (attachment only)
 and `paths` (one `Branch` each) in C3, one-form-only enforced in the loader, more
 than one path rejected (A6), `Plant.devices` (config-ordered, every device, coupling
@@ -303,12 +307,6 @@ T3-5 merged as `11517f6` ([PR #17](https://github.com/gareytwin1/plant-simulator
 
 T4-3 merged as `a2a1596` ([PR #14](https://github.com/gareytwin1/plant-simulator/pull/14)) and released `app/engine/snapshot.py`.
 
-**`feature/reference-plant` (T3-4) is a parked staging branch** reset to `main`
-at `c406ca0` with no commits of its own. The YAML work it once carried is
-merged (PR #15). It is now the branch for the two single-domain fixtures
-(T3-4), now startable; `olefins_lite.yaml` belongs to T5-5 and does not
-exist. See the T3-4 note below before touching it.
-
 Merged local branches can be deleted at any time.
 
 ## Next integration checkpoint
@@ -320,7 +318,7 @@ reasonable-looking topology as one of three most-likely slip points.
 
 ## Handoff: the next agents
 
-**Everything below is verified against `main`** (428 tests, `mypy` clean). Read
+**Everything below is verified against `main`** (448 tests, `mypy` clean). Read
 [CLAUDE.md](../CLAUDE.md) first, then the build plan entry for your task. Model
 guidance is the **Agent model guidance** section of CLAUDE.md; the column below
 is the build plan's own assignment.
@@ -347,7 +345,7 @@ devices at once. Build the snapshot's solver section with
 snapshot state" below for the contract it presents. Expect golden traces to
 move, and justify any delta in the PR rather than regenerating it away.
 
-**T3-4 (`feature/reference-plant`) is startable now that T3-5 has merged.** ADR 0001 settled the design and re-scoped the task. Verified against
+**T3-4 is Complete (`d6a6cfb`).** ADR 0001 settled the design and re-scoped the task. Verified against
 `main` on 19 September:
 
 - The **YAML half is merged** (PR #15, `c406ca0`) — `.json`/`.yaml`/`.yml` in
@@ -358,12 +356,13 @@ move, and justify any delta in the PR rather than regenerating it away.
   meaningless answer (a pump and compressor in series converge to the same number
   as GPM and as SCFM). That train is now **T5-5**, after the vessel and the
   inventory coupling.
-- **T3-4 now delivers two single-domain fixtures**, both validated on `main`:
+- **T3-4 delivered two single-domain fixtures**, both re-run on `main`:
   `liquid_transfer.yaml` (booster into transfer pump, 50 to 180 psia, solves to
   816.50 GPM with the internal node at 115.00 psia) and `gas_compression.yaml`
   (two-stage compression, 60 to 480 psia, solves to 70.71 SCFM with the internal
   node at 270.00 psia). Both answers are closed-form and hand-checkable.
-- **Do not assert a cold-start operating point in those fixtures.** With no check
+- **Do not assert a cold-start operating point in those fixtures**
+  (`tests/test_reference_plants.py` deliberately does not). With no check
   valve, line resistance or control valve, a stopped machine backflows if the
   boundaries are sized for running and a started one runs away if they are sized
   for cold. That criterion moved to T7-1.
@@ -395,12 +394,11 @@ All dependencies are Complete. Two of them (T2-5, T12-1) add *new* isolated
 modules under `app/engine/`, which is satellite work under the **`app/engine/`
 rule** in CLAUDE.md.
 
-**Newly startable with T3-6:** T5-1. T4-4 is Checkpoint B and a spine task that
-freezes other merges. T3-4 and T5-1 take no spine lock.
+**Startable:** T5-1 takes no spine lock. T4-4 is Checkpoint B and a spine task that
+freezes other merges.
 
 | Task | Name | Model | Branch |
 |---|---|---|---|
-| **T3-4** | Reference plant: two single-domain fixtures | Sonnet | `feature/reference-plant` |
 | **T4-4** | Wire the solver into the engine (Checkpoint B) | Opus | `refactor/solver-integration` |
 | **T5-1** | Vessel model (coupling device, empty `paths`) | Sonnet | `feature/vessel-model` |
 | **T6-1** | Stream enthalpy and mixing | Opus | `feature/stream-enthalpy` |
@@ -476,12 +474,11 @@ iterations at full step. T4-3 made that legible rather than changing it: the
 failure reads `iteration_cap` at a residual a few times tolerance — a slow
 solve, not a stuck one. The cap is untouched and is not coupled to damping.
 
-**The build plan's reference-plant acceptance test is deferred, not satisfied.**
-"Residual falls below tolerance on the reference plant" needs a reference plant
-file, and none exists because **T3-4 has not been done yet**. T4-3 proves
-convergence on a hand-built single-domain series plant instead
-(`tests/test_solver_diagnostics.py`). T3-4's two single-domain fixtures are what
-this criterion will run against; the integrated train (T5-5) comes later.
+**The build plan's reference-plant acceptance test can now run.** "Residual falls
+below tolerance on the reference plant" has files to run against: T3-4's two
+single-domain fixtures converge under `NetworkSolver` unchanged (5 and 4
+iterations). T4-3's own convergence tests still use a hand-built plant
+(`tests/test_solver_diagnostics.py`). The integrated train (T5-5) comes later.
 
 **Process-domain caveat (enforced in the loader as of T3-5)**:
 A `Topology` must be a single flow domain (gas or liquid, not both), and
@@ -494,7 +491,7 @@ on a multi-domain plant; one solver per domain arrives with T5-2. (T5-1's
 dependency moved to T3-6, the multi-port wiring half of the original T3-5, when
 Amendment 1 split the task.)
 
-## Test suite composition (428 tests on `main`)
+## Test suite composition (448 tests on `main`)
 
 | File | Tests | File | Tests |
 |---|---|---|---|
@@ -509,10 +506,11 @@ Amendment 1 split the task.)
 | `test_rng.py` | 10 | `test_network_solver.py` | 36 |
 | `test_solver_diagnostics.py` | 14 | `test_plant_yaml.py` | 17 |
 | `test_plant_domains.py` | 23 | `test_plant_ports.py` | 32 |
+| `test_reference_plants.py` | 20 | | |
 
 `test_equipment_contract.py` and `test_registry.py` discover device classes
 dynamically, so a new `Equipment` subclass is swept into the contract tests
 automatically — adding one raises the total by more than the tests you wrote.
 (T4-2 added `test_network_solver.py` with 36 tests, taking the total to 336;
 T4-3 added `test_solver_diagnostics.py` with 14 and 5 to `test_snapshot.py`,
-taking it to 355; `test_plant_yaml.py` added 17, taking it to 372; `test_plant_domains.py` added 23, taking it to 395; `test_plant_ports.py` added 32, and `main` runs 428.)
+taking it to 355; `test_plant_yaml.py` added 17, taking it to 372; `test_plant_domains.py` added 23, taking it to 395; `test_plant_ports.py` added 32, `test_reference_plants.py` added 20, and `main` runs 448.)

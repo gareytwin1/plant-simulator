@@ -233,13 +233,55 @@ def test_a_failed_solve_leaves_the_plant_exactly_as_it_was():
     assert snapshot.sim_time == pytest.approx(1.0)
 
 
-def test_a_multi_domain_plant_is_refused_at_wiring_time():
+def test_a_multi_domain_plant_gets_one_solver_per_domain():
+    """Refused before T5-2, wired now: one NetworkSolver per entry in
+    Plant.topologies, each solved against its own fixed boundaries.
+    """
     plant = load_plant(copy.deepcopy(MIXED_DOMAIN_PLANT))
+    engine = Engine.from_plant(plant)
 
-    assert len(plant.topologies) == 2
+    assert sorted(engine.solvers) == ["gas", "liquid"]
+
+    snapshot = engine.step(1.0)
+
+    assert snapshot.solver["converged"] is True
+    # Node ids and branch ids are unique plant-wide, so the two domains merge
+    # into C4's flat sections without collision and without widening C4.
+    assert sorted(snapshot.nodes) == ["N-101", "N-102", "N-201", "N-202"]
+    assert sorted(snapshot.streams) == ["B-K-101", "B-P-101"]
+
+
+def test_the_sole_topology_accessor_refuses_a_multi_domain_engine():
+    engine = Engine.from_plant(load_plant(copy.deepcopy(MIXED_DOMAIN_PLANT)))
 
     with pytest.raises(ValueError, match="spans 2 flow domains"):
-        Engine.from_plant(plant)
+        engine.topology
+
+
+def test_the_solver_section_reports_the_worst_domain():
+    """C4's solver section is one row for the whole plant. A plant is
+    converged only if every domain is, and the numbers reported are the
+    worst so that one failed domain cannot be flattered by a healthy one.
+    """
+    plant = load_plant(copy.deepcopy(MIXED_DOMAIN_PLANT))
+    engine = Engine.from_plant(plant)
+
+    engine.solvers["gas"] = NetworkSolver(
+        plant.topologies["gas"],
+        max_iterations=1,
+    )
+
+    for branch in plant.topologies["gas"].branches.values():
+        branch.set_flow(0.0)
+
+    snapshot = engine.step(1.0)
+
+    assert engine.solver_results["liquid"].converged is True
+    assert engine.solver_results["gas"].converged is False
+    assert snapshot.solver["converged"] is False
+    assert snapshot.solver["residual"] == pytest.approx(
+        engine.solver_results["gas"].residual,
+    )
 
 
 def test_an_engine_with_no_topology_integrates_and_reports_the_placeholder():

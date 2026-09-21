@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Accepted 20 September 2026, **amended by [Amendment 1](#amendment-1--a-connection-has-four-descriptors-not-three) before T3-7 implementation**, which replaces the single `service` axis with independent `purpose` and `control` descriptors. Read Section 3 together with the amendment: **where the two disagree, Amendment 1 wins.** |
+| **Status** | Accepted 20 September 2026, **amended twice**. [Amendment 1](#amendment-1--a-connection-has-four-descriptors-not-three), before T3-7, replaces the single `service` axis with independent `purpose` and `control` descriptors. [Amendment 2](#amendment-2--the-node-is-the-unit-of-account-not-the-port), before T5-6, makes the **node** the unit of account for the aggregation D3.3 wrote as a sum over ports. Read Section 3 together with both: **where they disagree, the later amendment wins.** |
 | **Date** | 20 September 2026 |
 | **Decides for** | T3-7 (new), T5-6 (new), T5-7 (new), T5-5 (unblocked, re-sequenced), T7-5 (new, deferred), and the M5/M8 boundary |
 | **Verified against** | `main` at `f8aab59`, 753 tests passing, `mypy` clean over 24 source files |
@@ -673,3 +673,269 @@ The T5-6, T5-7 and T7-5 rows are unchanged, and so are the dependency edges in
 T3-7 lands are that port names are identifiers only, that `phase` and
 `direction` own conservation classification, and that `purpose` and `control`
 are descriptive and never change a balance.
+
+---
+
+## Amendment 2 — the node is the unit of account, not the port
+
+| | |
+|---|---|
+| **Status** | Accepted 20 September 2026, before T5-6 wrote anything. Amends D3.3, D3.8 and Amendment 1 A.4 of this record. Applied to `app/engine/coupling.py`, `docs/BUILD_PLAN.html`, the live build-plan artifact, `docs/BUILD_PLAN_STATUS.json`, `docs/ARCHITECTURE.md`, `docs/PROJECT_STATE.md` and `CLAUDE.md`. |
+| **Raised by** | The review of T3-7 held before T5-6 implementation began. |
+| **Verified against** | `main` at `1848d53`, 868 tests passing, `mypy` clean over 24 source files |
+| **Amends** | D3.3 and Amendment 1 A.4 (the four sums are over *nodes*, not ports), D3.8 (the shared-node idiom gains a stated accounting rule), and D5's `DOMAIN_UNITS` retirement (now an acceptance criterion with a replacement rule) |
+
+**Where D3.3, D3.8 or Amendment 1 A.4 conflicts with Amendment 2, Amendment 2
+wins.**
+
+### B.0 The defect: a port has no flow of its own
+
+D3.3 and A.4 write the four aggregates as sums **over ports**:
+
+```
+gas_outlet_flow  =  Σ flow over ports where phase = vapor and direction = outlet
+```
+
+That wording was written against `Attachment.net_flow`, which is not a port
+quantity at all. It is derived from **every branch meeting the attachment
+node**:
+
+```
+arrivals   = Σ branch.flow for branches terminating at the node
+departures = Σ branch.flow for branches originating at the node
+net        = arrivals - departures        (read through an INLET declaration)
+```
+
+That is a **node exchange**. A port is a declaration about a connection; the
+hydraulics belong to the node the connection lands on. Two ports of one vessel
+attached to one node therefore do **not** own two independent flows, and
+summing `net_flow` once per port would count the same node twice — a silent
+doubling of real plant inventory transfer, which is the same class of defect as
+the one T5-6 exists to fix.
+
+Netting each node into a single signed quantity is not the answer either. It
+discards gross directional information the `Vessel` already exposes and uses:
+`residence_time` is `volume / outlet_flow`, and a vessel fed at 357 GPM and
+drained at 357 GPM through one node has zero net exchange and 357 GPM of real
+throughput. Net-only accounting would report no outflow and no residence time
+for a vessel that is plainly flowing.
+
+Amendment 2 therefore defines **node-based accounting with gross directional
+components**.
+
+### B.1 — account each hydraulic node exactly once
+
+> **B1.** The fundamental accounting entity is the unique plant **node**. Every
+> coupled node contributes to the aggregates exactly once, however many ports
+> the device declares on it.
+
+Node ids are unique plant-wide, so the node id alone is the key. Aggregation is
+**not** keyed by port, and not by `(topology, node, phase)`.
+
+All of a device's typed ports on one node must agree on `phase`. Two ports on
+one node declaring conflicting phases are refused at Engine construction, naming
+the node and both ports. A node may not be counted once as liquid and again as
+vapor. The refusal applies even where no machine is present to expose the
+contradiction — on a valve-only node, or on a node with no branches at all.
+
+### B.2 — gross components are signed sums over branch orientation
+
+For every coupled node, computed once:
+
+```
+arrivals   = Σ branch.flow for branches terminating at this node
+departures = Σ branch.flow for branches originating at this node
+```
+
+**"Gross" means separated by branch orientation. It does not mean positive
+magnitude.** No `abs()`, no `max(flow, 0)`, no clamping. A feed branch running
+backwards contributes a negative `arrivals`, and that is required: §7.3 records
+cold-start pump backflow as real physics, not an artifact, and clamping it would
+invent inventory the plant never received.
+
+### B.3 — what a node contributes depends on which directions are declared
+
+Having computed the node's signed gross components, inspect which of the
+device's port directions are declared **on that node**, for that phase.
+
+**Case 1 — both an inlet and an outlet are declared.** Gross directional
+exchange survives:
+
+```
+phase inlet aggregate  += arrivals
+phase outlet aggregate += departures
+```
+
+Each component is added once for the node, regardless of how many matching ports
+exist. A vessel fed and drained through one node at steady state reads
+`inlet_flow = 357.414`, `outlet_flow = 357.414`, net zero — conserving exactly,
+while keeping throughput, `residence_time` and the §2.2 self-regulating
+behaviour intact.
+
+**Case 2 — only one direction is declared.** The node's **net signed exchange**
+is written through that declaration:
+
+```
+INLET-only:   inlet aggregate  += arrivals - departures
+OUTLET-only:  outlet aggregate += departures - arrivals
+```
+
+This preserves the historical shared-node idiom and is a compatibility
+requirement, not a convenience. §2.2's successful probe used a *single* vessel
+port on a node carrying both a feed branch and a drain branch. Dropping the
+unmatched component there would delete a real feed from the vessel's balance.
+Such a layout is **not** refused merely because the node is hydraulically
+two-sided; it is existing, working architecture.
+
+The sign convention is the one `Attachment.net_flow` already used, so every
+existing single-port configuration reduces to exactly the number it produced
+before aggregation existed.
+
+**Case 3 — duplicate ports of the same direction.** Several ports on one node
+sharing a `(phase, direction)` pair are semantic duplicates with respect to
+hydraulics. They do not multiply the node's exchange; the node is counted once.
+This is distinct from several matching ports on **different** nodes, whose
+exchanges are independent and do sum.
+
+### B.4 — the conservation invariant
+
+For each phase, after every successfully updated aggregate:
+
+```
+liquid net = inlet_flow     - outlet_flow
+gas net    = gas_inlet_flow - gas_outlet_flow
+```
+
+equals the sum of the corresponding node exchanges, with **each hydraulic node
+represented exactly once**. No port count may multiply a node's exchange, and no
+unmatched branch component may disappear.
+
+### B.5 — distinct nodes still sum, which is the original defect
+
+Finding 2.3 stands unchanged. Two vapor withdrawals on two different nodes or
+domains are two independent exchanges and both contribute:
+
+```
+node A withdrawal = 141.4214 SCFM
+node B withdrawal = 400.0000 SCFM
+gas_outlet_flow   = 541.4214 SCFM
+```
+
+Nothing is overwritten and nothing is lost. The distinction B1 draws is between
+*several ports on one node* — counted once — and *several nodes* — summed.
+
+### B.6 — two inventory devices may not claim one node
+
+Current coupling semantics cannot conserve a node shared by two independent
+inventory devices: each `VesselCoupling` would read the whole node exchange as
+its own, and the same transfer would be added to two inventories.
+
+This is refused at Engine construction, naming the node, both device tags and
+the ports involved. The exchange is not silently divided and no split is
+guessed, because there is no basis on which to guess one.
+
+### B.7 — boundary-pressure writes are per node, not per port
+
+Node deduplication governs writing as well as reading.
+
+- **Gas.** A vapor attachment writes the vessel's absolute pressure to the node.
+  Where several of one vessel's vapor ports reference one node the write is
+  idempotent, and it happens once.
+- **Liquid.** Vessel head is applied only where the vessel *supplies* the
+  hydraulic system — a node carrying an **outlet** declaration. A node with no
+  liquid outlet declaration keeps its configured battery limit. A node carrying
+  one or several liquid outlet declarations from the same vessel gets
+  `configured_pressure + head` **once**. Duplicate nozzles must not apply a head
+  twice.
+
+### B.8 — declared phase is primary, and `DOMAIN_UNITS` is retired
+
+> **B8.** A connection's flow unit comes from its declared `phase`:
+> `liquid` → GPM, `vapor` → SCFM. Domain names carry no engineering meaning.
+
+`DOMAIN_UNITS` is deleted, which is D5's retirement made an acceptance
+criterion. A domain may be called `gas`, `vent`, `flare`, `relief_header`,
+`process_water` or anything else without its name selecting a unit, and it may
+not be reintroduced as a hidden legacy fallback.
+
+**Known machines still confirm.** `CentrifugalPump` writes its characteristic in
+GPM and `GasCompressor` in SCFM. A declared `phase` that contradicts the
+machines at its node is refused at Engine construction, naming the vessel port —
+`phase: vapor` beside a GPM-confirmed node, or `phase: liquid` beside an
+SCFM-confirmed one.
+
+**`ControlValve` is unit-neutral, not unknown.** A resistance has no intrinsic
+flow unit and is valid in either service, so it contributes neither a confirming
+nor a contradicting unit. That is represented explicitly in the flow-unit table.
+It must never be generalised into "anything unrecognised is acceptable": an
+**unknown equipment model** encountered while confirming a node is still an
+error, and restoring domain-name inference is not an alternative.
+
+**Legacy untyped ports.** A port with no declared phase is classified from the
+machines around its node where they settle it unambiguously — untyped beside a
+pump is GPM, untyped beside a compressor is SCFM, both exactly as before. Untyped
+beside a valve-only node, or on a node with no branches, can no longer be
+classified at all and is refused, naming the port and asking for a `phase`.
+
+**Branchless typed attachments couple.** A typed vapor vent or flare boundary
+with no branch on it classifies from its declaration and is a real attachment:
+it carries the vessel's pressure and contributes a zero exchange. It is no longer
+silently ignored. The same holds for a typed liquid attachment.
+
+### B.9 — `purpose` and `control` remain invisible to conservation
+
+Amendment 1 A.3 is upheld without qualification, and T5-6 is where it becomes
+executable. Nothing in the coupling reads `purpose` or `control` to decide an
+aggregate target, a phase, a unit, a sign, or whether a flow counts. These three
+vapor outlets participate in the vapor balance identically:
+
+```
+phase=vapor  purpose=process
+phase=vapor  purpose=vent     control=pressure
+phase=vapor  purpose=relief
+```
+
+Only `phase`, `direction` and the hydraulics of the node matter.
+
+### B.10 — a failed domain holds a whole aggregate
+
+T4-3's rationale — a failed solve does not own a new physical state — is
+strengthened from per-attachment to **per aggregate**.
+
+Candidate aggregates are computed before anything is written. If any node
+contributing to an aggregate belongs to a domain that did not converge, that
+**entire** attribute keeps its previous value. The sum of only the converged
+contributors is never written: it would mix numbers from two different steps and
+report a plant that never existed.
+
+An unrelated aggregate whose own contributors all converged still updates. If
+`gas_outlet_flow` draws on a converged process-gas node and a failed vent node,
+`gas_outlet_flow` holds while `inlet_flow` may advance.
+
+### B.11 — determinism
+
+Existing configurations must remain **bit-identical**. Every coupled node on
+`main` at `1848d53` carries one vessel attachment and a one-sided declaration, so
+Case 2 reduces exactly to the value the previous code produced.
+
+The rules that keep it exact: deterministic port and node ordering; a single
+contribution assigned directly rather than added to a zero seed, so a lone `-0.0`
+survives and no extra rounding step appears; no reordering of sums through sets.
+No golden trace may move. If one does, stop and explain.
+
+### B.12 — what Amendment 2 does not reopen
+
+Unchanged: the four descriptors and their meanings (A.1); `control` is not a
+controller (A.2); conservation is `phase` + `direction` only (A.3); any number of
+connections may share a `(phase, direction)` pair (A.4, now correctly scoped to
+distinct nodes); the typed C3 entry and the untyped legacy string (A.6); what
+`Port` may carry (A.7); no composition, flash or K-values (D6); manual valves in
+T5-5 and M8 owning control (D7); no change to `NetworkSolver`, to C2, or to the
+single-domain solver rule (§9).
+
+§7.1 and §7.2 are **not** fixed here and must not be folded in. The sequencing is
+unchanged:
+
+```
+ADR 0002  →  T3-7  →  T5-6  →  T5-5  →  T5-7 (later)
+```

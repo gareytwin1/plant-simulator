@@ -1,5 +1,6 @@
 """
-Coupling: the one place slow state pushes back on the hydraulics — T5-2, T5-3.
+Coupling: the one place slow state pushes back on the hydraulics — T5-2, T5-3,
+T5-6.
 
 `NetworkSolver` solves one flow domain against fixed boundary conditions and
 knows nothing about any other domain. What joins two domains is a coupling
@@ -23,46 +24,97 @@ stops the offset compounding: the same level always produces the same
 boundary, however many steps have run.
 
 **Up, out of the plant.** A coupling device has no Branch, so there is no
-"vessel branch" to read a flow off. The exchange is the net signed flow at
-the attachment node: everything the branches bring in, less everything they
-take away. Boundary nodes carry no mass-balance equation in the solver, so
-that sum is exactly what crossed the battery limit and needs no correction.
-More than one branch may meet the node, and the port's `direction` — never
-its name — decides the sign.
+"vessel branch" to read a flow off. The exchange is the signed flow the
+branches carry at the attachment node. Boundary nodes carry no mass-balance
+equation in the solver, so that is exactly what crossed the battery limit and
+needs no correction.
 
-**Units.** A vessel holds two phases and keeps their flows apart: GPM in
-`inlet_flow` / `outlet_flow`, SCFM in `gas_inlet_flow` / `gas_outlet_flow`.
-A vessel port may attach to either kind of node, and SCFM summed into a GPM
-attribute would be silently wrong rather than loudly wrong, so a port is
-coupled only where the flow unit can be *confirmed* from the devices on the
-branches that meet it, and that unit — never the port's name — picks the
-attributes. A machine declares its unit; a resistance such as the control
-valve has none of its own and takes it from the domain it sits in (`liquid`
-GPM, `gas` SCFM), refusing any other domain name. A node whose devices this
-module cannot classify, or whose devices disagree, raises when the Engine is
-built, because guessing is the failure mode this check exists to prevent. A
-node with no branches to read a unit from is left alone.
+**The node is the accounting entity, not the port** (ADR 0002, Amendment 2).
+A port has no hydraulic flow of its own; the exchange belongs to the node it
+attaches to, and several nozzles of one vessel may share a node. Each node is
+therefore counted **exactly once**, however many ports the vessel declares on
+it, and the number of nozzles never multiplies a flow. Distinct nodes are
+independent and do sum: two vapor withdrawals on two nodes are two
+withdrawals, which is the aggregation T5-6 exists to add.
+
+What a node contributes depends on which directions the device declares there:
+
+  - **both** an inlet and an outlet port — the gross components survive,
+    `arrivals` into the inlet aggregate and `departures` into the outlet one.
+    A vessel fed and drained through one node has zero net exchange at steady
+    state and non-zero throughput, and the throughput is what residence time
+    is made of;
+  - **one** direction only — the node's *net* signed exchange is written
+    through that declaration, `arrivals - departures` for an inlet and the
+    negative of it for an outlet. That is the shared-node idiom ADR 0002 §2.2
+    proved, and dropping the unmatched component there would delete a real
+    feed from the balance.
+
+Both components are **signed sums over branch orientation**, never magnitudes.
+A branch running backwards contributes a negative arrival, which is what keeps
+cold-start backflow (ADR 0002 §7.3) exactly as the solver found it.
+
+**Phase and units.** A vessel holds two phases and keeps their flows apart:
+GPM in `inlet_flow` / `outlet_flow`, SCFM in `gas_inlet_flow` /
+`gas_outlet_flow`. SCFM summed into a GPM attribute would be silently wrong
+rather than loudly wrong, so every attachment carries a confirmed unit and
+that unit — never the port's name — picks the attributes.
+
+The unit comes from the port's **declared `phase`** (T3-7): `liquid` is GPM,
+`vapor` is SCFM. Machines around the node *confirm* it — a pump's
+characteristic is written in GPM and a compressor's in SCFM — and a declared
+phase that contradicts the machines beside it is refused. A known
+**unit-neutral** device such as the control valve is written in whatever unit
+the line carries, so it neither confirms a unit nor contradicts one; a device
+this module has never heard of is a different thing entirely and is still
+refused, because guessing is the failure mode this check exists to prevent.
+
+**Domain names carry no engineering meaning.** `DOMAIN_UNITS` is retired
+(ADR 0002 D5, Amendment 2): a domain may be called `gas`, `vent`, `flare`,
+`relief_header` or anything else without its name selecting a unit. A legacy
+untyped port is still classified from the machines around it where they
+confirm one, and is refused — naming the port and asking for a phase — where
+they do not. A **typed** attachment needs no branch at all: a vent header with
+nothing on it yet is classified by its declaration, and is coupled.
+
+**`purpose` and `control` are invisible here.** Only `phase` and `direction`
+decide a balance (ADR 0002, Amendment 1 A.3). A vapor withdrawal labelled
+`process`, `vent` or `relief`, under pressure control or under none,
+participates in the vapor balance on identical terms.
 
 **Gas (T5-3).** The vessel's pressure is integrated slow state and is written
-as the runtime boundary at *every* gas attachment, inlet and outlet alike:
-the gas space is one well-mixed pressure, and an inlet-side machine has to
-see it rise as the vessel fills or a blocked outlet would be an unbounded
+as the runtime boundary at *every* gas attachment node, inlet and outlet
+alike: the gas space is one well-mixed pressure, and an inlet-side machine has
+to see it rise as the vessel fills or a blocked outlet would be an unbounded
 ramp instead of a back-pressure. That is a replacement, where the liquid head
 is an offset from the as-built pressure, and it never touches
-`configured_pressure`. The liquid head is never applied to a gas boundary.
-A confirmed SCFM attachment is also what activates the vessel's gas phase.
+`configured_pressure`. The liquid head is never applied to a gas boundary, and
+lands only on a node the vessel *supplies* — one carrying an outlet
+declaration. Both writes happen once per node, so duplicate nozzles cannot
+apply a head twice. A confirmed SCFM attachment is also what activates the
+vessel's gas phase.
+
+**A failed domain holds a whole aggregate.** A domain that did not converge
+still holds last step's flows (T4-3 leaves a failed solve untouched), and an
+aggregate fed partly by such a domain would be a sum of numbers from two
+different steps. Each of the four attributes is therefore written atomically:
+if any node contributing to it belongs to a failed domain, that attribute
+keeps its previous value entirely, while an aggregate whose own contributors
+all converged still updates.
 
 **Where the attachment must be.** A coupled node has to be a boundary node of
 its domain. That is what ADR 0001 A7 says every coupling attachment will be,
 and it is deferred to this task to enforce; the net-flow argument above also
 depends on it. The check is here rather than in the loader so that an
 inventory device attached mid-line stays loadable for whatever later task
-wants one.
+wants one. One node is also owned by at most one inventory device: two
+vessels on a node would each read the whole exchange as their own, and there
+is no split this module could guess.
 """
 
 from collections.abc import Iterable, Mapping
 
-from app.equipment.base import INLET, Equipment, Port
+from app.equipment.base import INLET, LIQUID, OUTLET, VAPOR, Equipment, Port
 from app.equipment.compressor import GasCompressor
 from app.equipment.pump import CentrifugalPump
 from app.equipment.valve import ControlValve
@@ -73,35 +125,49 @@ from app.plant.topology import Node, Topology
 GPM = "GPM"
 SCFM = "SCFM"
 
+# A known device written in no flow unit of its own. A resistance carries
+# whatever the line carries, so it is valid in either service and confirms
+# nothing. It is emphatically not the same as an unrecognised device, which
+# is refused: "has no intrinsic unit" must never decay into "anything
+# unknown is acceptable".
+UNIT_NEUTRAL = "unit-neutral"
+
 # The flow unit each device model's `characteristic(flow)` is written in.
 # Deliberately a lookup rather than a default: a device absent from here is
 # refused at an attachment instead of being assumed liquid.
 FLOW_UNITS: dict[type[Equipment], str] = {
     CentrifugalPump: GPM,
     GasCompressor: SCFM,
+    ControlValve: UNIT_NEUTRAL,
 }
 
-# A device with no unit of its own: a resistance is written in whatever flow
-# unit the line it sits in carries, so that is read off the domain it is
-# installed in. Domain names are semantically load-bearing for exactly these
-# devices — an undeclared name, and DEFAULT_DOMAIN, are refused rather than
-# guessed at.
-DOMAIN_RESOLVED: frozenset[type[Equipment]] = frozenset({ControlValve})
-
-DOMAIN_UNITS: dict[str, str] = {
-    "liquid": GPM,
-    "gas": SCFM,
+# Declared phase is the primary classification (ADR 0002, Amendment 1 A.1).
+# Machines confirm it; domain names say nothing about it.
+PHASE_UNITS: dict[str, str] = {
+    LIQUID: GPM,
+    VAPOR: SCFM,
 }
 
-# The two phases a Vessel carries, by the flow unit that identifies each.
-INVENTORY_UNITS: frozenset[str] = frozenset({GPM, SCFM})
+# The vessel attribute each (unit, direction) pair aggregates into. The four
+# sums of ADR 0002 A.4, keyed by the only two descriptors allowed to decide
+# a balance.
+AGGREGATES: dict[tuple[str, str], str] = {
+    (GPM, INLET): "inlet_flow",
+    (GPM, OUTLET): "outlet_flow",
+    (SCFM, INLET): "gas_inlet_flow",
+    (SCFM, OUTLET): "gas_outlet_flow",
+}
+
+BOTH_DIRECTIONS = frozenset({INLET, OUTLET})
 
 
 class Attachment:
     """One port of a coupling device bound to the node and domain it sits on.
 
-    Built only where the flow unit was confirmed, so an Attachment existing
-    is itself the statement that this port may be read and written.
+    Built only where the connection classifies, so an Attachment existing is
+    itself the statement that this port may be read and written. It carries
+    no flow: a flow belongs to the node, and `NodeExchange` is where the
+    accounting lives.
     """
 
     __slots__ = (
@@ -132,33 +198,123 @@ class Attachment:
         self.topology = topology
         self.node = node
 
-    @property
-    def net_flow(self) -> float:
-        """What the device exchanges with the plant at this node, signed so
-        that positive is always *into* the device.
-
-        An inlet takes whatever the branches leave at the node; an outlet
-        supplies whatever they carry away. Direction decides it, because a
-        port named "inlet" that was declared an OUTLET is a naming accident
-        and this sign is not.
-        """
-        arrivals = sum(
-            branch.flow for branch in self.topology.branches_to(self.node.id)
-        )
-        departures = sum(
-            branch.flow for branch in self.topology.branches_from(self.node.id)
-        )
-
-        if self.port.direction == INLET:
-            return arrivals - departures
-
-        return departures - arrivals
-
     def __repr__(self) -> str:
         return (
             f"Attachment({self.port.name!r} {self.port.direction} -> "
             f"{self.node.id!r} in {self.domain!r})"
         )
+
+
+class NodeExchange:
+    """One node a coupling device attaches to, with every port it attaches
+    through.
+
+    The unit of account. A node has one exchange with the plant however many
+    nozzles are declared on it, and this is what the aggregates are summed
+    over — so duplicate ports of the same phase and direction cost nothing
+    and distinct nodes stay independent.
+    """
+
+    __slots__ = (
+        "node",
+        "topology",
+        "domain",
+        "unit",
+        "attachments",
+        "directions",
+    )
+
+    node: Node
+    topology: Topology
+    domain: str
+    unit: str
+    attachments: tuple[Attachment, ...]
+    directions: frozenset[str]
+
+    def __init__(
+        self,
+        node: Node,
+        topology: Topology,
+        domain: str,
+        unit: str,
+        attachments: Iterable[Attachment],
+    ) -> None:
+        self.node = node
+        self.topology = topology
+        self.domain = domain
+        self.unit = unit
+        self.attachments = tuple(attachments)
+        self.directions = frozenset(
+            attachment.port.direction for attachment in self.attachments
+        )
+
+    @property
+    def arrivals(self) -> float:
+        """Signed, by branch orientation — not a magnitude. A feed running
+        backwards arrives negatively, and that is the physics, not an error
+        to clamp away.
+        """
+        return sum(
+            branch.flow for branch in self.topology.branches_to(self.node.id)
+        )
+
+    @property
+    def departures(self) -> float:
+        return sum(
+            branch.flow for branch in self.topology.branches_from(self.node.id)
+        )
+
+    @property
+    def targets(self) -> tuple[str, ...]:
+        """The vessel attributes this node writes into, flows aside.
+
+        Read on its own so a failed domain can hold the right aggregates
+        without reading a single branch of the solve it disowned.
+        """
+        if self.directions == BOTH_DIRECTIONS:
+            return (
+                AGGREGATES[self.unit, INLET],
+                AGGREGATES[self.unit, OUTLET],
+            )
+
+        direction = INLET if INLET in self.directions else OUTLET
+
+        return (AGGREGATES[self.unit, direction],)
+
+    def contributions(self) -> tuple[tuple[str, float], ...]:
+        """What this node adds to each aggregate, counted once for the node.
+
+        Two components where the device declares both directions here, so a
+        vessel fed and drained through one node keeps its gross throughput
+        at a steady state whose net is zero. One, the net exchange, where it
+        declares a single direction — the unmatched component is folded in
+        rather than dropped, because the branch carrying it is real.
+        """
+        arrivals = self.arrivals
+        departures = self.departures
+
+        if self.directions == BOTH_DIRECTIONS:
+            inlet, outlet = self.targets
+
+            return (
+                (inlet, arrivals),
+                (outlet, departures),
+            )
+
+        target = self.targets[0]
+
+        if INLET in self.directions:
+            return ((target, arrivals - departures),)
+
+        return ((target, departures - arrivals),)
+
+    def __repr__(self) -> str:
+        ports = ", ".join(
+            f"{attachment.port.name!r} {attachment.port.direction}"
+            for attachment in self.attachments
+        )
+
+        return f"NodeExchange({self.node.id!r} in {self.domain!r}, {self.unit}: {ports})"
 
 
 class VesselCoupling:
@@ -176,57 +332,64 @@ class VesselCoupling:
     ) -> None:
         self.vessel = vessel
         self.attachments: tuple[Attachment, ...] = tuple(attachments)
+        self.exchanges: tuple[NodeExchange, ...] = _exchanges(
+            vessel,
+            self.attachments,
+        )
 
     def write_boundary_pressures(self) -> None:
-        """Push the inventory down into the plant.
+        """Push the inventory down into the plant, once per node.
 
-        A liquid head lands on the outlet attachment only — the node the
-        vessel *supplies*. An inlet attachment is a node the plant delivers
-        to, and its pressure stays the battery limit the config gave it.
-        Gas pressure is the vessel's own and lands on every gas attachment.
+        A liquid head lands on a node the vessel *supplies* — one carrying
+        an outlet declaration. A node the plant only delivers to keeps the
+        battery limit the config gave it. Gas pressure is the vessel's own
+        and lands on every gas node. Both are written per node rather than
+        per port, so a second nozzle on a node cannot add a head twice or
+        write a pressure that contradicts the first.
         """
-        for attachment in self.attachments:
-            node = attachment.node
-
-            if attachment.unit == SCFM:
+        for exchange in self.exchanges:
+            if exchange.unit == SCFM:
                 self.vessel.activate_gas()
-                node.set_boundary_pressure(self.vessel.pressure)
+                exchange.node.set_boundary_pressure(self.vessel.pressure)
 
                 continue
 
-            if attachment.port.direction == INLET:
+            if OUTLET not in exchange.directions:
                 continue
 
-            node.set_boundary_pressure(
-                node.configured_pressure + self.vessel.head,
+            exchange.node.set_boundary_pressure(
+                exchange.node.configured_pressure + self.vessel.head,
             )
 
     def write_flows(self, converged: Iterable[str]) -> None:
-        """Pull the solved exchange up out of the plant.
+        """Pull the solved exchange up out of the plant, aggregate by
+        aggregate.
 
-        A domain that did not converge is skipped: its branches still hold
-        last step's flows (T4-3 leaves a failed solve untouched), and
-        integrating a vessel against numbers the solver disowned would turn
-        one bad step into a level that never recovers.
+        Candidates are gathered before anything is written, so an attribute
+        is either the sum of every node feeding it or last step's value. A
+        domain that did not converge holds the whole aggregate it touches:
+        its branches still carry last step's flows, and a sum mixing two
+        steps is a number no solver ever produced.
         """
         solved = set(converged)
 
-        for attachment in self.attachments:
-            if attachment.domain not in solved:
+        totals: dict[str, list[float]] = {}
+        held: set[str] = set()
+
+        for exchange in self.exchanges:
+            if exchange.domain not in solved:
+                held.update(exchange.targets)
+
                 continue
 
-            flow = attachment.net_flow
-            inlet = attachment.port.direction == INLET
+            for attribute, value in exchange.contributions():
+                totals.setdefault(attribute, []).append(value)
 
-            if attachment.unit == SCFM:
-                if inlet:
-                    self.vessel.gas_inlet_flow = flow
-                else:
-                    self.vessel.gas_outlet_flow = flow
-            elif inlet:
-                self.vessel.inlet_flow = flow
-            else:
-                self.vessel.outlet_flow = flow
+        for attribute, values in totals.items():
+            if attribute in held:
+                continue
+
+            setattr(self.vessel, attribute, _total(values))
 
     def __repr__(self) -> str:
         return f"VesselCoupling({self.vessel.tag!r}, {list(self.attachments)})"
@@ -238,12 +401,14 @@ def build_couplings(
 ) -> list[VesselCoupling]:
     """Bind every coupling device in the plant to the graph around it.
 
-    Raises where an attachment cannot be coupled safely — an unclassifiable
-    flow unit, two domains meeting at one node, or an attachment on an
-    internal node. All three are modelling errors, and the Engine is built
-    once per plant, so this is the cheapest place to find them.
+    Raises where an attachment cannot be coupled safely — a phase that no
+    declaration or machine establishes, a declaration the machines
+    contradict, two phases on one node, an attachment on an internal node,
+    or one node claimed by two inventory devices. All of them are modelling
+    errors, and the Engine is built once per plant, so this is the cheapest
+    place to find them.
     """
-    return [
+    couplings = [
         VesselCoupling(
             device,
             [
@@ -255,6 +420,79 @@ def build_couplings(
         for device in devices
         if isinstance(device, Vessel)
     ]
+
+    _reject_shared_nodes(couplings)
+
+    return couplings
+
+
+def _exchanges(
+    vessel: Vessel,
+    attachments: Iterable[Attachment],
+) -> tuple[NodeExchange, ...]:
+    """Group a device's attachments by the node they share, in port order."""
+    grouped: dict[str, list[Attachment]] = {}
+
+    for attachment in attachments:
+        grouped.setdefault(attachment.node.id, []).append(attachment)
+
+    exchanges = []
+
+    for node_id, group in grouped.items():
+        first = group[0]
+
+        for attachment in group[1:]:
+            if attachment.unit == first.unit:
+                continue
+
+            raise ValueError(
+                f"{vessel.tag} attaches node {node_id!r} through "
+                f"{_described(first)} and {_described(attachment)} — one node "
+                f"carries one phase, and it cannot be counted once as liquid "
+                f"and again as vapor (ADR 0002, Amendment 2)",
+            )
+
+        exchanges.append(
+            NodeExchange(
+                first.node,
+                first.topology,
+                first.domain,
+                first.unit,
+                group,
+            ),
+        )
+
+    return tuple(exchanges)
+
+
+def _reject_shared_nodes(couplings: Iterable[VesselCoupling]) -> None:
+    """One node, one inventory owner.
+
+    Two vessels on a node would each read the whole exchange as their own,
+    and the same transfer would land in two inventories. Dividing it is a
+    guess, so this refuses instead.
+    """
+    claimed: dict[str, tuple[VesselCoupling, Attachment]] = {}
+
+    for coupling in couplings:
+        for attachment in coupling.attachments:
+            owner = claimed.get(attachment.node.id)
+
+            if owner is None:
+                claimed[attachment.node.id] = (coupling, attachment)
+
+                continue
+
+            if owner[0] is coupling:
+                continue
+
+            raise ValueError(
+                f"node {attachment.node.id!r} is claimed by two inventory "
+                f"devices — {owner[0].vessel.tag}.{owner[1].port.name} and "
+                f"{coupling.vessel.tag}.{attachment.port.name}. Each would "
+                f"read the whole node exchange as its own, and there is no "
+                f"split to guess (ADR 0002, Amendment 2)",
+            )
 
 
 def _attachment(
@@ -273,10 +511,7 @@ def _attachment(
     domain, topology = located
     node = topology.node(port.node.id)
 
-    unit = _unit_at(device, port, domain, topology, node)
-
-    if unit not in INVENTORY_UNITS:
-        return None
+    unit = _unit_at(device, port, topology, node)
 
     if not node.is_boundary:
         raise ValueError(
@@ -284,8 +519,6 @@ def _attachment(
             f"internal — a coupling device's attachment must be a boundary "
             f"node of the domain it terminates (ADR 0001, A7)",
         )
-
-    assert unit is not None
 
     return Attachment(port, domain, unit, topology, node)
 
@@ -306,22 +539,60 @@ def _locate(
 def _unit_at(
     device: Vessel,
     port: Port,
-    domain: str,
+    topology: Topology,
+    node: Node,
+) -> str:
+    """The flow unit this attachment carries.
+
+    Declared phase decides it and the machines at the node confirm it. A
+    typed port therefore couples with no branch to read at all — a vent
+    header with nothing on it yet is still a vapor connection — while an
+    untyped one has nothing to fall back on and is refused rather than
+    assumed liquid.
+    """
+    confirmed = _confirmed_unit(device, port, topology, node)
+
+    if port.phase is not None:
+        declared = PHASE_UNITS[port.phase]
+
+        if confirmed is not None and confirmed != declared:
+            raise ValueError(
+                f"{device.tag}.{port.name} declares phase {port.phase!r} "
+                f"({declared}) at node {node.id!r}, but the equipment there "
+                f"is written in {confirmed} — the declaration and the plant "
+                f"disagree about which phase this connection carries",
+            )
+
+        return declared
+
+    if confirmed is None:
+        raise ValueError(
+            f"{device.tag}.{port.name} attaches to node {node.id!r} and "
+            f"declares no phase, and nothing at that node establishes one — "
+            f"declare phase: {LIQUID!r} or phase: {VAPOR!r} on the port "
+            f"(ADR 0002, Amendment 1 A.6). Domain names carry no flow unit",
+        )
+
+    return confirmed
+
+
+def _confirmed_unit(
+    device: Vessel,
+    port: Port,
     topology: Topology,
     node: Node,
 ) -> str | None:
-    """The flow unit of the branches meeting `node`, or None if there are
-    none to read it from.
+    """The unit the equipment at `node` is written in, or None where none of
+    it declares one.
 
-    An empty answer is not treated as liquid. A domain may legitimately hold
-    nodes and no branches (ADR 0001, A8), and the vessel venting to an
-    equipment-free gas boundary is exactly that case — assuming GPM there
-    would couple the one attachment this module is least able to check.
+    A unit-neutral device abstains rather than answering, so a node carrying
+    only valves confirms nothing and leaves the declaration to say what this
+    is. An unrecognised device is a different case and raises.
     """
     units = set()
 
     for branch in topology.branches_at(node.id):
-        unit = _flow_unit(branch.device, domain)
+        unit = _flow_unit(branch.device)
 
         if unit is None:
             raise ValueError(
@@ -331,6 +602,9 @@ def _unit_at(
                 f"declared in app/engine/coupling.py, and guessing one would "
                 f"mix {GPM} with {SCFM}",
             )
+
+        if unit == UNIT_NEUTRAL:
+            continue
 
         units.add(unit)
 
@@ -344,19 +618,33 @@ def _unit_at(
     return units.pop() if units else None
 
 
-def _flow_unit(device: Equipment, domain: str) -> str | None:
+def _flow_unit(device: Equipment) -> str | None:
     for kind in type(device).__mro__:
         if kind in FLOW_UNITS:
             return FLOW_UNITS[kind]
 
-        if kind in DOMAIN_RESOLVED:
-            if domain not in DOMAIN_UNITS:
-                raise ValueError(
-                    f"{device.tag} ({type(device).__name__}) takes its flow "
-                    f"unit from its domain, but domain {domain!r} has no "
-                    f"declared flow unit — only {sorted(DOMAIN_UNITS)}",
-                )
-
-            return DOMAIN_UNITS[domain]
-
     return None
+
+
+def _described(attachment: Attachment) -> str:
+    port = attachment.port
+
+    if port.phase is not None:
+        return f"{port.name!r} (phase {port.phase!r}, {attachment.unit})"
+
+    return f"{port.name!r} (undeclared, confirmed {attachment.unit})"
+
+
+def _total(values: list[float]) -> float:
+    """Sum without a zero seed.
+
+    `sum()` starts at 0, which turns a lone -0.0 into +0.0 and adds a
+    rounding step no single-attachment plant had before aggregation existed.
+    One contribution is written exactly as the node produced it.
+    """
+    total = values[0]
+
+    for value in values[1:]:
+        total += value
+
+    return total

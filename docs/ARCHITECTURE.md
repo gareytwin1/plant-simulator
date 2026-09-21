@@ -106,9 +106,10 @@ liquid topology          V-101 (a coupling device, on no branch)          gas to
   the boundary at its as-built value.
 - A vessel's gas **pressure replaces** the boundary at every SCFM attachment,
   inlet and outlet alike, so the machine feeding it sees the back-pressure.
-- Flows come back as the **net signed flow** at each attachment node, signed by
-  the port's direction and never by its name. Several branches at one node are
-  summed.
+- Flows come back as the **signed exchange at each attachment node**, counted
+  once per node however many nozzles sit on it and never by port name. Several
+  branches at one node are summed, and distinct nodes are summed into the
+  aggregate they feed.
 - The step order is clock → integrate → write boundaries → solve every domain →
   read flows back → snapshot. That is explicit Euler with one step of lag on the
   vessel's flows; **nothing iterates between the integrator and the solver**.
@@ -118,21 +119,37 @@ device still never reads a node or a branch, and `Node.set_boundary_pressure`
 refuses on an internal node, so the solver's writer and the coupling's writer
 partition the graph between them.
 
-A port is coupled only where its flow unit can be **confirmed** from the devices
-on the branches meeting it, so **a new device model on a branch must be added to
-`FLOW_UNITS`** or a vessel attached beside it refuses at Engine construction.
+### The node is the unit of account (T5-6)
 
-**ADR 0002 changes this in two steps, and only the first has landed.** T3-7
-(merged) gave `Port` a declared `phase`, `purpose` and optional `control` (ADR
-0002 Amendment 1 split the original `service` axis in two, because purpose and
-control are independent), and let a C3 `ports` entry carry them. **Nothing reads
-them yet.** The coupling still infers phase from whichever device sits on the
-next branch, and role from a direction keyword that means something else, which
-is why the only separator wiring that computes correctly today is one whose
-port names lie. T5-6 is the second step: it makes the coupling classify by the
-declared `phase` and `direction` alone and **sum** every matching typed port
-instead of assigning to one of four fixed attributes, which is what today loses
-a second vapour withdrawal silently.
+ADR 0002 Amendment 2 settles what an aggregate is a sum *over*. A port is a
+declaration about a connection; the hydraulics belong to the node it lands on,
+so the four vessel attributes are sums over **nodes**, each counted once:
+
+```text
+one node, both directions declared    inlet  += arrivals       outlet += departures
+one node, one direction declared      that aggregate += the node's net exchange
+several nodes                         independent, and summed
+several nozzles on one node           one exchange, counted once
+```
+
+Both components are signed sums over branch orientation — a reversed feed
+arrives negatively and is not clamped — and an aggregate any failed domain
+feeds holds its previous value entirely rather than being written from the
+converged part.
+
+Classification is by **declared `phase`**: `liquid` is GPM and `vapor` is SCFM.
+Machines *confirm* it — a pump is GPM, a compressor SCFM — and a declaration
+they contradict refuses. `ControlValve` is listed as `UNIT_NEUTRAL` and
+confirms nothing, which is not the same as an unrecognised device: **a new
+device model on a branch must be added to `FLOW_UNITS`** either way, or a
+vessel attached beside it refuses at Engine construction. `DOMAIN_UNITS` is
+retired, so a domain may be called `vent`, `flare` or `relief_header` without
+its name selecting a unit; a legacy untyped port is still read off the
+machines at its node, and refused where they settle nothing. A typed
+attachment couples with no branch at the node at all, and one node may be
+claimed by only one inventory device.
+
+`purpose` and `control` are read nowhere in any of this (Amendment 1 A.3).
 
 ## 3. Target architecture
 

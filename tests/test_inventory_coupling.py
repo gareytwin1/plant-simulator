@@ -11,7 +11,8 @@ of four claims:
     nodes, and the sign comes from port direction;
   * the two are connected by one explicit-Euler step with the lag on the
     flows, and the loop is stable through level zero;
-  * a port whose flow unit cannot be confirmed GPM is not coupled at all.
+  * a port is classified from its declared phase, confirmed against the
+    machines around its node, and refused where neither settles it.
 
 The reference plant is two liquid domains with the vessel between them, and
 its numbers are closed-form. The feed pump lifts N-201 (60 psia) to N-202
@@ -28,12 +29,13 @@ from pathlib import Path
 
 import pytest
 
-from app.engine.coupling import FLOW_UNITS, GPM, build_couplings
+from app.engine.coupling import FLOW_UNITS, GPM, SCFM, UNIT_NEUTRAL, build_couplings
 from app.engine.engine import Engine
 from app.engine.network import NetworkSolver
 from app.equipment.base import INLET, OUTLET, Equipment, signed_square
 from app.equipment.compressor import GasCompressor
 from app.equipment.pump import CentrifugalPump
+from app.equipment.valve import ControlValve
 from app.equipment.vessel import Vessel
 from app.plant.loader import load_plant
 
@@ -671,25 +673,53 @@ def test_a_device_with_no_declared_flow_unit_is_refused_at_construction():
         Engine.from_plant(plant)
 
 
-def test_an_attachment_with_no_branches_to_read_is_not_coupled():
-    """A domain may hold nodes and no branches (ADR 0001, A8). With nothing
-    to read a unit from, the port is left uncoupled rather than assumed
-    liquid — which is what keeps a gas vent with no compressor yet from
-    quietly taking a liquid head.
+def branchless_vent_config(outlet, domain="flare_header"):
+    """The reference plant with the vessel's second port on a boundary node
+    that carries no equipment at all (ADR 0001, A8).
     """
     config = coupled_config(level=0.5)
     config["nodes"].append(
-        {"id": "N-301", "boundary": True, "pressure": 30.0, "domain": "vent"},
+        {"id": "N-301", "boundary": True, "pressure": 30.0, "domain": domain},
     )
-    config["equipment"][2]["ports"] = {"inlet": "N-202", "outlet": "N-301"}
+    config["equipment"][2]["ports"] = {"inlet": "N-202", "outlet": outlet}
 
-    plant = load_plant(config)
+    return config
+
+
+def test_an_untyped_attachment_with_no_branches_to_read_is_refused():
+    """T5-6 changed this. Such a port used to be left uncoupled in silence,
+    which is what let a gas vent with no compressor yet quietly go missing.
+    There is no domain name to fall back on any more, so it is refused and
+    the refusal asks for the one thing that would settle it.
+    """
+    plant = load_plant(branchless_vent_config("N-301"))
+
+    with pytest.raises(ValueError, match=r"V-101\.outlet.*declares no phase"):
+        Engine.from_plant(plant)
+
+
+def test_a_typed_attachment_with_no_branches_couples_on_its_declaration():
+    """A declaration is enough on its own. The vent header is vapor because
+    the port says so, and the domain being called 'flare_header' — a name
+    the retired DOMAIN_UNITS would have refused — means nothing either way.
+    """
+    plant = load_plant(
+        branchless_vent_config(
+            {"node": "N-301", "phase": "vapor", "purpose": "vent"},
+        ),
+    )
     engine = Engine.from_plant(plant)
+    vessel = plant.devices["V-101"]
 
     engine.step(60.0)
 
-    assert plant.nodes["N-301"].pressure == pytest.approx(30.0)
-    assert plant.devices["V-101"].outlet_flow == pytest.approx(0.0)
+    assert vessel.gas_active is True
+    assert plant.nodes["N-301"].pressure == pytest.approx(vessel.pressure)
+    assert plant.nodes["N-301"].configured_pressure == pytest.approx(30.0)
+    # Nothing meets the node, so it exchanges nothing — and no liquid head
+    # ever reaches a vapor boundary.
+    assert vessel.gas_outlet_flow == pytest.approx(0.0)
+    assert vessel.outlet_flow == pytest.approx(0.0)
 
 
 def test_a_liquid_attachment_on_an_internal_node_is_refused():
@@ -737,6 +767,13 @@ def test_a_liquid_attachment_on_an_internal_node_is_refused():
 def test_the_flow_unit_table_covers_every_device_a_branch_can_hold():
     """A new device model added to the plant without a unit would otherwise
     only fail when someone attached a vessel next to it.
+
+    Every known model is listed, including the one that carries no unit of
+    its own: the table is what tells a neutral device apart from an
+    unrecognised one, and absence from it is the error.
     """
     assert FLOW_UNITS[CentrifugalPump] == GPM
-    assert set(FLOW_UNITS) == {CentrifugalPump, GasCompressor}
+    assert FLOW_UNITS[GasCompressor] == SCFM
+    assert FLOW_UNITS[ControlValve] == UNIT_NEUTRAL
+
+    assert set(FLOW_UNITS) == {CentrifugalPump, GasCompressor, ControlValve}

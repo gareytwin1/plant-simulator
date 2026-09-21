@@ -123,8 +123,11 @@ Violating any of these is a contract break, not a style preference.
   declares its ports by name and direction; the C3 loader puts the descriptors
   on the runtime `Port`. An `isinstance(device, ...)` or a port-name test that
   decides a phase is the inference T3-7 exists to retire.
-- T3-7 built this vocabulary. **T5-6 aggregates over it and has not landed** —
-  do not write code that assumes the coupling already sums typed connections.
+- T3-7 built this vocabulary; **T5-6 consumes it.** The coupling classifies a
+  connection from its declared `phase`, and aggregates the exchange of each
+  hydraulic **node** exactly once — not once per port. See
+  [docs/ADR_0002_TYPED_PORTS.md](docs/ADR_0002_TYPED_PORTS.md), Amendment 2.
+  `purpose` and `control` are read nowhere on that path.
 
 **Time is owned, not observed.**
 - **Never call `time.time()`** or any wall-clock source inside a model. Simulated
@@ -210,8 +213,8 @@ difference. That is a known interim state, not a bug to fix in passing.
 wires one `NetworkSolver` per entry in `Plant.topologies`, so a multi-domain
 plant runs. What joins two domains is a coupling device's inventory, never a
 shared flow variable: a vessel's `head_at_full * level` is *added to* the
-`configured_pressure` of the boundary node its OUTLET port attaches to, and
-its flows are read back as the net signed flow at each attachment node. A
+`configured_pressure` of the boundary node an OUTLET port attaches to, and
+its flows are read back as the signed exchange at each attachment node. A
 step is clock → integrate → write boundaries → solve every domain → read
 flows back → snapshot. That is explicit Euler with one step of lag on the
 vessel's flows; nothing iterates between the integrator and the solver.
@@ -219,11 +222,35 @@ vessel's flows; nothing iterates between the integrator and the solver.
 `app/engine/coupling.py` owns that join and is the only place it lives. A
 device still never reads a node or a branch, and `Node.set_boundary_pressure`
 (C2, added at T5-2) refuses on an internal node, so the solver's writer and
-the coupling's writer partition the graph between them. A port is coupled
-only where its flow unit can be confirmed GPM from the devices on the
-branches meeting it — **a new device model on a branch must be added to
-`FLOW_UNITS`**, or a vessel attached beside it refuses at Engine
-construction. Gas-phase accumulation (T5-3) puts a gas vessel's pressure on the same footing: it replaces the boundary at every SCFM attachment, and a gas attachment is coupled only where SCFM is confirmed.
+the coupling's writer partition the graph between them. Gas-phase
+accumulation (T5-3) puts a gas vessel's pressure on the same footing: it
+replaces the boundary at every SCFM attachment node.
+
+**The node is the unit of account, not the port (T5-6, ADR 0002 Amendment
+2).** A port has no hydraulic flow of its own — the exchange belongs to the
+node — so each node is counted **exactly once** however many nozzles a
+vessel declares on it, for reading a flow and for writing a boundary
+pressure alike. Distinct nodes are independent and **sum**: two vapor
+withdrawals on two nodes are two withdrawals. A node where the device
+declares both an inlet and an outlet keeps its gross components — signed
+`arrivals` into the inlet aggregate, signed `departures` into the outlet one
+— so a vessel fed and drained through one node keeps its throughput at a net
+of zero. A node declaring one direction keeps its net. Both are signed sums
+over branch orientation; nothing is clamped, so a reversed feed arrives
+negatively. If any node feeding an aggregate sits in a domain that did not
+converge, that **whole** aggregate holds its previous value.
+
+**Phase classifies; machines confirm; domain names mean nothing.** A port's
+declared `phase` picks the unit (`liquid` GPM, `vapor` SCFM) and the machines
+at its node are checked against it, so `DOMAIN_UNITS` is retired and a domain
+may be called `vent`, `flare` or anything else. **A new device model on a
+branch must be added to `FLOW_UNITS`**, as a unit or as `UNIT_NEUTRAL` — a
+resistance confirms nothing, but an *unrecognised* device still refuses at
+Engine construction, and so does a declared phase the machines contradict. A
+legacy untyped port is still read off the machines beside it, and is refused
+where they settle nothing. A typed attachment couples even with no branch at
+the node. One node has at most one inventory device: two vessels on a node
+refuse.
 
 **Still not on the request path:** `EquipmentRegistry`, `SeededRNG` (T2-2).
 

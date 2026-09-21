@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Accepted 20 September 2026. No code, schema, loader or coupling change has been made yet. `docs/BUILD_PLAN.html`, the live build-plan artifact, `docs/BUILD_PLAN_STATUS.json`, `docs/PROJECT_STATE.md` and `CLAUDE.md` have **not** been edited — see [Section 8](#8-build-plan-changes-proposed). |
+| **Status** | Accepted 20 September 2026, **amended by [Amendment 1](#amendment-1--a-connection-has-four-descriptors-not-three) before T3-7 implementation**, which replaces the single `service` axis with independent `purpose` and `control` descriptors. Read Section 3 together with the amendment: **where the two disagree, Amendment 1 wins.** |
 | **Date** | 20 September 2026 |
 | **Decides for** | T3-7 (new), T5-6 (new), T5-7 (new), T5-5 (unblocked, re-sequenced), T7-5 (new, deferred), and the M5/M8 boundary |
 | **Verified against** | `main` at `f8aab59`, 753 tests passing, `mypy` clean over 24 source files |
@@ -128,6 +128,11 @@ where the error can name a config path.
 
 ### 3.1 A port carries three orthogonal axes
 
+> **Amended.** [Amendment 1](#amendment-1--a-connection-has-four-descriptors-not-three)
+> splits `service` into independent `purpose` and `control` descriptors. The
+> three-axis model below is superseded; `direction`, `phase` and `mixed` are
+> unchanged.
+
 `Port` gains **`phase`** and **`service`**. **`direction` stays separate.** The
 three are independent and none is derived from another.
 
@@ -157,6 +162,10 @@ nozzle can be named `feed` and say `liquid/in/process`, and the coupling needs
 nothing else.
 
 ### 3.3 Coupling aggregates; it does not overwrite, and it does not prohibit
+
+> **Upheld, restated.** [Amendment 1 A.4](#a4--d33-restated-in-the-amended-vocabulary)
+> writes the four sums below in the amended vocabulary. The substance is
+> unchanged.
 
 **A vessel may have any number of connections sharing a `(phase, direction)`
 pair.** K-101 suction, PV-101 and a future PSV are all legitimately
@@ -190,6 +199,10 @@ offending port:
 It must **not** reject multiple nozzles of the same phase and direction.
 
 ### 3.4 Service declares intent and never changes the conservation math
+
+> **Amended and widened.** [Amendment 1 A.3](#a3--only-phase-and-direction-may-participate-in-conservation)
+> restates this for `purpose` and `control`: only `phase` and `direction` may
+> participate in conservation.
 
 `service` exists so that a controller can find the valve it manipulates, so a
 relief path can be told apart from a process path in a snapshot, and so the
@@ -434,3 +447,229 @@ file under `app/` was modified for any of them.
 | 2.4 | Read `VesselCoupling.write_boundary_pressures`; confirmed by sweeping `head_at_full` over 0.0, 5.0 and 50.0 with the liquid attachment on an INLET port and observing bit-identical flow and level. |
 | 2.5 | Read `Port.__slots__`, `FLOW_UNITS`, `DOMAIN_UNITS` and `_unit_at`. |
 | 2.6 | Read the keyword list in the `app/plant/validate.py` module docstring and `_check` / `_check_object`. |
+
+---
+
+## Amendment 1 — a connection has four descriptors, not three
+
+| | |
+|---|---|
+| **Status** | Accepted 20 September 2026, before T3-7 wrote anything. Amends D3.1, D3.3 and D3.4 of this record, and the T3-7 row of Section 8.1. Applied to `docs/BUILD_PLAN.html`, the live build-plan artifact, `docs/BUILD_PLAN_STATUS.json`, `docs/PROJECT_STATE.md` and `CLAUDE.md`. |
+| **Raised by** | The review of this ADR held before T3-7 implementation began. |
+| **Verified against** | `main` at `4ced83c`, 753 tests passing, `mypy` clean over 24 source files |
+| **Amends** | D3.1 (`service` replaced by `purpose` + `control`), D3.3 (restated in the new vocabulary), D3.4 (widened and strengthened), Section 8.1's T3-7 row |
+
+**Where the original three-axis `phase` / `direction` / `service` decision
+conflicts with this amendment, Amendment 1 wins.**
+
+### A.0 The defect: `service` was three concepts in one enum
+
+D3.1 gave a port a single `service` axis with the values `process`,
+`pressure_control`, `level_control`, `relief` and `drain`. Read closely, that
+list answers three different questions at once:
+
+- **what the connection physically is** — a process nozzle, a vent, a drain, a
+  relief path;
+- **what controlled variable it serves** — pressure, level, and later flow or
+  temperature;
+- and, in `process`, neither of the two.
+
+The values are therefore not alternatives. A real connection routinely has a
+value from more than one of those groups, and a single enum forces a choice
+between them that the plant does not make:
+
+- **a vessel drain under level control** is a drain *and* a level-control
+  connection. `drain` and `level_control` are both true, and the enum admits
+  one.
+- **a vent under pressure control** — PV-101 — is a vent *and* a
+  pressure-control connection, for the same reason.
+- **a manual drain** is a drain and is under no control at all, which
+  `level_control` would assert and `drain` would leave unsaid.
+- **FV-101 on the normal process line** is a process connection under flow
+  control, and the original enum had no way to say "flow" whatsoever.
+- **a future temperature-control utility connection** was unrepresentable.
+
+A vocabulary that cannot describe a manual drain and a level-controlled drain as
+different things, while describing both as drains, is not yet a vocabulary. The
+defect was caught before T3-7 turned it into a frozen contract, a schema and a
+runtime attribute, which is the cheapest moment it could have been caught.
+
+### A.1 — four descriptors, two of them orthogonal
+
+> **A1.** A connection is described by **`name`**, **`direction`**, **`phase`**,
+> **`purpose`** and an optional **`control`**. `purpose` and `control` are
+> independent of each other, and neither is derived from the other or from
+> `direction` or `phase`.
+
+| Descriptor | Values | Meaning |
+|---|---|---|
+| `name` | arbitrary identifier | Human-readable identifier only. **Never behaviour.** |
+| `direction` | `inlet`, `outlet` | Which way material crosses the equipment boundary. Unchanged from C1 as it stands. |
+| `phase` | `liquid`, `vapor` | Which inventory the connection belongs to, and therefore which flow unit it carries. |
+| `purpose` | `process`, `vent`, `drain`, `relief` | The physical purpose of the connection. |
+| `control` | `flow`, `pressure`, `level`, `temperature`, or absent | The controlled variable this connection participates in, if any. |
+
+`process`, `vent`, `drain` and `relief` name what a connection *is*. `flow`,
+`pressure`, `level` and `temperature` name what it is *controlled on*. One
+connection may carry both, so they cannot correctly occupy one enum — which is
+precisely what A.0 found.
+
+The seven examples that drove the amendment, written out:
+
+```
+normal process vapor outlet       phase=vapor   purpose=process  control=None
+manual vessel vent                phase=vapor   purpose=vent     control=None
+PV-101 connection                 phase=vapor   purpose=vent     control=pressure
+manual vessel drain               phase=liquid  purpose=drain    control=None
+LV-101 connection                 phase=liquid  purpose=drain    control=level
+FV-101 manipulated process line   phase=liquid  purpose=process  control=flow
+future temperature utility        phase=liquid  purpose=process  control=temperature
+PSV connection                    phase=vapor   purpose=relief   control=None
+```
+
+`mixed` remains reserved and rejected at load, for the reason D3.1 gave: a
+stream carrying both phases has to split, and splitting it is a flash
+calculation, which D6 rules out.
+
+### A.2 — `control` is not a controller
+
+The descriptor is named `control`, deliberately **not** `controller`.
+Controllers do not exist. It records the control function a connection is
+associated with, so that an M8 controller can later *find* the final element it
+manipulates. M8 owns controller objects, PID and loop execution, and D7 is
+unchanged: nothing here brings any of that forward.
+
+### A.3 — only `phase` and `direction` may participate in conservation
+
+This restates D3.4, widens it to cover `control`, and is the load-bearing
+invariant of the whole amendment.
+
+> **A3.** The classification that decides a mass balance is **`phase` +
+> `direction`**, and nothing else. `purpose` and `control` are descriptive
+> metadata and **must never alter a conservation result.**
+
+Every `vapor` + `outlet` connection contributes to the vapor withdrawal —
+whether its purpose is `process`, `vent` or `relief`, and whether its control is
+`pressure` or absent. Every `liquid` + `outlet` connection contributes to the
+liquid withdrawal on the same terms. A vapor withdrawal does not become less of
+a vapor withdrawal because someone labelled it a vent.
+
+Any future code that lets `purpose` or `control` change a balance is a contract
+violation, not an optimisation.
+
+**T3-7 records this invariant. T5-6 implements the aggregation.** They are
+separate tasks and the aggregation must not be written into T3-7.
+
+### A.4 — D3.3 restated in the amended vocabulary
+
+D3.3 is upheld unchanged in substance. Written in the new descriptors:
+
+```
+gas_outlet_flow  =  Σ flow over ports where phase = vapor  and direction = outlet
+gas_inlet_flow   =  Σ flow over ports where phase = vapor  and direction = inlet
+outlet_flow      =  Σ flow over ports where phase = liquid and direction = outlet
+inlet_flow       =  Σ flow over ports where phase = liquid and direction = inlet
+```
+
+`purpose` and `control` appear nowhere in those four sums, which is A3 stated
+arithmetically. A vessel may still carry any number of connections sharing a
+`(phase, direction)` pair, and the coupling still sums rather than assigns.
+
+### A.5 — no engineering restriction is imposed between the descriptors
+
+The combinations that happen to appear in the V1 fixture — pressure control on
+vapor, level control on liquid, relief on vapor — are **properties of that
+plant, not of the connection contract**. `Port` and the C3 loader accept any
+`(phase, purpose, control)` combination drawn from the accepted values.
+
+A liquid relief path and a vapor drum drain are both real, and a generic
+vocabulary that forbade them would be wrong. If a specific piece of equipment
+ever needs such a restriction, it belongs to that equipment's own validation or
+to a plant-configuration check at a higher layer, never to `Port`.
+
+### A.6 — the typed C3 entry, and what stays untyped
+
+A `ports` entry is **either** a node-id string **or** a typed object. The
+alternation is enforced in the loader, naming the config path, because the C3
+validator silently ignores `oneOf` (finding 2.6, unchanged).
+
+The typed object requires `node`, `phase` and `purpose`, and takes `control`
+optionally:
+
+```yaml
+ports:
+  vapor_out:     {node: N-201, phase: vapor,  purpose: process}
+  pressure_out:  {node: N-202, phase: vapor,  purpose: vent,  control: pressure}
+  liquid_draw:   {node: N-103, phase: liquid, purpose: drain, control: level}
+  relief:        {node: N-204, phase: vapor,  purpose: relief}
+```
+
+There is **one** typed form and no half-typed one: a `node` and a `phase` with
+no `purpose` is rejected rather than defaulted. Absence of `control` means no
+declared control role, and `control: none` is not how that is written.
+
+The legacy string form stays valid and stays **untyped** — it declares
+attachment and nothing more, exactly as A1 of ADR 0001 says. A legacy config is
+never silently upgraded, and `to_config()` emits back the form it loaded:
+a string round-trips as a string, a typed object round-trips as a typed object
+with its metadata intact, and `node_in` / `node_out` sugar round-trips as sugar.
+
+Typing comes from **configuration**, not from the device class. An equipment
+class keeps declaring its structural ports by `name` and `direction`; the loader
+places the semantic metadata on the runtime `Port`. No device-specific
+inference — nothing that reads `isinstance(device, GasCompressor)` or
+`port.name == "drain"` to decide a phase or a purpose — is permitted, because
+that is the inference T3-7 exists to retire.
+
+### A.7 — what `Port` may and may not carry
+
+`Port` gains `phase`, `purpose` and `control` in `__slots__`. They are
+**connection metadata**, of the same kind as the node a port is attached to.
+
+The thing `Port` must remain structurally incapable of carrying is
+**process state** — a pressure, a flow, a temperature, a level. Those are solver
+outputs, and `__slots__` is what keeps a device from stashing one on a port even
+by accident. D3.2's statement that a port name never drives behaviour is upheld
+and, at T3-7, becomes an enforced guard test rather than a convention.
+
+The older C1 wording that a port carries the node it is attached to *"and
+nothing else"* is superseded by this paragraph: the distinction is between
+connection metadata, which a port may carry, and process state, which it may
+not.
+
+### A.8 — preserved unchanged from the original record
+
+Amendment 1 reopens nothing else. These conclusions stand exactly as written:
+
+- port names never drive engineering behaviour (D3.2);
+- phase is explicit rather than inferred (D3.1, D3.5's finding);
+- several compatible connections on one `(phase, direction)` pair are valid, and
+  the coupling sums them rather than assigning (D3.3);
+- **T5-6** aggregates them; T3-7 creates the vocabulary and no more;
+- metadata never changes conservation (D3.4, widened by A3);
+- a controller manipulates a final element and never assigns a pressure (D3.5);
+- no composition, flash, K-values or component balances in V1 (D6);
+- T5-5 ships manual PV-101 and LV-101, and M8 owns closed-loop control (D7);
+- the shared-node idiom, with no vessel-specific plumbing rules (D8);
+- **T5-5 resumes at construction** once T3-7 and T5-6 have merged. Its design
+  phase already happened and produced this record; there is no second one.
+
+The sequencing is unchanged:
+
+```
+ADR 0002  →  T3-7  →  T5-6  →  T5-5  →  T5-7 (later)
+```
+
+### A.9 — consequences for Section 8.1
+
+The T3-7 row of Section 8.1 is superseded by:
+
+| id | m | name | files | branch | depends |
+|---|---|---|---|---|---|
+| **T3-7** | M3 | Typed ports — phase, purpose and control | `app/equipment/base.py`, `config/schema/plant.schema.json`, `app/plant/loader.py`, `tests/test_typed_ports.py`, `tests/test_port_name_guard.py`, `CLAUDE.md`, `docs/ADR_0002_TYPED_PORTS.md`, `docs/BUILD_PLAN.html`, `docs/BUILD_PLAN_STATUS.json`, `docs/PROJECT_STATE.md` | `feature/typed-ports` | T3-6 |
+
+The T5-6, T5-7 and T7-5 rows are unchanged, and so are the dependency edges in
+8.2. Section 8.3's `CLAUDE.md` addition is widened: the invariants recorded when
+T3-7 lands are that port names are identifiers only, that `phase` and
+`direction` own conservation classification, and that `purpose` and `control`
+are descriptive and never change a balance.

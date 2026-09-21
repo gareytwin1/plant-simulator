@@ -1,7 +1,7 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "20 September 2026",
-  "main_sha": "60c252e9227a425bf973932a1ce09b2d88ba7fe1",
+  "main_sha": "4ced83cf4b950a106c76af0831d558a404561f37",
   "tests_passing_on_main": 753,
   "status_vocabulary": {
     "Not Started": "No work begun",
@@ -115,7 +115,7 @@
   "totals": {
     "tasks": 101,
     "complete": 33,
-    "startable_now": 19
+    "startable_now": 18
   },
   "tasks": [
     {
@@ -526,7 +526,7 @@
     {
       "id": "T3-7",
       "milestone": "M3",
-      "name": "Typed ports — phase and service",
+      "name": "Typed ports — phase, purpose and control",
       "category": "core",
       "branch": "feature/typed-ports",
       "depends_on": [
@@ -536,12 +536,18 @@
         "app/equipment/base.py",
         "config/schema/plant.schema.json",
         "app/plant/loader.py",
-        "tests/test_typed_ports.py"
+        "tests/test_typed_ports.py",
+        "tests/test_port_name_guard.py",
+        "CLAUDE.md",
+        "docs/ADR_0002_TYPED_PORTS.md",
+        "docs/BUILD_PLAN.html",
+        "docs/BUILD_PLAN_STATUS.json",
+        "docs/PROJECT_STATE.md"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
+      "status": "In Progress",
+      "status_key": "prog",
       "startable": true,
-      "note": "NEW, added 20 Sep 2026 by docs/ADR_0002_TYPED_PORTS.md section 8.1. Startable now: its only dependency, T3-6, is Complete. This is the next architecture task on main. SPINE - takes the app/equipment/base.py lock. Port gains phase and service; direction is unchanged and no axis is derived from another. Port names become identifiers only. phase mixed is reserved and rejected at load. The C3 string-or-object alternation for a ports entry is enforced in the loader, never in the schema, because the validator silently ignores oneOf (ADR 0002 section 2.6). Do not touch coupling.py - aggregation and retiring DOMAIN_UNITS are T5-6. CLAUDE.md gains the port-name and service invariants only once this lands (ADR 0002 section 8.3)."
+      "note": "IN PROGRESS on feature/typed-ports, worktree ../plant-simulator-typed-ports, cut from main 4ced83c (baseline 753 tests passing, mypy clean over 24 source files). RE-SPECIFIED 20 Sep 2026 by docs/ADR_0002_TYPED_PORTS.md AMENDMENT 1, which supersedes the single service axis of section 3.1: where the original record and the amendment disagree, the amendment wins. A connection now carries name (identifier only), direction (unchanged), phase (liquid|vapor), purpose (process|vent|drain|relief) and an OPTIONAL control (flow|pressure|level|temperature). purpose and control are orthogonal - a level-controlled drain declares both, a manual drain declares purpose only - and must not be collapsed back into one service field. CONSERVATION INVARIANT: only phase and direction may participate in a balance; purpose and control are descriptive and never alter one. T3-7 records that invariant, T5-6 implements the aggregation. phase mixed stays reserved and rejected at load. The C3 string-or-object alternation is a loader check, never a schema oneOf (ADR 0002 section 2.6). Do not touch coupling.py. CLAUDE.md gains the invariants only once this lands."
     },
     {
       "id": "T4-1",
@@ -747,7 +753,7 @@
       "blocked_by": [
         "T3-7"
       ],
-      "note": "NEW, added 20 Sep 2026 by docs/ADR_0002_TYPED_PORTS.md section 8.1. Waits on T3-7. SPINE by the app/engine/ rule in CLAUDE.md - it modifies an existing module there. Fixes the defect measured in ADR 0002 section 2.3: VesselCoupling.write_flows assigns to one of four fixed attributes, so a second vapor attachment overwrote the first and 141.4214 SCFM (26.1% of the withdrawal) left the pressure balance silently. The fix is to SUM matching typed ports. It must not reject multiple nozzles sharing a (phase, direction) pair - prohibition was considered and rejected in ADR 0002 section 4. service never alters a balance. DOMAIN_UNITS is retired here."
+      "note": "NEW, added 20 Sep 2026 by docs/ADR_0002_TYPED_PORTS.md section 8.1. Waits on T3-7. SPINE by the app/engine/ rule in CLAUDE.md - it modifies an existing module there. Fixes the defect measured in ADR 0002 section 2.3: VesselCoupling.write_flows assigns to one of four fixed attributes, so a second vapor attachment overwrote the first and 141.4214 SCFM (26.1% of the withdrawal) left the pressure balance silently. The fix is to SUM matching typed ports. It must not reject multiple nozzles sharing a (phase, direction) pair - prohibition was considered and rejected in ADR 0002 section 4. AMENDED 20 Sep 2026 by ADR 0002 Amendment 1: the descriptors T3-7 froze are phase, purpose and control - there is no service field - and only phase and direction may participate in a balance, so purpose and control never alter one. DOMAIN_UNITS is retired here."
     },
     {
       "id": "T5-7",
@@ -960,7 +966,7 @@
       "blocked_by": [
         "T3-7"
       ],
-      "note": "NEW, added 20 Sep 2026 by docs/ADR_0002_TYPED_PORTS.md section 8.1. Waits on T3-7 and blocks nothing. Relief is a third branch on the vapor node and changes nothing structural; it needs typed ports so a relief path can be told apart from a process path in the snapshot. service is metadata and must never change the conservation math (ADR 0002 section 3.4)."
+      "note": "NEW, added 20 Sep 2026 by docs/ADR_0002_TYPED_PORTS.md section 8.1. Waits on T3-7 and blocks nothing. Relief is a third branch on the vapor node and changes nothing structural; it needs typed ports so a relief path can be told apart from a process path in the snapshot. Its port declares purpose relief (ADR 0002 Amendment 1 renamed service to purpose, alongside an independent control descriptor). purpose is metadata and must never change the conservation math (ADR 0002 section 3.4, amended by A.3)."
     },
     {
       "id": "T8-1",

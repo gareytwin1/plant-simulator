@@ -110,7 +110,10 @@ def gas_config(volume=100.0, pressure=SUPPLY, feed=True, vent=True):
         {
             "tag": "V-101",
             "type": "vessel",
-            "ports": {"inlet": "N-A", "outlet": "N-B"},
+            "ports": {
+                "inlet": {"node": "N-A", "phase": "vapor", "purpose": "process"},
+                "outlet": {"node": "N-B", "phase": "vapor", "purpose": "vent"},
+            },
             "paths": [],
             "design": {"gas_volume": volume, "initial_pressure": pressure},
         },
@@ -583,17 +586,31 @@ def test_the_as_built_pressure_survives_and_the_plant_round_trips():
     assert plant.to_config()["nodes"] == config_dict["nodes"]
 
 
-def test_a_blocked_side_is_not_written_and_only_the_attached_node_moves():
+def test_a_blocked_side_carries_the_vessel_pressure_and_contributes_no_flow():
+    """T5-6 changed this. A branchless boundary used to be unclassifiable and
+    was left uncoupled; a *declared* vapor nozzle classifies itself, so the
+    blocked side is now a real gas attachment — it carries the vessel's
+    pressure, and with no branch on it, it exchanges nothing.
+    """
     plant, engine = gas_plant(volume=100.0, pressure=100.0, vent=False)
+    vessel = plant.devices["V-101"]
 
     coupling = build_couplings(plant.devices.values(), plant.topologies)[0]
 
-    assert [attachment.port.name for attachment in coupling.attachments] == ["inlet"]
+    assert [attachment.port.name for attachment in coupling.attachments] == [
+        "inlet",
+        "outlet",
+    ]
 
     engine.step(30.0)
 
-    assert plant.nodes["N-A"].pressure == plant.devices["V-101"].pressure
-    assert plant.nodes["N-B"].pressure == pytest.approx(SUPPLY)
+    assert plant.nodes["N-A"].pressure == vessel.pressure
+    assert plant.nodes["N-B"].pressure == vessel.pressure
+    # The as-built battery limit is untouched, and the blocked nozzle adds
+    # nothing to the balance: the fill is the compressor's alone.
+    assert plant.nodes["N-B"].configured_pressure == pytest.approx(SUPPLY)
+    assert vessel.gas_outlet_flow == pytest.approx(0.0)
+    assert vessel.gas_inlet_flow > 0.0
 
 
 # --- the two phases stay apart --------------------------------------------
@@ -626,7 +643,10 @@ def mixed_config():
             {
                 "tag": "V-101",
                 "type": "vessel",
-                "ports": {"inlet": "N-L2", "outlet": "N-B"},
+                "ports": {
+                    "inlet": "N-L2",
+                    "outlet": {"node": "N-B", "phase": "vapor", "purpose": "vent"},
+                },
                 "paths": [],
                 "design": {
                     "head_at_full": 20.0,
@@ -690,7 +710,10 @@ def test_a_liquid_only_vessel_never_activates_the_gas_phase():
             {
                 "tag": "V-101",
                 "type": "vessel",
-                "ports": {"inlet": "N-L2", "outlet": "N-L3"},
+                "ports": {
+                    "inlet": "N-L2",
+                    "outlet": {"node": "N-L3", "phase": "liquid", "purpose": "drain"},
+                },
                 "paths": [],
                 "design": {"capacity": 5000.0, "head_at_full": 20.0, "level": 0.5},
             },

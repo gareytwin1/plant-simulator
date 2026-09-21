@@ -40,11 +40,10 @@ from pathlib import Path
 import pytest
 
 from app.engine.coupling import (
-    DOMAIN_RESOLVED,
-    DOMAIN_UNITS,
     FLOW_UNITS,
     GPM,
     SCFM,
+    UNIT_NEUTRAL,
     build_couplings,
 )
 from app.engine.engine import Engine
@@ -735,13 +734,20 @@ def test_two_identical_runs_are_bit_identical():
 
 # --------------------------------------------------------------------------
 # Coupling: the flow unit comes from the domain
+# Coupling: a valve confirms no unit, and phase is declared (T5-6)
+#
+# Before T5-6 the valve took its unit from the *name* of the domain it sat
+# in, and `DOMAIN_UNITS` knew only 'liquid' and 'gas'. ADR 0002 Amendment 2
+# retires that: the valve is unit-neutral, the vessel port declares its
+# phase, and what the domain is called means nothing.
 # --------------------------------------------------------------------------
 
 
-def vessel_beside_valve(valve_domain=None):
+def vessel_beside_valve(valve_domain=None, phase=None):
     """A valve between two boundaries with a vessel attached across it.
 
     `valve_domain=None` declares no domain at all, which is DEFAULT_DOMAIN.
+    `phase=None` leaves both vessel ports untyped, which is the legacy form.
     """
     def node(node_id, pressure):
         item = {"id": node_id, "boundary": True, "pressure": pressure}
@@ -750,6 +756,12 @@ def vessel_beside_valve(valve_domain=None):
             item["domain"] = valve_domain
 
         return item
+
+    def port(node_id):
+        if phase is None:
+            return node_id
+
+        return {"node": node_id, "phase": phase, "purpose": "process"}
 
     return {
         "nodes": [node("N-101", 60.0), node("N-102", 50.0)],
@@ -764,7 +776,10 @@ def vessel_beside_valve(valve_domain=None):
             {
                 "tag": "V-101",
                 "type": "vessel",
-                "ports": {"inlet": "N-102", "outlet": "N-101"},
+                "ports": {
+                    "inlet": port("N-102"),
+                    "outlet": port("N-101"),
+                },
                 "paths": [],
                 "design": {},
             },
@@ -778,20 +793,25 @@ def couplings_for(config):
     return plant, build_couplings(plant.devices.values(), plant.topologies)
 
 
-def test_a_valve_is_resolved_from_its_domain_and_not_listed_by_unit():
-    assert ControlValve in DOMAIN_RESOLVED
-    assert ControlValve not in FLOW_UNITS
-
-    assert DOMAIN_UNITS == {"liquid": GPM, "gas": SCFM}
-
+def test_a_valve_is_unit_neutral_rather_than_unknown():
+    """Known, and known to carry no unit of its own. The distinction is the
+    whole of T5-6's valve rule: a neutral device abstains, an unrecognised
+    one raises.
+    """
+    assert FLOW_UNITS[ControlValve] == UNIT_NEUTRAL
     assert FLOW_UNITS[CentrifugalPump] == GPM
 
+    assert UNIT_NEUTRAL not in (GPM, SCFM)
 
-def test_a_vessel_beside_a_valve_in_a_liquid_domain_resolves_gpm_and_couples():
-    plant, couplings = couplings_for(vessel_beside_valve("liquid"))
+
+def test_a_typed_liquid_vessel_beside_a_valve_couples_in_gpm():
+    plant, couplings = couplings_for(vessel_beside_valve("liquid", phase="liquid"))
 
     assert len(couplings) == 1
-    assert len(couplings[0].attachments) == 2
+    assert [(a.port.name, a.unit) for a in couplings[0].attachments] == [
+        ("inlet", GPM),
+        ("outlet", GPM),
+    ]
 
     engine = Engine.from_plant(plant)
     snapshot = engine.step(STEP)
@@ -802,10 +822,9 @@ def test_a_vessel_beside_a_valve_in_a_liquid_domain_resolves_gpm_and_couples():
     assert vessel.outlet_flow == pytest.approx(flow(snapshot, "FV-101"))
 
 
-def test_a_vessel_beside_a_valve_in_a_gas_domain_resolves_scfm_and_couples_to_gas():
-    plant, couplings = couplings_for(vessel_beside_valve("gas"))
+def test_a_typed_vapor_vessel_beside_a_valve_couples_in_scfm():
+    plant, couplings = couplings_for(vessel_beside_valve("gas", phase="vapor"))
 
-    assert len(couplings) == 1
     assert [(a.port.name, a.unit) for a in couplings[0].attachments] == [
         ("inlet", SCFM),
         ("outlet", SCFM),
@@ -826,20 +845,44 @@ def test_a_vessel_beside_a_valve_in_a_gas_domain_resolves_scfm_and_couples_to_ga
     assert vessel.gas_outlet_flow == pytest.approx(0.0)
 
 
-def test_a_valve_in_the_default_domain_next_to_a_vessel_is_refused():
-    plant = load_plant(vessel_beside_valve(None))
+def test_the_domain_name_no_longer_selects_a_flow_unit():
+    """`DOMAIN_UNITS` is retired. A declared phase couples the same plant
+    whatever the domain is called — including the default domain, which the
+    old rule refused outright.
+    """
+    runs = []
 
-    with pytest.raises(ValueError, match="domain 'default' has no declared flow unit"):
+    for domain in (None, "liquid", "gas", "process_water", "flare_header"):
+        plant, couplings = couplings_for(vessel_beside_valve(domain, phase="liquid"))
+
+        engine = Engine.from_plant(plant)
+        engine.step(STEP)
+        vessel = plant.devices["V-101"]
+
+        assert [a.unit for a in couplings[0].attachments] == [GPM, GPM]
+
+        runs.append((vessel.inlet_flow, vessel.outlet_flow, vessel.level))
+
+    assert len(set(runs)) == 1
+
+
+def test_an_untyped_vessel_port_on_a_valve_only_node_is_refused():
+    """The case the old domain-name rule silently answered. A valve confirms
+    nothing, so an untyped port has no phase from anywhere.
+    """
+    plant = load_plant(vessel_beside_valve("liquid"))
+
+    with pytest.raises(ValueError, match="declares no phase"):
         build_couplings(plant.devices.values(), plant.topologies)
 
-    with pytest.raises(ValueError, match="FV-101"):
+    with pytest.raises(ValueError, match=r"V-101\.inlet"):
         Engine.from_plant(plant)
 
 
-def test_a_valve_in_an_unknown_domain_next_to_a_vessel_names_the_domain():
+def test_the_refusal_of_an_untyped_valve_side_port_asks_for_a_phase():
     plant = load_plant(vessel_beside_valve("process_water"))
 
-    with pytest.raises(ValueError, match="domain 'process_water' has no declared flow unit"):
+    with pytest.raises(ValueError, match="declare phase: 'liquid' or phase: 'vapor'"):
         Engine.from_plant(plant)
 
 

@@ -125,8 +125,10 @@ on the branches meeting it, so **a new device model on a branch must be added to
 **ADR 0002 changes this next.** Phase is currently inferred from whichever
 device sits on the next branch, and role from a direction keyword that means
 something else, which is why the only separator wiring that computes correctly
-today is one whose port names lie. T3-7 gives `Port` a declared `phase` and
-`service`; T5-6 then makes the coupling **sum** every matching typed port
+today is one whose port names lie. T3-7 gives `Port` a declared `phase`,
+`purpose` and optional `control` (ADR 0002 Amendment 1 split the original
+`service` axis in two, because purpose and control are independent); T5-6 then
+makes the coupling **sum** every matching typed port
 instead of assigning to one of four fixed attributes, which is what today loses
 a second vapour withdrawal silently.
 
@@ -204,7 +206,7 @@ ownership violation.
 | **Stream flow** | **Topology** (`Stream.flow`, written only by the solver via `set_flow`) | Same rule. `Branch.flow` is a read-only property over the stream. |
 | **Slow actuator state** (load, speed, valve position, level, vessel pressure, metal temp) | **Device** | Mutated *only* by `integrate(dt)`. `integrate(0)` must be a no-op. |
 | **Equipment characteristic curve** | **Device** | `characteristic(flow)` is pure: reads slow state, returns a number, mutates nothing. The solver may call it many times per timestep. |
-| **Port wiring** | `Port` | Wiring, not process state. `__slots__` makes it structurally impossible to store a pressure or flow on a port. Survives `reset()`. T3-7 adds `phase` and `service` — still description, still not process state. |
+| **Port wiring** | `Port` | Connection metadata, not process state. `__slots__` makes it structurally impossible to store a pressure or flow on a port. Survives `reset()`. T3-7 adds `phase`, `purpose` and optional `control` — still description, still not process state, and only `phase` and `direction` may reach a balance. |
 | **Domain coupling** | **`app/engine/coupling.py`** | The only place a vessel's inventory reaches a boundary, and the only writer of boundary pressures. |
 | **Simulated time** | **`SimulationClock`** | Never `time.time()`. Time enters a model only through injected `dt`. |
 | **Integration cadence** | **`Engine`**, driven by **`Scheduler`** | Engine consults the clock's speed only. No device has a speed of its own. |

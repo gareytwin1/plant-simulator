@@ -8,14 +8,15 @@ Refresh this file whenever a task merges to `main`.
 
 ---
 
-**Last refreshed:** 20 September 2026 (**ADR 0002 merged** as `60c252e` — typed ports and the vessel connection model; build plan resynchronized)
-**Current `main`:** `60c252e` — *Merge ADR 0002: Typed ports and the vessel connection model*
+**Last refreshed:** 20 September 2026 (**T3-7 in flight** on `feature/typed-ports` — ADR 0002 amended, the typed-port vocabulary built)
+**Current `main`:** `4ced83c` — *Merge pull request #41 from gareytwin1/docs/adr-0002-sync*. The previous refresh recorded `60c252e`, which went stale when PR #41 merged; `4ced83c`, `29793db`, `2a1a489`, `e576d12` and `b363bd8` are documentation only and changed no production code.
 **Last code merge:** `4e48949` — T2-6, the scheduler owns simulated time (PR #38). `60c252e` and `7aa4e3c` are documentation only and changed no production code. Previous: `06569cc` T2-5 background scheduler (PR #36); `42dc227` T5-3, gas-phase pressure accumulation (PR #35); `fefa841` T7-1, the control valve model (PR #32); `e261134` T4-5, the cause-and-effect assertion suite (PR #29, test-only). Previous: `154385c` T5-2, level to hydraulics coupling and the multi-domain Engine (PR #27). Previous: `0efa5be` T4-4, the solver wired into the engine (PR #25). Previous: `b8af231` T5-1 vessel model (PR #23); `d6a6cfb` T3-4 single-domain reference fixtures (PR #19); `2c08bb8` T3-6 multi-port equipment wiring (PR #20); `11517f6` T3-5 flow-domain declaration (PR #17); `c406ca0` YAML plant loading; previous solver merge `a2a1596` (T4-3)
-**Architecture decisions on `main`:** ADR 0001 ([flow-domain separation](ADR_0001_FLOW_DOMAIN_SEPARATION.md)) with Amendment 1, and **ADR 0002 ([typed ports and the vessel connection model](ADR_0002_TYPED_PORTS.md)), accepted and merged 20 September 2026 as `60c252e`**
-**Full suite on `main`:** **753 passed** (`conda activate plant-simulator && python -m pytest -q`); `python -m mypy` clean over **24 source files**
+**Architecture decisions on `main`:** ADR 0001 ([flow-domain separation](ADR_0001_FLOW_DOMAIN_SEPARATION.md)) with Amendment 1, and **ADR 0002 ([typed ports and the vessel connection model](ADR_0002_TYPED_PORTS.md))**, merged 20 September 2026 as `60c252e` and **amended by Amendment 1 before T3-7 implementation** — the single `service` axis is superseded by independent `purpose` and `control` descriptors
+**Full suite on `main`:** **753 passed** (`conda activate plant-simulator && python -m pytest -q`); `python -m mypy` clean over **24 source files**. On `feature/typed-ports`: **854 passed**, `mypy` clean over the same 24 files, no golden trace moved
 
-**The next task is [T3-7, typed ports](#the-next-task-t3-7).** It is the head of
-the sequence ADR 0002 sets: **T3-7 → T5-6 → T5-5 → T5-7 later.**
+**[T3-7 is in flight](#t3-7-typed-ports-in-flight) on `feature/typed-ports`, and
+[T5-6](#the-next-task-t5-6) is next.** The sequence ADR 0002 sets is unchanged:
+**T3-7 → T5-6 → T5-5 → T5-7 later.**
 
 ---
 
@@ -26,9 +27,9 @@ the sequence ADR 0002 sets: **T3-7 → T5-6 → T5-5 → T5-7 later.**
 | **M0** Baseline Cleanup | **7/7 Complete** |
 | **M1** Equipment Model Contract | **5/5 Complete** — Checkpoint A reached |
 | **M2** Simulation Engine and Clock | **6/6 Complete** — T2-5 `06569cc`, T2-6 `4e48949` |
-| **M3** Plant Topology and Streams | 6/7 — T3-1 … T3-6 Complete; **T3-7 (typed ports) is new, startable, and is the next task** |
+| **M3** Plant Topology and Streams | 6/7 — T3-1 … T3-6 Complete; **T3-7 (typed ports) is Ready for Review** on `feature/typed-ports`, not merged |
 | **M4** Pressure-Flow Network Solver | **5/5 Complete** — Checkpoint B reached; T4-5 was re-scoped before implementation, see [The T4-5 re-scope](#the-t4-5-re-scope) |
-| **M5** Inventory and Mass Balance | 3/7 — T5-1, T5-2, T5-3 Complete. ADR 0002 added **T5-6** and **T5-7**; **T5-5 is Blocked** behind T3-7 and T5-6; **T5-4 was re-sequenced after T5-5**. The engine and topology spine locks are released |
+| **M5** Inventory and Mass Balance | 3/7 — T5-1, T5-2, T5-3 Complete. ADR 0002 added **T5-6** and **T5-7**; **T5-6 is the next task** once T3-7 merges; **T5-5 is Blocked** behind both; **T5-4 was re-sequenced after T5-5**. The engine and topology spine locks are released |
 | **M7** Control Valves and Final Elements | 1/5 — T7-1 Complete; **T7-3 and T7-4 startable**; T7-2 also needs T5-5; **T7-5 (relief device) is new**, needs T3-7 and blocks nothing |
 | M6, M8–M19 | Not started |
 
@@ -137,8 +138,9 @@ now genuinely merged.)
   The vessel (T5-1, `b8af231`) is the first device that uses it. The live pages'
   `Session` builds its single-device plants through the loader (T4-4).
   `DEVICE_TYPES` now maps `pump`, `compressor`, `control_valve` and `vessel`.
-  **ADR 0002 rewrites what a `ports` entry may say:** T3-7 lets it carry a
-  declared `phase` and `service`, enforced in the loader rather than the schema.
+  **ADR 0002 rewrote what a `ports` entry may say:** T3-7 lets it carry a
+  declared `phase`, `purpose` and optional `control`, enforced in the loader
+  rather than the schema. On `feature/typed-ports`, not yet on `main`.
 - **Single action endpoint (C5).** Routes are still per-equipment.
 - **Controllers (PID), envelopes, alarms, trips, scenarios, scoring, historian,
   console.** All specified in the build plan, none implemented.
@@ -156,9 +158,26 @@ without a new ADR.
 [docs/ADR_0002_TYPED_PORTS.md](ADR_0002_TYPED_PORTS.md), **accepted and merged
 20 September 2026 as `60c252e`**, verified against `main` at 753 tests and a
 clean `mypy`. It extends ADR 0001: where that settled what `ports` means
-*structurally*, this settles what a port means *semantically*. **No code,
-schema, loader or coupling change has been made for it yet** — T3-7 and T5-6
-are that work.
+*structurally*, this settles what a port means *semantically*.
+
+**Amendment 1 (20 September 2026) — four descriptors, not three.** Accepted
+before T3-7 wrote any code, and **where it and the original record disagree,
+the amendment wins.** The original `service` enum mixed physical purpose with
+control function, so a manual drain and a level-controlled drain could not be
+told apart while both being drains, and `flow` was unrepresentable. It is
+replaced by two independent descriptors:
+
+```text
+name       identifier only, never behaviour
+direction  inlet | outlet
+phase      liquid | vapor
+purpose    process | vent | drain | relief
+control    flow | pressure | level | temperature, or absent
+```
+
+**Only `phase` and `direction` may participate in conservation.** `purpose` and
+`control` are descriptive and never alter a balance. T3-7 builds this
+vocabulary; **T5-6 aggregates over it.** Everything else in the record stands.
 
 What it found, by building the configuration and stepping it:
 
@@ -179,21 +198,24 @@ What it found, by building the configuration and stepping it:
 
 What it decided:
 
-- **A port carries three orthogonal axes.** `direction` (unchanged) says which
-  way material crosses; new **`phase`** (liquid, vapor) says which inventory;
-  new **`service`** (process, pressure_control, level_control, relief, drain)
-  says what the connection is for. None is derived from another. `mixed` is
-  reserved and rejected — splitting a two-phase stream is a flash calculation.
+- **A port carries orthogonal descriptors.** `direction` (unchanged) says which
+  way material crosses; **`phase`** (liquid, vapor) says which inventory.
+  *Originally a third `service` axis; **superseded by Amendment 1**, which
+  splits it into **`purpose`** (process, vent, drain, relief) and an
+  independent optional **`control`** (flow, pressure, level, temperature).*
+  None is derived from another. `mixed` is reserved and rejected — splitting a
+  two-phase stream is a flash calculation.
 - **Port names are identifiers, not behaviour.** No code may branch on a port
   being called `inlet`, `outlet` or `suction`.
 - **Coupling aggregates; it does not overwrite, and it does not prohibit.** Any
   number of connections may share a `(phase, direction)` pair, and the coupling
   sums them. Prohibition was considered and rejected: it would forbid an
   ordinary separator.
-- **`service` never changes the conservation math.** A `pressure_control` or
-  `relief` outlet sums into `gas_outlet_flow` exactly as a `process` outlet
-  does. It exists so a controller can find its valve and the console can label
-  a nozzle.
+- **Metadata never changes the conservation math.** Only `phase` and
+  `direction` classify a connection; `purpose` and `control` never alter a
+  balance. A vent outlet under pressure control, and a relief outlet, sum into
+  `gas_outlet_flow` exactly as a `process` outlet does. They exist so a
+  controller can find its valve and the console can label a nozzle.
 - **`DOMAIN_UNITS` is retired** once phase is declared, which removes the
   restriction that a vent, flare or relief header cannot be its own domain.
 - **T5-5 ships manual PV-101 and LV-101; M8 owns the loops.** Requiring T5-5 to
@@ -207,10 +229,12 @@ What it decided:
 > mean methane, ethane and propane. This repository uses **C1–C8 for interface
 > contracts**. Say *light-hydrocarbon components* explicitly.
 
-**CLAUDE.md is deliberately unchanged.** The invariants that port names are
-identifiers and that service never alters a balance are added to it by **T3-7**,
-once typed ports actually exist — not before. Do not document them as
-implemented C1 invariants today.
+**CLAUDE.md carries these invariants as of T3-7**, and not before: port names
+are identifiers only, `phase` and `direction` own conservation classification,
+and `purpose` and `control` are descriptive and never change a balance. See
+*A connection is described, never inferred* in
+[CLAUDE.md](../CLAUDE.md#critical-architectural-invariants). **T5-6's
+aggregation is still not written** — do not document it as implemented.
 
 Build-plan changes it made, now applied to the live artifact and both durable
 copies: **T3-7**, **T5-6**, **T5-7** and **T7-5** added; **T5-5** gained T3-7
@@ -516,46 +540,75 @@ clean over 24 source files). Read [CLAUDE.md](../CLAUDE.md) first, then the
 build plan entry for your task. Model guidance is the **Agent model guidance**
 section of CLAUDE.md; the column below is the build plan's own assignment.
 
-### The next task: T3-7
+### T3-7, typed ports (in flight)
 
-**Start T3-7, typed ports — phase and service.** It is new, added by ADR 0002,
-its only dependency (T3-6) is Complete, and the rest of M5 is sequenced behind
-it:
+**On `feature/typed-ports`, Ready for Review — not merged.** Cut from `main` at
+`4ced83c` (baseline 753 tests, `mypy` clean over 24 source files).
 
-```text
-ADR 0002  →  T3-7  →  T5-6  →  T5-5  →  T5-7 (later)
-```
+Amendment 1 to ADR 0002 was written **before** any production code, because the
+original `service` axis could not describe a level-controlled drain and a
+manual drain as different things while calling both drains. What T3-7 delivers:
 
 | | |
 |---|---|
 | **Branch** | `feature/typed-ports` |
-| **Files** | `app/equipment/base.py`, `config/schema/plant.schema.json`, `app/plant/loader.py`, `tests/test_typed_ports.py` |
-| **Model** | **Opus** — it is a contract change on a spine file |
-| **Lock** | **SPINE.** `app/equipment/base.py` takes the spine lock, alone |
+| **Files** | `app/equipment/base.py`, `config/schema/plant.schema.json`, `app/plant/loader.py`, `tests/test_typed_ports.py`, `tests/test_port_name_guard.py`, `CLAUDE.md`, `docs/ADR_0002_TYPED_PORTS.md`, `docs/BUILD_PLAN.html`, `docs/BUILD_PLAN_STATUS.json`, `docs/PROJECT_STATE.md` |
+| **Model** | **Opus** — a contract change on a spine file |
+| **Lock** | **SPINE.** `app/equipment/base.py`, alone. Release it on merge |
+| **Suite** | 854 passed, `mypy` clean over 24 files, no golden trace moved |
 
-What it does: `Port` gains `phase` (liquid, vapor) and `service` (process,
-pressure_control, level_control, relief, drain). `direction` is unchanged and
-no axis is derived from another. `phase: mixed` is reserved and rejected at
-load. A C3 `ports` entry may be a node-id string **or** an object carrying
-phase and service.
+- `Port` carries `phase`, `purpose` and an optional `control` in `__slots__`,
+  validated through `Port.declare()`. `direction` is unchanged, and `phase`
+  `mixed` is refused **as reserved** rather than merely unknown.
+- A C3 `ports` entry may be a node-id string **or** a typed object
+  `{node, phase, purpose, control?}`. There is no half-typed form. The
+  alternation is a **loader** check naming paths down to
+  `$.equipment[2].ports.pressure_out.phase`; the schema only describes the
+  shape, because the C3 validator ignores `oneOf`.
+- `to_config()` is form-preserving per entry: a string returns as a string, a
+  typed object returns typed with its metadata, sugar stays sugar. **A legacy
+  config is never silently upgraded**, and typed and untyped entries may sit in
+  one `ports` map.
+- Descriptors reach the runtime `Port` from **configuration only**. No device
+  class and no port name is consulted.
+- `tests/test_port_name_guard.py` makes "port names are identifiers" an
+  enforced rule rather than a convention — verified by injecting a real
+  violation into `vessel.py`, not only against synthetic snippets.
 
-Three things it must not do:
+**What T3-7 deliberately did not do:** it did not touch
+`app/engine/coupling.py`, implement any aggregation, retire `DOMAIN_UNITS`, or
+widen `characteristic(flow)`. Nothing yet reads `phase` to decide a balance —
+that is T5-6.
 
-- **Do not add a `oneOf`.** `app/plant/validate.py` silently ignores it, so the
-  string-or-object alternation is a loader check that names the config path —
-  the same ruling T3-6 got, for the same reason (ADR 0002 section 2.6).
-- **Do not touch `app/engine/coupling.py`.** Aggregating over typed ports and
-  retiring `DOMAIN_UNITS` are **T5-6**, which is a separate spine task.
-- **Do not add the new invariants to CLAUDE.md before the code exists.** T3-7
-  adds them as it lands (ADR 0002 section 8.3).
+### The next task: T5-6
 
-**Then T5-6** (`feature/coupling-aggregation`, Opus, spine by the `app/engine/`
-rule): make the four vessel aggregate flows **sums** over matching typed ports
-rather than assignment targets, and reject the contradictions ADR 0002 section
-3.3 lists. It must **not** reject several nozzles sharing a
-`(phase, direction)` pair.
+**Start T5-6 once T3-7 has merged**, not before: it consumes the vocabulary
+T3-7 freezes.
 
-**Then T5-5**, which is Blocked until both land. **T5-4 now follows T5-5**, not
+| | |
+|---|---|
+| **Branch** | `feature/coupling-aggregation` |
+| **Files** | `app/engine/coupling.py`, `tests/test_coupling_aggregation.py` |
+| **Model** | **Opus** |
+| **Lock** | **SPINE** by the `app/engine/` rule — it modifies an existing module there |
+
+Make the four vessel aggregate flows **sums** over the ports matching each
+`(phase, direction)` pair rather than assignment targets, which is the fix for
+the measured 141.4214 SCFM that `write_flows` was dropping. Retire
+`DOMAIN_UNITS`, so domain names stop carrying engineering meaning. Reject the
+contradictions ADR 0002 section 3.3 lists, naming the offending port.
+
+Two things it must not do:
+
+- **It must not reject several nozzles sharing a `(phase, direction)` pair.**
+  Prohibition was considered and rejected: it would forbid a physically valid
+  separator.
+- **`purpose` and `control` must not appear in any of the four sums.** Only
+  `phase` and `direction` classify a connection (ADR 0002, Amendment 1 A.3). A
+  relief or vent outlet sums into `gas_outlet_flow` exactly as a process outlet
+  does.
+
+**Then T5-5**, which is Blocked until both land. **T5-4 follows T5-5**, not
 T5-2 — see *T5-4 and the conservation identity* below.
 
 #### T5-5 resumes at construction, not at design
@@ -575,7 +628,7 @@ question is already answered and is to be *implemented*, not reopened:
 | Question | Settled by |
 |---|---|
 | How is the vessel wired? | Shared-node idiom — one node per phase (ADR 0002 §3.8) |
-| What does a port declare? | `phase` and `service`, delivered by T3-7 (§3.1–3.2) |
+| What does a port declare? | `phase`, `purpose` and an optional `control`, delivered by T3-7 (§3.1–3.2 as amended by Amendment 1) |
 | How do several nozzles combine? | Summed over matching typed ports, delivered by T5-6 (§3.3) |
 | Are the valves controlled? | No. PV-101 and LV-101 are **manual at fixed position**; M8 owns the loops (§3.7) |
 | Is composition modelled? | No. No flash, no K-values, no component balances (§3.6) |
@@ -712,22 +765,20 @@ is retired: **T3-6** (merged) carried the C3 named-port wiring (moved from T3-5 
 "Seeded RNG" above. `SeededRNG` also has no state save/restore, which T12-1
 (snapshot save and restore) and T14-5 (deterministic replay) will need.
 
-### Startable now (19 tasks)
+### Startable now (18 tasks)
 
 All dependencies are Complete. T12-1 adds a *new* isolated module under
 `app/engine/`, which is satellite work under the **`app/engine/` rule** in
 CLAUDE.md.
 
-**Changes since the last refresh:** **T3-7** is new and heads the list — it is
-the task to start. **T5-4 and T5-5 have left it**: T5-5 is Blocked behind T3-7
-and T5-6, and T5-4 was re-sequenced behind T5-5 (ADR 0002 section 8.2). **T2-5
-and T2-6 are merged**, so they no longer appear and **T16-2** and **T18-4**
-became startable. T7-3 edits `app/equipment/valve.py` and should not run beside
-another valve change.
+**Changes since the last refresh:** **T3-7 has left the list** — it is in
+flight on `feature/typed-ports`. **T5-6 is not on it either**: it needs T3-7
+merged first, and it is the next task after that. T5-5 stays Blocked behind
+both, and T5-4 was re-sequenced behind T5-5 (ADR 0002 section 8.2). T7-3 edits
+`app/equipment/valve.py` and should not run beside another valve change.
 
 | Task | Name | Model | Branch |
 |---|---|---|---|
-| **T3-7** | **Typed ports — phase and service** *(start here; spine)* | **Opus** | `feature/typed-ports` |
 | **T6-1** | Stream enthalpy and mixing | Opus | `feature/stream-enthalpy` |
 | **T7-3** | Valve fault modes | Sonnet | `feature/valve-faults` |
 | **T7-4** | Command arbitration | Sonnet | `feature/command-arbitration` |
@@ -827,7 +878,11 @@ plant. (T5-1's
 dependency moved to T3-6, the multi-port wiring half of the original T3-5, when
 Amendment 1 split the task.)
 
-## Test suite composition (753 tests on `main`)
+## Test suite composition (753 tests on `main`, 854 on `feature/typed-ports`)
+
+The table below counts `main`. `feature/typed-ports` adds
+`test_typed_ports.py` (52) and `test_port_name_guard.py` (48), and splits one
+schema test in `test_plant_ports.py` into two.
 
 | File | Tests | File | Tests |
 |---|---|---|---|

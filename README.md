@@ -38,7 +38,9 @@ drive equipment it has never seen before.
 
 - **Equipment contract (C1)** — `integrate(dt)` for slow state, pure
   `characteristic(flow)` for the device's curve, `reset()`, JSON-safe
-  `get_state()`, and `Port` objects that carry wiring and nothing else.
+  `get_state()`, and `Port` objects that carry connection metadata — the node,
+  plus a declared direction, phase, purpose and optional control — and never
+  process state.
 - **Plant topology (C2)** — `Node`, `Branch`, `Stream` and a `Topology`
   container, with solver-owned values write-protected.
 - **Plant configuration schema (C3)** — JSON Schema plus a validator, and a

@@ -544,10 +544,10 @@
         "docs/BUILD_PLAN_STATUS.json",
         "docs/PROJECT_STATE.md"
       ],
-      "status": "In Progress",
-      "status_key": "prog",
+      "status": "Ready for Review",
+      "status_key": "review",
       "startable": true,
-      "note": "IN PROGRESS on feature/typed-ports, worktree ../plant-simulator-typed-ports, cut from main 4ced83c (baseline 753 tests passing, mypy clean over 24 source files). RE-SPECIFIED 20 Sep 2026 by docs/ADR_0002_TYPED_PORTS.md AMENDMENT 1, which supersedes the single service axis of section 3.1: where the original record and the amendment disagree, the amendment wins. A connection now carries name (identifier only), direction (unchanged), phase (liquid|vapor), purpose (process|vent|drain|relief) and an OPTIONAL control (flow|pressure|level|temperature). purpose and control are orthogonal - a level-controlled drain declares both, a manual drain declares purpose only - and must not be collapsed back into one service field. CONSERVATION INVARIANT: only phase and direction may participate in a balance; purpose and control are descriptive and never alter one. T3-7 records that invariant, T5-6 implements the aggregation. phase mixed stays reserved and rejected at load. The C3 string-or-object alternation is a loader check, never a schema oneOf (ADR 0002 section 2.6). Do not touch coupling.py. CLAUDE.md gains the invariants only once this lands."
+      "note": "READY FOR REVIEW - PR #42, branch feature/typed-ports, rebased on main 4ced83c. NOT merged. 854 tests passing (753 on main + 52 typed-port + 48 port-name-guard + 1 from a schema/loader test split), mypy clean over 24 source files, no golden trace moved. Production diff is app/equipment/base.py and app/plant/loader.py only; coupling.py, engine.py, network.py, topology.py and snapshot.py are untouched. RE-SPECIFIED by docs/ADR_0002_TYPED_PORTS.md AMENDMENT 1, which supersedes the single service axis of section 3.1: a connection carries name (identifier only), direction, phase (liquid|vapor), purpose (process|vent|drain|relief) and an OPTIONAL control (flow|pressure|level|temperature). purpose and control are orthogonal and must not be collapsed back into one service field. CONSERVATION INVARIANT, now recorded in CLAUDE.md: only phase and direction may participate in a balance. T5-6 implements the aggregation and is next once this merges. Two existing tests changed deliberately, each because it pinned the old contract: the Port __slots__ tuple in test_network_solver.py, and the schema-level non-string node id check in test_plant_ports.py (an object is now valid there, so the check moved to the loader)."
     },
     {
       "id": "T4-1",

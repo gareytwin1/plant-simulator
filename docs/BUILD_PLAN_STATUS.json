@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "20 September 2026",
-  "main_sha": "1848d534961e75ad6ff5f97bc39411e3c44b07f3",
-  "tests_passing_on_main": 868,
+  "main_sha": "764328107726d873ec048748d5a5ad7cfe9d166a",
+  "tests_passing_on_main": 971,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -38,7 +38,7 @@
     },
     "M5": {
       "name": "Inventory and Mass Balance",
-      "complete": 3,
+      "complete": 4,
       "total": 7
     },
     "M6": {
@@ -114,8 +114,8 @@
   },
   "totals": {
     "tasks": 101,
-    "complete": 34,
-    "startable_now": 19
+    "complete": 35,
+    "startable_now": 20
   },
   "tasks": [
     {
@@ -723,13 +723,10 @@
       "files": [
         "config/plants/olefins_lite.yaml"
       ],
-      "status": "Blocked",
-      "status_key": "block",
-      "startable": false,
-      "blocked_by": [
-        "T5-6"
-      ],
-      "note": "BLOCKED behind T3-7 and T5-6 as of 20 Sep 2026, per docs/ADR_0002_TYPED_PORTS.md sections 3 and 8.2. THE ARCHITECTURE IS SETTLED - WHEN THIS UNBLOCKS, GO STRAIGHT TO CONSTRUCTION. T5-5's design phase already ran and its output is ADR 0002; section 1 of that ADR describes the investigation in the past tense and is NOT a template for a second one. After T3-7 and T5-6 merge, this task writes the config, chooses and justifies design values, sizes the train, writes the tests and meets the acceptance criteria. Every structural question is already answered: how the vessel is wired (shared-node idiom, one node per phase), what a port declares (phase, purpose and optional control, T3-7 - ADR 0002 Amendment 1 replaced the single service axis with independent purpose and control descriptors), how flows aggregate (sums over matching typed ports, T5-6, classified by phase and direction alone), that PV-101 and LV-101 are MANUAL with no controller (M8 owns the loops), and that composition, flash and component balances stay out of V1. Implement those; do not revisit them. The ONE thing that warrants stopping: if no choice of design values gives both a credible cold start and a credible running point, that is the missing check valve (ADR 0001 section 2.9 and Known technical debt in PROJECT_STATE) - escalate it as its own task rather than redesigning the connection model or shortening a test horizon to hide it. Why it was blocked: the investigation found the vessel fills monotonically with no liquid draw, so a conservation test could only pass by stopping before level clamped; two vessel ports on two domains lose flow silently (141.4214 SCFM, 26.1%, unreported); and the only wiring that computes correctly today needs the port names to lie. Re-specified: V-101 gains a liquid draw plus a process vapor outlet alongside a separate pressure-control outlet. Acceptance moves from a horizon-bounded conservation test to a steady-state one and gains: changing PV-101 or LV-101 position changes vessel pressure or level in the expected direction. ADR 0002 section 7.3 is this task's: cold-start pump backflow and K-101 reversal are fixed by choosing design values. Still owns creation of config/plants/olefins_lite.yaml, which T7-2, T8-3, T9-2 and T11-1 edit."
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": true,
+      "note": "UNBLOCKED 20 Sep 2026 - T3-7 (8733b1a) and T5-6 (7643281) are both merged, so this is now the next task. Agent: Sonnet. THE ARCHITECTURE IS SETTLED - GO STRAIGHT TO CONSTRUCTION. T5-5's design phase already ran and its output is docs/ADR_0002_TYPED_PORTS.md; section 1 of that ADR describes the investigation in the past tense and is NOT a template for a second one. Write config/plants/olefins_lite.yaml, choose and justify design values, size the train, write the tests, meet the acceptance criteria. Every structural question is already answered: how the vessel is wired (shared-node idiom, one node per phase), what a port declares (phase, purpose and optional control, T3-7), how flows aggregate (sums over the NODES the vessel attaches to, each counted once, classified by phase and direction alone - T5-6 and ADR 0002 Amendment 2, which supersedes the sum-over-ports wording of D3.3 and A.4), that PV-101 and LV-101 are MANUAL with no controller (M8 owns the loops), and that composition, flash and component balances stay out of V1. Implement those; do not revisit them. The ONE thing that warrants stopping: if no choice of design values gives both a credible cold start and a credible running point, that is the missing check valve (ADR 0001 section 2.9 and Known technical debt in PROJECT_STATE) - escalate it as its own task rather than redesigning the connection model or shortening a test horizon to hide it. ADR 0002 section 7.3 is this task's: cold-start pump backflow and K-101 reversal are fixed by choosing design values, and the fixture now has a control valve on each phase. NUMERIC WARNING FROM T5-6: ADR 0002 section 2.2's constants (level 0.12335, 78.140 psia, 357.414 GPM) come from a probe configuration that was never recorded and could not be reproduced - do not try to hit them. tests/test_coupling_aggregation.py builds the same shared-node idiom with round design values and reaches a self-regulating, unclamped steady state that is stable to about 4e-8 relative but NOT bit-stable, because the solver's tolerance band lets the level creep and snap in a bounded sawtooth. Acceptance is a genuine steady state with no bounded test horizon, plus: changing PV-101 or LV-101 position changes vessel pressure or level in the expected direction. Still owns creation of config/plants/olefins_lite.yaml, which T7-2, T8-3, T9-2 and T11-1 edit."
     },
     {
       "id": "T5-6",
@@ -745,10 +742,9 @@
         "app/engine/coupling.py",
         "tests/test_coupling_aggregation.py"
       ],
-      "status": "Ready for Review",
-      "status_key": "review",
-      "startable": true,
-      "note": "READY FOR REVIEW on feature/coupling-aggregation (PR #44), not merged. 971 passed on the branch, mypy clean over 24 source files, no golden trace moved, production diff is app/engine/coupling.py only. AMENDED 20 Sep 2026 by ADR 0002 AMENDMENT 2, written before any code: the four aggregates are sums over the hydraulic NODE, not over ports. Attachment.net_flow is derived from every branch meeting the node, so summing it once per port would double-count a node two nozzles share, and netting each node instead would lose the gross throughput residence_time is made of. A node is counted once however many nozzles sit on it; distinct nodes sum; a node declaring both directions keeps its gross components (arrivals into the inlet aggregate, departures into the outlet one) and one declaring a single direction keeps its net, which is what makes every existing single-attachment plant bit-identical. Both components are signed sums over branch orientation - nothing is clamped, so a reversed feed arrives negatively. Classification is from the declared phase, confirmed against the machines at the node; DOMAIN_UNITS is retired, ControlValve is listed UNIT_NEUTRAL, an unrecognised device still refuses, and a typed attachment couples with no branch at all. Two vessels on one node refuse. An aggregate any failed domain feeds holds its previous value in full. purpose and control are read nowhere. NOTE FOR T5-5: ADR 0002 section 2.2's constants (level 0.12335, 78.140 psia, 357.414 GPM) come from a probe configuration that was never recorded and could not be reproduced; the T5-6 fixture builds the same idiom with round design values and pins its own steady state, 361.15756 GPM at level 0.15217391 and 113.04348 psia, inside a band 4e-8 wide relative from step 5000 past step 200000. The behaviour reproduces; the constants belong to the lost probe."
+      "status": "Complete",
+      "status_key": "done",
+      "note": "COMPLETE - merged to main as 7643281 (PR #44), 20 Sep 2026. 971 passed on main, mypy clean over 24 source files, no golden trace moved; the production diff was app/engine/coupling.py only. Implements ADR 0002 AMENDMENT 2, written before any code, which supersedes the sum-over-ports wording of D3.3, D3.8 and A.4: the four aggregates are sums over the hydraulic NODE, not over ports. Attachment.net_flow is derived from every branch meeting the node, so summing it once per port would double-count a node two nozzles share, and netting each node instead would lose the gross throughput residence_time is made of. A node is counted once however many nozzles sit on it; distinct nodes sum; a node declaring both directions keeps its gross components (arrivals into the inlet aggregate, departures into the outlet one) and one declaring a single direction keeps its net, which is what kept every existing single-attachment plant bit-identical. Both components are signed sums over branch orientation - nothing is clamped, so a reversed feed arrives negatively. Classification is from the declared phase, confirmed against the machines at the node; DOMAIN_UNITS is retired, ControlValve is listed UNIT_NEUTRAL, an unrecognised device still refuses, and a typed attachment couples with no branch at all. Two vessels on one node refuse. An aggregate any failed domain feeds holds its previous value in full. purpose and control are read nowhere. NOTE FOR T5-5: ADR 0002 section 2.2's constants (level 0.12335, 78.140 psia, 357.414 GPM) come from a probe configuration that was never recorded and could not be reproduced; tests/test_coupling_aggregation.py builds the same idiom with round design values and pins its own steady state, 361.15756 GPM at level 0.15217391 and 113.04348 psia, inside a band 4e-8 wide relative from step 5000 past step 200000 - self-regulating and unclamped, but NOT bit-stable, because the solver's tolerance band lets the level creep and snap in a bounded sawtooth. The behaviour reproduces; those constants belong to the lost probe."
     },
     {
       "id": "T5-7",

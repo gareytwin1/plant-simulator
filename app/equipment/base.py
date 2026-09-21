@@ -28,6 +28,48 @@ PORT_DIRECTIONS = (
     OUTLET,
 )
 
+LIQUID = "liquid"
+VAPOR = "vapor"
+
+PORT_PHASES = (
+    LIQUID,
+    VAPOR,
+)
+
+# Reserved rather than simply unknown, so the refusal can say why. A stream
+# carrying both phases has to split, and splitting it is a flash calculation,
+# which V1 rules out (ADR 0002, D6). Naming it here stops a later session
+# inventing a different spelling for the same idea.
+MIXED = "mixed"
+
+RESERVED_PHASES = (MIXED,)
+
+PROCESS = "process"
+VENT = "vent"
+DRAIN = "drain"
+RELIEF = "relief"
+
+PORT_PURPOSES = (
+    PROCESS,
+    VENT,
+    DRAIN,
+    RELIEF,
+)
+
+# Prefixed where the bare word is already a process quantity elsewhere in the
+# plant: these name a control *function*, not a flow or a pressure.
+CONTROL_FLOW = "flow"
+CONTROL_PRESSURE = "pressure"
+CONTROL_LEVEL = "level"
+CONTROL_TEMPERATURE = "temperature"
+
+PORT_CONTROLS = (
+    CONTROL_FLOW,
+    CONTROL_PRESSURE,
+    CONTROL_LEVEL,
+    CONTROL_TEMPERATURE,
+)
+
 PRESERVED_ON_RESET = (
     "ports",
     "_construction_state",
@@ -50,23 +92,49 @@ class PortNode(Protocol):
 class Port:
     """A named connection point between a device and the plant topology.
 
-    A port carries wiring, not results. It knows the node the topology
-    attached it to, and there is deliberately nowhere on a port to put a
-    pressure or a flow — those are solver outputs, and a device that could
-    read them would be solving its own operating point again.
+    A port carries **connection metadata**, never **process state**. The
+    distinction is the whole of what a port is allowed to hold:
 
-    The slots are what make that structural rather than a convention: a
-    device cannot stash a solver output on a port even by accident.
+    *Connection metadata* says what this connection is. The node the topology
+    attached it to, and the four descriptors T3-7 added — `direction`,
+    `phase`, `purpose` and `control`. All of it is declared, none of it is
+    computed, and none of it moves while the plant runs.
+
+    *Process state* is a pressure, a flow, a temperature, a level. Those are
+    solver outputs, and there is deliberately nowhere on a port to put one: a
+    device that could read them would be solving its own operating point
+    again. The slots are what make that structural rather than a convention.
+
+    `name` is an identifier for humans, configuration and diagnostics, and
+    **never drives engineering behaviour** — no code may branch on a port
+    being called `suction`, `drain` or anything else, and
+    `tests/test_port_name_guard.py` fails the build if any does. Behaviour
+    comes from the descriptors.
+
+    Only `phase` and `direction` may participate in a conservation balance.
+    `purpose` and `control` are descriptive: a vapor withdrawal is a vapor
+    withdrawal whether it is labelled process, vent or relief, and whether or
+    not a controller is associated with it. See ADR 0002, Amendment 1 A.3.
+
+    The three descriptors are optional, and a legacy untyped wiring entry
+    leaves them `None`. `declare()` sets all three together, because a typed
+    declaration is one statement about a connection rather than three.
     """
 
     __slots__ = (
         "name",
         "direction",
+        "phase",
+        "purpose",
+        "control",
         "node",
     )
 
     name: str
     direction: str
+    phase: str | None
+    purpose: str | None
+    control: str | None
     node: PortNode | None
 
     def __init__(
@@ -74,6 +142,9 @@ class Port:
         name: str,
         direction: str,
         node: PortNode | None = None,
+        phase: str | None = None,
+        purpose: str | None = None,
+        control: str | None = None,
     ) -> None:
         if direction not in PORT_DIRECTIONS:
             raise ValueError(
@@ -83,6 +154,23 @@ class Port:
         self.name = name
         self.direction = direction
         self.node = node
+
+        self.declare(phase, purpose, control)
+
+    def declare(
+        self,
+        phase: str | None = None,
+        purpose: str | None = None,
+        control: str | None = None,
+    ) -> None:
+        """Set all three descriptors, validating each. Omitted means undeclared."""
+        checked_phase = _checked(phase, PORT_PHASES, "phase", RESERVED_PHASES)
+        checked_purpose = _checked(purpose, PORT_PURPOSES, "purpose")
+        checked_control = _checked(control, PORT_CONTROLS, "control")
+
+        self.phase = checked_phase
+        self.purpose = checked_purpose
+        self.control = checked_control
 
     @property
     def connected(self) -> bool:
@@ -95,7 +183,17 @@ class Port:
         self.node = None
 
     def __repr__(self) -> str:
-        return f"Port({self.name!r}, {self.direction!r}, node={self.node!r})"
+        declared = "".join(
+            f", {label}={value!r}"
+            for label, value in (
+                ("phase", self.phase),
+                ("purpose", self.purpose),
+                ("control", self.control),
+            )
+            if value is not None
+        )
+
+        return f"Port({self.name!r}, {self.direction!r}{declared}, node={self.node!r})"
 
 
 class Equipment:
@@ -152,8 +250,15 @@ class Equipment:
     def registered(cls) -> dict[str, type["Equipment"]]:
         return dict(Equipment._registry)
 
-    def add_port(self, name: str, direction: str) -> Port:
-        port = Port(name, direction)
+    def add_port(
+        self,
+        name: str,
+        direction: str,
+        phase: str | None = None,
+        purpose: str | None = None,
+        control: str | None = None,
+    ) -> Port:
+        port = Port(name, direction, phase=phase, purpose=purpose, control=control)
         self.ports[name] = port
 
         return port
@@ -255,6 +360,29 @@ class Equipment:
 
     def __repr__(self) -> str:
         return f"<{type(self).__name__} {getattr(self, 'tag', '?')}>"
+
+
+def _checked(
+    value: str | None,
+    allowed: tuple[str, ...],
+    label: str,
+    reserved: tuple[str, ...] = (),
+) -> str | None:
+    if value is None:
+        return None
+
+    if value in reserved:
+        raise ValueError(
+            f"port {label} {value!r} is reserved for a future version, "
+            f"use one of {allowed}",
+        )
+
+    if value not in allowed:
+        raise ValueError(
+            f"port {label} must be one of {allowed}, got {value!r}",
+        )
+
+    return value
 
 
 def signed_square(flow: float) -> float:

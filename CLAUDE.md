@@ -74,9 +74,11 @@ Violating any of these is a contract break, not a style preference.
 **Equipment does not own plant state.**
 - A device **never reads or writes a node pressure**. It publishes a curve; the
   solver finds where the plant lands on it.
-- `Port` is *wiring, not process state*. It carries the node a device is
-  attached to and nothing else. `Port.__slots__` makes this structural — you
-  cannot stash a pressure or flow on a port even by accident.
+- `Port` carries *connection metadata, never process state*. Metadata is the
+  node it is attached to and the four descriptors below: declared, not
+  computed, and unchanged while the plant runs. Process state is a pressure, a
+  flow, a temperature, a level — all solver outputs. `Port.__slots__` makes the
+  line structural: you cannot stash a solved value on a port even by accident.
 - A boundary pressure owned by a device is a solver output in disguise and
   belongs to the topology.
 
@@ -94,6 +96,35 @@ Violating any of these is a contract break, not a style preference.
   snapshot.
 - `reset()` restores construction state exactly. Port wiring survives it; the
   topology owns wiring.
+
+**A connection is described, never inferred (C1, T3-7).**
+- A port carries `direction`, `phase` (`liquid` | `vapor`), `purpose`
+  (`process` | `vent` | `drain` | `relief`) and an optional `control` (`flow` |
+  `pressure` | `level` | `temperature`). `phase` `mixed` is reserved and
+  refused at load. See [docs/ADR_0002_TYPED_PORTS.md](docs/ADR_0002_TYPED_PORTS.md),
+  Amendment 1, which supersedes that record's single `service` axis.
+- **Port names are identifiers only.** A name exists for humans, configuration
+  and diagnostics and **never drives engineering behaviour** — no code branches
+  on a port being called `suction`, `drain` or anything else.
+  `tests/test_port_name_guard.py` fails the build if any does.
+- **`phase` and `direction` own conservation classification.** They, and
+  nothing else, decide which balance a connection belongs to.
+- **`purpose` never changes a balance.** It is descriptive physical-role
+  metadata. A vapor withdrawal is a vapor withdrawal whether it is labelled
+  `process`, `vent` or `relief`.
+- **`control` never changes a balance.** It is descriptive control-role
+  metadata, and it is deliberately not called `controller`. A controller may
+  later read it to find the final element it manipulates, but controller
+  execution is M8 and **does not exist yet**.
+- `purpose` and `control` are **orthogonal**: a level-controlled drain declares
+  both, a manual drain declares only `purpose`. Never collapse them back into
+  one field.
+- Typing comes from **configuration**, never from a device class. A device
+  declares its ports by name and direction; the C3 loader puts the descriptors
+  on the runtime `Port`. An `isinstance(device, ...)` or a port-name test that
+  decides a phase is the inference T3-7 exists to retire.
+- T3-7 built this vocabulary. **T5-6 aggregates over it and has not landed** —
+  do not write code that assumes the coupling already sums typed connections.
 
 **Time is owned, not observed.**
 - **Never call `time.time()`** or any wall-clock source inside a model. Simulated

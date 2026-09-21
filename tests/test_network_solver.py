@@ -14,6 +14,10 @@ from app.plant.loader import load_plant
 from app.plant.topology import Branch, Node, Topology
 
 
+# The process state a port must never be able to hold.
+SOLVED_VALUES = ("pressure", "flow", "temperature", "level")
+
+
 class SolverCurve(Equipment):
     """One curve shape covering both things a branch can hold.
 
@@ -794,9 +798,16 @@ def test_a_device_port_never_holds_a_solved_value():
 
     solve_network(topology)
 
+    # T3-7 gave a port connection metadata — phase, purpose, control — so the
+    # slot set is no longer fixed. What a port may never carry is process
+    # state, and __slots__ is still what keeps it off.
     for device in topology.devices.values():
         for port in device.ports.values():
-            assert set(type(port).__slots__) == {"name", "direction", "node"}
+            assert set(type(port).__slots__).isdisjoint(SOLVED_VALUES)
+
+            for name in SOLVED_VALUES:
+                with pytest.raises(AttributeError):
+                    setattr(port, name, 800.0)
 
 
 def test_the_result_reports_both_residuals_in_their_own_units():

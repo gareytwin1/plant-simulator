@@ -28,6 +28,21 @@ of those become hydraulic branches — one path, one Branch, nothing inferred. A
 device with `paths: []` is a coupling device: it lives on `Plant.devices` and in
 no Topology. See docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md, Amendment 1.
 
+A `ports` entry is **either** a node-id string **or** a typed object carrying
+`node`, `phase`, `purpose` and optionally `control` (T3-7). There is one typed
+form and no half-typed one, and absence of `control` means no declared control
+role — `control: none` is not how that is written. The alternation is enforced
+here rather than in the schema because the C3 validator implements no `oneOf`
+and would silently ignore one, and because the error can name the offending
+path down to the descriptor. See docs/ADR_0002_TYPED_PORTS.md, Amendment 1.
+
+**Typing comes from configuration, never from the device class.** A device
+declares its structural ports by name and direction; the loader is what puts
+the semantic metadata on the runtime `Port`. Nothing here may infer a phase or
+a purpose from a device type or a port name — that inference is what T3-7
+exists to retire. A legacy string entry stays untyped, and `to_config()` emits
+back whichever form it read.
+
 Plant files may be JSON or YAML (`.json`, `.yaml`, `.yml`). The format is
 resolved before validation; after that there is one path.
 
@@ -39,12 +54,21 @@ them, so a plant round-trips back to the config it came from.
 import copy
 import json
 from collections.abc import Mapping
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import yaml
 
-from app.equipment.base import INLET, OUTLET, Equipment
+from app.equipment.base import (
+    INLET,
+    OUTLET,
+    PORT_CONTROLS,
+    PORT_PHASES,
+    PORT_PURPOSES,
+    RESERVED_PHASES,
+    Equipment,
+)
 from app.equipment.compressor import GasCompressor
 from app.equipment.pump import CentrifugalPump
 from app.equipment.valve import ControlValve
@@ -76,6 +100,46 @@ DEVICE_TYPES: dict[str, type[Equipment]] = {
 }
 
 
+# A typed `ports` entry carries exactly these keys, and the first three are
+# required. There is deliberately no half-typed form: a node and a phase with
+# no purpose is refused rather than defaulted (ADR 0002, Amendment 1 A.6).
+TYPED_PORT_KEYS = (
+    "node",
+    "phase",
+    "purpose",
+    "control",
+)
+
+REQUIRED_TYPED_PORT_KEYS = (
+    "node",
+    "phase",
+    "purpose",
+)
+
+
+@dataclass(frozen=True)
+class PortDeclaration:
+    """One C3 `ports` entry, in whichever of the two forms it was written.
+
+    `typed` records the *form*, not the content. A legacy string entry
+    declares attachment and nothing more, and `to_config()` has to emit it
+    back as the bare string it arrived as — a config is never silently
+    upgraded, and reading typedness off the live Port instead would make that
+    depend on no device class ever declaring a phase of its own.
+    """
+
+    node: str
+    phase: str | None = None
+    purpose: str | None = None
+    control: str | None = None
+    typed: bool = False
+
+
+# What `to_config()` needs to reproduce one equipment item: the wiring form,
+# the port declarations in config order, and the paths as port-name pairs.
+Wiring = tuple[str, dict[str, PortDeclaration], list[tuple[str, str]]]
+
+
 class PlantConfigError(ValueError):
     def __init__(self, errors: list[str]) -> None:
         self.errors = errors
@@ -102,7 +166,10 @@ class Plant:
     sit in no Topology — build an Engine from it, never from Topology.devices.
 
     `to_config()` is form-preserving: a device loaded with node_in/node_out is
-    emitted with them, a device loaded with ports/paths is emitted with those.
+    emitted with them, a device loaded with ports/paths is emitted with those,
+    and each port entry comes back in the form it was read — a bare node-id
+    string stays a string, a typed object comes back typed with its phase,
+    purpose and any control intact.
     """
 
     def __init__(
@@ -112,7 +179,7 @@ class Plant:
         declared_domains: Mapping[str, str],
         devices: Mapping[str, Equipment],
         forms: Mapping[str, str],
-        port_order: Mapping[str, list[str]],
+        port_declarations: Mapping[str, Mapping[str, PortDeclaration]],
         paths: Mapping[str, list[tuple[str, str]]],
         design_keys: Mapping[str, list[str]],
         equipment_types: Mapping[str, str],
@@ -125,7 +192,9 @@ class Plant:
         self.devices: dict[str, Equipment] = dict(devices)
 
         self._forms = dict(forms)
-        self._port_order = {tag: list(names) for tag, names in port_order.items()}
+        self._port_declarations = {
+            tag: dict(declarations) for tag, declarations in port_declarations.items()
+        }
         self._paths = {tag: list(pairs) for tag, pairs in paths.items()}
         self._design_keys = {tag: list(keys) for tag, keys in design_keys.items()}
         self._equipment_types = dict(equipment_types)
@@ -170,7 +239,8 @@ class Plant:
             item["node_out"] = _attached_node_id(device, to_port)
         else:
             item["ports"] = {
-                name: _attached_node_id(device, name) for name in self._port_order[tag]
+                name: self._port_config(device, name, declaration)
+                for name, declaration in self._port_declarations[tag].items()
             }
             item["paths"] = [
                 {"from": from_port, "to": to_port}
@@ -180,6 +250,33 @@ class Plant:
         item["design"] = {key: getattr(device, key) for key in self._design_keys[tag]}
 
         return item
+
+    def _port_config(
+        self,
+        device: Equipment,
+        name: str,
+        declaration: PortDeclaration,
+    ) -> str | dict[str, Any]:
+        # Form from the declaration, values off the live Port — the same split
+        # as design values, and the reason a legacy string is never silently
+        # upgraded into a typed object it was not written as.
+        node_id = _attached_node_id(device, name)
+
+        if not declaration.typed:
+            return node_id
+
+        port = device.port(name)
+
+        entry: dict[str, Any] = {
+            "node": node_id,
+            "phase": port.phase,
+            "purpose": port.purpose,
+        }
+
+        if port.control is not None:
+            entry["control"] = port.control
+
+        return entry
 
     def _node_config(self, node: Node) -> dict[str, Any]:
         # configured_pressure, not pressure: a boundary fed by a coupling
@@ -230,7 +327,9 @@ def load_plant(
         },
         devices=devices,
         forms={tag: form for tag, (form, _, _) in wiring.items()},
-        port_order={tag: order for tag, (_, order, _) in wiring.items()},
+        port_declarations={
+            tag: declarations for tag, (_, declarations, _) in wiring.items()
+        },
         paths={tag: pairs for tag, (_, _, pairs) in wiring.items()},
         design_keys=design_keys,
         equipment_types={item["tag"]: item["type"] for item in config["equipment"]},
@@ -389,14 +488,14 @@ def _named_reference_errors(
     node_paths: Mapping[str, str],
     domains: Mapping[str, Mapping[str, Any]],
 ) -> list[str]:
-    errors: list[str] = []
-
     ports = item["ports"]
 
-    for name, node_id in ports.items():
-        if node_id not in node_paths:
+    declarations, errors = _port_declarations(ports, f"{path}.ports")
+
+    for name, declaration in declarations.items():
+        if declaration.node not in node_paths:
             errors.append(
-                f"{path}.ports.{name}: unknown node {node_id!r}, "
+                f"{path}.ports.{name}: unknown node {declaration.node!r}, "
                 f"only {sorted(node_paths)}",
             )
 
@@ -432,10 +531,13 @@ def _named_reference_errors(
                     f"{path}.ports, only {sorted(ports)}",
                 )
 
-        if pair["from"] in ports and pair["to"] in ports:
+        if pair["from"] in declarations and pair["to"] in declarations:
             errors += _pair_errors(
                 item["tag"],
-                (ports[pair["from"]], ports[pair["to"]]),
+                (
+                    declarations[pair["from"]].node,
+                    declarations[pair["to"]].node,
+                ),
                 where,
                 (f"{path}.ports.{pair['from']}", f"{path}.ports.{pair['to']}"),
                 node_paths,
@@ -444,6 +546,131 @@ def _named_reference_errors(
             )
 
     return errors
+
+
+def _port_declarations(
+    ports: Mapping[str, Any],
+    path: str,
+) -> tuple[dict[str, PortDeclaration], list[str]]:
+    """Read a `ports` map into declarations, reporting every problem found.
+
+    This is the string-or-object alternation, and it lives here rather than in
+    the schema because the C3 validator implements no `oneOf`. Only entries
+    that parsed appear in the result, so a caller must check membership before
+    resolving a node reference.
+    """
+    declarations: dict[str, PortDeclaration] = {}
+    errors: list[str] = []
+
+    for name, entry in ports.items():
+        where = f"{path}.{name}"
+
+        if isinstance(entry, str):
+            if not entry:
+                errors.append(f"{where}: node id is empty")
+                continue
+
+            declarations[name] = PortDeclaration(node=entry)
+            continue
+
+        if not isinstance(entry, dict):
+            errors.append(
+                f"{where}: expected a node id string or a typed object "
+                f"{{node, phase, purpose}}, got {_type_name(entry)}",
+            )
+            continue
+
+        entry_errors = _typed_port_errors(entry, where)
+
+        if entry_errors:
+            errors += entry_errors
+            continue
+
+        declarations[name] = PortDeclaration(
+            node=entry["node"],
+            phase=entry["phase"],
+            purpose=entry["purpose"],
+            control=entry.get("control"),
+            typed=True,
+        )
+
+    return declarations, errors
+
+
+def _typed_port_errors(entry: Mapping[str, Any], where: str) -> list[str]:
+    errors: list[str] = []
+
+    for key in entry:
+        if key not in TYPED_PORT_KEYS:
+            errors.append(
+                f"{where}: unexpected property {key!r}, "
+                f"a typed port carries {list(TYPED_PORT_KEYS)}",
+            )
+
+    for key in REQUIRED_TYPED_PORT_KEYS:
+        if key not in entry:
+            errors.append(
+                f"{where}: missing required property {key!r} — a typed port "
+                f"declares {list(REQUIRED_TYPED_PORT_KEYS)}, and control only "
+                f"where the connection has a control role",
+            )
+
+    if "node" in entry and not (isinstance(entry["node"], str) and entry["node"]):
+        errors.append(
+            f"{where}.node: expected a non-empty node id string, "
+            f"got {_type_name(entry['node'])}",
+        )
+
+    if entry.get("phase") in RESERVED_PHASES:
+        errors.append(
+            f"{where}.phase: {entry['phase']!r} is reserved for a future "
+            f"version — a stream carrying both phases has to split, and "
+            f"splitting it is a flash calculation, which V1 does not model. "
+            f"Declare one of {list(PORT_PHASES)}",
+        )
+    elif "phase" in entry and entry["phase"] not in PORT_PHASES:
+        errors.append(
+            f"{where}.phase: {entry['phase']!r} is not one of {list(PORT_PHASES)}",
+        )
+
+    if "purpose" in entry and entry["purpose"] not in PORT_PURPOSES:
+        errors.append(
+            f"{where}.purpose: {entry['purpose']!r} is not one of "
+            f"{list(PORT_PURPOSES)}",
+        )
+
+    # Membership, not `.get()`: `control: none` must be refused rather than
+    # read as an uncontrolled connection. Absence is how that is written.
+    if "control" in entry and entry["control"] not in PORT_CONTROLS:
+        errors.append(
+            f"{where}.control: {entry['control']!r} is not one of "
+            f"{list(PORT_CONTROLS)} — omit control entirely for a connection "
+            f"under no control",
+        )
+
+    return errors
+
+
+def _type_name(value: Any) -> str:
+    if isinstance(value, bool):
+        return "boolean"
+
+    if isinstance(value, dict):
+        return "object"
+
+    if isinstance(value, list):
+        return "array"
+
+    if isinstance(value, str):
+        return "string"
+
+    if isinstance(value, (int, float)):
+        return "number"
+
+    if value is None:
+        return "null"
+
+    return type(value).__name__
 
 
 def _pair_errors(
@@ -542,7 +769,7 @@ def _build(
     dict[str, Topology],
     dict[str, Node],
     dict[str, Equipment],
-    dict[str, tuple[str, list[str], list[tuple[str, str]]]],
+    dict[str, Wiring],
     dict[str, list[str]],
     list[str],
 ]:
@@ -566,9 +793,10 @@ def _build(
     }
 
     devices: dict[str, Equipment] = {}
-    # Per tag: the wiring form, the port names in config order, and the paths
-    # as (from, to) port-name pairs — what to_config() needs to reproduce it.
-    wiring: dict[str, tuple[str, list[str], list[tuple[str, str]]]] = {}
+    # Per tag: the wiring form, the port declarations in config order, and the
+    # paths as (from, to) port-name pairs — what to_config() needs to reproduce
+    # the item it read, in the form it read it.
+    wiring: dict[str, Wiring] = {}
     design_keys: dict[str, list[str]] = {}
 
     for i, item in enumerate(config["equipment"]):
@@ -602,7 +830,7 @@ def _build_sugar(
     topologies: Mapping[str, Topology],
     node_domains: Mapping[str, str],
     path: str,
-) -> list[str] | tuple[str, list[str], list[tuple[str, str]]]:
+) -> list[str] | Wiring:
     # Domain agreement was checked with the references, so both ends are in one
     # topology here.
     topology = topologies[node_domains[item["node_in"]]]
@@ -621,7 +849,13 @@ def _build_sugar(
 
     names = [branch.from_port.name, branch.to_port.name]
 
-    return (SUGAR_FORM, names, [(names[0], names[1])])
+    # Sugar is the untyped form by definition, so these carry attachment only.
+    declarations = {
+        names[0]: PortDeclaration(node=item["node_in"]),
+        names[1]: PortDeclaration(node=item["node_out"]),
+    }
+
+    return (SUGAR_FORM, declarations, [(names[0], names[1])])
 
 
 def _build_named(
@@ -631,9 +865,13 @@ def _build_named(
     nodes: Mapping[str, Node],
     node_domains: Mapping[str, str],
     path: str,
-) -> list[str] | tuple[str, list[str], list[tuple[str, str]]]:
-    ports: Mapping[str, str] = item["ports"]
+) -> list[str] | Wiring:
+    ports: Mapping[str, Any] = item["ports"]
     paths: list[Mapping[str, str]] = item["paths"]
+
+    # Already validated in the reference pass, which raised before reaching
+    # here, so the errors this returns are empty by construction.
+    declarations, _ = _port_declarations(ports, f"{path}.ports")
 
     errors: list[str] = []
 
@@ -654,6 +892,17 @@ def _build_named(
     if errors:
         return errors
 
+    # Semantic metadata reaches the runtime Port from configuration and from
+    # nowhere else. A legacy string entry leaves the port untyped rather than
+    # having a phase guessed for it.
+    for name, declaration in declarations.items():
+        if declaration.typed:
+            device.port(name).declare(
+                phase=declaration.phase,
+                purpose=declaration.purpose,
+                control=declaration.control,
+            )
+
     if paths:
         pair = paths[0]
         where = f"{path}.paths[0]"
@@ -673,14 +922,14 @@ def _build_named(
         if errors:
             return errors
 
-        topology = topologies[node_domains[ports[pair["from"]]]]
+        topology = topologies[node_domains[declarations[pair["from"]].node]]
 
         try:
             topology.add_branch(
                 Branch(
                     id=f"B-{item['tag']}",
-                    from_node=topology.node(ports[pair["from"]]),
-                    to_node=topology.node(ports[pair["to"]]),
+                    from_node=topology.node(declarations[pair["from"]].node),
+                    to_node=topology.node(declarations[pair["to"]].node),
                     device=device,
                     from_port=pair["from"],
                     to_port=pair["to"],
@@ -693,13 +942,13 @@ def _build_named(
     # every port, and this is the only place a coupling device is wired.
     claimed = {pair[end] for pair in paths for end in ("from", "to")}
 
-    for name, node_id in ports.items():
+    for name, declaration in declarations.items():
         if name not in claimed:
-            device.port(name).connect(nodes[node_id])
+            device.port(name).connect(nodes[declaration.node])
 
     return (
         NAMED_FORM,
-        list(ports),
+        declarations,
         [(pair["from"], pair["to"]) for pair in paths],
     )
 

@@ -1,7 +1,7 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "20 September 2026",
-  "main_sha": "8733b1ae1053a8bd48f7f7593720dba30f3ac7c3",
+  "main_sha": "1848d534961e75ad6ff5f97bc39411e3c44b07f3",
   "tests_passing_on_main": 868,
   "status_vocabulary": {
     "Not Started": "No work begun",
@@ -115,7 +115,7 @@
   "totals": {
     "tasks": 101,
     "complete": 34,
-    "startable_now": 20
+    "startable_now": 19
   },
   "tasks": [
     {
@@ -745,10 +745,10 @@
         "app/engine/coupling.py",
         "tests/test_coupling_aggregation.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
+      "status": "Ready for Review",
+      "status_key": "review",
       "startable": true,
-      "note": "NEW, added 20 Sep 2026 by docs/ADR_0002_TYPED_PORTS.md section 8.1. Waits on T3-7. SPINE by the app/engine/ rule in CLAUDE.md - it modifies an existing module there. Fixes the defect measured in ADR 0002 section 2.3: VesselCoupling.write_flows assigns to one of four fixed attributes, so a second vapor attachment overwrote the first and 141.4214 SCFM (26.1% of the withdrawal) left the pressure balance silently. The fix is to SUM matching typed ports. It must not reject multiple nozzles sharing a (phase, direction) pair - prohibition was considered and rejected in ADR 0002 section 4. AMENDED 20 Sep 2026 by ADR 0002 Amendment 1: the descriptors T3-7 froze are phase, purpose and control - there is no service field - and only phase and direction may participate in a balance, so purpose and control never alter one. DOMAIN_UNITS is retired here."
+      "note": "READY FOR REVIEW on feature/coupling-aggregation (PR #44), not merged. 971 passed on the branch, mypy clean over 24 source files, no golden trace moved, production diff is app/engine/coupling.py only. AMENDED 20 Sep 2026 by ADR 0002 AMENDMENT 2, written before any code: the four aggregates are sums over the hydraulic NODE, not over ports. Attachment.net_flow is derived from every branch meeting the node, so summing it once per port would double-count a node two nozzles share, and netting each node instead would lose the gross throughput residence_time is made of. A node is counted once however many nozzles sit on it; distinct nodes sum; a node declaring both directions keeps its gross components (arrivals into the inlet aggregate, departures into the outlet one) and one declaring a single direction keeps its net, which is what makes every existing single-attachment plant bit-identical. Both components are signed sums over branch orientation - nothing is clamped, so a reversed feed arrives negatively. Classification is from the declared phase, confirmed against the machines at the node; DOMAIN_UNITS is retired, ControlValve is listed UNIT_NEUTRAL, an unrecognised device still refuses, and a typed attachment couples with no branch at all. Two vessels on one node refuse. An aggregate any failed domain feeds holds its previous value in full. purpose and control are read nowhere. NOTE FOR T5-5: ADR 0002 section 2.2's constants (level 0.12335, 78.140 psia, 357.414 GPM) come from a probe configuration that was never recorded and could not be reproduced; the T5-6 fixture builds the same idiom with round design values and pins its own steady state, 361.15756 GPM at level 0.15217391 and 113.04348 psia, inside a band 4e-8 wide relative from step 5000 past step 200000. The behaviour reproduces; the constants belong to the lost probe."
     },
     {
       "id": "T5-7",

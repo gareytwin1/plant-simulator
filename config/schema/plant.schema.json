@@ -38,7 +38,9 @@
           "ports": {
             "type": "object",
             "minProperties": 1,
-            "additionalProperties": {"type": "string", "minLength": 1}
+            "additionalProperties": {
+              "description": "Either a node-id string, or a typed object {node, phase, purpose, control?} where phase is liquid or vapor, purpose is process, vent, drain or relief, and control - if present - is flow, pressure, level or temperature. The alternation and every one of those values is enforced in app/plant/loader.py, not here: the C3 validator implements no oneOf, so a schema keyword expressing this would be a constraint that silently does not hold, and the loader can name the offending config path."
+            }
           },
           "paths": {
             "type": "array",

@@ -443,15 +443,26 @@ def test_validator_enforces_min_properties():
     assert validate({"a": 1}, schema) == []
 
 
-def test_schema_rejects_empty_ports_and_non_string_node_ids():
+def test_schema_rejects_empty_ports():
     config = two_domain_config()
     config["equipment"][2]["ports"] = {}
 
     assert any("$.equipment[2].ports" in error for error in validate(config))
 
+
+def test_the_loader_rejects_a_node_id_that_is_neither_string_nor_typed_object():
+    # T3-7 moved this check out of the schema: a ports entry may now be a
+    # string OR a typed object, which the C3 validator cannot express without
+    # a oneOf it silently ignores. The loader names the path instead.
+    config = two_domain_config()
     config["equipment"][2]["ports"] = {"liquid_in": 7}
 
-    assert any("$.equipment[2].ports.liquid_in" in error for error in validate(config))
+    assert validate(config) == []
+
+    errors = rejected(config)
+
+    assert any("$.equipment[2].ports.liquid_in" in error for error in errors)
+    assert any("got number" in error for error in errors)
 
 
 def test_schema_rejects_a_path_missing_an_end_or_carrying_extras():

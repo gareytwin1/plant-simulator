@@ -12,7 +12,7 @@ Refresh this file whenever a task merges to `main`.
 **Current `main`:** `4ced83c` — *Merge pull request #41 from gareytwin1/docs/adr-0002-sync*. The previous refresh recorded `60c252e`, which went stale when PR #41 merged; `4ced83c`, `29793db`, `2a1a489`, `e576d12` and `b363bd8` are documentation only and changed no production code.
 **Last code merge:** `4e48949` — T2-6, the scheduler owns simulated time (PR #38). `60c252e` and `7aa4e3c` are documentation only and changed no production code. Previous: `06569cc` T2-5 background scheduler (PR #36); `42dc227` T5-3, gas-phase pressure accumulation (PR #35); `fefa841` T7-1, the control valve model (PR #32); `e261134` T4-5, the cause-and-effect assertion suite (PR #29, test-only). Previous: `154385c` T5-2, level to hydraulics coupling and the multi-domain Engine (PR #27). Previous: `0efa5be` T4-4, the solver wired into the engine (PR #25). Previous: `b8af231` T5-1 vessel model (PR #23); `d6a6cfb` T3-4 single-domain reference fixtures (PR #19); `2c08bb8` T3-6 multi-port equipment wiring (PR #20); `11517f6` T3-5 flow-domain declaration (PR #17); `c406ca0` YAML plant loading; previous solver merge `a2a1596` (T4-3)
 **Architecture decisions on `main`:** ADR 0001 ([flow-domain separation](ADR_0001_FLOW_DOMAIN_SEPARATION.md)) with Amendment 1, and **ADR 0002 ([typed ports and the vessel connection model](ADR_0002_TYPED_PORTS.md))**, merged 20 September 2026 as `60c252e` and **amended by Amendment 1 before T3-7 implementation** — the single `service` axis is superseded by independent `purpose` and `control` descriptors
-**Full suite on `main`:** **753 passed** (`conda activate plant-simulator && python -m pytest -q`); `python -m mypy` clean over **24 source files**. On `feature/typed-ports`: **854 passed**, `mypy` clean over the same 24 files, no golden trace moved
+**Full suite on `main`:** **753 passed** (`conda activate plant-simulator && python -m pytest -q`); `python -m mypy` clean over **24 source files**. On `feature/typed-ports`: **868 passed**, `mypy` clean over the same 24 files, no golden trace moved
 
 **[T3-7 is in flight](#t3-7-typed-ports-in-flight) on `feature/typed-ports`, and
 [T5-6](#the-next-task-t5-6) is next.** The sequence ADR 0002 sets is unchanged:
@@ -555,7 +555,7 @@ manual drain as different things while calling both drains. What T3-7 delivers:
 | **Files** | `app/equipment/base.py`, `config/schema/plant.schema.json`, `app/plant/loader.py`, `tests/test_typed_ports.py`, `tests/test_port_name_guard.py`, `CLAUDE.md`, `docs/ADR_0002_TYPED_PORTS.md`, `docs/BUILD_PLAN.html`, `docs/BUILD_PLAN_STATUS.json`, `docs/PROJECT_STATE.md` |
 | **Model** | **Opus** — a contract change on a spine file |
 | **Lock** | **SPINE.** `app/equipment/base.py`, alone. Release it on merge |
-| **Suite** | 854 passed, `mypy` clean over 24 files, no golden trace moved |
+| **Suite** | 868 passed, `mypy` clean over 24 files, no golden trace moved |
 
 - `Port` carries `phase`, `purpose` and an optional `control` in `__slots__`,
   validated through `Port.declare()`. `direction` is unchanged, and `phase`
@@ -878,10 +878,10 @@ plant. (T5-1's
 dependency moved to T3-6, the multi-port wiring half of the original T3-5, when
 Amendment 1 split the task.)
 
-## Test suite composition (753 tests on `main`, 854 on `feature/typed-ports`)
+## Test suite composition (753 tests on `main`, 868 on `feature/typed-ports`)
 
 The table below counts `main`. `feature/typed-ports` adds
-`test_typed_ports.py` (52) and `test_port_name_guard.py` (48), and splits one
+`test_typed_ports.py` (52) and `test_port_name_guard.py` (62), and splits one
 schema test in `test_plant_ports.py` into two.
 
 | File | Tests | File | Tests |

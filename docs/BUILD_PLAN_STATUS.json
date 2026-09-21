@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "20 September 2026",
-  "main_sha": "4ced83cf4b950a106c76af0831d558a404561f37",
-  "tests_passing_on_main": 753,
+  "main_sha": "8733b1ae1053a8bd48f7f7593720dba30f3ac7c3",
+  "tests_passing_on_main": 868,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -28,7 +28,7 @@
     },
     "M3": {
       "name": "Plant Topology and Streams",
-      "complete": 6,
+      "complete": 7,
       "total": 7
     },
     "M4": {
@@ -114,8 +114,8 @@
   },
   "totals": {
     "tasks": 101,
-    "complete": 33,
-    "startable_now": 18
+    "complete": 34,
+    "startable_now": 20
   },
   "tasks": [
     {
@@ -544,10 +544,9 @@
         "docs/BUILD_PLAN_STATUS.json",
         "docs/PROJECT_STATE.md"
       ],
-      "status": "Ready for Review",
-      "status_key": "review",
-      "startable": true,
-      "note": "READY FOR REVIEW - PR #42, branch feature/typed-ports, rebased on main 4ced83c. NOT merged. 868 tests passing (753 on main + 52 typed-port + 62 port-name-guard + 1 from a schema/loader test split), mypy clean over 24 source files, no golden trace moved. Production diff is app/equipment/base.py and app/plant/loader.py only; coupling.py, engine.py, network.py, topology.py and snapshot.py are untouched. RE-SPECIFIED by docs/ADR_0002_TYPED_PORTS.md AMENDMENT 1, which supersedes the single service axis of section 3.1: a connection carries name (identifier only), direction, phase (liquid|vapor), purpose (process|vent|drain|relief) and an OPTIONAL control (flow|pressure|level|temperature). purpose and control are orthogonal and must not be collapsed back into one service field. CONSERVATION INVARIANT, now recorded in CLAUDE.md: only phase and direction may participate in a balance. T5-6 implements the aggregation and is next once this merges. Two existing tests changed deliberately, each because it pinned the old contract: the Port __slots__ tuple in test_network_solver.py, and the schema-level non-string node id check in test_plant_ports.py (an object is now valid there, so the check moved to the loader). REVIEW ROUND 2: the port-name guard was narrowed - it flagged any .name compared against a string literal, which would have failed a future alarm, controller, scenario or malfunction identified by name, and it rejected hard-coded port lookups that are not behaviour. It now resolves whether a .name belongs to a Port from the expression it is read off, and literal lookups are no longer flagged."
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged to main as 8733b1a (PR #42, merge commit over feature/typed-ports head 4382590), 20 Sep 2026. main verified after merge: 868 tests passing (753 + 52 typed-port + 62 port-name-guard + 1 from a schema/loader test split), mypy clean over 24 source files, no golden trace moved. Production change is app/equipment/base.py and app/plant/loader.py only; coupling.py, engine.py, network.py, topology.py and snapshot.py untouched. Implements docs/ADR_0002_TYPED_PORTS.md AMENDMENT 1: a connection carries name (identifier only), direction, phase (liquid|vapor), purpose (process|vent|drain|relief) and an optional control (flow|pressure|level|temperature); purpose and control are orthogonal, and only phase and direction may participate in a balance. Typed C3 ports entries {node, phase, purpose, control?} are loader-enforced (no oneOf), round-trip form-preserving, and legacy strings stay untyped. Two existing tests changed deliberately because each pinned the old contract. The port-name guard was narrowed in review to a Port's own name. app/equipment/base.py spine lock RELEASED. Next: T5-6 (feature/coupling-aggregation, Opus, SPINE) consumes this vocabulary."
     },
     {
       "id": "T4-1",
@@ -728,7 +727,6 @@
       "status_key": "block",
       "startable": false,
       "blocked_by": [
-        "T3-7",
         "T5-6"
       ],
       "note": "BLOCKED behind T3-7 and T5-6 as of 20 Sep 2026, per docs/ADR_0002_TYPED_PORTS.md sections 3 and 8.2. THE ARCHITECTURE IS SETTLED - WHEN THIS UNBLOCKS, GO STRAIGHT TO CONSTRUCTION. T5-5's design phase already ran and its output is ADR 0002; section 1 of that ADR describes the investigation in the past tense and is NOT a template for a second one. After T3-7 and T5-6 merge, this task writes the config, chooses and justifies design values, sizes the train, writes the tests and meets the acceptance criteria. Every structural question is already answered: how the vessel is wired (shared-node idiom, one node per phase), what a port declares (phase, purpose and optional control, T3-7 - ADR 0002 Amendment 1 replaced the single service axis with independent purpose and control descriptors), how flows aggregate (sums over matching typed ports, T5-6, classified by phase and direction alone), that PV-101 and LV-101 are MANUAL with no controller (M8 owns the loops), and that composition, flash and component balances stay out of V1. Implement those; do not revisit them. The ONE thing that warrants stopping: if no choice of design values gives both a credible cold start and a credible running point, that is the missing check valve (ADR 0001 section 2.9 and Known technical debt in PROJECT_STATE) - escalate it as its own task rather than redesigning the connection model or shortening a test horizon to hide it. Why it was blocked: the investigation found the vessel fills monotonically with no liquid draw, so a conservation test could only pass by stopping before level clamped; two vessel ports on two domains lose flow silently (141.4214 SCFM, 26.1%, unreported); and the only wiring that computes correctly today needs the port names to lie. Re-specified: V-101 gains a liquid draw plus a process vapor outlet alongside a separate pressure-control outlet. Acceptance moves from a horizon-bounded conservation test to a steady-state one and gains: changing PV-101 or LV-101 position changes vessel pressure or level in the expected direction. ADR 0002 section 7.3 is this task's: cold-start pump backflow and K-101 reversal are fixed by choosing design values. Still owns creation of config/plants/olefins_lite.yaml, which T7-2, T8-3, T9-2 and T11-1 edit."
@@ -749,10 +747,7 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "T3-7"
-      ],
+      "startable": true,
       "note": "NEW, added 20 Sep 2026 by docs/ADR_0002_TYPED_PORTS.md section 8.1. Waits on T3-7. SPINE by the app/engine/ rule in CLAUDE.md - it modifies an existing module there. Fixes the defect measured in ADR 0002 section 2.3: VesselCoupling.write_flows assigns to one of four fixed attributes, so a second vapor attachment overwrote the first and 141.4214 SCFM (26.1% of the withdrawal) left the pressure balance silently. The fix is to SUM matching typed ports. It must not reject multiple nozzles sharing a (phase, direction) pair - prohibition was considered and rejected in ADR 0002 section 4. AMENDED 20 Sep 2026 by ADR 0002 Amendment 1: the descriptors T3-7 froze are phase, purpose and control - there is no service field - and only phase and direction may participate in a balance, so purpose and control never alter one. DOMAIN_UNITS is retired here."
     },
     {
@@ -962,10 +957,7 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "T3-7"
-      ],
+      "startable": true,
       "note": "NEW, added 20 Sep 2026 by docs/ADR_0002_TYPED_PORTS.md section 8.1. Waits on T3-7 and blocks nothing. Relief is a third branch on the vapor node and changes nothing structural; it needs typed ports so a relief path can be told apart from a process path in the snapshot. Its port declares purpose relief (ADR 0002 Amendment 1 renamed service to purpose, alongside an independent control descriptor). purpose is metadata and must never change the conservation math (ADR 0002 section 3.4, amended by A.3)."
     },
     {

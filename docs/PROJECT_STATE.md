@@ -8,15 +8,15 @@ Refresh this file whenever a task merges to `main`.
 
 ---
 
-**Last refreshed:** 20 September 2026 (**T3-7 in flight** on `feature/typed-ports` — ADR 0002 amended, the typed-port vocabulary built)
-**Current `main`:** `4ced83c` — *Merge pull request #41 from gareytwin1/docs/adr-0002-sync*. The previous refresh recorded `60c252e`, which went stale when PR #41 merged; `4ced83c`, `29793db`, `2a1a489`, `e576d12` and `b363bd8` are documentation only and changed no production code.
-**Last code merge:** `4e48949` — T2-6, the scheduler owns simulated time (PR #38). `60c252e` and `7aa4e3c` are documentation only and changed no production code. Previous: `06569cc` T2-5 background scheduler (PR #36); `42dc227` T5-3, gas-phase pressure accumulation (PR #35); `fefa841` T7-1, the control valve model (PR #32); `e261134` T4-5, the cause-and-effect assertion suite (PR #29, test-only). Previous: `154385c` T5-2, level to hydraulics coupling and the multi-domain Engine (PR #27). Previous: `0efa5be` T4-4, the solver wired into the engine (PR #25). Previous: `b8af231` T5-1 vessel model (PR #23); `d6a6cfb` T3-4 single-domain reference fixtures (PR #19); `2c08bb8` T3-6 multi-port equipment wiring (PR #20); `11517f6` T3-5 flow-domain declaration (PR #17); `c406ca0` YAML plant loading; previous solver merge `a2a1596` (T4-3)
+**Last refreshed:** 20 September 2026 (**T3-7 merged** as `8733b1a` — typed ports, phase / purpose / control)
+**Current `main`:** `8733b1a` — *Merge pull request #42 from gareytwin1/feature/typed-ports*
+**Last code merge:** `8733b1a` — T3-7, typed ports (PR #42): `Port` gains `phase`, `purpose` and optional `control`, typed C3 `ports` entries load and round-trip, and a guard test keeps port names from driving behaviour. Production change is `app/equipment/base.py` and `app/plant/loader.py` only. Previous: `4e48949` T2-6, the scheduler owns simulated time (PR #38); `4ced83c`, `60c252e` and `7aa4e3c` and their neighbours are documentation only. Previous: `06569cc` T2-5 background scheduler (PR #36); `42dc227` T5-3, gas-phase pressure accumulation (PR #35); `fefa841` T7-1, the control valve model (PR #32); `e261134` T4-5, the cause-and-effect assertion suite (PR #29, test-only). Previous: `154385c` T5-2, level to hydraulics coupling and the multi-domain Engine (PR #27). Previous: `0efa5be` T4-4, the solver wired into the engine (PR #25). Previous: `b8af231` T5-1 vessel model (PR #23); `d6a6cfb` T3-4 single-domain reference fixtures (PR #19); `2c08bb8` T3-6 multi-port equipment wiring (PR #20); `11517f6` T3-5 flow-domain declaration (PR #17); `c406ca0` YAML plant loading; previous solver merge `a2a1596` (T4-3)
 **Architecture decisions on `main`:** ADR 0001 ([flow-domain separation](ADR_0001_FLOW_DOMAIN_SEPARATION.md)) with Amendment 1, and **ADR 0002 ([typed ports and the vessel connection model](ADR_0002_TYPED_PORTS.md))**, merged 20 September 2026 as `60c252e` and **amended by Amendment 1 before T3-7 implementation** — the single `service` axis is superseded by independent `purpose` and `control` descriptors
-**Full suite on `main`:** **753 passed** (`conda activate plant-simulator && python -m pytest -q`); `python -m mypy` clean over **24 source files**. On `feature/typed-ports`: **868 passed**, `mypy` clean over the same 24 files, no golden trace moved
+**Full suite on `main`:** **868 passed** (`conda activate plant-simulator && python -m pytest -q`); `python -m mypy` clean over **24 source files**; no golden trace moved
 
-**[T3-7 is in flight](#t3-7-typed-ports-in-flight) on `feature/typed-ports`, and
-[T5-6](#the-next-task-t5-6) is next.** The sequence ADR 0002 sets is unchanged:
-**T3-7 → T5-6 → T5-5 → T5-7 later.**
+**The next task is [T5-6](#the-next-task-t5-6), coupling aggregates typed
+connections** (Opus, spine). The sequence ADR 0002 sets is unchanged and T3-7
+is behind it: **T5-6 → T5-5 → T5-7 later.**
 
 ---
 
@@ -27,14 +27,13 @@ Refresh this file whenever a task merges to `main`.
 | **M0** Baseline Cleanup | **7/7 Complete** |
 | **M1** Equipment Model Contract | **5/5 Complete** — Checkpoint A reached |
 | **M2** Simulation Engine and Clock | **6/6 Complete** — T2-5 `06569cc`, T2-6 `4e48949` |
-| **M3** Plant Topology and Streams | 6/7 — T3-1 … T3-6 Complete; **T3-7 (typed ports) is Ready for Review** on `feature/typed-ports`, not merged |
+| **M3** Plant Topology and Streams | **7/7 Complete** — T3-7 (typed ports) merged as `8733b1a` |
 | **M4** Pressure-Flow Network Solver | **5/5 Complete** — Checkpoint B reached; T4-5 was re-scoped before implementation, see [The T4-5 re-scope](#the-t4-5-re-scope) |
-| **M5** Inventory and Mass Balance | 3/7 — T5-1, T5-2, T5-3 Complete. ADR 0002 added **T5-6** and **T5-7**; **T5-6 is the next task** once T3-7 merges; **T5-5 is Blocked** behind both; **T5-4 was re-sequenced after T5-5**. The engine and topology spine locks are released |
-| **M7** Control Valves and Final Elements | 1/5 — T7-1 Complete; **T7-3 and T7-4 startable**; T7-2 also needs T5-5; **T7-5 (relief device) is new**, needs T3-7 and blocks nothing |
+| **M5** Inventory and Mass Balance | 3/7 — T5-1, T5-2, T5-3 Complete. ADR 0002 added **T5-6** and **T5-7**; **T5-6 is the next task** and is now startable; **T5-5 is Blocked** behind it; **T5-4 was re-sequenced after T5-5**. The engine and topology spine locks are released |
+| **M7** Control Valves and Final Elements | 1/5 — T7-1 Complete; **T7-3 and T7-4 startable**; T7-2 also needs T5-5; **T7-5 (relief device) is new and now startable** (T3-7 merged), and blocks nothing |
 | M6, M8–M19 | Not started |
 
-Overall: **33 of 101 tasks Complete.** The count rose from 97 because ADR 0002
-added four tasks; no task was completed or removed.
+Overall: **34 of 101 tasks Complete.** T3-7 merged; the count was 33 before it.
 
 ### Completed and merged to `main`
 
@@ -47,7 +46,9 @@ added four tasks; no task was completed or removed.
   `T2-4` session/plant registry.
 - **M3** — `T3-1` plant config schema + validator (C3) ·
   `T3-2` node/branch/stream (C2) · `T3-3` plant loader (`app/plant/loader.py`) ·
-  `T3-5` flow-domain declaration · `T3-6` multi-port equipment wiring.
+  `T3-5` flow-domain declaration · `T3-6` multi-port equipment wiring ·
+  `T3-7` typed ports (`8733b1a`, PR #42): `Port` phase / purpose / control, typed
+  C3 `ports` entries, and the port-name guard.
 - **M5** — `T5-1` vessel model (`app/equipment/vessel.py`): a coupling device,
   level integrated from `inlet_flow` / `outlet_flow` (GPM) · `T5-2` level to
   hydraulics coupling (`154385c`): `head_at_full * level` added to the
@@ -140,7 +141,7 @@ now genuinely merged.)
   `DEVICE_TYPES` now maps `pump`, `compressor`, `control_valve` and `vessel`.
   **ADR 0002 rewrote what a `ports` entry may say:** T3-7 lets it carry a
   declared `phase`, `purpose` and optional `control`, enforced in the loader
-  rather than the schema. On `feature/typed-ports`, not yet on `main`.
+  rather than the schema. Merged as `8733b1a`.
 - **Single action endpoint (C5).** Routes are still per-equipment.
 - **Controllers (PID), envelopes, alarms, trips, scenarios, scoring, historian,
   console.** All specified in the build plan, none implemented.
@@ -447,7 +448,7 @@ Engine-computes-nothing state; what remains is the consequence of that:
 
 ## Active branches and PRs
 
-**No branch is in flight.** T2-6 merged as `4e48949` ([PR #38](https://github.com/gareytwin1/plant-simulator/pull/38)): `Session` owns `compressor_scheduler` / `pump_scheduler`, started only by the `/compressor` or `/pump` page render and stopped only by `Session.end()` (direct, `SessionRegistry.end()`, or LRU eviction past `config.MAX_SESSIONS = 32`). Design: [docs/T2-6_SCHEDULER_OWNERSHIP.md](T2-6_SCHEDULER_OWNERSHIP.md). The build plan's file list named only `static/compressor.js`; `static/pump.js` changed too, because it stepped pump physics on its own timer. The `app/main.py` and `app/engine/sessions.py` locks are released.
+**No branch is in flight, and no spine lock is held.** T3-7 merged as `8733b1a` ([PR #42](https://github.com/gareytwin1/plant-simulator/pull/42)) and released the `app/equipment/base.py` lock; `feature/typed-ports` and its worktree are deleted. Previously, T2-6 merged as `4e48949` ([PR #38](https://github.com/gareytwin1/plant-simulator/pull/38)): `Session` owns `compressor_scheduler` / `pump_scheduler`, started only by the `/compressor` or `/pump` page render and stopped only by `Session.end()` (direct, `SessionRegistry.end()`, or LRU eviction past `config.MAX_SESSIONS = 32`). Design: [docs/T2-6_SCHEDULER_OWNERSHIP.md](T2-6_SCHEDULER_OWNERSHIP.md). The build plan's file list named only `static/compressor.js`; `static/pump.js` changed too, because it stepped pump physics on its own timer. The `app/main.py` and `app/engine/sessions.py` locks are released.
 
 **T18-5 still owns idle-session reclamation.** The T2-6 cap is only the bounded-resource guard that makes scheduler ownership safe; it is not idle expiry and does not close out T18-5.
 
@@ -540,9 +541,9 @@ clean over 24 source files). Read [CLAUDE.md](../CLAUDE.md) first, then the
 build plan entry for your task. Model guidance is the **Agent model guidance**
 section of CLAUDE.md; the column below is the build plan's own assignment.
 
-### T3-7, typed ports (in flight)
+### T3-7, typed ports (merged)
 
-**On `feature/typed-ports`, Ready for Review — not merged.** Cut from `main` at
+**Merged as `8733b1a` ([PR #42](https://github.com/gareytwin1/plant-simulator/pull/42)).** Cut from `main` at
 `4ced83c` (baseline 753 tests, `mypy` clean over 24 source files).
 
 Amendment 1 to ADR 0002 was written **before** any production code, because the
@@ -554,8 +555,8 @@ manual drain as different things while calling both drains. What T3-7 delivers:
 | **Branch** | `feature/typed-ports` |
 | **Files** | `app/equipment/base.py`, `config/schema/plant.schema.json`, `app/plant/loader.py`, `tests/test_typed_ports.py`, `tests/test_port_name_guard.py`, `CLAUDE.md`, `docs/ADR_0002_TYPED_PORTS.md`, `docs/BUILD_PLAN.html`, `docs/BUILD_PLAN_STATUS.json`, `docs/PROJECT_STATE.md` |
 | **Model** | **Opus** — a contract change on a spine file |
-| **Lock** | **SPINE.** `app/equipment/base.py`, alone. Release it on merge |
-| **Suite** | 868 passed, `mypy` clean over 24 files, no golden trace moved |
+| **Lock** | **SPINE.** `app/equipment/base.py`, alone. **Released on merge** |
+| **Suite** | 868 passed on `main` after the merge, `mypy` clean over 24 files, no golden trace moved |
 
 - `Port` carries `phase`, `purpose` and an optional `control` in `__slots__`,
   validated through `Port.declare()`. `direction` is unchanged, and `phase`
@@ -582,8 +583,8 @@ that is T5-6.
 
 ### The next task: T5-6
 
-**Start T5-6 once T3-7 has merged**, not before: it consumes the vocabulary
-T3-7 freezes.
+**Start T5-6 now.** T3-7 has merged, so the vocabulary it consumes is frozen on
+`main`.
 
 | | |
 |---|---|
@@ -765,23 +766,26 @@ is retired: **T3-6** (merged) carried the C3 named-port wiring (moved from T3-5 
 "Seeded RNG" above. `SeededRNG` also has no state save/restore, which T12-1
 (snapshot save and restore) and T14-5 (deterministic replay) will need.
 
-### Startable now (18 tasks)
+### Startable now (20 tasks)
 
 All dependencies are Complete. T12-1 adds a *new* isolated module under
 `app/engine/`, which is satellite work under the **`app/engine/` rule** in
 CLAUDE.md.
 
-**Changes since the last refresh:** **T3-7 has left the list** — it is in
-flight on `feature/typed-ports`. **T5-6 is not on it either**: it needs T3-7
-merged first, and it is the next task after that. T5-5 stays Blocked behind
-both, and T5-4 was re-sequenced behind T5-5 (ADR 0002 section 8.2). T7-3 edits
-`app/equipment/valve.py` and should not run beside another valve change.
+**Changes since the last refresh:** **T3-7 merged and left the list**, which
+made **T5-6** (the next task) and **T7-5** (relief device, blocks nothing)
+startable. T5-5 stays Blocked behind T5-6, and T5-4 was re-sequenced behind
+T5-5 (ADR 0002 section 8.2). T7-3 edits `app/equipment/valve.py` and should not
+run beside another valve change. T5-6 is a spine task under the `app/engine/`
+rule and should not run beside another change to `coupling.py`.
 
 | Task | Name | Model | Branch |
 |---|---|---|---|
+| **T5-6** | **Coupling aggregates typed connections** *(start here; spine)* | **Opus** | `feature/coupling-aggregation` |
 | **T6-1** | Stream enthalpy and mixing | Opus | `feature/stream-enthalpy` |
 | **T7-3** | Valve fault modes | Sonnet | `feature/valve-faults` |
 | **T7-4** | Command arbitration | Sonnet | `feature/command-arbitration` |
+| **T7-5** | Relief device *(deferred in sequencing, blocks nothing)* | Sonnet | `feature/relief-valve` |
 | **T13-1** | Malfunction model and registry | Opus | `feature/malfunction-model` |
 | **T12-1** | Plant snapshot save and restore | Sonnet | `feature/state-persistence` |
 | **T8-1** | PID block | Sonnet | `feature/pid-block` |
@@ -798,9 +802,8 @@ both, and T5-4 was re-sequenced behind T5-5 (ADR 0002 section 8.2). T7-3 edits
 | **T15-4** | Score persistence | Haiku | `feature/score-store` |
 | **T17-1** | Ring-buffer historian | Haiku | `feature/historian` |
 
-**Blocked, and why:** **T5-5** (integrated reference plant) waits on T3-7 and
-T5-6; **T5-6** waits on T3-7; **T5-4** waits on T5-5; **T5-7** waits on T5-5;
-**T7-5** (relief device, new) waits on T3-7 and blocks nothing.
+**Blocked, and why:** **T5-5** (integrated reference plant) waits on T5-6;
+**T5-4** waits on T5-5; **T5-7** waits on T5-5.
 
 Working rules for every one of them: one worktree per task branched from
 `origin/main`; full suite **and** `python -m mypy` green before review; small
@@ -878,15 +881,11 @@ plant. (T5-1's
 dependency moved to T3-6, the multi-port wiring half of the original T3-5, when
 Amendment 1 split the task.)
 
-## Test suite composition (753 tests on `main`, 868 on `feature/typed-ports`)
-
-The table below counts `main`. `feature/typed-ports` adds
-`test_typed_ports.py` (52) and `test_port_name_guard.py` (62), and splits one
-schema test in `test_plant_ports.py` into two.
+## Test suite composition (868 tests on `main`)
 
 | File | Tests | File | Tests |
 |---|---|---|---|
-| `test_api.py` | 7 | `test_plant_yaml.py` | 17 |
+| `test_api.py` | 7 | `test_port_name_guard.py` | 62 |
 | `test_cause_effect.py` | 26 | `test_pump.py` | 9 |
 | `test_clock.py` | 13 | `test_pump_api.py` | 8 |
 | `test_compressor.py` | 19 | `test_random_source_guard.py` | 26 |
@@ -900,8 +899,9 @@ schema test in `test_plant_ports.py` into two.
 | `test_network_solver.py` | 36 | `test_snapshot.py` | 16 |
 | `test_plant_config_validation.py` | 13 | `test_solver_diagnostics.py` | 14 |
 | `test_plant_domains.py` | 23 | `test_topology.py` | 59 |
-| `test_plant_loader.py` | 27 | `test_vessel.py` | 27 |
-| `test_plant_ports.py` | 32 | | |
+| `test_plant_loader.py` | 27 | `test_typed_ports.py` | 52 |
+| `test_plant_ports.py` | 33 | `test_vessel.py` | 27 |
+| `test_plant_yaml.py` | 17 | | |
 
 `test_equipment_contract.py` and `test_registry.py` discover device classes
 dynamically, so a new `Equipment` subclass is swept into the contract tests
@@ -917,9 +917,12 @@ sweep in the new device class, grew `test_equipment_contract.py` and
 `test_registry.py`, taking it to 681; T5-3 added `test_gas_inventory.py` (34),
 taking it to 715; T2-5 added `test_scheduler.py` (22), taking it to 738; and
 T2-6 added `test_scheduler_ownership.py` (8) and grew `test_sessions.py`,
-taking it to **753**.
+taking it to 753; and T3-7 added `test_typed_ports.py` (52) and
+`test_port_name_guard.py` (62) and split one schema test in `test_plant_ports.py`
+into two, taking it to **868**.
 
-**T3-7 will move this table.** It adds `tests/test_typed_ports.py`, and because
-the contract and registry suites sweep dynamically, changing `Port` will raise
-the total by more than the tests written. Regenerate the table; do not adjust
-it by hand.
+T3-7 raised the total by exactly the tests it wrote. Changing `Port` did **not**
+move the dynamic sweeps, because T3-7 added no `Equipment` subclass — the
+sweeps grow when a class is registered, not when an existing class's contract
+widens. Regenerate the table from `pytest --collect-only`; do not adjust it by
+hand.

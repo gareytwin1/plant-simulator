@@ -122,13 +122,15 @@ A port is coupled only where its flow unit can be **confirmed** from the devices
 on the branches meeting it, so **a new device model on a branch must be added to
 `FLOW_UNITS`** or a vessel attached beside it refuses at Engine construction.
 
-**ADR 0002 changes this next.** Phase is currently inferred from whichever
-device sits on the next branch, and role from a direction keyword that means
-something else, which is why the only separator wiring that computes correctly
-today is one whose port names lie. T3-7 gives `Port` a declared `phase`,
-`purpose` and optional `control` (ADR 0002 Amendment 1 split the original
-`service` axis in two, because purpose and control are independent); T5-6 then
-makes the coupling **sum** every matching typed port
+**ADR 0002 changes this in two steps, and only the first has landed.** T3-7
+(merged) gave `Port` a declared `phase`, `purpose` and optional `control` (ADR
+0002 Amendment 1 split the original `service` axis in two, because purpose and
+control are independent), and let a C3 `ports` entry carry them. **Nothing reads
+them yet.** The coupling still infers phase from whichever device sits on the
+next branch, and role from a direction keyword that means something else, which
+is why the only separator wiring that computes correctly today is one whose
+port names lie. T5-6 is the second step: it makes the coupling classify by the
+declared `phase` and `direction` alone and **sum** every matching typed port
 instead of assigning to one of four fixed attributes, which is what today loses
 a second vapour withdrawal silently.
 

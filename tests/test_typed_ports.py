@@ -8,6 +8,14 @@ drain declares only the purpose — and neither may ever reach a mass balance.
 
 T3-7 builds the vocabulary. T5-6 aggregates over it, so nothing here asserts
 anything about a flow.
+
+The final section, T5-7, covers Amendment 3's configured-port grammar:
+whether a `ports` entry carries `direction` decides fixed-port versus
+configured-port mode, only an opted-in class (`Vessel`) may use the latter,
+and the two modes may not mix within one item. `SeparatorDouble` above stays
+a **fixed**-port double throughout — it never opts in — so it is exactly the
+device those tests need to prove a direction is refused on ordinary
+equipment.
 """
 
 import copy
@@ -25,6 +33,7 @@ from app.equipment.base import (
 )
 from app.equipment.compressor import GasCompressor
 from app.equipment.pump import CentrifugalPump
+from app.equipment.vessel import Vessel
 from app.plant.loader import PlantConfigError, load_plant
 from app.plant.validate import validate
 
@@ -519,3 +528,242 @@ def test_a_legacy_config_still_loads_and_leaves_its_ports_untyped():
         assert port.phase is None
         assert port.purpose is None
         assert port.control is None
+
+
+# --- T5-7: configured-port mode (ADR 0002, Amendment 3 C.4-C.7) -----------
+#
+# These use the production Vessel, never SeparatorDouble: SeparatorDouble is
+# what a FIXED-port device looks like, which is exactly what several of these
+# tests need it to keep being.
+
+
+CONFIGURED_TYPES = {"vessel": Vessel}
+
+
+def configured_vessel_config(ports):
+    """A minimal plant whose vessel takes its ports from configuration.
+
+    One liquid node and one gas node, each carrying no branch of its own, so
+    each is trivially "one connected piece" and needs nothing else wired.
+    """
+    return {
+        "nodes": [
+            {"id": "N-101", "boundary": True, "pressure": 100.0, "domain": "liquid"},
+            {"id": "N-201", "boundary": True, "pressure": 80.0, "domain": "gas"},
+        ],
+        "equipment": [
+            {
+                "tag": "V-101",
+                "type": "vessel",
+                "ports": ports,
+                "paths": [],
+                "design": {},
+            },
+        ],
+    }
+
+
+def fixed_vessel_config(ports=None):
+    return {
+        "nodes": [{"id": "N-101", "boundary": True, "pressure": 100.0}],
+        "equipment": [
+            {
+                "tag": "V-101",
+                "type": "vessel",
+                "ports": ports or {"inlet": "N-101", "outlet": "N-101"},
+                "paths": [],
+                "design": {},
+            },
+        ],
+    }
+
+
+THREE_CONFIGURED_PORTS = {
+    "feed": {
+        "node": "N-101",
+        "phase": "liquid",
+        "purpose": "process",
+        "direction": INLET,
+    },
+    "drain": {
+        "node": "N-101",
+        "phase": "liquid",
+        "purpose": "drain",
+        "direction": OUTLET,
+    },
+    "vapor_out": {
+        "node": "N-201",
+        "phase": "vapor",
+        "purpose": "process",
+        "direction": OUTLET,
+    },
+}
+
+
+def load_configured(config):
+    return load_plant(config, device_types=CONFIGURED_TYPES)
+
+
+def rejected_configured(config):
+    with pytest.raises(PlantConfigError) as raised:
+        load_configured(config)
+
+    return raised.value.errors
+
+
+def test_vessel_opts_in_to_configured_ports():
+    assert Vessel.accepts_configured_ports is True
+
+
+def test_no_direction_anywhere_keeps_the_fixed_ports():
+    device = load_configured(fixed_vessel_config()).devices["V-101"]
+
+    assert set(device.ports) == {"inlet", "outlet"}
+    assert device.port("inlet").direction == INLET
+    assert device.port("outlet").direction == OUTLET
+
+
+def test_a_configured_vessel_builds_exactly_the_declared_ports():
+    device = load_configured(
+        configured_vessel_config(THREE_CONFIGURED_PORTS),
+    ).devices["V-101"]
+
+    assert list(device.ports) == ["feed", "drain", "vapor_out"]
+    assert device.port("feed").direction == INLET
+    assert device.port("drain").direction == OUTLET
+    assert device.port("vapor_out").direction == OUTLET
+    assert device.port("feed").phase == "liquid"
+    assert device.port("vapor_out").phase == "vapor"
+
+
+def test_configured_port_order_follows_config_order():
+    ports = {
+        "vapor_out": THREE_CONFIGURED_PORTS["vapor_out"],
+        "feed": THREE_CONFIGURED_PORTS["feed"],
+        "drain": THREE_CONFIGURED_PORTS["drain"],
+    }
+    device = load_configured(configured_vessel_config(ports)).devices["V-101"]
+
+    assert list(device.ports) == ["vapor_out", "feed", "drain"]
+
+
+def test_a_configured_vessel_may_have_a_single_port():
+    ports = {"drain": THREE_CONFIGURED_PORTS["drain"]}
+    device = load_configured(configured_vessel_config(ports)).devices["V-101"]
+
+    assert list(device.ports) == ["drain"]
+
+
+def test_fixed_port_equipment_given_direction_is_rejected():
+    config = base_config()
+    config["equipment"][VESSEL]["ports"]["vapor_out"] = {
+        "node": "G-01",
+        "phase": "vapor",
+        "purpose": "process",
+        "direction": OUTLET,
+    }
+
+    errors = rejected(config)
+
+    assert any(
+        "$.equipment[2].ports.vapor_out.direction" in error for error in errors
+    )
+    assert any("fixed port set" in error for error in errors)
+
+
+def test_partial_direction_with_a_legacy_string_sibling_is_rejected():
+    ports = {
+        "feed": THREE_CONFIGURED_PORTS["feed"],
+        "outlet": "N-101",
+    }
+    errors = rejected_configured(configured_vessel_config(ports))
+
+    assert any("$.equipment[0].ports.outlet" in error for error in errors)
+    assert any("a node id string cannot declare a direction" in error for error in errors)
+
+
+def test_partial_direction_with_a_typed_sibling_missing_one_is_rejected():
+    ports = {
+        "feed": THREE_CONFIGURED_PORTS["feed"],
+        "drain": {"node": "N-101", "phase": "liquid", "purpose": "drain"},
+    }
+    errors = rejected_configured(configured_vessel_config(ports))
+
+    assert any("$.equipment[0].ports.drain" in error for error in errors)
+    assert any("missing direction" in error for error in errors)
+
+
+def test_an_unknown_direction_value_is_rejected():
+    ports = dict(THREE_CONFIGURED_PORTS)
+    ports["feed"] = {**ports["feed"], "direction": "sideways"}
+
+    errors = rejected_configured(configured_vessel_config(ports))
+
+    assert any(
+        "$.equipment[0].ports.feed.direction" in error for error in errors
+    )
+    assert any("'sideways'" in error for error in errors)
+
+
+def test_accepts_configured_ports_cannot_be_set_through_design_on_a_vessel():
+    config = fixed_vessel_config()
+    config["equipment"][0]["design"] = {"accepts_configured_ports": False}
+
+    errors = rejected_configured(config)
+
+    assert any(
+        "$.equipment[0].design.accepts_configured_ports" in error
+        for error in errors
+    )
+    assert any("capability marker" in error for error in errors)
+
+
+def test_accepts_configured_ports_cannot_be_set_through_design_on_a_fixed_device():
+    config = base_config()
+    config["equipment"][VESSEL]["design"]["accepts_configured_ports"] = True
+
+    errors = rejected(config)
+
+    assert any(
+        "$.equipment[2].design.accepts_configured_ports" in error
+        for error in errors
+    )
+    assert any("capability marker" in error for error in errors)
+    # The generic "has no such attribute" refusal never fires for it.
+    assert not any("has no such attribute" in error for error in errors)
+
+
+def test_a_configured_entry_round_trips_with_direction_and_order():
+    ports = {
+        "vapor_out": THREE_CONFIGURED_PORTS["vapor_out"],
+        "feed": THREE_CONFIGURED_PORTS["feed"],
+        "drain": THREE_CONFIGURED_PORTS["drain"],
+    }
+    plant = load_configured(configured_vessel_config(ports))
+
+    emitted = plant.to_config()["equipment"][0]["ports"]
+
+    assert list(emitted) == ["vapor_out", "feed", "drain"]
+    assert emitted["feed"] == {
+        "node": "N-101",
+        "direction": "inlet",
+        "phase": "liquid",
+        "purpose": "process",
+    }
+
+
+def test_a_fixed_port_config_round_trips_without_gaining_direction():
+    plant = load_configured(fixed_vessel_config())
+
+    emitted = plant.to_config()["equipment"][0]["ports"]
+
+    assert emitted == {"inlet": "N-101", "outlet": "N-101"}
+
+
+def test_the_round_trip_of_a_configured_vessel_is_idempotent():
+    config = configured_vessel_config(THREE_CONFIGURED_PORTS)
+
+    once = load_configured(config).to_config()
+    twice = load_configured(copy.deepcopy(once)).to_config()
+
+    assert twice == once

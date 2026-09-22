@@ -363,3 +363,61 @@ def test_a_derived_attribute_is_refused_as_a_design_value():
         load_plant(vessel_plant_config({"head": 10.0}))
 
     assert any("is derived and cannot be set" in error for error in raised.value.errors)
+
+
+# T5-7 — configured ports (ADR 0002, Amendment 3)
+
+
+def test_reset_preserves_a_configured_port_set():
+    config = {
+        "nodes": [
+            {"id": "N-01", "boundary": True, "pressure": 100.0, "domain": "liquid"},
+            {"id": "N-02", "boundary": True, "pressure": 50.0, "domain": "gas"},
+        ],
+        "equipment": [
+            {
+                "tag": "V-101",
+                "type": "vessel",
+                "ports": {
+                    "feed": {
+                        "node": "N-01",
+                        "phase": "liquid",
+                        "purpose": "process",
+                        "direction": INLET,
+                    },
+                    "drain": {
+                        "node": "N-01",
+                        "phase": "liquid",
+                        "purpose": "drain",
+                        "direction": OUTLET,
+                    },
+                    "vapor_out": {
+                        "node": "N-02",
+                        "phase": "vapor",
+                        "purpose": "process",
+                        "direction": OUTLET,
+                    },
+                },
+                "paths": [],
+                "design": {},
+            },
+        ],
+    }
+
+    vessel = load_plant(config).devices["V-101"]
+
+    order_before = list(vessel.ports)
+    descriptors_before = {
+        name: (port.direction, port.phase, port.purpose, port.control)
+        for name, port in vessel.ports.items()
+    }
+
+    vessel.level = 0.9
+    vessel.reset()
+
+    assert list(vessel.ports) == order_before
+    assert {
+        name: (port.direction, port.phase, port.purpose, port.control)
+        for name, port in vessel.ports.items()
+    } == descriptors_before
+    assert vessel.level == pytest.approx(0.5)

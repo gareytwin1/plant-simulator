@@ -29,6 +29,13 @@ puts the node at 113.0435 psia, which is level 0.1521739 on a 20 psi head at
 full. It is self-regulating rather than horizon-bounded: level and both flows
 sit inside a band 4e-8 wide relative from step 5 000 out past step 200 000,
 with no clamp and no drift.
+
+Every multi-nozzle vessel below is the production `Vessel` in configured-port
+mode (T5-7), never a test-only subclass: a nozzle set that isn't `inlet` /
+`outlet` comes from a `ports` entry whose every port carries `direction`, and
+`Vessel` is the one class that opts in to building its port set that way. A
+port set of exactly `inlet` / `outlet` needs no `direction` at all and stays
+in the fixed-port mode every other device uses.
 """
 
 import pytest
@@ -61,54 +68,7 @@ SETTLED_LEVEL = 0.15217391
 SETTLED_PRESSURE = 113.04348
 
 
-# --- the vessel a multi-nozzle test needs ---------------------------------
-
-
-class Separator(Vessel):
-    """A Vessel with a configured nozzle set.
-
-    T5-7 gives the real Vessel this. Until then a vessel has exactly two
-    ports and T5-6 cannot be tested at all, so the nozzle set is declared
-    here — by **name and direction only**. Phase, purpose and control arrive
-    from configuration and never from a device class (ADR 0002, A.6), which
-    is what these subclasses are careful not to say anything about.
-    """
-
-    # The Vessel's own shape, so the base class is itself a valid device —
-    # every registered Equipment must declare at least one port.
-    NOZZLES: dict[str, str] = {"inlet": INLET, "outlet": OUTLET}
-
-    def __init__(self, tag="V-101"):
-        super().__init__(tag)
-
-        self.ports = {}
-
-        for name, direction in self.NOZZLES.items():
-            self.add_port(name, direction)
-
-
-class TwinVaporOutlets(Separator):
-    NOZZLES = {"vapor_a": OUTLET, "vapor_b": OUTLET}
-
-
-class FedAndVapors(Separator):
-    NOZZLES = {"feed": INLET, "vapor_a": OUTLET, "vapor_b": OUTLET}
-
-
-class FedAndDrained(Separator):
-    NOZZLES = {"feed": INLET, "drain": OUTLET}
-
-
-class DrainOnly(Separator):
-    NOZZLES = {"drain": OUTLET}
-
-
-class FeedOnly(Separator):
-    NOZZLES = {"feed": INLET}
-
-
-class TwinDrains(Separator):
-    NOZZLES = {"drain_a": OUTLET, "drain_b": OUTLET}
+# --- a branch device this module has never heard of -----------------------
 
 
 class MysteryDevice(Equipment):
@@ -130,20 +90,20 @@ class MysteryDevice(Equipment):
         return {}
 
 
-def types_for(vessel, **extra):
+def types_for(**extra):
     kinds = {
         "pump": CentrifugalPump,
         "compressor": GasCompressor,
         "control_valve": ControlValve,
-        "vessel": vessel,
+        "vessel": Vessel,
     }
     kinds.update(extra)
 
     return kinds
 
 
-def built(config, vessel, **extra):
-    plant = load_plant(config, device_types=types_for(vessel, **extra))
+def built(config, **extra):
+    plant = load_plant(config, device_types=types_for(**extra))
 
     return plant, Engine.from_plant(plant)
 
@@ -162,8 +122,12 @@ def two_vapor_withdrawals(purpose="vent", control="pressure", vent_domain="flare
     220 - 0.002 q^2 = 180 and q = sqrt(20000) = 141.4214 SCFM. PV-101 is a
     Cv 100 linear valve wide open onto 84 psia, which is 100 * sqrt(16) =
     400.0000 SCFM.
+
+    `vapor_a` and `vapor_b` are two distinct outlet nozzles the vessel has no
+    fixed port for, so this item is in configured-port mode: both carry a
+    `direction`, and both must.
     """
-    vapor_b = {"node": "N-301", "phase": "vapor", "purpose": purpose}
+    vapor_b = {"node": "N-301", "phase": "vapor", "purpose": purpose, "direction": OUTLET}
 
     if control is not None:
         vapor_b["control"] = control
@@ -198,6 +162,7 @@ def two_vapor_withdrawals(purpose="vent", control="pressure", vent_domain="flare
                         "node": "N-201",
                         "phase": "vapor",
                         "purpose": "process",
+                        "direction": OUTLET,
                     },
                     "vapor_b": vapor_b,
                 },
@@ -215,7 +180,7 @@ def test_two_vapor_withdrawals_on_two_nodes_are_summed_not_overwritten():
     attachment, so whichever port came last won and the other withdrawal
     left the pressure balance with no error raised.
     """
-    plant, engine = built(two_vapor_withdrawals(), TwinVaporOutlets)
+    plant, engine = built(two_vapor_withdrawals())
     vessel = plant.devices["V-101"]
 
     through_k = flow_of(plant, "gas_process", "B-K-101")
@@ -244,7 +209,7 @@ def test_both_withdrawals_move_the_one_pressure_they_share():
     """Aggregation is not bookkeeping: the vessel drains on the sum, so the
     pressure falls faster than either withdrawal alone would take it.
     """
-    plant, engine = built(two_vapor_withdrawals(), TwinVaporOutlets)
+    plant, engine = built(two_vapor_withdrawals())
     vessel = plant.devices["V-101"]
 
     both = vessel.gas_outlet_flow
@@ -308,11 +273,22 @@ def shared_liquid_node(ports, vessel_design=None, pump_speed=1.0):
     }
 
 
+# Fixed-port form: no `direction`, so these ride on the vessel's own `inlet`
+# and `outlet` — no configured-port mode needed, matching a real
+# feed-and-drain separator with exactly the two nozzles it starts with.
 FEED_PORT = {"node": "N-102", "phase": "liquid", "purpose": "process"}
 DRAIN_PORT = {"node": "N-102", "phase": "liquid", "purpose": "drain"}
 
-BOTH_DIRECTIONS = {"feed": FEED_PORT, "drain": DRAIN_PORT}
-DRAIN_ONLY = {"drain": DRAIN_PORT}
+BOTH_DIRECTIONS = {"inlet": FEED_PORT, "outlet": DRAIN_PORT}
+
+# Configured-port form: a single nozzle, or two sharing one direction, has no
+# fixed-port shape to fall back on, so every entry here carries `direction`.
+CONFIGURED_FEED_PORT = {**FEED_PORT, "direction": INLET}
+CONFIGURED_DRAIN_PORT = {**DRAIN_PORT, "direction": OUTLET}
+
+DRAIN_ONLY = {"drain": CONFIGURED_DRAIN_PORT}
+FEED_ONLY = {"feed": CONFIGURED_FEED_PORT}
+TWIN_DRAINS = {"drain_a": CONFIGURED_DRAIN_PORT, "drain_b": CONFIGURED_DRAIN_PORT}
 
 
 def node_exchange(plant):
@@ -327,7 +303,7 @@ def test_a_node_declaring_both_directions_keeps_its_gross_components():
     the steady state, so the node's net exchange is zero — and the vessel is
     still passing 361 GPM, which is what residence time is made of.
     """
-    plant, engine = built(shared_liquid_node(BOTH_DIRECTIONS), FedAndDrained)
+    plant, engine = built(shared_liquid_node(BOTH_DIRECTIONS))
     vessel = plant.devices["V-101"]
 
     at = {}
@@ -377,7 +353,7 @@ def test_a_one_sided_declaration_keeps_the_node_net_and_loses_no_feed():
     vessel settles at exactly the level the two-sided declaration settles
     at, reached through a different pair of numbers.
     """
-    plant, engine = built(shared_liquid_node(DRAIN_ONLY), DrainOnly)
+    plant, engine = built(shared_liquid_node(DRAIN_ONLY))
     vessel = plant.devices["V-101"]
 
     for _ in range(5000):
@@ -404,13 +380,8 @@ def test_duplicate_ports_of_one_direction_do_not_multiply_the_exchange():
     """Two nozzles, one node, one exchange. The count of semantic ports is
     not a hydraulic quantity.
     """
-    one, _ = built(shared_liquid_node(DRAIN_ONLY), DrainOnly)
-    two, _ = built(
-        shared_liquid_node(
-            {"drain_a": DRAIN_PORT, "drain_b": DRAIN_PORT},
-        ),
-        TwinDrains,
-    )
+    one, _ = built(shared_liquid_node(DRAIN_ONLY))
+    two, _ = built(shared_liquid_node(TWIN_DRAINS))
 
     single = one.devices["V-101"]
     doubled = two.devices["V-101"]
@@ -430,15 +401,12 @@ def test_a_node_counted_once_survives_a_whole_run():
     """The duplicate is not merely equal on the first pass — it integrates
     identically, which it would not if the node were counted twice.
     """
-    def run(ports, vessel):
-        plant, engine = built(shared_liquid_node(ports), vessel)
+    def run(ports):
+        plant, engine = built(shared_liquid_node(ports))
 
         return [engine.step(5.0).as_dict() for _ in range(200)]
 
-    assert run(DRAIN_ONLY, DrainOnly) == run(
-        {"drain_a": DRAIN_PORT, "drain_b": DRAIN_PORT},
-        TwinDrains,
-    )
+    assert run(DRAIN_ONLY) == run(TWIN_DRAINS)
 
 
 # --- R3: the components are signed, never magnitudes ----------------------
@@ -451,10 +419,7 @@ def test_a_reversed_feed_arrives_negatively_and_is_not_clamped():
     it runs backwards. `arrivals` is negative, and the inlet aggregate is
     that number exactly — clamping it would invent inventory.
     """
-    plant, engine = built(
-        shared_liquid_node(BOTH_DIRECTIONS, pump_speed=0.0),
-        FedAndDrained,
-    )
+    plant, engine = built(shared_liquid_node(BOTH_DIRECTIONS, pump_speed=0.0))
     vessel = plant.devices["V-101"]
 
     arrivals, departures = node_exchange(plant)
@@ -479,7 +444,9 @@ def conflicting_phases():
 
     Deliberately on a valve-only node: a valve confirms no unit, so nothing
     in the plant could expose the contradiction and the declarations have to
-    be checked against each other.
+    be checked against each other. Both ports are the vessel's own fixed
+    `inlet` / `outlet` — no configured-port mode needed to declare a phase
+    conflict.
     """
     return {
         "nodes": [
@@ -498,8 +465,8 @@ def conflicting_phases():
                 "tag": "V-101",
                 "type": "vessel",
                 "ports": {
-                    "feed": {"node": "N-101", "phase": "liquid", "purpose": "process"},
-                    "drain": {"node": "N-101", "phase": "vapor", "purpose": "vent"},
+                    "inlet": {"node": "N-101", "phase": "liquid", "purpose": "process"},
+                    "outlet": {"node": "N-101", "phase": "vapor", "purpose": "vent"},
                 },
                 "paths": [],
                 "design": {},
@@ -512,7 +479,7 @@ def test_two_phases_declared_on_one_node_are_refused():
     """A node may not be counted once as liquid and again as vapor, and the
     refusal names the node and both ports.
     """
-    plant = load_plant(conflicting_phases(), device_types=types_for(FedAndDrained))
+    plant = load_plant(conflicting_phases(), device_types=types_for())
 
     with pytest.raises(ValueError) as raised:
         Engine.from_plant(plant)
@@ -521,8 +488,8 @@ def test_two_phases_declared_on_one_node_are_refused():
 
     assert "one node carries one phase" in message
     assert "N-101" in message
-    assert "'feed'" in message
-    assert "'drain'" in message
+    assert "'inlet'" in message
+    assert "'outlet'" in message
 
 
 def test_two_vessels_on_one_node_are_refused():
@@ -534,13 +501,13 @@ def test_two_vessels_on_one_node_are_refused():
         {
             "tag": "V-102",
             "type": "vessel",
-            "ports": {"drain": DRAIN_PORT},
+            "ports": {"drain": CONFIGURED_DRAIN_PORT},
             "paths": [],
             "design": {},
         },
     )
 
-    plant = load_plant(config, device_types=types_for(DrainOnly))
+    plant = load_plant(config, device_types=types_for())
 
     with pytest.raises(ValueError) as raised:
         Engine.from_plant(plant)
@@ -581,6 +548,7 @@ def fed_and_two_vapors():
         "node": "N-102",
         "phase": "liquid",
         "purpose": "process",
+        "direction": INLET,
     }
     vessel["design"].update({"capacity": 5000.0, "head_at_full": 20.0, "level": 0.5})
 
@@ -595,7 +563,7 @@ def test_a_failed_domain_holds_its_whole_aggregate_and_no_other():
     mixes this step with last step's — so the whole attribute holds instead,
     while the liquid aggregate, whose own contributor converged, advances.
     """
-    plant, engine = built(fed_and_two_vapors(), FedAndVapors)
+    plant, engine = built(fed_and_two_vapors())
     vessel = plant.devices["V-101"]
 
     held_gas = vessel.gas_outlet_flow
@@ -633,8 +601,11 @@ def test_a_failed_domain_holds_its_whole_aggregate_and_no_other():
 
 def vessel_across(branch_type, phase=None, domain="anything", design=None):
     """One branch device between two boundaries, with a two-port vessel
-    wrapped around it. The vessel's ports are typed only where `phase` says
-    so, which is how the legacy form is exercised alongside the typed one.
+    wrapped around it. The vessel's ports are its own fixed `inlet` and
+    `outlet` throughout — this group tests phase and unit classification, not
+    port naming, so there is no reason to leave fixed-port mode. Typed only
+    where `phase` says so, which is how the legacy form is exercised
+    alongside the typed one.
     """
     def port(node_id):
         if phase is None:
@@ -658,7 +629,7 @@ def vessel_across(branch_type, phase=None, domain="anything", design=None):
             {
                 "tag": "V-101",
                 "type": "vessel",
-                "ports": {"feed": port("N-102"), "drain": port("N-101")},
+                "ports": {"inlet": port("N-102"), "outlet": port("N-101")},
                 "paths": [],
                 "design": {},
             },
@@ -666,8 +637,8 @@ def vessel_across(branch_type, phase=None, domain="anything", design=None):
     }
 
 
-def units_of(config, vessel=FedAndDrained, **extra):
-    plant = load_plant(config, device_types=types_for(vessel, **extra))
+def units_of(config, **extra):
+    plant = load_plant(config, device_types=types_for(**extra))
     coupling = build_couplings(plant.devices.values(), plant.topologies)[0]
 
     return {a.port.name: a.unit for a in coupling.attachments}
@@ -680,11 +651,11 @@ def test_a_declared_phase_classifies_beside_a_unit_neutral_valve():
     for domain in ("liquid", "gas", "process_water", "flare_header", "default"):
         assert units_of(
             vessel_across("control_valve", phase="liquid", domain=domain),
-        ) == {"feed": GPM, "drain": GPM}
+        ) == {"inlet": GPM, "outlet": GPM}
 
         assert units_of(
             vessel_across("control_valve", phase="vapor", domain=domain),
-        ) == {"feed": SCFM, "drain": SCFM}
+        ) == {"inlet": SCFM, "outlet": SCFM}
 
 
 def test_an_unknown_branch_device_still_raises_rather_than_abstaining():
@@ -694,7 +665,7 @@ def test_an_unknown_branch_device_still_raises_rather_than_abstaining():
     """
     plant = load_plant(
         vessel_across("heat_exchanger", phase="liquid"),
-        device_types=types_for(FedAndDrained, heat_exchanger=MysteryDevice),
+        device_types=types_for(heat_exchanger=MysteryDevice),
     )
 
     with pytest.raises(ValueError, match="flow unit is not declared"):
@@ -707,7 +678,7 @@ def test_a_declared_phase_the_machines_contradict_is_refused():
     """
     liquid_plant = load_plant(
         vessel_across("pump", phase="vapor", design=dict(RUNNING_PUMP)),
-        device_types=types_for(FedAndDrained),
+        device_types=types_for(),
     )
 
     with pytest.raises(ValueError, match=r"V-101\.\w+ declares phase 'vapor'"):
@@ -715,7 +686,7 @@ def test_a_declared_phase_the_machines_contradict_is_refused():
 
     gas_plant = load_plant(
         vessel_across("compressor", phase="liquid", design=dict(LOADED_COMPRESSOR)),
-        device_types=types_for(FedAndDrained),
+        device_types=types_for(),
     )
 
     with pytest.raises(ValueError, match=r"V-101\.\w+ declares phase 'liquid'"):
@@ -726,32 +697,54 @@ def test_an_untyped_port_still_reads_its_unit_off_the_machine_beside_it():
     """The legacy form, unchanged where it was ever unambiguous."""
     assert units_of(
         vessel_across("pump", domain="process_water", design=dict(RUNNING_PUMP)),
-    ) == {"feed": GPM, "drain": GPM}
+    ) == {"inlet": GPM, "outlet": GPM}
 
     assert units_of(
         vessel_across("compressor", domain="process_water", design=dict(LOADED_COMPRESSOR)),
-    ) == {"feed": SCFM, "drain": SCFM}
+    ) == {"inlet": SCFM, "outlet": SCFM}
 
 
 def test_an_untyped_port_with_nothing_to_read_is_refused_and_asks_for_a_phase():
     """A valve-only node and a branchless node both used to be answered by
     the domain name. Neither is any more.
+
+    The branchless case wires the vessel's fixed `inlet` to a node with
+    literally no other equipment on it, and its `outlet` to a domain a pump
+    confirms — isolating the one ambiguous port without needing a second
+    vessel nozzle a configured port set would otherwise be free to name.
     """
-    valve_only = load_plant(
-        vessel_across("control_valve", domain="gas"),
-        device_types=types_for(FedAndDrained),
-    )
+    valve_only = load_plant(vessel_across("control_valve", domain="gas"))
 
     with pytest.raises(ValueError, match="declare phase: 'liquid' or phase: 'vapor'"):
         Engine.from_plant(valve_only)
 
-    config = two_vapor_withdrawals()
-    config["equipment"][-1]["ports"]["vapor_b"] = "N-301"
+    config = {
+        "nodes": [
+            {"id": "N-401", "boundary": True, "pressure": 100.0, "domain": "flare_header"},
+            {"id": "N-501", "boundary": True, "pressure": 40.0, "domain": "liquid"},
+            {"id": "N-502", "boundary": True, "pressure": 60.0, "domain": "liquid"},
+        ],
+        "equipment": [
+            {
+                "tag": "P-101",
+                "type": "pump",
+                "node_in": "N-501",
+                "node_out": "N-502",
+                "design": dict(RUNNING_PUMP),
+            },
+            {
+                "tag": "V-101",
+                "type": "vessel",
+                "ports": {"inlet": "N-401", "outlet": "N-502"},
+                "paths": [],
+                "design": {},
+            },
+        ],
+    }
 
-    branchless = load_plant(config, device_types=types_for(TwinVaporOutlets))
-    branchless.topologies["flare_header"]
+    branchless = load_plant(config)
 
-    with pytest.raises(ValueError, match=r"V-101\.vapor_b.*declares no phase"):
+    with pytest.raises(ValueError, match=r"V-101\.inlet.*declares no phase"):
         Engine.from_plant(branchless)
 
 
@@ -767,7 +760,7 @@ def test_a_typed_boundary_with_no_branch_at_all_still_couples():
         item for item in config["equipment"] if item["tag"] != "PV-101"
     ]
 
-    plant, engine = built(config, TwinVaporOutlets)
+    plant, engine = built(config)
     vessel = plant.devices["V-101"]
 
     engine.step(1.0)
@@ -795,10 +788,7 @@ def test_purpose_and_control_do_not_change_the_balance():
     results = set()
 
     for purpose, control in variants:
-        plant, engine = built(
-            two_vapor_withdrawals(purpose=purpose, control=control),
-            TwinVaporOutlets,
-        )
+        plant, engine = built(two_vapor_withdrawals(purpose=purpose, control=control))
         vessel = plant.devices["V-101"]
 
         engine.step(10.0)
@@ -824,6 +814,7 @@ def test_several_gas_nozzles_on_one_node_write_one_pressure():
         "node": "N-201",
         "phase": "vapor",
         "purpose": "vent",
+        "direction": OUTLET,
     }
     config["nodes"] = [
         node for node in config["nodes"] if node["id"] not in ("N-301", "N-302")
@@ -832,7 +823,7 @@ def test_several_gas_nozzles_on_one_node_write_one_pressure():
         item for item in config["equipment"] if item["tag"] != "PV-101"
     ]
 
-    plant, engine = built(config, TwinVaporOutlets)
+    plant, engine = built(config)
     vessel = plant.devices["V-101"]
 
     engine.step(1.0)
@@ -843,10 +834,7 @@ def test_several_gas_nozzles_on_one_node_write_one_pressure():
 
 
 def test_several_liquid_outlets_on_one_node_apply_the_head_once():
-    plant, engine = built(
-        shared_liquid_node({"drain_a": DRAIN_PORT, "drain_b": DRAIN_PORT}),
-        TwinDrains,
-    )
+    plant, engine = built(shared_liquid_node(TWIN_DRAINS))
     vessel = plant.devices["V-101"]
 
     engine.step(1.0)
@@ -861,7 +849,7 @@ def test_an_inlet_only_liquid_node_keeps_its_configured_battery_limit():
     """The plant delivers to it; the vessel does not supply it, so no head
     lands however full the vessel is.
     """
-    config = shared_liquid_node({"feed": FEED_PORT}, vessel_design={"level": 1.0})
+    config = shared_liquid_node(FEED_ONLY, vessel_design={"level": 1.0})
     config["nodes"] = [
         node for node in config["nodes"] if node["id"] != "N-103"
     ]
@@ -869,7 +857,7 @@ def test_an_inlet_only_liquid_node_keeps_its_configured_battery_limit():
         item for item in config["equipment"] if item["tag"] != "LV-101"
     ]
 
-    plant, engine = built(config, FeedOnly)
+    plant, engine = built(config)
     vessel = plant.devices["V-101"]
 
     engine.step(1.0)
@@ -884,7 +872,7 @@ def test_a_phase_conflict_is_caught_before_any_pressure_is_written():
     vessel pressure a vapor nozzle would replace it with, nor the head a
     liquid one would add.
     """
-    plant = load_plant(conflicting_phases(), device_types=types_for(FedAndDrained))
+    plant = load_plant(conflicting_phases(), device_types=types_for())
 
     with pytest.raises(ValueError, match="one node carries one phase"):
         Engine.from_plant(plant)

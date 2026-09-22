@@ -1135,10 +1135,26 @@ a vessel is a vessel.
 - *A `design` key.* Design is for values, and `_apply_design` round-trips
   whatever it sets, so structure would become a tunable design value.
 
-**Why a `design` key of the same name is harmless.** `_apply_design` accepts
-any attribute that exists, so a `design: {accepts_configured_ports: …}` entry
-would set an *instance* attribute. The loader reads only the class, so that
-instance attribute changes no structure. T5-7 adds no special case for it.
+**`accepts_configured_ports` is an internal capability marker, not a design
+parameter, and configuration may not set it.** `_apply_design` accepts any
+attribute visible through `hasattr(device, key)`. On `main`, a
+`design: {accepts_configured_ports: false}` entry on a vessel would therefore
+be accepted and round-tripped by `to_config()`. It would also be silently
+ignored, because the loader reads the marker from the class and never from the
+instance. That is a valid-looking configuration control that does nothing,
+which is worse than a refusal.
+
+> **C6a.** The loader **rejects** a `design.accepts_configured_ports` key on
+> any equipment item, with the error at
+> `$.equipment[<i>].design.accepts_configured_ports`. The error says the name is
+> an internal capability marker, not a design parameter, and that a device's
+> port structure cannot be set through `design`.
+
+The check lives in `_apply_design`, keyed on the marker's name, and runs before
+the `hasattr` lookup. It therefore gives the same specific refusal for every
+device type, including those with no such attribute, which would otherwise get
+a generic *"has no such attribute"* error. A rejected key is never set and
+never round-trips.
 
 **The registry contract.** The sweeps in `tests/test_equipment_contract.py` and
 `tests/test_registry.py` build every registered class with no arguments and
@@ -1152,6 +1168,9 @@ one property (`minProperties: 1`). A configured item that fails validation
 never reaches the build pass, because the loader raises first.
 
 ### C.7 — what the loader does in configured-port mode
+
+**Design pass** (`_apply_design`): `design.accepts_configured_ports` is refused
+at its path before any attribute lookup (C6a).
 
 **Reference pass** (`_reference_errors` → `_named_reference_errors`, which gains
 the resolved device class as an argument):
@@ -1280,6 +1299,10 @@ implements.
 
   The PR records the outcome.
 - Fixed-port equipment given `direction` is rejected, naming the path.
+- `design.accepts_configured_ports` is rejected at
+  `$.equipment[<i>].design.accepts_configured_ports`, with either `true` or
+  `false`, on a `Vessel` and on a fixed-port device alike. It is never set on
+  the instance and never round-trips (C6a).
 - Mixed configured and fixed entries are rejected, naming every offending path.
   So are a bare string in configured mode and an unknown `direction` value.
 - `reset()` preserves the configured port set, its order and its descriptors.

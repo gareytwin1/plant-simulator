@@ -43,6 +43,17 @@ a purpose from a device type or a port name — that inference is what T3-7
 exists to retire. A legacy string entry stays untyped, and `to_config()` emits
 back whichever form it read.
 
+**Configured ports (T5-7).** A device class may opt in to receiving its
+structural port set from configuration instead of declaring a fixed one —
+only `Vessel` does, via a class-level `accepts_configured_ports` marker. In
+that mode every `ports` entry is a typed object that also carries
+`direction`, and the set the loader builds from them replaces the device's
+own, in config order. A config that gives no port a `direction` leaves a
+device's own ports untouched, exactly as before; giving only some of them one
+is rejected, and so is giving one to a device that has not opted in. The
+marker is an internal capability flag, never a design value: `design` may not
+set it, on any device. See docs/ADR_0002_TYPED_PORTS.md, Amendment 3.
+
 Plant files may be JSON or YAML (`.json`, `.yaml`, `.yml`). The format is
 resolved before validation; after that there is one path.
 
@@ -64,6 +75,7 @@ from app.equipment.base import (
     INLET,
     OUTLET,
     PORT_CONTROLS,
+    PORT_DIRECTIONS,
     PORT_PHASES,
     PORT_PURPOSES,
     RESERVED_PHASES,
@@ -103,11 +115,14 @@ DEVICE_TYPES: dict[str, type[Equipment]] = {
 # A typed `ports` entry carries exactly these keys, and the first three are
 # required. There is deliberately no half-typed form: a node and a phase with
 # no purpose is refused rather than defaulted (ADR 0002, Amendment 1 A.6).
+# `direction` (T5-7) is optional per entry — its presence or absence is what
+# decides fixed-port versus configured-port mode (ADR 0002, Amendment 3 C.4).
 TYPED_PORT_KEYS = (
     "node",
     "phase",
     "purpose",
     "control",
+    "direction",
 )
 
 REQUIRED_TYPED_PORT_KEYS = (
@@ -115,6 +130,13 @@ REQUIRED_TYPED_PORT_KEYS = (
     "phase",
     "purpose",
 )
+
+# Internal capability markers a device class may declare (T5-7): a statement
+# the class makes about itself, never a design parameter. `design` may not
+# set one, on any device, because the loader reads it from the class and
+# never from the instance — a design key of this name would be accepted,
+# round-tripped, and silently ignored (ADR 0002, Amendment 3 C6a).
+CAPABILITY_MARKERS = ("accepts_configured_ports",)
 
 
 @dataclass(frozen=True)
@@ -126,12 +148,17 @@ class PortDeclaration:
     back as the bare string it arrived as — a config is never silently
     upgraded, and reading typedness off the live Port instead would make that
     depend on no device class ever declaring a phase of its own.
+
+    `direction` (T5-7) is set only for a typed entry that declared one, and
+    only such an entry ever reaches `add_port` with it. A legacy string, a
+    typed entry with no `direction`, and sugar all leave it `None`.
     """
 
     node: str
     phase: str | None = None
     purpose: str | None = None
     control: str | None = None
+    direction: str | None = None
     typed: bool = False
 
 
@@ -267,11 +294,15 @@ class Plant:
 
         port = device.port(name)
 
-        entry: dict[str, Any] = {
-            "node": node_id,
-            "phase": port.phase,
-            "purpose": port.purpose,
-        }
+        entry: dict[str, Any] = {"node": node_id}
+
+        # Emitted only where the declaration carried one (T5-7): a fixed-port
+        # config must round-trip without gaining a direction it never had.
+        if declaration.direction is not None:
+            entry["direction"] = port.direction
+
+        entry["phase"] = port.phase
+        entry["purpose"] = port.purpose
 
         if port.control is not None:
             entry["control"] = port.control
@@ -421,7 +452,9 @@ def _reference_errors(
         else:
             tag_paths[item["tag"]] = path
 
-        if item["type"] not in types:
+        device_type = types.get(item["type"])
+
+        if device_type is None:
             errors.append(
                 f"{path}.type: {item['type']!r} has no device model yet, "
                 f"only {sorted(types)}",
@@ -439,7 +472,13 @@ def _reference_errors(
                 domains,
             )
         elif form == NAMED_FORM:
-            errors += _named_reference_errors(item, path, node_paths, domains)
+            errors += _named_reference_errors(
+                item,
+                path,
+                node_paths,
+                domains,
+                device_type,
+            )
         else:
             errors.append(f"{path}: {_wiring_form_problem(item)}")
 
@@ -487,10 +526,22 @@ def _named_reference_errors(
     path: str,
     node_paths: Mapping[str, str],
     domains: Mapping[str, Mapping[str, Any]],
+    device_type: type[Equipment] | None,
 ) -> list[str]:
     ports = item["ports"]
+    ports_path = f"{path}.ports"
 
-    declarations, errors = _port_declarations(ports, f"{path}.ports")
+    declarations, errors = _port_declarations(ports, ports_path)
+
+    # Skipped for an unrecognised type: that is already reported, and there
+    # is no class to check an opt-in against (ADR 0002, Amendment 3 C.7).
+    if device_type is not None:
+        errors += _configured_port_mode_errors(
+            ports,
+            ports_path,
+            item["tag"],
+            device_type,
+        )
 
     for name, declaration in declarations.items():
         if declaration.node not in node_paths:
@@ -548,6 +599,56 @@ def _named_reference_errors(
     return errors
 
 
+def _configured_port_mode_errors(
+    ports: Mapping[str, Any],
+    ports_path: str,
+    tag: str,
+    device_type: type[Equipment],
+) -> list[str]:
+    """Whether a `ports` map is fixed or configured is decided from whether
+    any entry carries `direction` (ADR 0002, Amendment 3 C.4). No entry
+    carrying one is fixed-port mode, unchanged from before T5-7, and needs no
+    error here. Once one does, every entry must, and the device's class must
+    have opted in — a bare node-id string can never carry a direction, so it
+    is always a "missing" entry in that case (C.5).
+    """
+    carries_direction = {
+        name: isinstance(entry, dict) and "direction" in entry
+        for name, entry in ports.items()
+    }
+
+    if not any(carries_direction.values()):
+        return []
+
+    if getattr(device_type, "accepts_configured_ports", False) is not True:
+        return [
+            f"{ports_path}.{name}.direction: {tag!r} has a fixed port set — "
+            f"configuration cannot give it a direction"
+            for name, carries in carries_direction.items()
+            if carries
+        ]
+
+    errors = []
+
+    for name, carries in carries_direction.items():
+        if carries:
+            continue
+
+        if isinstance(ports[name], str):
+            errors.append(
+                f"{ports_path}.{name}: a node id string cannot declare a "
+                f"direction — {tag!r} is in configured-port mode here, and "
+                f"every port needs a typed entry with one",
+            )
+        else:
+            errors.append(
+                f"{ports_path}.{name}: missing direction — {tag!r} is in "
+                f"configured-port mode here, and every port must declare one",
+            )
+
+    return errors
+
+
 def _port_declarations(
     ports: Mapping[str, Any],
     path: str,
@@ -591,6 +692,7 @@ def _port_declarations(
             phase=entry["phase"],
             purpose=entry["purpose"],
             control=entry.get("control"),
+            direction=entry.get("direction"),
             typed=True,
         )
 
@@ -637,6 +739,15 @@ def _typed_port_errors(entry: Mapping[str, Any], where: str) -> list[str]:
         errors.append(
             f"{where}.purpose: {entry['purpose']!r} is not one of "
             f"{list(PORT_PURPOSES)}",
+        )
+
+    # Whether a direction here is permitted at all — the device must opt in,
+    # and every sibling entry must carry one too — is a mode question, not an
+    # entry-shape one, and is checked separately (ADR 0002, Amendment 3 C.4).
+    if "direction" in entry and entry["direction"] not in PORT_DIRECTIONS:
+        errors.append(
+            f"{where}.direction: {entry['direction']!r} is not one of "
+            f"{list(PORT_DIRECTIONS)}",
         )
 
     # Membership, not `.get()`: `control: none` must be refused rather than
@@ -875,22 +986,37 @@ def _build_named(
 
     errors: list[str] = []
 
-    for name in ports:
-        if name not in device.ports:
-            errors.append(
-                f"{path}.ports.{name}: {device.tag} has no port {name!r}, "
-                f"only {sorted(device.ports)}",
-            )
+    # The reference pass already confirmed either every declaration carries a
+    # direction and the device's class opted in, or none does (ADR 0002,
+    # Amendment 3 C.4, C.7) — so this is exactly the mode, not a guess.
+    configured = any(d.direction is not None for d in declarations.values())
 
-    for name, port in device.ports.items():
-        if name not in ports:
-            errors.append(
-                f"{path}.ports: {device.tag} port {name!r} ({port.direction}) "
-                f"is not wired to any node",
-            )
+    if configured:
+        # The configured set replaces the device's own outright, in config
+        # order, rather than being checked against it: a configured device
+        # has no fixed shape for "has no port" or "not wired" to test.
+        device.ports.clear()
 
-    if errors:
-        return errors
+        for name, declaration in declarations.items():
+            assert declaration.direction is not None
+            device.add_port(name, declaration.direction)
+    else:
+        for name in ports:
+            if name not in device.ports:
+                errors.append(
+                    f"{path}.ports.{name}: {device.tag} has no port {name!r}, "
+                    f"only {sorted(device.ports)}",
+                )
+
+        for name, port in device.ports.items():
+            if name not in ports:
+                errors.append(
+                    f"{path}.ports: {device.tag} port {name!r} "
+                    f"({port.direction}) is not wired to any node",
+                )
+
+        if errors:
+            return errors
 
     # Semantic metadata reaches the runtime Port from configuration and from
     # nowhere else. A legacy string entry leaves the port untyped rather than
@@ -970,6 +1096,21 @@ def _apply_design(
     errors: list[str] = []
 
     for key, value in design.items():
+        if key in CAPABILITY_MARKERS:
+            # Checked before hasattr(): the marker is read from the class,
+            # never the instance, so a design value here would be accepted,
+            # round-tripped and silently ignored rather than doing anything —
+            # worse than a refusal (ADR 0002, Amendment 3 C6a). Every device
+            # gets this specific reason, including one with no such
+            # attribute at all, which would otherwise get the generic one
+            # below.
+            errors.append(
+                f"{path}.{key}: {key!r} is an internal capability marker, "
+                f"not a design parameter — {device.tag}'s port structure "
+                f"cannot be set through design",
+            )
+            continue
+
         if not hasattr(device, key):
             errors.append(
                 f"{path}.{key}: {device.tag} has no such attribute",

@@ -1,0 +1,112 @@
+# The integrated reference plant (T5-5): supply header, feed pump, separator,
+# Gas Compressor, discharge header. Two independent hydraulic domains coupled
+# only through V-101's inventory (ADR 0001 D6/D7/D11) — never a shared flow
+# variable, never a mixed-domain topology.
+#
+# V-101 is the production Vessel in configured-port mode (T5-7), wired by the
+# shared-node idiom (ADR 0002 section 3.8, Amendment 3 section C.12): one node
+# per phase, and V-101 takes exactly one typed port per (phase, direction).
+# The liquid node N-102 carries both the feed (inlet) and the drain (outlet);
+# the vapor node N-201 carries one outlet, and K-101 and PV-101 are two
+# branches on that one node, not two vessel nozzles.
+#
+# PV-101 and LV-101 are MANUAL valves at a fixed position — there is no
+# controller here, and M8 owns closed-loop control (ADR 0002 section 3.7).
+#
+# Design values, closed-form (both pumps' and the compressor's own resistance
+# are sized for this plant, not left at the class default, precisely so a
+# credible cold start exists — ADR 0002 section 7.3):
+#
+#   Liquid — feed and drain independently solved against N-102's pressure,
+#   which is always N-102's configured 50.0 psia plus the vessel's own head
+#   (head_at_full 20.0 * level). At the design level 0.5 that is 60.0 psia:
+#
+#     feed:  25.0 - 0.002  * q^2 = 60.0 - 40.0     -> q =  50.0 GPM
+#     drain: 10.0 * sqrt(60.0 - 35.0)               ->      50.0 GPM
+#
+#   Feed equals drain exactly at level 0.5, so the plant is already at its
+#   self-regulating steady state (ADR 0002 section 2.2's mechanism) the
+#   moment it is loaded — level does not have to move to get there. With
+#   P-101 stopped (cold), the branch is pure resistance and the same 20 psi
+#   gap it would otherwise lift now drives it backwards:
+#   q = -sqrt(20.0 / 0.002) = -100.0 GPM — bounded, not a multi-thousand-GPM
+#   runaway, and well inside P-101's 150 GPM rating.
+#
+#   Gas — V-101 has no vapor *inlet* (D6 rules out a flash calculation, so
+#   nothing manufactures vapor), which means the only way vapor pressure can
+#   sit at a true steady state is for K-101's and PV-101's flows to sum to
+#   zero. PV-101 vents 2.0 * 0.5 * sqrt(200.0 - 100.0) = 10.0 SCFM forward, so
+#   K-101 must draw the same 10.0 SCFM *backward*, out of its own discharge
+#   header and into the vessel:
+#
+#     PV-101: 1.0 * sqrt(200.0 - 100.0)                    ->  10.0 SCFM
+#     K-101:  100.0 - 0.05 * (-10.0)^2 = 305.0 - 200.0      -> -10.0 SCFM
+#
+#   This is ADR 0002 section 7.3's "K-101 reversing", named and kept credible
+#   by design rather than hidden: the reversal is required by conservation
+#   the moment PV-101 is open at all, and sizing K-101's own resistance to
+#   0.05 (instead of the class default 0.002) keeps both the running reversal
+#   and the cold one small. Cold, K-101 is pure resistance against the same
+#   105 psi gap: q = -sqrt(105.0 / 0.05) = -45.83 SCFM — four times the
+#   running reversal, not the multi-hundred-SCFM runaway an unsized
+#   resistance would give, and still well inside K-101's own 60 SCFM rating.
+#
+# Both flows stay exactly at their design values for as long as the plant
+# runs — there is no test-horizon trick standing in for missing physics.
+nodes:
+  - {id: N-101, boundary: true, pressure: 40.0, domain: liquid}
+  - {id: N-102, boundary: true, pressure: 50.0, domain: liquid}
+  - {id: N-103, boundary: true, pressure: 35.0, domain: liquid}
+  - {id: N-201, boundary: true, pressure: 200.0, domain: gas}
+  - {id: N-202, boundary: true, pressure: 305.0, domain: gas}
+  - {id: N-203, boundary: true, pressure: 100.0, domain: gas}
+equipment:
+  - tag: P-101
+    type: pump
+    node_in: N-101
+    node_out: N-102
+    design:
+      speed_target: 1.0
+      shutoff_pressure_rise: 25.0
+      pump_resistance: 0.002
+      max_flow: 150.0
+  - tag: LV-101
+    type: control_valve
+    node_in: N-102
+    node_out: N-103
+    design:
+      capacity: 20.0
+      flow_characteristic: linear
+      position: 0.5
+      position_target: 0.5
+  - tag: K-101
+    type: compressor
+    node_in: N-201
+    node_out: N-202
+    design:
+      load_target: 1.0
+      shutoff_pressure_rise: 100.0
+      compressor_resistance: 0.05
+      max_flow: 60.0
+  - tag: PV-101
+    type: control_valve
+    node_in: N-201
+    node_out: N-203
+    design:
+      capacity: 2.0
+      flow_characteristic: linear
+      position: 0.5
+      position_target: 0.5
+  - tag: V-101
+    type: vessel
+    ports:
+      feed:      {node: N-102, phase: liquid, purpose: process, direction: inlet}
+      drain:     {node: N-102, phase: liquid, purpose: drain,   direction: outlet}
+      vapor_out: {node: N-201, phase: vapor,  purpose: process, direction: outlet}
+    paths: []
+    design:
+      capacity: 2000.0
+      head_at_full: 20.0
+      level: 0.5
+      gas_volume: 400.0
+      initial_pressure: 200.0

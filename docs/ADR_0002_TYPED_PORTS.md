@@ -962,7 +962,7 @@ ADR 0002  →  T3-7  →  T5-6  →  T5-7  →  T5-5
 
 | | |
 |---|---|
-| **Status** | Accepted 21 September 2026, before T5-5 or T5-7 wrote anything. **A ruling, not yet implemented:** nothing on `main` accepts `direction` in configuration until T5-7 merges. Amends Section 5, Section 6, Section 8.1's T5-7 row, Section 8.2's T5-5 edges, Amendment 1 A.6, the sequencing diagrams in A.8 and B.12, and the `CLAUDE.md` invariant on where a port's structure comes from. Applied to `docs/BUILD_PLAN.html`, the live build-plan artifact, `docs/BUILD_PLAN_STATUS.json`, `docs/PROJECT_STATE.md`, `docs/ARCHITECTURE.md` and `CLAUDE.md`. |
+| **Status** | Accepted 21 September 2026, before T5-5 or T5-7 wrote anything. **Implemented by T5-7** (`app/equipment/vessel.py`, `app/plant/loader.py`, on branch `feature/vessel-nozzles`) — see `docs/PROJECT_STATE.md` for whether it has reached `main` yet. Amends Section 5, Section 6, Section 8.1's T5-7 row, Section 8.2's T5-5 edges, Amendment 1 A.6, the sequencing diagrams in A.8 and B.12, and the `CLAUDE.md` invariant on where a port's structure comes from. `CLAUDE.md` and `docs/ARCHITECTURE.md` are updated by T5-7 directly; `docs/BUILD_PLAN.html`, the live build-plan artifact, `docs/BUILD_PLAN_STATUS.json` and `docs/PROJECT_STATE.md` are refreshed once T5-7 merges, per the project's standard practice of recording "Complete" only with a merge SHA. |
 | **Raised by** | The review of T5-5's readiness held after T5-6 merged. |
 | **Verified against** | `main` at `e028280`, 971 tests passing, `mypy` clean over 24 source files |
 | **Amends** | Section 6 (sequencing), Section 5 (C3 consequences), Amendment 1 A.6 (structure from the device class), Section 8.1 and 8.2 (T5-7 row, T5-5 edges), and it specifies T5-7 (C.4–C.11) |

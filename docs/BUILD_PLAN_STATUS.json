@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "22 September 2026",
-  "main_sha": "4db428dcc425c545e48e0b08b7ad3c11419dab10",
-  "tests_passing_on_main": 916,
+  "main_sha": "37fbc36841d968b79c1204e12455da51f863cccf",
+  "tests_passing_on_main": 933,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -38,7 +38,7 @@
     },
     "M5": {
       "name": "Inventory and Mass Balance",
-      "complete": 5,
+      "complete": 6,
       "total": 7
     },
     "M6": {
@@ -114,8 +114,8 @@
   },
   "totals": {
     "tasks": 101,
-    "complete": 36,
-    "startable_now": 20
+    "complete": 37,
+    "startable_now": 21
   },
   "tasks": [
     {
@@ -702,11 +702,8 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "T5-5"
-      ],
-      "note": "RE-SEQUENCED 20 Sep 2026 by docs/ADR_0002_TYPED_PORTS.md section 8.2: now depends on T5-5 as well as T5-2. Its original 10,000-steps-at-steady-state criterion was written against a vessel that fills monotonically, where ending the run early was the only way to pass; T5-5's separator reaches a genuine steady state instead. It also INHERITS ADR 0002 section 7.1 and owns documenting it: Engine._couple() runs in the constructor, so each integrate consumes the flow solved on the previous pass. The identity is delta_inventory = sum over n = 0..N-1 of q_n * dt / 60, with q_0 read from engine.snapshot() before the first step; summing the N published flows instead is wrong by (q_N - q_0)*dt/60, measured at 2.36 scf over 10,000 gas steps (0.09%), and hides entirely on a constant-flow domain. Assert a pressure asymptote, not a final flow (ADR 0002 section 7.2)."
+      "startable": true,
+      "note": "UNBLOCKED 22 Sep 2026 - T5-5 merged as 37fbc36 (PR #49). Both dependencies (T5-2, T5-5) are now satisfied. RE-SEQUENCED 20 Sep 2026 by docs/ADR_0002_TYPED_PORTS.md section 8.2: now depends on T5-5 as well as T5-2. Its original 10,000-steps-at-steady-state criterion was written against a vessel that fills monotonically, where ending the run early was the only way to pass; T5-5's separator reaches a genuine steady state instead. It also INHERITS ADR 0002 section 7.1 and owns documenting it: Engine._couple() runs in the constructor, so each integrate consumes the flow solved on the previous pass. The identity is delta_inventory = sum over n = 0..N-1 of q_n * dt / 60, with q_0 read from engine.snapshot() before the first step; summing the N published flows instead is wrong by (q_N - q_0)*dt/60, measured at 2.36 scf over 10,000 gas steps (0.09%), and hides entirely on a constant-flow domain. Assert a pressure asymptote, not a final flow (ADR 0002 section 7.2)."
     },
     {
       "id": "T5-5",
@@ -721,11 +718,9 @@
       "files": [
         "config/plants/olefins_lite.yaml"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true,
-      "blocked_by": [],
-      "note": "UNBLOCKED 22 Sep 2026 - T5-7 merged as 4db428d (PR #47). The production Vessel now opts into configured-port mode via accepts_configured_ports; a ports entry that carries direction on every port replaces the class's fixed inlet/outlet, in config order. accepts_configured_ports is an internal capability marker and design.accepts_configured_ports is rejected on any device. Dependencies are now both satisfied (T3-4, T5-7). PORT COUNT: V-101 takes exactly THREE typed ports - a liquid inlet and a liquid outlet on its one liquid node, and one vapor outlet on its one vapor node (ADR 0002 section 3.8). K-101 and PV-101 are two branches on the vapor node, not two vessel nozzles. THE ARCHITECTURE IS SETTLED - go straight to construction on Sonnet, per ADR 0002 Amendment 3 section 6/C.12: there is no second design phase. Write config/plants/olefins_lite.yaml, choose and justify design values, size the train, write the tests. PV-101 and LV-101 are MANUAL, with no controller. ADR 0002 section 7.3 is this task's: fix cold-start backflow and K-101 reversal by choosing design values; if no choice gives both a credible cold start and a credible running point, escalate the missing check valve as its own task. NUMERIC WARNING FROM T5-6: do not try to hit ADR 0002 section 2.2's unreproducible constants (361.15756 GPM at level 0.15217391, 113.04348 psia is T5-6's own pinned steady state, not a target). Still owns creation of config/plants/olefins_lite.yaml, which T7-2, T8-3, T9-2 and T11-1 edit."
+      "status": "Complete",
+      "status_key": "done",
+      "note": "COMPLETE - merged to main as 37fbc36 (PR #49), 22 Sep 2026. 933 passed on main (916 + 17 new), mypy clean over 24 source files, no golden trace moved. Wrote config/plants/olefins_lite.yaml: two independent domains (liquid via P-101, gas via K-101) coupled only through V-101's inventory. V-101 is the production Vessel in configured-port mode (T5-7) with exactly three typed ports - liquid inlet+outlet sharing N-102, one vapor outlet on N-201 - K-101 and PV-101 are two branches on that node, not two nozzles. Plant is loaded already at its own closed-form design equilibrium (derived in the YAML header): feed=drain=50 GPM at level 0.5, PV-101=10 SCFM vs K-101=-10 SCFM (reversed - forced by V-101 having no vapor inlet port, so nothing manufactures vapor; ADR 0002 section 7.3) at pressure 200 psia. Cold start (P-101/K-101 stopped) backflows a bounded, credible amount (-100 GPM, -45.8 SCFM) rather than a runaway, because each machine's own resistance was sized for this plant rather than left at the class default. PV-101/LV-101 are manual, fixed position, no controller. tests/test_olefins_lite.py has 17 tests. NEXT: T5-4, T7-2 unblocked and startable; T8-3/T9-2/T11-1 still wait on T8-2/T9-1 respectively."
     },
     {
       "id": "T5-6",
@@ -905,11 +900,8 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "T5-5"
-      ],
-      "note": "Depends on T5-5, which creates config/plants/olefins_lite.yaml; explicit because milestone ordering alone is too implicit for agents (docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md)."
+      "startable": true,
+      "note": "UNBLOCKED 22 Sep 2026 - T5-5 merged as 37fbc36 (PR #49). All three dependencies (T7-1, T4-4, T5-5) are now satisfied. Depends on T5-5, which creates config/plants/olefins_lite.yaml; explicit because milestone ordering alone is too implicit for agents (docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md)."
     },
     {
       "id": "T7-3",
@@ -1017,10 +1009,9 @@
       "status_key": "todo",
       "startable": false,
       "blocked_by": [
-        "T8-2",
-        "T5-5"
+        "T8-2"
       ],
-      "note": "Depends on T5-5, which creates config/plants/olefins_lite.yaml; explicit because milestone ordering alone is too implicit for agents (docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md)."
+      "note": "T5-5 merged as 37fbc36 (PR #49) 22 Sep 2026 - only T8-2 blocks this now. Depends on T5-5, which creates config/plants/olefins_lite.yaml; explicit because milestone ordering alone is too implicit for agents (docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md)."
     },
     {
       "id": "T8-4",
@@ -1097,10 +1088,9 @@
       "status_key": "todo",
       "startable": false,
       "blocked_by": [
-        "T9-1",
-        "T5-5"
+        "T9-1"
       ],
-      "note": "Depends on T5-5, which creates config/plants/olefins_lite.yaml; explicit because milestone ordering alone is too implicit for agents (docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md)."
+      "note": "T5-5 merged as 37fbc36 (PR #49) 22 Sep 2026 - only T9-1 blocks this now. Depends on T5-5, which creates config/plants/olefins_lite.yaml; explicit because milestone ordering alone is too implicit for agents (docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md)."
     },
     {
       "id": "T9-3",
@@ -1263,10 +1253,9 @@
       "status_key": "todo",
       "startable": false,
       "blocked_by": [
-        "T9-1",
-        "T5-5"
+        "T9-1"
       ],
-      "note": "Depends on T5-5, which creates config/plants/olefins_lite.yaml; explicit because milestone ordering alone is too implicit for agents (docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md)."
+      "note": "T5-5 merged as 37fbc36 (PR #49) 22 Sep 2026 - only T9-1 blocks this now. Depends on T5-5, which creates config/plants/olefins_lite.yaml; explicit because milestone ordering alone is too implicit for agents (docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md)."
     },
     {
       "id": "T11-2",

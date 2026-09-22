@@ -39,7 +39,7 @@
             "type": "object",
             "minProperties": 1,
             "additionalProperties": {
-              "description": "Either a node-id string, or a typed object {node, phase, purpose, control?} where phase is liquid or vapor, purpose is process, vent, drain or relief, and control - if present - is flow, pressure, level or temperature. The alternation and every one of those values is enforced in app/plant/loader.py, not here: the C3 validator implements no oneOf, so a schema keyword expressing this would be a constraint that silently does not hold, and the loader can name the offending config path."
+              "description": "Either a node-id string, or a typed object {node, phase, purpose, control?, direction?} where phase is liquid or vapor, purpose is process, vent, drain or relief, control - if present - is flow, pressure, level or temperature, and direction - if present - is inlet or outlet. The alternation and every one of those values is enforced in app/plant/loader.py, not here: the C3 validator implements no oneOf, so a schema keyword expressing this would be a constraint that silently does not hold, and the loader can name the offending config path. direction opts a device's structural port set into being built from configuration instead of its class (only Vessel accepts this): every entry on such an item must then carry one (ADR 0002 Amendment 3)."
             }
           },
           "paths": {

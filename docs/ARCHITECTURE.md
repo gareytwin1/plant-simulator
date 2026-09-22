@@ -373,12 +373,14 @@ The connected train is assembled by **T5-5**, and ADR 0002 re-specified it:
 - **V-101 takes three typed ports**: a liquid inlet and a liquid outlet on its
   one liquid node, and one vapour outlet on its one vapour node. K-101 and
   PV-101 are two branches on that vapour node, not two vessel nozzles.
-- **T5-7 comes first.** The `Vessel` on `main` declares only `inlet` and
-  `outlet`, and the loader rejects any other port name, so the separator
-  cannot yet be wired with the production vessel. ADR 0002 Amendment 3
-  rules that an opted-in device (only `Vessel`) may take its port set, with
-  a `direction` on every entry, from configuration. That is **not yet
-  implemented**: T5-7 builds it, and T5-5 is blocked on T5-7.
+- **T5-7 comes first.** Until it merges, the `Vessel` on `main` declares only
+  `inlet` and `outlet`, and the loader rejects any other port name, so the
+  separator cannot be wired with the production vessel. ADR 0002 Amendment 3
+  lets an opted-in device (only `Vessel`, through a class-level
+  `accepts_configured_ports` marker) take its port set, with a `direction` on
+  every entry, from configuration instead — implemented in
+  `app/plant/loader.py` and `app/equipment/vessel.py`. T5-5 is blocked on
+  T5-7 reaching `main`.
 - **V-101 gains a liquid draw**, which is what turns a vessel that fills
   monotonically into one with a genuine self-regulating steady state — the head
   rises, the drain flow rises, the feed flow falls. Conservation can then be

@@ -53,9 +53,23 @@ Range guards sit on the attributes rather than in `__init__` because design
 values arrive by `setattr` from the C3 loader: a capacity of zero set from
 config would otherwise surface much later as a division by zero, a long way
 from the line that caused it.
+
+**Configured ports (T5-7).** `Vessel` is the one device class that opts in to
+receiving its structural port set from configuration rather than declaring a
+fixed one: `accepts_configured_ports = True`. A C3 `ports` entry that gives
+every port a `direction` replaces the default `inlet` / `outlet` pair below,
+in config order — this is what lets a separator declare a liquid inlet, a
+liquid outlet and a vapor outlet, or any other set a real plant needs. A
+config that gives no port a `direction` leaves the two ports below untouched,
+exactly as before T5-7. `accepts_configured_ports` is an internal capability
+marker, not a design value: the loader refuses it under `design`, on any
+device, because reading it from an instance rather than the class would let
+it be set and silently ignored. See docs/ADR_0002_TYPED_PORTS.md,
+Amendment 3.
 """
 
 import math
+from typing import ClassVar
 
 from app import config
 from app.equipment.base import Equipment, INLET, OUTLET
@@ -63,6 +77,8 @@ from app.statetypes import StateRow
 
 
 class Vessel(Equipment):
+    accepts_configured_ports: ClassVar[bool] = True
+
     def __init__(self, tag: str = "V-101") -> None:
         super().__init__(
             tag,

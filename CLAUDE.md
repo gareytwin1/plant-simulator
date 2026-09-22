@@ -56,7 +56,7 @@ its own task, never as a side effect.
 |---|---|---|---|
 | **C1** | Equipment interface | **Implemented** | `app/equipment/base.py` |
 | **C2** | Topology: node, branch, stream | **Implemented** | `app/plant/topology.py` |
-| **C3** | Plant configuration schema | **Implemented**; configured-port mode ruled, not yet implemented (T5-7) | `config/schema/plant.schema.json`, validator `app/plant/validate.py`, loader `app/plant/loader.py` |
+| **C3** | Plant configuration schema | **Implemented**, including configured-port mode (T5-7) | `config/schema/plant.schema.json`, validator `app/plant/validate.py`, loader `app/plant/loader.py` |
 | **C4** | State snapshot | **Implemented** | `app/engine/snapshot.py` |
 | **C5** | HTTP API (single action endpoint) | Not implemented | Build plan only |
 | **C6** | Event record (alarms/trips/actions) | Not implemented | Build plan only |
@@ -119,20 +119,21 @@ Violating any of these is a contract break, not a style preference.
 - `purpose` and `control` are **orthogonal**: a level-controlled drain declares
   both, a manual drain declares only `purpose`. Never collapse them back into
   one field.
-- Typing comes from **configuration**, never from a device class. On `main`
-  today every device declares its ports by name and direction in its class,
-  and the C3 loader puts the descriptors on the runtime `Port`. An
-  `isinstance(device, ...)` or a port-name test that decides a phase is the
-  inference T3-7 exists to retire.
-- **Ruled, not yet implemented — configured-port mode (ADR 0002 Amendment 3,
-  built by T5-7).** Fixed-port equipment keeps declaring names and directions
-  in its class. A device class that explicitly opts in — only `Vessel` — will
-  be able to receive its structural port set from C3. In that mode
-  configuration supplies `direction` on every port, as a typed entry. No
-  `direction` anywhere keeps the fixed ports. `direction` on only some entries,
-  or on fixed-port equipment, is rejected. Nothing on `main` accepts
-  `direction` in configuration until T5-7 merges, so do not write code, tests
-  or configs that assume it does.
+- Typing comes from **configuration**, never from a device class. **Fixed-port
+  equipment** — every device except `Vessel` — declares its ports by name and
+  direction in its class, and the C3 loader puts the descriptors on the
+  runtime `Port`. An `isinstance(device, ...)` or a port-name test that
+  decides a phase is the inference T3-7 exists to retire.
+- **Configured-port mode (ADR 0002 Amendment 3, T3-7).** A device class may
+  instead opt in — only `Vessel` does, through a class-level
+  `accepts_configured_ports` marker — to receiving its structural port set
+  from C3. In that mode configuration supplies `direction` on every port, as
+  a typed entry, and the loader builds the device's ports from them, in
+  config order, replacing its default set. No `direction` anywhere keeps the
+  fixed ports. `direction` on only some entries, or on fixed-port equipment,
+  is rejected, naming every offending path. `accepts_configured_ports` is an
+  internal capability marker, not a design value: `design` may not set it, on
+  any device.
 - T3-7 built this vocabulary; **T5-6 consumes it.** The coupling classifies a
   connection from its declared `phase`, and aggregates the exchange of each
   hydraulic **node** exactly once — not once per port. See

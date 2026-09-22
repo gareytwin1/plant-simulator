@@ -4,10 +4,12 @@ What is true **right now**. This file goes stale by design; the stable rules are
 in [CLAUDE.md](../CLAUDE.md) and the architecture is in
 [ARCHITECTURE.md](ARCHITECTURE.md).
 
-**Refresh this file when a task merges.** Keep it under ~200 lines: a merged
-task gets its **one-line** entry here, and its full completion note goes in
+**Refresh this file when a task merges, and keep it lean:** a merged task gets
+its **one-line** entry here, and its full completion note goes in
 [BUILD_PLAN_STATUS.json](BUILD_PLAN_STATUS.json). Per-task handoff sections do
 not accumulate here — that is what grew this file to 1,086 lines once already.
+When the recent-merges table below passes ~6 rows, drop the oldest — it is
+already in BUILD_PLAN_STATUS.json and does not need a second home.
 
 ---
 
@@ -27,16 +29,12 @@ not accumulate here — that is what grew this file to 1,086 lines once already.
 | T5-6 | `7643281` | Coupling aggregates over hydraulic nodes; `DOMAIN_UNITS` retired |
 | T3-7 | `8733b1a` | Typed ports: `phase` / `purpose` / `control` + port-name guard |
 | T2-6 | `4e48949` | Scheduler owns simulated time |
-| T5-3 | `42dc227` | Gas-phase pressure accumulation |
-| T7-1 | `fefa841` | Control valve model |
-| T5-2 | `154385c` | Level-to-hydraulics coupling; multi-domain Engine |
-| T4-4 | `0efa5be` | Solver wired into the Engine (Checkpoint B) |
 
 **ADRs on `main`:** ADR 0001 ([flow-domain separation](ADR_0001_FLOW_DOMAIN_SEPARATION.md))
-with Amendment 1 · ADR 0002 ([typed ports](ADR_0002_TYPED_PORTS.md)) with
-Amendments 1–3, the last of which is now fully implemented (T5-7) and consumed
-(T5-5), closing its sequencing chain. **Read the ADRs themselves** — they are the authority, and
-summarising them here is what made this file 1,086 lines.
+with Amendment 1, and ADR 0002 ([typed ports](ADR_0002_TYPED_PORTS.md)) with
+Amendments 1–3 (the last now implemented by T5-7 and consumed by T5-5, closing
+its sequencing chain). **Read the ADRs themselves** — summarising them here is
+what made this file 1,086 lines.
 
 ## Milestone progress
 
@@ -44,7 +42,7 @@ summarising them here is what made this file 1,086 lines.
 |---|---|
 | **M0**–**M4** | **Complete.** Checkpoint A (M1) and Checkpoint B (M4) both reached |
 | **M5** Inventory and Mass Balance | **6/7** — only T5-4 remains, and it is startable |
-| **M7** Control Valves | 1/5 — T7-1 Complete; T7-2, T7-3, T7-4, T7-5 startable |
+| **M7** Control Valves and Final Elements | 1/5 — T7-1 Complete; T7-2, T7-3, T7-4, T7-5 startable |
 | M6, M8–M19 | Not started |
 
 **37 of 101 tasks Complete.** Next checkpoint is **C** (M5 + M6 + M7), and it is
@@ -128,11 +126,9 @@ scope, and item 1 in particular reads like a bug and is not.
   flow of exactly zero.** That residual reaches vessel level with no clamp and
   no deadband — 3.3 gal/hour against a 1000 gal vessel — and that is decided
   behaviour, not a leak to plug.
-- **The `Equipment.characteristic` docstring overstates the Jacobian.** It
-  claims a non-increasing curve "keeps the Jacobian from going singular", but
-  for `-K * signed_square(q)` the derivative is `-2K|q|`, **zero at q = 0**. The
-  honest claim is monotone non-increasing with exactly one root. `base.py` is
-  frozen; whoever next opens C1 should correct the wording.
+- **The `Equipment.characteristic` docstring overstates the Jacobian** —
+  `base.py` is frozen, so this hasn't been corrected in place. Full explanation
+  in [.claude/rules/engine.md](../.claude/rules/engine.md).
 - **A resistance-only valve cannot stop reverse flow, and it absorbs most of the
   drop.** Against 50 → 180 psia a cold plant backflows through a wide-open valve
   (−1000 GPM at Cv 100), and closing it trims that only by the square root of

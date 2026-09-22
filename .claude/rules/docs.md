@@ -38,9 +38,17 @@ that grew it past 1,000 lines once.
 A repo-wide invariant that applies regardless of which file is open belongs in
 CLAUDE.md. A rule that only matters while editing a specific area belongs in a
 new or existing `.claude/rules/*.md` file, scoped with `paths` frontmatter to
-where it applies. The exception is anything whose failure mode is reaching for
-the *wrong tool* rather than editing the *wrong file* — such as the golden-trace
-policy or the worktree-per-task rule — which stays in CLAUDE.md even though a
-scoped rule also covers it, because a path-scoped rule only loads when a
-matching file is *read*, and the session that most needs the warning may never
-open one.
+where it applies.
+
+**Exception: give a scoped rule a one-line CLAUDE.md backstop when getting it
+wrong is silent and expensive.** A path-scoped rule only loads when a matching
+file is opened with `Read`, and not at all through `Bash`/`grep`/`sed` — so the
+session that most needs the warning may never see it. Three rules get this
+backstop even though a `.claude/rules/*.md` file also covers them in full:
+the golden-trace policy and the worktree-per-task rule (wrong *tool*, not
+wrong *file* — a session can violate either without opening anything the
+scope would catch), and the branch-characteristic monotonicity requirement
+(a single non-conforming device can silently break the solver's convergence
+for the *entire* plant, not just its own branch). A rule whose violation is
+caught by the code itself — a rejected config, a failing guard test — does
+not need this; the failure mode there is a clear error, not silence.

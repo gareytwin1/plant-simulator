@@ -9,8 +9,12 @@ architectural invariants and working rules, not current status.
 decisions — read [docs/PROJECT_STATE.md](docs/PROJECT_STATE.md).
 
 `.claude/rules/*.md` carries rules scoped to specific paths (engine, plant
-config, Python style, docs ownership) — they load automatically when you open
-a matching file, so they are not listed in the reading order below.
+config, Python style, docs ownership) — meant to load when you open a matching
+file with `Read`, though this has not been independently confirmed in every
+environment, and a file only touched through `Bash`/`grep`/`sed` never
+triggers it. They are not listed in the reading order below for that reason;
+see [.claude/rules/docs.md](.claude/rules/docs.md) for which invariants get a
+CLAUDE.md-level backstop because of it.
 
 ## Reading order for a new session
 
@@ -21,9 +25,11 @@ a matching file, so they are not listed in the reading order below.
    [live artifact](https://claude.ai/artifact/DXqzpwKxeKZNzZGrC3HkQ9).
 4. **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — if you are touching a
    spine file or any interface.
-5. **The relevant source and tests.**
-6. Begin work — and read [DEVELOPMENT.md](DEVELOPMENT.md) once you are ready to
-   branch, commit, or merge.
+5. **If this session will write any code: [DEVELOPMENT.md](DEVELOPMENT.md)
+   before touching a file.** Create the worktree first — this repo has already
+   lost a commit to a branch race from skipping that step.
+6. **The relevant source and tests.**
+7. Begin work.
 
 ## What this project is
 
@@ -98,6 +104,11 @@ Violating any of these is a contract break, not a style preference.
   device at that flow, with slow state wherever `integrate` left it. Positive is
   a rise (machine), negative is a drop (valve, pipe). It mutates nothing, so the
   solver may call it as many times per timestep as its iteration needs.
+- **The curve must be monotone non-increasing in flow, everywhere.** This is
+  what gives the branch equation exactly one root; a device that violates it
+  can break Newton-Raphson convergence for the whole plant, not just itself.
+  Full convention (signed flow, `signed_square`, the residual formula) is in
+  [.claude/rules/engine.md](.claude/rules/engine.md).
 - `get_state()` returns flat, JSON-safe primitives — the device's row in the
   snapshot.
 - `reset()` restores construction state exactly. Port wiring survives it; the

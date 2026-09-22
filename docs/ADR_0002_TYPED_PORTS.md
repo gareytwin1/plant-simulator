@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Accepted 20 September 2026, **amended twice**. [Amendment 1](#amendment-1--a-connection-has-four-descriptors-not-three), before T3-7, replaces the single `service` axis with independent `purpose` and `control` descriptors. [Amendment 2](#amendment-2--the-node-is-the-unit-of-account-not-the-port), before T5-6, makes the **node** the unit of account for the aggregation D3.3 wrote as a sum over ports. Read Section 3 together with both: **where they disagree, the later amendment wins.** |
+| **Status** | Accepted 20 September 2026, **amended three times**. [Amendment 1](#amendment-1--a-connection-has-four-descriptors-not-three), before T3-7, replaces the single `service` axis with independent `purpose` and `control` descriptors. [Amendment 2](#amendment-2--the-node-is-the-unit-of-account-not-the-port), before T5-6, makes the **node** the unit of account for the aggregation D3.3 wrote as a sum over ports. [Amendment 3](#amendment-3--t5-7-comes-before-t5-5-and-a-vessel-may-take-its-ports-from-configuration), before T5-5 and T5-7, corrects the Section 6 sequencing, puts **T5-7 before T5-5**, and lets an opted-in device take its structural port set from configuration. It also specifies T5-7. Read Section 3 together with all three: **where they disagree, the later amendment wins.** |
 | **Date** | 20 September 2026 |
 | **Decides for** | T3-7 (new), T5-6 (new), T5-7 (new), T5-5 (unblocked, re-sequenced), T7-5 (new, deferred), and the M5/M8 boundary |
 | **Verified against** | `main` at `f8aab59`, 753 tests passing, `mypy` clean over 24 source files |
@@ -311,6 +311,11 @@ consequence of what enters and leaves.
 - **C3 changes.** A `ports` entry may be an object carrying `phase` and
   `service`, not only a node-id string. The alternation is enforced in the
   loader, never in the schema (2.6).
+- **Amended — a vessel's structure also comes from C3.** This section assumed
+  the separator fixture fitted the existing two-port `Vessel`. It does not.
+  [Amendment 3](#amendment-3--t5-7-comes-before-t5-5-and-a-vessel-may-take-its-ports-from-configuration)
+  adds `direction` to a typed entry for a device that opts in to
+  configured-port mode (only `Vessel`), and T5-7 builds it before T5-5.
 - **Existing configs keep working.** `liquid_transfer.yaml`,
   `gas_compression.yaml` and `liquid_valve_train.yaml` declare no vessel and are
   untouched. `node_in` / `node_out` sugar is unchanged.
@@ -324,14 +329,22 @@ consequence of what enters and leaves.
 
 ## 6. Sequencing
 
+> **Corrected by [Amendment 3](#amendment-3--t5-7-comes-before-t5-5-and-a-vessel-may-take-its-ports-from-configuration).**
+> The sequence originally written here was `T3-7 → T5-6 → T5-5 → T5-7 (later)`,
+> with the claim that *"T5-7 does not block the separator fixture"*. That claim
+> was false. It assumed the fixture fitted the existing vessel, but the
+> production `Vessel` declares only `inlet` and `outlet`, and the loader refuses
+> any other port name (C.0).
+
 ```
-ADR 0002  →  T3-7  →  T5-6  →  T5-5  →  T5-7 (later)
+ADR 0002  →  T3-7  →  T5-6  →  T5-7  →  T5-5  →  T5-4
 ```
 
-**T5-7 does not block the separator fixture.** It generalises the vessel to an
-arbitrary configured nozzle set *after* the typed connection contract has been
-proven in anger by T5-5. Doing it first would be designing against an untested
-contract.
+**T5-7 blocks the separator fixture.** The typed connection contract is proven
+by T5-6's aggregation tests. What T5-5 lacks is a production vessel that can
+declare the three ports a separator needs, and that is exactly what T5-7
+provides. Designing T5-7 first is therefore not designing against an untested
+contract: it is the missing piece of the contract.
 
 T7-5 (relief device) is deferred and blocks nothing.
 
@@ -399,7 +412,7 @@ editing it out of band would desync the two. These are proposals.
 |---|---|---|---|---|---|
 | **T3-7** | M3 | Typed ports — phase and service | `app/equipment/base.py`, `config/schema/plant.schema.json`, `app/plant/loader.py`, `tests/test_typed_ports.py` | `feature/typed-ports` | T3-6 |
 | **T5-6** | M5 | Coupling aggregates typed connections | `app/engine/coupling.py`, `tests/test_coupling_aggregation.py` | `feature/coupling-aggregation` | T3-7, T5-2 |
-| **T5-7** | M5 | Vessel configurable nozzle set | `app/equipment/vessel.py` | `feature/vessel-nozzles` | T5-5 |
+| **T5-7** | M5 | Vessel configurable nozzle set | `app/equipment/vessel.py` *(superseded by [C.10](#c10--t5-7-owns-the-loader-and-leaves-c1-alone))* | `feature/vessel-nozzles` | T5-5 *(now T5-6, Amendment 3)* |
 | **T7-5** | M7 | Relief device | `app/equipment/relief.py` | `feature/relief-valve` | T3-7 |
 
 T3-7 is **spine** (`app/equipment/base.py`). T5-6 modifies an existing
@@ -407,7 +420,9 @@ T3-7 is **spine** (`app/equipment/base.py`). T5-6 modifies an existing
 
 ### 8.2 Edited dependencies
 
-- **T5-5** gains `T3-7` and `T5-6`; its acceptance changes from a horizon-bounded
+- **T5-5** gains `T3-7` and `T5-6` *(Amendment 3 replaces both edges, and
+  `T5-2`, with a single `T5-7` edge that carries all three)*; its acceptance
+  changes from a horizon-bounded
   conservation test to a steady-state one, and gains *"changing PV-101 or LV-101
   position changes vessel pressure or level in the expected direction"*.
 - **T5-4** should be sequenced after T5-5 and inherit 7.1, replacing its
@@ -654,10 +669,11 @@ Amendment 1 reopens nothing else. These conclusions stand exactly as written:
 - **T5-5 resumes at construction** once T3-7 and T5-6 have merged. Its design
   phase already happened and produced this record; there is no second one.
 
-The sequencing is unchanged:
+The sequencing is unchanged *(corrected by Amendment 3, which puts T5-7
+before T5-5)*:
 
 ```
-ADR 0002  →  T3-7  →  T5-6  →  T5-5  →  T5-7 (later)
+ADR 0002  →  T3-7  →  T5-6  →  T5-7  →  T5-5
 ```
 
 ### A.9 — consequences for Section 8.1
@@ -934,8 +950,384 @@ T5-5 and M8 owning control (D7); no change to `NetworkSolver`, to C2, or to the
 single-domain solver rule (§9).
 
 §7.1 and §7.2 are **not** fixed here and must not be folded in. The sequencing is
-unchanged:
+unchanged *(corrected by Amendment 3, which puts T5-7 before T5-5)*:
 
 ```
-ADR 0002  →  T3-7  →  T5-6  →  T5-5  →  T5-7 (later)
+ADR 0002  →  T3-7  →  T5-6  →  T5-7  →  T5-5
 ```
+
+---
+
+## Amendment 3 — T5-7 comes before T5-5, and a vessel may take its ports from configuration
+
+| | |
+|---|---|
+| **Status** | Accepted 21 September 2026, before T5-5 or T5-7 wrote anything. **A ruling, not yet implemented:** nothing on `main` accepts `direction` in configuration until T5-7 merges. Amends Section 5, Section 6, Section 8.1's T5-7 row, Section 8.2's T5-5 edges, Amendment 1 A.6, the sequencing diagrams in A.8 and B.12, and the `CLAUDE.md` invariant on where a port's structure comes from. Applied to `docs/BUILD_PLAN.html`, the live build-plan artifact, `docs/BUILD_PLAN_STATUS.json`, `docs/PROJECT_STATE.md`, `docs/ARCHITECTURE.md` and `CLAUDE.md`. |
+| **Raised by** | The review of T5-5's readiness held after T5-6 merged. |
+| **Verified against** | `main` at `e028280`, 971 tests passing, `mypy` clean over 24 source files |
+| **Amends** | Section 6 (sequencing), Section 5 (C3 consequences), Amendment 1 A.6 (structure from the device class), Section 8.1 and 8.2 (T5-7 row, T5-5 edges), and it specifies T5-7 (C.4–C.11) |
+
+**Where Section 5, Section 6 or Amendment 1 A.6 conflicts with Amendment 3,
+Amendment 3 wins.** Amendment 3 changes nothing about what a port *means*, how
+a node is counted, or which descriptors participate in a balance.
+
+### C.0 The defect: the fixture does not fit the vessel on `main`
+
+Section 6 sequenced T5-5 before T5-7 and said *"T5-7 does not block the
+separator fixture."* That assumed the separator could be wired with the
+existing `Vessel`. It cannot:
+
+- `Vessel.__init__` declares exactly two ports, `inlet` (INLET) and `outlet`
+  (OUTLET), in `app/equipment/vessel.py`.
+- `_build_named` in `app/plant/loader.py` rejects any configured port name the
+  device lacks (*"has no port"*) and any device port left unwired (*"is not
+  wired to any node"*).
+- A port's `direction` lives on the device class. A typed C3 entry carries
+  `node`, `phase`, `purpose` and `control`, and `_typed_port_errors` rejects
+  `direction` as an unexpected property.
+- T5-6's tests only run because `tests/test_coupling_aggregation.py` defines
+  seven test-only `Separator(Vessel)` subclasses. The base subclass's docstring
+  says so: *"T5-7 gives the real Vessel this. Until then a vessel has exactly
+  two ports and T5-6 cannot be tested at all."*
+
+With the edges as written (T5-5 on T5-6, T5-7 on T5-5), T5-5 had no way to wire
+the separator with the production vessel. T5-4, T7-2, T8-3, T9-2 and T11-1 all
+wait on T5-5, so the whole M5–M11 path was stalled behind a task that could
+not be built honestly.
+
+### C.1 — the dependency graph
+
+> **C1.** T5-7 depends on T5-6. T5-5 depends on T3-4 and T5-7. T5-4, T7-2, T8-3,
+> T9-2 and T11-1 keep their T5-5 edges.
+
+```
+T3-6 → T3-7 → T5-6 → T5-7 → T5-5 → T5-4
+          T5-2 ──┘          ↑   └──→ T7-2, T8-3, T9-2, T11-1
+                     T3-4 ──┘
+```
+
+T5-7's only direct dependency is T5-6. T5-6 carries T3-7 and T5-2. T5-5's
+explicit `T5-2`, `T3-7` and `T5-6` edges are removed because T5-7 now carries
+all three. This follows the plan's convention against transitive edges, which
+T5-5's own note already applied to T5-1, T4-4 and T3-5. The explicit edges had
+documentary value while nothing sat between T5-6 and T5-5; that value now
+lives in T5-5's note, which names T5-7 as the blocker and says why. `T3-4`
+stays, because nothing on the T5-7 path carries it. The graph was checked to
+be acyclic over all 101 tasks.
+
+Statuses: **T5-7 Not Started, and startable** (T5-6 is Complete as `7643281`).
+**T5-5 Blocked**, with a note naming T5-7.
+
+### C.2 — Amendment 1 A.6 amended: structure may come from configuration
+
+A.6 says, verbatim:
+
+> Typing comes from **configuration**, not from the device class. An equipment
+> class keeps declaring its structural ports by `name` and `direction`; the
+> loader places the semantic metadata on the runtime `Port`. No
+> device-specific inference — nothing that reads
+> `isinstance(device, GasCompressor)` or `port.name == "drain"` to decide a
+> phase or a purpose — is permitted, because that is the inference T3-7 exists
+> to retire.
+
+Its second sentence is amended. The rest stands. The rule becomes:
+
+> **C2.** **Fixed-port equipment** keeps declaring its structural ports, by name
+> and direction, in its class. A **configurable-port device**, one whose class
+> explicitly opts in (C.6), may instead receive its structural port set from
+> C3. In that mode configuration supplies `direction` for **every** port. Typing
+> still comes from configuration in both modes, and no behaviour is ever
+> inferred from a port name.
+
+The first and third sentences of A.6 are unchanged. Configured-port mode adds
+no inference: `direction` is *declared*, the same way `phase` is, and the
+loader places it on the runtime `Port` exactly as it places `phase`.
+
+### C.3 — the `CLAUDE.md` invariant amended
+
+`CLAUDE.md`, under *A connection is described, never inferred*, says:
+
+> A device declares its ports by name and direction; the C3 loader puts the
+> descriptors on the runtime `Port`.
+
+This becomes C2's rule. **Until T5-7 merges, `CLAUDE.md` and every other
+document presents configured-port mode as a ruling not yet implemented.** No
+document may imply that `main` accepts `direction` in configuration before it
+does. T5-7 moves the wording to the present tense when it lands.
+
+### C.4 — the grammar (frozen)
+
+Configured-port mode is decided per equipment item, from the `direction` keys
+in its `ports` map:
+
+| `ports` entries | Result |
+|---|---|
+| no entry carries `direction` | **Fixed-port mode.** The device's own ports are used, exactly as on `main` today. This is what every existing `Vessel` config does. |
+| every entry carries `direction`, device opts in | **Configured-port mode.** The port set is built from configuration. |
+| some entries carry `direction`, some do not | **Rejected, as a whole item.** Every entry that lacks `direction` is named by its path. |
+| any entry carries `direction`, device does not opt in | **Rejected.** Configuration cannot redefine a pump's, compressor's or valve's structure. Every entry carrying `direction` is named by its path. |
+
+- **Order.** Configured ports are created in config order, which is the order
+  of the `ports` mapping as parsed (YAML and JSON both preserve it).
+- **Round trip.** `to_config()` emits `direction` on every configured entry,
+  with the entries in their loaded order.
+- **No upgrade.** A fixed-port config round-trips without gaining a
+  `direction`. `direction` is emitted only where the entry declared one, which
+  mirrors A.6's rule that a legacy string is never silently upgraded.
+- `node_in` / `node_out` sugar has nowhere to put a `direction`, so it is
+  always fixed-port mode, and it is unchanged.
+
+### C.5 — typed entries only, and the spelling of `direction`
+
+**A bare node-id string cannot carry a direction.** Configured-port mode
+therefore requires the typed object form for every entry: `node`, `phase`,
+`purpose` and `direction`, plus `control` where the connection has a control
+role. All the A.6 rules still apply: `phase`, `purpose` and `node` are
+required, `control` is optional, absence means no control role, and
+`control: none` is refused. A string entry inside a configured item is a
+"some entries lack `direction`" case (C.4), and its error says that a string
+cannot declare a direction.
+
+**`direction` takes exactly the values of `INLET` (`"inlet"`) and `OUTLET`
+(`"outlet"`) in `app/equipment/base.py`**, validated against `PORT_DIRECTIONS`.
+There are no new aliases: no `in` / `out`, no `feed` / `draw`, and no casing
+variants. An unknown value is rejected at `…ports.<name>.direction`, naming
+the allowed values.
+
+`direction` joins the keys `_typed_port_errors` accepts. The *mode* rules in
+C.4 then decide whether its presence is allowed on a given item. Today a
+`direction` key is refused as an *"unexpected property"*. After T5-7, a
+`direction` key on fixed-port equipment gets the specific refusal from C.4
+instead of that generic one.
+
+### C.6 — the opt-in: a class-level declaration, on `Vessel` only
+
+> **C6.** A device class opts in by declaring
+> `accepts_configured_ports: ClassVar[bool] = True`. Only `Vessel` declares it.
+> The loader reads it **from the class** with
+> `getattr(device_type, "accepts_configured_ports", False) is True`, where
+> `device_type` is `types[item["type"]]` in the reference pass and
+> `type(device)` in the build pass. It never reads it from an instance.
+
+**Why this mechanism.** It is an explicit statement the class makes about
+itself, so no inference is involved. It needs no change to C1: `base.py`
+declares no default, and the `getattr` default is what makes every other class
+fixed-port. It also follows `load_plant`'s existing `device_types` override,
+because the opt-in belongs to whatever class a type string actually resolves
+to. A subclass of `Vessel` inherits the opt-in, which is correct: a subclass of
+a vessel is a vessel.
+
+**Rejected alternatives:**
+
+- *A default `accepts_configured_ports = False` on `Equipment`.* This would
+  give cleaner typing, but it changes C1, a spine file, for a capability one
+  device has. The `getattr` default gives the same behaviour with `base.py`
+  untouched.
+- *A loader-side list such as `CONFIGURED_PORT_TYPES = (Vessel,)` checked with
+  `isinstance` or `issubclass`.* This is class-identity inference, which A.6
+  forbids. It also puts knowledge of one device inside the generic loader.
+- *Keying on the config `type` string (`type == "vessel"`).* The string's
+  mapping to a class can be overridden, so the opt-in would detach from the
+  class actually built. It is also a name-based rule.
+- *A constructor argument (`Vessel(tag, ports=...)`).* The loader builds every
+  device the same way, `types[type](tag)`. This would need a device-specific
+  construction path.
+- *A `design` key.* Design is for values, and `_apply_design` round-trips
+  whatever it sets, so structure would become a tunable design value.
+
+**Why a `design` key of the same name is harmless.** `_apply_design` accepts
+any attribute that exists, so a `design: {accepts_configured_ports: …}` entry
+would set an *instance* attribute. The loader reads only the class, so that
+instance attribute changes no structure. T5-7 adds no special case for it.
+
+**The registry contract.** The sweeps in `tests/test_equipment_contract.py` and
+`tests/test_registry.py` build every registered class with no arguments and
+require at least one port. The opt-in does not change construction: `Vessel()`
+still has `inlet` and `outlet`, so the contract holds unchanged.
+
+**A vessel never has zero ports.** Only the loader replaces a port set, and only
+in configured-port mode. That mode is entered only when at least one entry
+carries `direction`, and the schema already requires `ports` to have at least
+one property (`minProperties: 1`). A configured item that fails validation
+never reaches the build pass, because the loader raises first.
+
+### C.7 — what the loader does in configured-port mode
+
+**Reference pass** (`_reference_errors` → `_named_reference_errors`, which gains
+the resolved device class as an argument):
+
+1. `_port_declarations` parses `direction` into `PortDeclaration.direction`
+   (`str | None`, default `None`), validating the value.
+2. If any entry carries `direction`:
+   - if the class does not opt in, report each such entry;
+   - otherwise report each entry that lacks one.
+
+   An unknown `type` is already reported, and the mode check is skipped for
+   that item.
+
+**Build pass** (`_build_named`), when every declaration carries a direction:
+
+1. `device.ports.clear()`, then `device.add_port(name, declaration.direction)`
+   for each declaration in config order.
+2. From there, the existing code runs unchanged:
+   - the "has no port" and "not wired" checks pass by construction;
+   - `Port.declare` places `phase`, `purpose` and `control`;
+   - `paths` are validated and built;
+   - unclaimed ports are connected.
+
+**`paths` rules are unchanged.** A path must still start at an inlet and end at
+an outlet, checked against the configured directions, and `Vessel` configs
+keep using `paths: []`.
+
+**`to_config()`**: `_port_config` adds `"direction": port.direction` to a typed
+entry whose declaration carried a direction, placed immediately after `node`.
+The key's presence comes from the declaration, and its value from the live
+`Port`. That is the same form-versus-value split the method already uses.
+
+`app/plant/loader.py` is the only production module that changes behaviour.
+`app/equipment/vessel.py` gains the `ClassVar` and a docstring paragraph.
+`config/schema/plant.schema.json` gains description text only, because the
+validator implements no `oneOf` (finding 2.6).
+
+### C.8 — reset preserves the configured set
+
+`PRESERVED_ON_RESET` in `app/equipment/base.py` is `("ports",
+"_construction_state")`. `Equipment.reset()` skips those names when it clears
+`__dict__`, and `_snapshot` excludes them from the construction state. The
+port dictionary the loader filled therefore survives `reset()` untouched: the
+same names, the same order, and the same `direction`, `phase`, `purpose`,
+`control` and `node` on each port. This was verified by reading
+`Equipment.reset` and `_snapshot`. No change is needed, and T5-7 adds a test
+that asserts it.
+
+### C.9 — determinism
+
+`device.ports` is built in config order, and `app/engine/coupling.py` already
+iterates `device.ports.values()`. `_exchanges` groups nodes in first-appearance
+port order, so every aggregate is summed in an order fixed entirely by the
+config. That makes a run bit-identical across loads of the same file.
+
+Reordering a config's `ports` entries may change the last bit of a sum. That
+is not a defect: order is part of the configuration, and `to_config()`
+preserves it.
+
+### C.10 — T5-7 owns the loader and leaves C1 alone
+
+**Files.**
+- Code and schema: `app/equipment/vessel.py`, `app/plant/loader.py`,
+  `config/schema/plant.schema.json` (description text only).
+- Tests: `tests/test_typed_ports.py`, `tests/test_vessel.py`,
+  `tests/test_coupling_aggregation.py`.
+- Documents: `CLAUDE.md`, `docs/ADR_0002_TYPED_PORTS.md` (status row only),
+  `docs/ARCHITECTURE.md`, `docs/PROJECT_STATE.md`, `docs/BUILD_PLAN.html` and
+  `docs/BUILD_PLAN_STATUS.json`.
+
+**Loader ownership is stated in T5-7's build-plan note**, not by adding
+`loader.py` to `CLAUDE.md`'s file-ownership table. T5-7 holds exclusive
+ownership of `app/plant/loader.py` while it is open. The loader is not a spine
+file, and a permanent table entry would overstate a rule that lasts only for
+one task.
+
+**`app/equipment/base.py` stays untouched.** `add_port` exists, `ports` is
+public C1 state, and `reset()` already preserves ports. If implementation seems
+to need a C1 change, that is an escalation; T5-7 does not take the spine lock.
+`app/engine/coupling.py` is also untouched. The coupling already reads whatever
+ports a device has, in order.
+
+**The C3 contract text is amended additively.** Both the build plan's C3 block
+and the C3 row of `CLAUDE.md` name configured-port mode as a ruling that T5-7
+implements.
+
+### C.11 — T5-7 acceptance, and how the test rewrite is checked
+
+- Existing `Vessel` behaviour is unchanged, and every existing vessel, loader,
+  typed-port and coupling test stays green.
+- **A production-configured `Vessel` reproduces the T5-6 shared-node result**:
+  361.15756 GPM, level 0.15217391 and 113.04348 psia. It uses the existing
+  approximate-stability assertions (`rel=1e-6`) and makes no bit-stability
+  claim, because the solver's tolerance band makes that steady state a bounded
+  sawtooth.
+- **The test-only `Separator` subclasses are removed.** Each one is replaced by
+  the production `Vessel` with `direction` added to the same entries:
+
+  | Removed subclass | Configured ports |
+  |---|---|
+  | `TwinVaporOutlets` | `vapor_a` outlet, `vapor_b` outlet |
+  | `FedAndVapors` | `feed` inlet, `vapor_a` outlet, `vapor_b` outlet |
+  | `FedAndDrained` | `feed` inlet, `drain` outlet |
+  | `DrainOnly` | `drain` outlet |
+  | `FeedOnly` | `feed` inlet |
+  | `TwinDrains` | `drain_a` outlet, `drain_b` outlet |
+  | `Separator` | none (base class) |
+
+  `MysteryDevice` is not a vessel and stays. `SeparatorDouble` in
+  `tests/test_typed_ports.py` is a fixed-port `Equipment` double, not a
+  vessel, and stays too.
+- **The collection count is calculated from `pytest --collect-only`, never
+  hand-adjusted.** On `e028280`, each of the seven removed classes contributes
+  9 items to the contract sweep and 1 to the registry sweep. They are in both
+  sweeps only because `test_coupling_aggregation.py` is imported before the
+  sweep modules collect. Removing them takes 70 items away. T5-7 reports the
+  measured total and splits it into that reduction and the tests it added. The
+  `PROJECT_STATE` count table is regenerated from the measurement.
+- **The mutation checks are re-run after the rewrite.** Retiring the subclasses
+  is the moment these checks could silently stop biting. Each mutation is
+  applied temporarily to `app/engine/coupling.py` in the worktree, then
+  reverted. `tests/test_coupling_aggregation.py` must fail on each of:
+  - naive per-port summing;
+  - net-only node aggregation;
+  - counting a node once per port.
+
+  The PR records the outcome.
+- Fixed-port equipment given `direction` is rejected, naming the path.
+- Mixed configured and fixed entries are rejected, naming every offending path.
+  So are a bare string in configured mode and an unknown `direction` value.
+- `reset()` preserves the configured port set, its order and its descriptors.
+- `tests/test_port_name_guard.py` passes. No port name drives behaviour.
+- A fixed-port config round-trips without gaining `direction`. A configured
+  config round-trips with `direction` and order intact.
+- No golden trace moves.
+
+### C.12 — T5-5 corrected: three vessel ports, not four
+
+T5-5's merge criterion said V-101 carries *"a process vapor outlet alongside a
+separate pressure-control outlet"*. That wording is withdrawn. D3.8 settles it:
+
+> One node per phase. Every device exchanging that phase with the vessel takes a
+> branch on that node. The vessel takes one typed port per (phase, direction).
+
+K-101 and PV-101 are **two branches on the one vapor node**, not two vessel
+nozzles. D3.3's aggregation of several branches on a node already covers them,
+and B.3 counts the node once. V-101 therefore takes **three** typed ports:
+
+- a liquid inlet and a liquid outlet, both on its one liquid node (B.3 Case 1,
+  exactly T5-6's `shared_liquid_node` fixture: feed and drain on `N-102`);
+- one vapor outlet on its one vapor node.
+
+The shared liquid node is **not a design value T5-5 chooses**. It follows from
+D3.8's "one node per phase". Every design value is still T5-5's to choose and
+justify: node pressures, sizes, capacities, valve positions and head. T5-5
+uses the production `Vessel` in configured-port mode and writes no test-only
+subclass.
+
+### C.13 — what Amendment 3 does not reopen
+
+These are unchanged:
+- the typed-port vocabulary and its meanings (A.1);
+- `control` is not a controller (A.2);
+- conservation is `phase` + `direction` only (A.3), and the four sums (A.4 as
+  amended by Amendment 2);
+- node accounting, gross components, per-node writes, and `DOMAIN_UNITS`
+  retired (B.1–B.11);
+- phase-first classification;
+- the untyped legacy string and form-preserving round trip (A.6, apart from
+  its second sentence);
+- what `Port` may carry (A.7);
+- manual PV-101 and LV-101 in T5-5, with M8 owning control (D7);
+- no composition (D6);
+- the placement of T7-5.
+
+§7.1 and §7.2 are still not fixed here, and must not be folded in.
+
+After this amendment merges, T5-7 is implemented on Sonnet against C.4–C.11.
+T5-5 then runs against the corrected specification, also on Sonnet.

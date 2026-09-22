@@ -8,17 +8,20 @@ Refresh this file whenever a task merges to `main`.
 
 ---
 
-**Last refreshed:** 20 September 2026 (**T5-6 merged** as `7643281` — the coupling aggregates by node)
-**Current `main`:** `7643281` — *Merge pull request #44 from gareytwin1/feature/coupling-aggregation*
+**Last refreshed:** 21 September 2026 (**ADR 0002 Amendment 3** — T5-7 resequenced before T5-5; documentation only)
+**Current `main`:** `e028280` — *Merge pull request #45 from gareytwin1/docs/t5-6-complete* (documentation only; the last code merge is below)
 **Last code merge:** `7643281` — T5-6, coupling aggregates typed connections (PR #44): the four vessel aggregate flows become sums over the **hydraulic nodes** the vessel attaches to, each counted once; `DOMAIN_UNITS` is retired and classification comes from the declared `phase`. Production change is `app/engine/coupling.py` only. Previous: `8733b1a` — T3-7, typed ports (PR #42): `Port` gains `phase`, `purpose` and optional `control`, typed C3 `ports` entries load and round-trip, and a guard test keeps port names from driving behaviour. Production change is `app/equipment/base.py` and `app/plant/loader.py` only. Previous: `4e48949` T2-6, the scheduler owns simulated time (PR #38); `4ced83c`, `60c252e` and `7aa4e3c` and their neighbours are documentation only. Previous: `06569cc` T2-5 background scheduler (PR #36); `42dc227` T5-3, gas-phase pressure accumulation (PR #35); `fefa841` T7-1, the control valve model (PR #32); `e261134` T4-5, the cause-and-effect assertion suite (PR #29, test-only). Previous: `154385c` T5-2, level to hydraulics coupling and the multi-domain Engine (PR #27). Previous: `0efa5be` T4-4, the solver wired into the engine (PR #25). Previous: `b8af231` T5-1 vessel model (PR #23); `d6a6cfb` T3-4 single-domain reference fixtures (PR #19); `2c08bb8` T3-6 multi-port equipment wiring (PR #20); `11517f6` T3-5 flow-domain declaration (PR #17); `c406ca0` YAML plant loading; previous solver merge `a2a1596` (T4-3)
-**Architecture decisions on `main`:** ADR 0001 ([flow-domain separation](ADR_0001_FLOW_DOMAIN_SEPARATION.md)) with Amendment 1, and **ADR 0002 ([typed ports and the vessel connection model](ADR_0002_TYPED_PORTS.md))**, merged 20 September 2026 as `60c252e` and **amended twice** — Amendment 1, before T3-7, supersedes the single `service` axis with independent `purpose` and `control` descriptors; **Amendment 2, before T5-6, makes the hydraulic node the unit of account** for the aggregation the original record wrote as a sum over ports
+**Architecture decisions on `main`:** ADR 0001 ([flow-domain separation](ADR_0001_FLOW_DOMAIN_SEPARATION.md)) with Amendment 1, and **ADR 0002 ([typed ports and the vessel connection model](ADR_0002_TYPED_PORTS.md))**, merged 20 September 2026 as `60c252e` and **amended three times** — Amendment 1, before T3-7, supersedes the single `service` axis with independent `purpose` and `control` descriptors; **Amendment 2, before T5-6, makes the hydraulic node the unit of account** for the aggregation the original record wrote as a sum over ports; **Amendment 3, before T5-5, puts T5-7 first** and rules that an opted-in device (only `Vessel`) may take its structural port set from configuration — a ruling T5-7 implements, not yet on `main`
 **Full suite on `main`:** **971 passed** (`conda activate plant-simulator && python -m pytest -q`); `python -m mypy` clean over **24 source files**; no golden trace moved
 
-**The next task is [T5-5](#the-next-task-t5-5), the integrated reference
-plant** (Sonnet). T5-6 merged, so both of its blockers are behind it and the
-sequence ADR 0002 sets is complete through the coupling: **T5-6 → T5-5 →
-T5-7 later.** **There is no second architecture phase for T5-5** — its
-design phase already ran and produced ADR 0002. Go straight to construction.
+**The next task is [T5-7](#the-next-task-t5-7), the vessel configurable
+nozzle set** (Sonnet), and **T5-5 is Blocked on it.** The `Vessel` on `main`
+declares only `inlet` and `outlet`, and the loader rejects any other port
+name, so the separator T5-5 needs cannot be wired with the production vessel.
+ADR 0002 Amendment 3 corrected the sequence to **T5-6 → T5-7 → T5-5 → T5-4**,
+and specified T5-7 in full (sections C.4–C.11). **There is still no second
+architecture phase for T5-5.** Once T5-7 merges, T5-5 goes straight to
+construction.
 
 ---
 
@@ -31,12 +34,12 @@ design phase already ran and produced ADR 0002. Go straight to construction.
 | **M2** Simulation Engine and Clock | **6/6 Complete** — T2-5 `06569cc`, T2-6 `4e48949` |
 | **M3** Plant Topology and Streams | **7/7 Complete** — T3-7 (typed ports) merged as `8733b1a` |
 | **M4** Pressure-Flow Network Solver | **5/5 Complete** — Checkpoint B reached; T4-5 was re-scoped before implementation, see [The T4-5 re-scope](#the-t4-5-re-scope) |
-| **M5** Inventory and Mass Balance | 4/7 — T5-1, T5-2, T5-3, T5-6 Complete. **T5-5 is the next task** and is now startable; **T5-4 and T5-7 wait on it**. Every spine lock is released, `app/engine/coupling.py` included |
+| **M5** Inventory and Mass Balance | 4/7 — T5-1, T5-2, T5-3, T5-6 Complete. **T5-7 is the next task** and is startable; **T5-5 is Blocked on T5-7**, and T5-4 waits on T5-5. Every spine lock is released, `app/engine/coupling.py` included |
 | **M7** Control Valves and Final Elements | 1/5 — T7-1 Complete; **T7-3 and T7-4 startable**; T7-2 also needs T5-5; **T7-5 (relief device) is new and now startable** (T3-7 merged), and blocks nothing |
 | M6, M8–M19 | Not started |
 
 Overall: **35 of 101 tasks Complete.** T5-6 merged; the count was 34 before it.
-Nothing is Blocked: T5-6 was the last task holding another one up.
+**One task is Blocked: T5-5, on T5-7** (ADR 0002 Amendment 3).
 
 ### Completed and merged to `main`
 
@@ -260,6 +263,23 @@ Build-plan changes it made, now applied to the live artifact and both durable
 copies: **T3-7**, **T5-6**, **T5-7** and **T7-5** added; **T5-5** gained T3-7
 and T5-6 and a steady-state acceptance criterion; **T5-4** re-sequenced after
 T5-5 and given the conservation-identity convention.
+
+**Amendment 3 (21 September 2026) corrected the sequencing.** Section 6 had
+said *"T5-7 does not block the separator fixture"*, and that was false. The
+production `Vessel` has only `inlet` and `outlet`, and T5-6's tests hid this
+behind test-only `Separator(Vessel)` subclasses. The graph is now **T5-6 →
+T5-7 → T5-5**: T5-7 depends on T5-6, and T5-5 depends on T3-4 and T5-7. T5-5's
+explicit T5-2, T3-7 and T5-6 edges were removed as transitive. The amendment:
+
+- amends A.6 and the `CLAUDE.md` invariant, so that an opted-in device (only
+  `Vessel`, through a class-level `accepts_configured_ports` declaration) may
+  take its structural port set, with `direction` on every typed entry, from
+  C3;
+- corrects T5-5 to **three** vessel ports, because K-101 and PV-101 are two
+  branches on one vapor node, not two nozzles;
+- specifies T5-7 in sections C.4–C.11.
+
+It is **a ruling, not yet implemented.**
 
 #### ADR 0001 — flow-domain separation
 
@@ -551,7 +571,7 @@ and publishes. T5-2 and T5-3 landed the coupling, and T2-5/T2-6 gave the
 scheduler ownership of simulated time.
 
 **Checkpoint C (M5, M6 and M7 complete) is the next one, and it is not close.**
-M6 has not started, M5 is 3/7 with T5-5 blocked, and M7 is 1/5.
+M6 has not started, M5 is 4/7 with T5-5 blocked on T5-7, and M7 is 1/5.
 
 ## Handoff: the next agents
 
@@ -645,7 +665,7 @@ Two things it did not do:
   relief or vent outlet sums into `gas_outlet_flow` exactly as a process outlet
   does.
 
-**One thing to carry into T5-5.** **ADR 0002 §2.2's numbers**
+**One thing to carry into T5-7 and T5-5.** **ADR 0002 §2.2's numbers**
 (level 0.12335, 78.140 psia, 357.414 GPM) come from a probe configuration
 that was never recorded and could not be reproduced from the record. T5-6's
 shared-node fixture builds the same idiom with round design values and pins
@@ -660,10 +680,39 @@ probe. Do not try to hit them.
 **T5-4 follows T5-5**, not T5-2 — see *T5-4 and the conservation identity*
 below.
 
-### The next task: T5-5
+### The next task: T5-7
 
-**Start T5-5 now.** T3-7 and T5-6 have both merged, so everything it is
-written against is frozen on `main`.
+**Start T5-7 now.** Its only dependency, T5-6, is merged. It is specified in
+full by [ADR 0002 Amendment 3](ADR_0002_TYPED_PORTS.md#amendment-3--t5-7-comes-before-t5-5-and-a-vessel-may-take-its-ports-from-configuration),
+sections C.4–C.11. Implement that; do not redesign it.
+
+| | |
+|---|---|
+| **Branch** | `feature/vessel-nozzles` |
+| **Files** | `app/equipment/vessel.py`, `app/plant/loader.py`, `config/schema/plant.schema.json` (description text only), `tests/test_typed_ports.py`, `tests/test_vessel.py`, `tests/test_coupling_aggregation.py`, `CLAUDE.md`, `docs/ADR_0002_TYPED_PORTS.md`, `docs/ARCHITECTURE.md`, `docs/PROJECT_STATE.md`, `docs/BUILD_PLAN.html`, `docs/BUILD_PLAN_STATUS.json` |
+| **Model** | **Sonnet** |
+| **Lock** | **Exclusive ownership of `app/plant/loader.py`** while open. No spine lock: `base.py` and `coupling.py` stay untouched, and needing either is an escalation |
+
+**What it builds.**
+- `Vessel` opts in with a class-level declaration.
+- A `ports` map whose every entry is a typed object carrying `direction`
+  replaces the vessel's default ports, in config order.
+- No `direction` anywhere keeps the fixed ports, exactly as today.
+- `direction` on only some entries, or on fixed-port equipment, is rejected
+  with path-named errors.
+- `reset()` preserves the configured set, and `to_config()` round-trips it.
+
+**What it proves.**
+- The seven test-only `Separator` subclasses are removed, and a
+  production-configured `Vessel` reproduces T5-6's shared-node steady state.
+- The mutation checks still bite.
+- The collected-test count is re-measured and explained, not hand-adjusted.
+  The seven classes account for 70 sweep items.
+
+### After T5-7: T5-5
+
+**T5-5 is Blocked on T5-7** and starts the moment T5-7 merges. Everything it
+is written against is otherwise frozen on `main`.
 
 | | |
 |---|---|
@@ -671,6 +720,14 @@ written against is frozen on `main`.
 | **Files** | `config/plants/olefins_lite.yaml` |
 | **Model** | **Sonnet** |
 | **Lock** | None — it creates a config file nothing else owns yet |
+
+**V-101 takes exactly three typed ports**, on the production `Vessel` in
+configured-port mode:
+- a liquid inlet and a liquid outlet on its one liquid node;
+- one vapor outlet on its one vapor node.
+
+K-101 and PV-101 are two branches on that vapor node, not two vessel nozzles
+(ADR 0002 §3.8, Amendment 3 C.12).
 
 #### T5-5 resumes at construction, not at design
 
@@ -681,14 +738,14 @@ investigation against `f8aab59` was asked to confirm the train's intent before
 writing design values"* — and it is a record of work that finished, **not a
 template for doing it again**.
 
-T5-6 has merged, so T5-5 goes straight into plant construction:
+Once T5-7 has merged, T5-5 goes straight into plant construction:
 write `config/plants/olefins_lite.yaml`, choose and justify design values, size
 the train, write the tests, meet the acceptance criteria. Every structural
 question is already answered and is to be *implemented*, not reopened:
 
 | Question | Settled by |
 |---|---|
-| How is the vessel wired? | Shared-node idiom — one node per phase (ADR 0002 §3.8) |
+| How is the vessel wired? | Shared-node idiom — one node per phase, three typed ports on the production `Vessel` in configured-port mode (ADR 0002 §3.8, Amendment 3) |
 | What does a port declare? | `phase`, `purpose` and an optional `control`, delivered by T3-7 (§3.1–3.2 as amended by Amendment 1) |
 | How do several nozzles combine? | Summed over the **nodes** they attach to, each counted once, delivered by T5-6 (§3.3 as amended by Amendment 2) |
 | Are the valves controlled? | No. PV-101 and LV-101 are **manual at fixed position**; M8 owns the loops (§3.7) |
@@ -832,16 +889,17 @@ All dependencies are Complete. T12-1 adds a *new* isolated module under
 `app/engine/`, which is satellite work under the **`app/engine/` rule** in
 CLAUDE.md.
 
-**Changes since the last refresh:** **T5-6 merged and left the list**, which
-unblocked **T5-5** — the next task, and the one to start. Nothing is Blocked
-any more. T5-4 and T5-7 now wait on T5-5 alone (ADR 0002 section 8.2). T7-3
+**Changes since the last refresh:** ADR 0002 **Amendment 3 resequenced T5-7
+before T5-5.** **T5-7 joined the list** as the next task, and the one to
+start. **T5-5 left it and is Blocked on T5-7.** The count is unchanged at 20.
+T7-3
 edits `app/equipment/valve.py` and should not run beside another valve
 change; T5-5 creates `config/plants/olefins_lite.yaml`, which T7-2, T8-3,
 T9-2 and T11-1 will later edit, so it should land before any of them.
 
 | Task | Name | Model | Branch |
 |---|---|---|---|
-| **T5-5** | **Integrated reference plant** *(start here)* | **Sonnet** | `feature/integrated-plant` |
+| **T5-7** | **Vessel configurable nozzle set** *(start here)* | **Sonnet** | `feature/vessel-nozzles` |
 | **T6-1** | Stream enthalpy and mixing | Opus | `feature/stream-enthalpy` |
 | **T7-3** | Valve fault modes | Sonnet | `feature/valve-faults` |
 | **T7-4** | Command arbitration | Sonnet | `feature/command-arbitration` |
@@ -862,8 +920,9 @@ T9-2 and T11-1 will later edit, so it should land before any of them.
 | **T15-4** | Score persistence | Haiku | `feature/score-store` |
 | **T17-1** | Ring-buffer historian | Haiku | `feature/historian` |
 
-**Waiting, and on what:** **T5-4** (mass balance suite) and **T5-7** (vessel
-configurable nozzle set) both wait on T5-5, and nothing else is held up.
+**Waiting, and on what:** **T5-5** (integrated reference plant) is
+**Blocked** on T5-7. **T5-4** (mass balance suite) waits on T5-5, as do T7-2,
+T8-3, T9-2 and T11-1 (each also waits on other tasks).
 
 Working rules for every one of them: one worktree per task branched from
 `origin/main`; full suite **and** `python -m mypy` green before review; small

@@ -1,7 +1,7 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
-  "refreshed": "20 September 2026",
-  "main_sha": "764328107726d873ec048748d5a5ad7cfe9d166a",
+  "refreshed": "21 September 2026",
+  "main_sha": "e028280cc2a1d3167ed1bacfd569106105075cca",
   "tests_passing_on_main": 971,
   "status_vocabulary": {
     "Not Started": "No work begun",
@@ -716,17 +716,18 @@
       "branch": "feature/integrated-plant",
       "depends_on": [
         "T3-4",
-        "T5-2",
-        "T3-7",
-        "T5-6"
+        "T5-7"
       ],
       "files": [
         "config/plants/olefins_lite.yaml"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true,
-      "note": "UNBLOCKED 20 Sep 2026 - T3-7 (8733b1a) and T5-6 (7643281) are both merged, so this is now the next task. Agent: Sonnet. THE ARCHITECTURE IS SETTLED - GO STRAIGHT TO CONSTRUCTION. T5-5's design phase already ran and its output is docs/ADR_0002_TYPED_PORTS.md; section 1 of that ADR describes the investigation in the past tense and is NOT a template for a second one. Write config/plants/olefins_lite.yaml, choose and justify design values, size the train, write the tests, meet the acceptance criteria. Every structural question is already answered: how the vessel is wired (shared-node idiom, one node per phase), what a port declares (phase, purpose and optional control, T3-7), how flows aggregate (sums over the NODES the vessel attaches to, each counted once, classified by phase and direction alone - T5-6 and ADR 0002 Amendment 2, which supersedes the sum-over-ports wording of D3.3 and A.4), that PV-101 and LV-101 are MANUAL with no controller (M8 owns the loops), and that composition, flash and component balances stay out of V1. Implement those; do not revisit them. The ONE thing that warrants stopping: if no choice of design values gives both a credible cold start and a credible running point, that is the missing check valve (ADR 0001 section 2.9 and Known technical debt in PROJECT_STATE) - escalate it as its own task rather than redesigning the connection model or shortening a test horizon to hide it. ADR 0002 section 7.3 is this task's: cold-start pump backflow and K-101 reversal are fixed by choosing design values, and the fixture now has a control valve on each phase. NUMERIC WARNING FROM T5-6: ADR 0002 section 2.2's constants (level 0.12335, 78.140 psia, 357.414 GPM) come from a probe configuration that was never recorded and could not be reproduced - do not try to hit them. tests/test_coupling_aggregation.py builds the same shared-node idiom with round design values and reaches a self-regulating, unclamped steady state that is stable to about 4e-8 relative but NOT bit-stable, because the solver's tolerance band lets the level creep and snap in a bounded sawtooth. Acceptance is a genuine steady state with no bounded test horizon, plus: changing PV-101 or LV-101 position changes vessel pressure or level in the expected direction. Still owns creation of config/plants/olefins_lite.yaml, which T7-2, T8-3, T9-2 and T11-1 edit."
+      "status": "Blocked",
+      "status_key": "block",
+      "startable": false,
+      "blocked_by": [
+        "T5-7"
+      ],
+      "note": "BLOCKED 21 Sep 2026 on T5-7 by docs/ADR_0002_TYPED_PORTS.md Amendment 3. The Vessel on main declares only inlet and outlet, and the loader rejects any configured port name a device lacks and any unwired device port, so the separator cannot be wired with the production Vessel until T5-7 gives it a configured port set. Do NOT work around this with a test-only Vessel subclass. Dependencies are now T3-4 and T5-7; T5-7 carries T5-6, which carries T3-7 and T5-2, so those edges were removed as transitive. PORT COUNT CORRECTED: V-101 takes exactly THREE typed ports - a liquid inlet and a liquid outlet on its one liquid node, and one vapor outlet on its one vapor node (ADR 0002 section 3.8: one node per phase, one typed port per (phase, direction)). K-101 and PV-101 are two branches on the vapor node, not two vessel nozzles; the earlier 'separate pressure-control outlet' wording is withdrawn. Everything else stands: THE ARCHITECTURE IS SETTLED, and once T5-7 merges this task goes straight to construction on Sonnet. Write config/plants/olefins_lite.yaml, choose and justify design values, size the train, write the tests. PV-101 and LV-101 are MANUAL, with no controller. ADR 0002 section 7.3 is this task's: fix cold-start backflow and K-101 reversal by choosing design values. If no choice of values gives both a credible cold start and a credible running point, escalate the missing check valve as its own task. NUMERIC WARNING FROM T5-6: do not try to hit ADR 0002 section 2.2's unreproducible constants. The shared-node idiom pins 361.15756 GPM at level 0.15217391 and 113.04348 psia, stable to about 4e-8 relative but NOT bit-stable. Still owns creation of config/plants/olefins_lite.yaml, which T7-2, T8-3, T9-2 and T11-1 edit."
     },
     {
       "id": "T5-6",
@@ -753,18 +754,26 @@
       "category": "dep",
       "branch": "feature/vessel-nozzles",
       "depends_on": [
-        "T5-5"
+        "T5-6"
       ],
       "files": [
-        "app/equipment/vessel.py"
+        "app/equipment/vessel.py",
+        "app/plant/loader.py",
+        "config/schema/plant.schema.json",
+        "tests/test_typed_ports.py",
+        "tests/test_vessel.py",
+        "tests/test_coupling_aggregation.py",
+        "CLAUDE.md",
+        "docs/ADR_0002_TYPED_PORTS.md",
+        "docs/ARCHITECTURE.md",
+        "docs/PROJECT_STATE.md",
+        "docs/BUILD_PLAN.html",
+        "docs/BUILD_PLAN_STATUS.json"
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "T5-5"
-      ],
-      "note": "NEW, added 20 Sep 2026 by docs/ADR_0002_TYPED_PORTS.md section 8.1. Waits on T5-5 deliberately (ADR 0002 section 6): generalising the vessel to an arbitrary configured nozzle set before the typed connection contract has been proven by a real separator fixture would be designing against an untested contract. It does not block T5-5 and nothing waits on it."
+      "startable": true,
+      "note": "RESEQUENCED 21 Sep 2026 BEFORE T5-5 by docs/ADR_0002_TYPED_PORTS.md Amendment 3, and now startable: its only dependency, T5-6, is Complete (7643281). The original ADR section 6 claim that this task did not block the separator fixture was false. The production Vessel has only inlet and outlet, and T5-6 hid that behind test-only Separator subclasses. This is C3 contract work: EXCLUSIVE OWNERSHIP of app/plant/loader.py while open. Agent: Sonnet, implementing Amendment 3 sections C.4 to C.11 as written; do not redesign it. base.py and coupling.py stay untouched - escalate if either seems to need a change. AFTER THIS MERGES: T5-5 runs against the corrected spec, also on Sonnet, using the production Vessel in configured-port mode with three typed ports."
     },
     {
       "id": "T6-1",

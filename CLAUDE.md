@@ -2,11 +2,19 @@
 
 Operating context for Claude Code sessions working in this repository — read
 this first. Which model should be running a given task is itself a rule here:
-see [Agent model guidance](#agent-model-guidance). It is stable: architectural invariants and working
-rules, not current status.
+see [Agent model guidance](#agent-model-guidance). This file is stable —
+architectural invariants and working rules, not current status.
 
-**For what is true right now** — current `main`, test count, which branches are
-in flight, what to work on next — read [docs/PROJECT_STATE.md](docs/PROJECT_STATE.md).
+**For what is true right now** — current `main`, what to work on next, open
+decisions — read [docs/PROJECT_STATE.md](docs/PROJECT_STATE.md).
+
+`.claude/rules/*.md` carries rules scoped to specific paths (engine, plant
+config, Python style, docs ownership) — meant to load when you open a matching
+file with `Read`, though this has not been independently confirmed in every
+environment, and a file only touched through `Bash`/`grep`/`sed` never
+triggers it. They are not listed in the reading order below for that reason;
+see [.claude/rules/docs.md](.claude/rules/docs.md) for which invariants get a
+CLAUDE.md-level backstop because of it.
 
 ## Reading order for a new session
 
@@ -17,7 +25,9 @@ in flight, what to work on next — read [docs/PROJECT_STATE.md](docs/PROJECT_ST
    [live artifact](https://claude.ai/artifact/DXqzpwKxeKZNzZGrC3HkQ9).
 4. **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — if you are touching a
    spine file or any interface.
-5. **[DEVELOPMENT.md](DEVELOPMENT.md)** — branch, worktree, and merge procedure.
+5. **If this session will write any code: [DEVELOPMENT.md](DEVELOPMENT.md)
+   before touching a file.** Create the worktree first — this repo has already
+   lost a commit to a branch race from skipping that step.
 6. **The relevant source and tests.**
 7. Begin work.
 
@@ -65,7 +75,9 @@ its own task, never as a side effect.
 
 C5–C8 exist **only as specifications in the build plan**. Do not write code that
 assumes they exist, and do not invent your own version of them — read the
-contract text in the build plan first.
+contract text in the build plan first. **Do not write documentation, comments,
+or code that implies controllers, alarms, envelopes, or scoring already
+exist** — none of them do yet.
 
 ## Critical architectural invariants
 
@@ -92,53 +104,29 @@ Violating any of these is a contract break, not a style preference.
   device at that flow, with slow state wherever `integrate` left it. Positive is
   a rise (machine), negative is a drop (valve, pipe). It mutates nothing, so the
   solver may call it as many times per timestep as its iteration needs.
+- **The curve must be monotone non-increasing in flow, everywhere.** This is
+  what gives the branch equation exactly one root; a device that violates it
+  can break Newton-Raphson convergence for the whole plant, not just itself.
+  Full convention (signed flow, `signed_square`, the residual formula) is in
+  [.claude/rules/engine.md](.claude/rules/engine.md).
 - `get_state()` returns flat, JSON-safe primitives — the device's row in the
   snapshot.
 - `reset()` restores construction state exactly. Port wiring survives it; the
   topology owns wiring.
 
-**A connection is described, never inferred (C1, T3-7).**
-- A port carries `direction`, `phase` (`liquid` | `vapor`), `purpose`
-  (`process` | `vent` | `drain` | `relief`) and an optional `control` (`flow` |
-  `pressure` | `level` | `temperature`). `phase` `mixed` is reserved and
-  refused at load. See [docs/ADR_0002_TYPED_PORTS.md](docs/ADR_0002_TYPED_PORTS.md),
-  Amendment 1, which supersedes that record's single `service` axis.
-- **Port names are identifiers only.** A name exists for humans, configuration
-  and diagnostics and **never drives engineering behaviour** — no code branches
-  on a port being called `suction`, `drain` or anything else.
-  `tests/test_port_name_guard.py` fails the build if any does.
-- **`phase` and `direction` own conservation classification.** They, and
-  nothing else, decide which balance a connection belongs to.
-- **`purpose` never changes a balance.** It is descriptive physical-role
-  metadata. A vapor withdrawal is a vapor withdrawal whether it is labelled
-  `process`, `vent` or `relief`.
-- **`control` never changes a balance.** It is descriptive control-role
-  metadata, and it is deliberately not called `controller`. A controller may
-  later read it to find the final element it manipulates, but controller
-  execution is M8 and **does not exist yet**.
-- `purpose` and `control` are **orthogonal**: a level-controlled drain declares
-  both, a manual drain declares only `purpose`. Never collapse them back into
-  one field.
-- Typing comes from **configuration**, never from a device class. **Fixed-port
-  equipment** — every device except `Vessel` — declares its ports by name and
-  direction in its class, and the C3 loader puts the descriptors on the
-  runtime `Port`. An `isinstance(device, ...)` or a port-name test that
-  decides a phase is the inference T3-7 exists to retire.
-- **Configured-port mode (ADR 0002 Amendment 3, T3-7).** A device class may
-  instead opt in — only `Vessel` does, through a class-level
-  `accepts_configured_ports` marker — to receiving its structural port set
-  from C3. In that mode configuration supplies `direction` on every port, as
-  a typed entry, and the loader builds the device's ports from them, in
-  config order, replacing its default set. No `direction` anywhere keeps the
-  fixed ports. `direction` on only some entries, or on fixed-port equipment,
-  is rejected, naming every offending path. `accepts_configured_ports` is an
-  internal capability marker, not a design value: `design` may not set it, on
-  any device.
-- T3-7 built this vocabulary; **T5-6 consumes it.** The coupling classifies a
-  connection from its declared `phase`, and aggregates the exchange of each
-  hydraulic **node** exactly once — not once per port. See
-  [docs/ADR_0002_TYPED_PORTS.md](docs/ADR_0002_TYPED_PORTS.md), Amendment 2.
-  `purpose` and `control` are read nowhere on that path.
+**A connection is described, never inferred (C1, T3-7).** A port carries
+`direction`, `phase` (`liquid` | `vapor`), `purpose` (`process` | `vent` |
+`drain` | `relief`) and an optional `control` (`flow` | `pressure` | `level` |
+`temperature`). **Port names are identifiers only** — never behaviour; no code
+branches on a port being called `suction`, `drain` or anything else, and
+`tests/test_port_name_guard.py` fails the build if any does. **Only `phase` and
+`direction` classify a connection or participate in conservation; `purpose` and
+`control` are descriptive and never change a balance.** Typing comes from
+**configuration**, never from a device class — an `isinstance(device, ...)`
+check or a port-name test that decides a phase is exactly the inference this
+rule exists to retire. Full mechanics, including configured-port mode (only
+`Vessel` opts in), live in
+[.claude/rules/plant-config.md](.claude/rules/plant-config.md).
 
 **Time is owned, not observed.**
 - **Never call `time.time()`** or any wall-clock source inside a model. Simulated
@@ -149,20 +137,21 @@ Violating any of these is a contract break, not a style preference.
   `simulation_speed`.
 - Determinism is a hard requirement: same config, same seed, same sequence of
   `step(dt)` calls must give bit-identical state forever.
-- **Randomness comes only from a `SeededRNG`** (`app/engine/rng.py`, T2-2). No
-  other module in `app/` may import `random` —
-  `tests/test_random_source_guard.py` fails the build if one does. There is
-  deliberately no global generator: each session owns its own plant, so a
-  process-wide stream would leak draws between sessions. Which object owns a
-  plant's RNG is undecided; the first task that needs randomness decides it.
+- **Randomness comes only from a `SeededRNG`.** No other module in `app/` may
+  import `random` — `tests/test_random_source_guard.py` fails the build if one
+  does. Full reasoning (why no global generator) in
+  [.claude/rules/engine.md](.claude/rules/engine.md).
 
 **Snapshot is the read contract.**
 - `Snapshot` (C4) is the only thing downstream consumers read — historian,
   console, trends, scoring, scenarios. It is immutable: every mapping is a
   `MappingProxyType` over a deep copy.
-- Sections with no subsystem yet (`nodes`, `streams`, `controllers`, `envelope`,
-  `alarms`) are present but empty by design. The shape is frozen now so the UI
-  and game layers can be built before the physics behind them exists.
+- `controllers`, `envelope` and `alarms` are present but empty by design —
+  those subsystems don't exist yet, and the shape is frozen now so the UI and
+  game layers can be built before the physics behind them exists. `nodes` and
+  `streams` are **not** in that category: they carry real solved numbers for
+  any `Engine` built from a plant (since T4-4) — see
+  [ARCHITECTURE.md](docs/ARCHITECTURE.md) for the current vs. target split.
 
 **Golden regressions protect existing physics.**
 - `tests/fixtures/golden/*.json` pin the current numbers. Tolerances
@@ -174,105 +163,11 @@ Violating any of these is a contract break, not a style preference.
 - Regenerating is legitimate only for non-numeric changes (e.g. a recorded
   command-description string that names a renamed attribute).
 
-## Current runtime vs. target architecture
-
-**This distinction matters more than anything else in this file.** Documentation
-that blurs it has repeatedly misled sessions into assuming the solver exists.
-
-**What the application actually does today (since T4-4, Checkpoint B; scheduler
-ownership since T2-6):**
-
-The solver is on the request path, but a browser no longer drives it.
-`Session` holds one `Engine` per page over a small single-device plant built
-through the C3 loader, and now also one `Scheduler` per Engine
-(`compressor_scheduler`, `pump_scheduler`), constructed inert and started only
-by the route that renders the page displaying that machine — `/compressor`
-starts `compressor_scheduler`, `/pump` starts `pump_scheduler`, never both for
-one Session. Once started, that worker steps its Engine on its own cadence
-(`app/engine/scheduler.py`) regardless of whether anything is polling it: it
-advances the clock, integrates every device by the elapsed simulated time,
-solves the plant's network, and publishes a `Snapshot`. `/api/state` and
-`/api/pump/state` only read the latest published `Snapshot`; the frontend
-polls them and no longer steps anything itself. `/api/step` and
-`/api/pump/step` remain as manual, test-facing controls and step exactly as
-before while the matching scheduler is stopped, but return HTTP 409 while it
-is running rather than racing a manual step against the background worker. A
-Session's schedulers run until `Session.end()` stops and joins both — called
-directly, by `SessionRegistry.end()`, or by capacity-bounded LRU eviction
-(`config.MAX_SESSIONS`) when a new session is created with the registry full.
-There is deliberately no idle-age expiry yet; that is T18-5's scope, not
-T2-6's. `SessionRegistry` still gives each browser its own instance.
-
-**The legacy per-device operating point is gone.** `step()`,
-`_calculate_operating_point()` and the `upstream_boundary_pressure` /
-`downstream_boundary_pressure` attributes were removed from both
-`GasCompressor` and `CentrifugalPump` at T4-4. A device publishes a curve and
-nothing else: **flow, suction pressure and discharge pressure are solver
-outputs**, held on the branch and its nodes, and they do not exist as device
-attributes. `get_state()` returns slow state only; the snapshot's `nodes` and
-`streams` sections carry the solved numbers.
-
-**What this bought and what it cost.** The single-device pages lost the suction
-and discharge line resistances and the `max_flow` clamp, which lived only in
-the retired standalone solve. Until T7-1 gives the control valve a branch of
-its own, a page's machine runs against two fixed battery limits with nothing
-between them: flow reads well above `max_flow`, the discharge valve strokes
-but changes nothing hydraulically, and the process spread sits at the boundary
-difference. That is a known interim state, not a bug to fix in passing.
-
-**Inventory is coupled to the hydraulics (since T5-2).** `Engine.from_plant`
-wires one `NetworkSolver` per entry in `Plant.topologies`, so a multi-domain
-plant runs. What joins two domains is a coupling device's inventory, never a
-shared flow variable: a vessel's `head_at_full * level` is *added to* the
-`configured_pressure` of the boundary node an OUTLET port attaches to, and
-its flows are read back as the signed exchange at each attachment node. A
-step is clock → integrate → write boundaries → solve every domain → read
-flows back → snapshot. That is explicit Euler with one step of lag on the
-vessel's flows; nothing iterates between the integrator and the solver.
-
-`app/engine/coupling.py` owns that join and is the only place it lives. A
-device still never reads a node or a branch, and `Node.set_boundary_pressure`
-(C2, added at T5-2) refuses on an internal node, so the solver's writer and
-the coupling's writer partition the graph between them. Gas-phase
-accumulation (T5-3) puts a gas vessel's pressure on the same footing: it
-replaces the boundary at every SCFM attachment node.
-
-**The node is the unit of account, not the port (T5-6, ADR 0002 Amendment
-2).** A port has no hydraulic flow of its own — the exchange belongs to the
-node — so each node is counted **exactly once** however many nozzles a
-vessel declares on it, for reading a flow and for writing a boundary
-pressure alike. Distinct nodes are independent and **sum**: two vapor
-withdrawals on two nodes are two withdrawals. A node where the device
-declares both an inlet and an outlet keeps its gross components — signed
-`arrivals` into the inlet aggregate, signed `departures` into the outlet one
-— so a vessel fed and drained through one node keeps its throughput at a net
-of zero. A node declaring one direction keeps its net. Both are signed sums
-over branch orientation; nothing is clamped, so a reversed feed arrives
-negatively. If any node feeding an aggregate sits in a domain that did not
-converge, that **whole** aggregate holds its previous value.
-
-**Phase classifies; machines confirm; domain names mean nothing.** A port's
-declared `phase` picks the unit (`liquid` GPM, `vapor` SCFM) and the machines
-at its node are checked against it, so `DOMAIN_UNITS` is retired and a domain
-may be called `vent`, `flare` or anything else. **A new device model on a
-branch must be added to `FLOW_UNITS`**, as a unit or as `UNIT_NEUTRAL` — a
-resistance confirms nothing, but an *unrecognised* device still refuses at
-Engine construction, and so does a declared phase the machines contradict. A
-legacy untyped port is still read off the machines beside it, and is refused
-where they settle nothing. A typed attachment couples even with no branch at
-the node. One node has at most one inventory device: two vessels on a node
-refuse.
-
-**Still not on the request path:** `EquipmentRegistry`, `SeededRNG` (T2-2).
-
-**Do not write documentation, comments, or code that implies controllers,
-alarms, envelopes, or scoring already exist.**
-
 ## Development rules
 
 - **One git worktree per task.** Never let parallel agents share one checkout —
   this repo has already lost a commit to a branch race, which is why the rule
-  exists.
+  exists. Full procedure: [DEVELOPMENT.md](DEVELOPMENT.md).
 - **Spine files take one branch at a time.** Satellites build against frozen
   contracts and merge independently.
 - **Rebase satellites onto `main` after every spine merge.** Never merge `main`
@@ -346,45 +241,14 @@ Bad: `update files` · `fixes` · `misc changes` · `work in progress`
 | Path | Rule |
 |---|---|
 | `app/equipment/base.py` | **Spine** — one branch at a time, no satellite edits |
-| `app/engine/` | **Spine** for its existing modules — one branch at a time. A new isolated module here can be satellite work; see the rule below. |
+| `app/engine/` | **Spine** for its existing modules — one branch at a time. A new isolated module here can be satellite work; see [.claude/rules/engine.md](.claude/rules/engine.md). |
 | `app/plant/topology.py` | **Spine** — one branch at a time |
 | `app/main.py` | **Highest-conflict file.** Exactly one branch at a time until the C5 single action endpoint lands. Release it immediately after merging. |
 | `app/config.py` | **Append-only** — add a clearly-headed section, never reorder |
 | `config/schema/plant.schema.json` | Shared — each top-level key has one owner |
+| `config/plants/*.yaml` | Shared — each top-level key has one owner |
 | `tests/fixtures/golden/*.json` | Regenerate only with explicit justification |
 | `static/compressor.js`, `static/pump.js` | **Frozen** — replaced wholesale at M16. Do not invest in them. |
-
-### The `app/engine/` rule
-
-Existing spine modules and interfaces require the spine lock. A **new isolated
-module** under `app/engine/` may be developed as a satellite when the build-plan
-task explicitly owns that new file and does not modify an existing spine
-interface or module. That is how `rng.py` (T2-2) and `network.py` (T4-2)
-landed, and it is what the build plan intends for `scheduler.py` (T2-5) and
-`persistence.py` (T12-1).
-
-The existing spine modules there are `clock.py`, `engine.py`, `snapshot.py` and
-`sessions.py`. `coupling.py` (T5-2) is a new module but landed inside a spine
-task, because the Engine change and the coupling are one design. **If a satellite task discovers that it must modify one of them,
-it stops and escalates or acquires the spine lock; it does not expand scope
-silently.** T4-3 (`snapshot.py`) and T4-4 (`engine.py`) are spine tasks for
-exactly this reason.
-
-## How to start a task
-
-1. `git fetch origin`
-2. Read [docs/PROJECT_STATE.md](docs/PROJECT_STATE.md) and the build plan task.
-3. Confirm every dependency is **Complete** (merged to `main`), not merely written.
-4. Create a worktree:
-   `git worktree add ../plant-simulator-<task> -b <type>/<name> origin/main`
-5. Implement against the **frozen contract**, not against another branch's
-   in-progress code.
-6. Run the full suite and the type check: `python -m pytest -q && python -m mypy`
-7. `git fetch origin && git rebase origin/main`
-8. Run both again.
-9. Open a PR titled `T{TASK-ID}: Brief description`.
-10. Update the build plan: **Ready for Review** at PR time, **Complete** with the
-    merge SHA only after it is merged to `main`.
 
 ## Commands
 
@@ -415,49 +279,13 @@ documentation or scripts.
 `conftest.py` only customizes pytest's status glyphs (✓ / ✗ / ○). It defines no
 fixtures.
 
-## Code style
+## Code style and typing
 
-Match the surrounding code:
-
-- 4-space indent, no docstrings on equipment methods.
-- Multi-line call formatting with trailing commas.
-- Blank lines between logical blocks.
-- Comments are rare — naming carries the explanation. Module-level docstrings
-  explaining *why* a module exists are the exception and are welcome on spine
-  files.
-- Tests are flat `def test_*` functions, no classes, `pytest.approx` for every
-  float comparison.
-
-### Typing
-
-**Type hints are required in new and modified production code under `app/`.**
-This replaces the project's earlier "no type hints" rule: the interfaces the
-solver milestones build against are worth stating explicitly, and they were
-brought under a checker before M4 grew the architectural surface further.
-
-- Public functions, methods, constructors and return values are typed. `-> None`
-  counts.
-- Type the attributes that carry the interface — `Equipment.tag`,
-  `Equipment.ports`, a collection that holds devices. Not every attribute.
-- Prefer Python 3.12 built-ins and unions: `list[str]`, `dict[str, float]`,
-  `str | None`. Never `typing.List` or `Optional`.
-- Do not annotate obvious locals to raise coverage. Annotate one only where
-  inference genuinely needs help, e.g. `errors: list[str] = []`.
-- `Any` needs a reason stated beside it. Decoded JSON of a shape nothing knows
-  yet is a reason; silencing the checker is not.
-- The JSON-safe row every `get_state()` returns is `StateRow` in
-  `app/statetypes.py`. Use it rather than a hand-rolled dict type — a dict
-  return type is invariant, so a device narrowing its row to
-  `dict[str, float]` would not be a valid override.
-- Tests may stay lightly typed; annotate one only where it makes the test
-  clearer. `mypy` is not configured over `tests/`.
-- New code passes `python -m mypy` before review. The configuration lives in
-  `pyproject.toml` — do not loosen it to land a change; propose a change to it
-  as its own task.
-
-Existing production code is typed; new modules join the checked scope by
-default. `app/config.py` carries no annotations because its constants infer
-exactly.
+Type hints are **required** in new and modified production code under `app/`;
+match the surrounding code's formatting otherwise. Full rules — what must be
+typed, `Any` policy, style details — are in
+[.claude/rules/python.md](.claude/rules/python.md), scoped to `app/**/*.py` and
+`tests/**/*.py`.
 
 ## Where authoritative state lives
 
@@ -471,3 +299,4 @@ exactly.
 | How do current and target architecture differ? | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
 | How do I branch, test, and merge? | [DEVELOPMENT.md](DEVELOPMENT.md) |
 | What units does a number carry? | [docs/UNITS_CONVENTION.md](docs/UNITS_CONVENTION.md) |
+| Which doc owns which fact? | [.claude/rules/docs.md](.claude/rules/docs.md) |

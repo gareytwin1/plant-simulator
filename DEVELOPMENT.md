@@ -12,7 +12,8 @@ depend on frozen interface contracts.
 | Document | Purpose |
 |---|---|
 | [CLAUDE.md](CLAUDE.md) | Architectural invariants and agent operating rules — **read first** |
-| [docs/PROJECT_STATE.md](docs/PROJECT_STATE.md) | Current `main`, test count, active branches, what to work on next |
+| [.claude/rules/](.claude/rules/) | Path-scoped rules (engine, plant config, Python style, docs ownership) — load automatically when you open a matching file |
+| [docs/PROJECT_STATE.md](docs/PROJECT_STATE.md) | Current `main`, active branches, what to work on next |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Current runtime vs. target architecture; state ownership |
 | [docs/BUILD_PLAN.html](docs/BUILD_PLAN.html) | Full master plan: tasks, milestones, contracts C1–C8, dependencies, schedule |
 | [docs/BUILD_PLAN_STATUS.json](docs/BUILD_PLAN_STATUS.json) | Durable snapshot of per-task status |
@@ -38,19 +39,10 @@ pip install -r requirements-dev.txt   # tests and mypy
 
 ## Status vocabulary
 
-These five values mean exactly this, everywhere:
-
-| Status | Meaning |
-|---|---|
-| **Not Started** | No work begun |
-| **In Progress** | Implementation underway; code may exist on a branch |
-| **Blocked** | Waiting on a dependency or decision — record *why* in the note |
-| **Ready for Review** | Code complete, **rebased on current `main`**, full suite green, **type check green**, **PR open, not merged** |
-| **Complete** | **Merged to `main`.** Nothing else counts. |
-
-A task is never **Complete** because code exists on a local or pushed branch.
-The note on a Complete task names the merge SHA. If you find a task marked
-Complete whose files are not on `main`, correct the status — do not build on it.
+The five values and what each means exactly are the **Status vocabulary**
+section in [CLAUDE.md](CLAUDE.md#status-vocabulary) — authoritative there, not
+restated here. If you find a task marked Complete whose files are not on
+`main`, correct the status — do not build on it.
 
 ## Task workflow
 
@@ -77,10 +69,10 @@ directory against the same repo, which removes the race entirely.
 
 5. If the task is Core/spine (edits an existing module among `app/equipment/base.py`,
    `app/engine/` or `app/plant/topology.py` — a new isolated module under
-   `app/engine/` does not count; see the `app/engine/` rule in
-   [CLAUDE.md](CLAUDE.md#the-appengine-rule)), check the build plan for any other in-progress
-   branch touching the same file before starting. Spine files take one branch at
-   a time.
+   `app/engine/` does not count; see
+   [.claude/rules/engine.md](.claude/rules/engine.md)), check the build plan
+   for any other in-progress branch touching the same file before starting.
+   Spine files take one branch at a time.
 
 ### Picking a model
 
@@ -155,17 +147,10 @@ configured production scope, PR open.
 
 ## File ownership
 
-| File / Path | Rule |
-|---|---|
-| `app/equipment/base.py` | **Spine** — one branch at a time, no satellite edits |
-| `app/engine/` | **Spine** for existing modules — one branch at a time; new isolated modules can be satellite ([rule](CLAUDE.md#the-appengine-rule)) |
-| `app/plant/topology.py` | **Spine** — one branch at a time |
-| `app/main.py` | **Highest-conflict file.** One branch at a time until the C5 single action endpoint lands; release it immediately after merging. |
-| `app/config.py` | **Append-only** — add a clearly-headed section, never reorder |
-| `config/schema/plant.schema.json` | Shared — each top-level key has one owner |
-| `config/plants/*.yaml` | Shared — each top-level key has one owner (no plant file exists yet; T3-4 introduces the first — the T3-3 loader that reads it already exists) |
-| `tests/fixtures/golden/*.json` | Regenerate only with explicit written justification |
-| `static/compressor.js`, `static/pump.js` | **Frozen** — replaced wholesale at M16. Do not invest in them. |
+The full table is **File ownership and high-conflict areas** in
+[CLAUDE.md](CLAUDE.md#file-ownership-and-high-conflict-areas) — check it before
+starting step 5 above. The `app/engine/` satellite-vs-spine distinction is
+[.claude/rules/engine.md](.claude/rules/engine.md).
 
 ## Naming conventions
 
@@ -221,11 +206,8 @@ task, never as a side effect of unrelated work.
 
 ## Determinism and observability
 
-Never call `time.time()` inside a model — simulated time must come from the
-injected `dt` / `SimulationClock`, so runs stay deterministic and replayable.
-Log lines should carry sim time, not wall-clock time, so behaviour can be
-correlated across a run.
-
-The golden regression harness (`tests/golden_regression.py`,
-`tests/fixtures/golden/`) pins current numerical behaviour. **Do not regenerate a
-golden trace to make a test pass** — a moved trace means behaviour changed.
+**Time is owned, not observed** and **golden regressions protect existing
+physics** are both in [CLAUDE.md](CLAUDE.md#critical-architectural-invariants)
+— the full rules, including the golden-trace tolerance rationale, live there.
+One workflow note not covered there: log lines should carry sim time, not
+wall-clock time, so behaviour can be correlated across a run.

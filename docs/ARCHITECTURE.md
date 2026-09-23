@@ -361,12 +361,12 @@ and they have repeatedly been conflated:
 |---|---|
 | **Models that exist** | `CentrifugalPump`, `GasCompressor`, `ControlValve` and `Vessel` are all implemented and registered in the loader's `DEVICE_TYPES`. |
 | **Wired into the browser pages** | Only K-101 and P-101, each alone on a single-device plant between two fixed boundaries. |
-| **Present in a reference config** | `liquid_transfer.yaml` and `gas_compression.yaml` (single-domain, T3-4) and `liquid_valve_train.yaml` (T7-1). **No config holds the connected train.** |
+| **Present in a reference config** | `liquid_transfer.yaml` and `gas_compression.yaml` (single-domain, T3-4), `liquid_valve_train.yaml` (T7-1), and `olefins_lite.yaml` (T5-5) — the two-domain train coupled through V-101 inventory. It is not yet the full seven-device V1 train: `E-101` is absent, and PV-101/LV-101 are manual. |
 | **Not built at all** | `E-101`, the heat exchanger. LIC-101 and PIC-101 as *controllers* — the PID block, modes, loop config and loop execution are all M8 and none of it exists. |
 
 ### What ADR 0002 settles about the separator
 
-The connected train is assembled by **T5-5**, and ADR 0002 re-specified it:
+The connected train was assembled by **T5-5**, to ADR 0002's re-specification:
 
 - **The vessel is wired with the shared-node idiom, not bespoke plumbing.** One
   node per phase; every device exchanging that phase takes a branch on that
@@ -375,14 +375,13 @@ The connected train is assembled by **T5-5**, and ADR 0002 re-specified it:
 - **V-101 takes three typed ports**: a liquid inlet and a liquid outlet on its
   one liquid node, and one vapour outlet on its one vapour node. K-101 and
   PV-101 are two branches on that vapour node, not two vessel nozzles.
-- **T5-7 comes first.** Until it merges, the `Vessel` on `main` declares only
-  `inlet` and `outlet`, and the loader rejects any other port name, so the
-  separator cannot be wired with the production vessel. ADR 0002 Amendment 3
-  lets an opted-in device (only `Vessel`, through a class-level
+- **T5-7 came first**, and both are now on `main`. ADR 0002 Amendment 3 lets an
+  opted-in device (only `Vessel`, through a class-level
   `accepts_configured_ports` marker) take its port set, with a `direction` on
-  every entry, from configuration instead — implemented in
-  `app/plant/loader.py` and `app/equipment/vessel.py`. T5-5 is blocked on
-  T5-7 reaching `main`.
+  every entry, from configuration instead of its class — implemented in
+  `app/plant/loader.py` and `app/equipment/vessel.py`. Without it the `Vessel`
+  declared only `inlet` and `outlet` and the loader rejected any other port
+  name, so the separator could not be wired at all.
 - **V-101 gains a liquid draw**, which is what turns a vessel that fills
   monotonically into one with a genuine self-regulating steady state — the head
   rises, the drain flow rises, the feed flow falls. Conservation can then be

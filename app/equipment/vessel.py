@@ -68,11 +68,11 @@ it be set and silently ignored. See docs/ADR_0002_TYPED_PORTS.md,
 Amendment 3.
 """
 
-import math
 from typing import ClassVar
 
 from app import config
 from app.equipment.base import Equipment, INLET, OUTLET
+from app.equipment.ranges import checked as _checked
 from app.statetypes import StateRow
 
 
@@ -253,36 +253,3 @@ class Vessel(Equipment):
             )
 
         return state
-
-
-def _checked(
-    tag: str,
-    name: str,
-    value: float,
-    lowest: float,
-    highest: float | None = None,
-    above: bool = False,
-) -> float:
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise ValueError(
-            f"{tag}.{name} must be a number, got {type(value).__name__} "
-            f"{value!r}",
-        )
-
-    number = float(value)
-
-    if not math.isfinite(number):
-        raise ValueError(
-            f"{tag}.{name} must be finite, got {value!r}",
-        )
-
-    floor = f"above {lowest}" if above else f"at least {lowest}"
-    ceiling = "" if highest is None else f" and at most {highest}"
-
-    if number < lowest or (above and number == lowest):
-        raise ValueError(f"{tag}.{name} must be {floor}{ceiling}, got {value!r}")
-
-    if highest is not None and number > highest:
-        raise ValueError(f"{tag}.{name} must be {floor}{ceiling}, got {value!r}")
-
-    return number

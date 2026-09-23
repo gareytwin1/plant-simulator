@@ -2,6 +2,10 @@ from app import config
 from app.equipment.base import Equipment, INLET, OUTLET, signed_square
 from app.statetypes import StateRow
 
+# °F to °R: the polytropic relation is defined on absolute temperature, and
+# this is the one place that conversion has to happen.
+RANKINE_OFFSET = 459.67
+
 
 class GasCompressor(Equipment):
     def __init__(self, tag: str = "K-101") -> None:
@@ -32,6 +36,9 @@ class GasCompressor(Equipment):
         self.max_temperature = 120.0
         self.max_spread = 220.0
 
+        self.isentropic_exponent = 1.3
+        self.polytropic_efficiency = 0.75
+
     def start(self) -> None:
         self.running = True
 
@@ -46,23 +53,17 @@ class GasCompressor(Equipment):
         )
 
     def temperature_at(self, spread: float) -> float:
-        if spread <= 150.0:
-            return (
-                self.base_temperature
-                + spread / 150.0 * 3.0
-            )
-
-        if spread <= 200.0:
-            return (
-                78.0
-                + (spread - 150.0) * 0.18
-            )
-
-        return min(
-            87.0
-            + (spread - 200.0) * 1.65,
-            self.max_temperature,
+        ratio = (
+            (self.suction_pressure_target + spread)
+            / self.suction_pressure_target
         )
+        exponent = (
+            (self.isentropic_exponent - 1.0)
+            / (self.isentropic_exponent * self.polytropic_efficiency)
+        )
+        suction_rankine = self.base_temperature + RANKINE_OFFSET
+
+        return suction_rankine * float(ratio ** exponent) - RANKINE_OFFSET
 
     def integrate(self, dt: float) -> None:
         load_target = (

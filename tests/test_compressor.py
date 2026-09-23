@@ -90,10 +90,47 @@ def test_temperature_at_reads_the_spread_the_solver_found():
     simulator = GasCompressor()
 
     assert simulator.temperature_at(0.0) == pytest.approx(75.0)
-    assert simulator.temperature_at(200.0) == pytest.approx(87.0)
-    assert simulator.temperature_at(1000.0) == pytest.approx(
-        simulator.max_temperature,
+    assert simulator.temperature_at(200.0) == pytest.approx(
+        119.44399037483498,
     )
+
+
+def test_temperature_at_zero_spread_gives_zero_rise():
+    """A ratio of 1.0 (zero spread) is the identity case of the polytropic
+    relation — discharge temperature equals suction temperature."""
+    simulator = GasCompressor()
+
+    assert simulator.temperature_at(0.0) == pytest.approx(
+        simulator.base_temperature,
+    )
+
+
+def test_temperature_rises_monotonically_with_spread():
+    simulator = GasCompressor()
+
+    spreads = (0.0, 25.0, 100.0, 200.0, 400.0, 1000.0)
+    temperatures = [simulator.temperature_at(spread) for spread in spreads]
+
+    for lower, higher in zip(temperatures, temperatures[1:]):
+        assert higher > lower
+
+
+def test_temperature_is_not_clamped():
+    """The piecewise table clamped to max_temperature; the polytropic
+    relation does not — equipment does not clamp its own output."""
+    simulator = GasCompressor()
+
+    assert simulator.temperature_at(1000.0) > simulator.max_temperature
+
+
+def test_polytropic_efficiency_is_a_live_parameter_not_a_literal():
+    simulator = GasCompressor()
+
+    baseline = simulator.temperature_at(200.0)
+    simulator.polytropic_efficiency = 0.5
+    lower_efficiency = simulator.temperature_at(200.0)
+
+    assert lower_efficiency > baseline
 
 def test_shutdown_reduces_load():
     simulator = GasCompressor()

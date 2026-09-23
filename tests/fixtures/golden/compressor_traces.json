@@ -17,7 +17,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 750.0,
         "spread": 0.0,
-        "temperature": 75.0,
+        "temperature": 75.00000000000006,
         "flow": 0.0,
         "compressor_pressure_rise": 0.0
       },
@@ -35,7 +35,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 750.0,
         "spread": 0.0,
-        "temperature": 75.0,
+        "temperature": 75.00000000000006,
         "flow": 0.0,
         "compressor_pressure_rise": 0.0
       },
@@ -53,7 +53,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 750.0,
         "spread": 0.0,
-        "temperature": 75.0,
+        "temperature": 75.00000000000006,
         "flow": 0.0,
         "compressor_pressure_rise": 0.0
       },
@@ -71,7 +71,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 750.0,
         "spread": 0.0,
-        "temperature": 75.0,
+        "temperature": 75.00000000000006,
         "flow": 0.0,
         "compressor_pressure_rise": 0.0
       },
@@ -89,7 +89,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 750.0,
         "spread": 0.0,
-        "temperature": 75.0,
+        "temperature": 75.00000000000006,
         "flow": 0.0,
         "compressor_pressure_rise": 0.0
       },
@@ -107,7 +107,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 750.0,
         "spread": 0.0,
-        "temperature": 75.0,
+        "temperature": 75.00000000000006,
         "flow": 0.0,
         "compressor_pressure_rise": 0.0
       }
@@ -132,7 +132,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 750.0,
         "spread": 0.0,
-        "temperature": 75.0,
+        "temperature": 75.00000000000006,
         "flow": 0.0,
         "compressor_pressure_rise": 0.0
       },
@@ -150,7 +150,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 750.0,
         "spread": 0.0,
-        "temperature": 75.0,
+        "temperature": 75.00000000000006,
         "flow": 16.583123989778766,
         "compressor_pressure_rise": -2.520751829493406e-09
       },
@@ -168,7 +168,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 750.0,
         "spread": 0.0,
-        "temperature": 75.0,
+        "temperature": 75.00000000000006,
         "flow": 33.16624790355381,
         "compressor_pressure_rise": 2.5757174171303632e-14
       },
@@ -186,7 +186,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 750.0,
         "spread": 0.0,
-        "temperature": 75.0,
+        "temperature": 75.00000000000006,
         "flow": 49.749371855982794,
         "compressor_pressure_rise": -1.297051355209078e-10
       },
@@ -204,7 +204,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 750.0,
         "spread": 0.0,
-        "temperature": 75.0,
+        "temperature": 75.00000000000006,
         "flow": 66.33249580711198,
         "compressor_pressure_rise": -1.0551559626037488e-12
       },
@@ -222,7 +222,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 750.0,
         "spread": 0.0,
-        "temperature": 75.0,
+        "temperature": 75.00000000000006,
         "flow": 82.91561975888503,
         "compressor_pressure_rise": -1.0658141036401503e-14
       },
@@ -240,7 +240,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 750.0,
         "spread": 0.0,
-        "temperature": 75.0,
+        "temperature": 75.00000000000006,
         "flow": 99.498743710662,
         "compressor_pressure_rise": 0.0
       },
@@ -258,7 +258,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 750.0,
         "spread": 0.0,
-        "temperature": 75.0,
+        "temperature": 75.00000000000006,
         "flow": 116.08186766243897,
         "compressor_pressure_rise": 1.0658141036401503e-14
       },
@@ -276,7 +276,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 750.0,
         "spread": 0.0,
-        "temperature": 75.0,
+        "temperature": 75.00000000000006,
         "flow": 132.66499171774356,
         "compressor_pressure_rise": -5.493793509003808e-08
       },
@@ -294,7 +294,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 750.0,
         "spread": 0.0,
-        "temperature": 75.0,
+        "temperature": 75.00000000000006,
         "flow": 149.24811560878365,
         "compressor_pressure_rise": -2.5545709547714068e-08
       },
@@ -312,7 +312,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 750.0,
         "spread": 0.0,
-        "temperature": 75.0,
+        "temperature": 75.00000000000006,
         "flow": 165.8312395372985,
         "compressor_pressure_rise": -1.2953762507095234e-08
       },
@@ -330,7 +330,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 750.0,
         "spread": 0.0,
-        "temperature": 75.0,
+        "temperature": 75.00000000000006,
         "flow": 165.8312395372985,
         "compressor_pressure_rise": -1.295374829624052e-08
       },
@@ -348,7 +348,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 750.0,
         "spread": 0.0,
-        "temperature": 75.0,
+        "temperature": 75.00000000000006,
         "flow": 165.8312395372985,
         "compressor_pressure_rise": -1.295374829624052e-08
       },
@@ -366,7 +366,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 750.0,
         "spread": 0.0,
-        "temperature": 75.0,
+        "temperature": 75.00000000000006,
         "flow": 165.8312395372985,
         "compressor_pressure_rise": -1.295374829624052e-08
       },
@@ -384,7 +384,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 750.0,
         "spread": 0.0,
-        "temperature": 75.0,
+        "temperature": 75.00000000000006,
         "flow": 165.8312395372985,
         "compressor_pressure_rise": -1.295374829624052e-08
       },
@@ -402,7 +402,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 750.0,
         "spread": 0.0,
-        "temperature": 75.0,
+        "temperature": 75.00000000000006,
         "flow": 165.8312395372985,
         "compressor_pressure_rise": -1.295374829624052e-08
       },
@@ -420,7 +420,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 750.0,
         "spread": 0.0,
-        "temperature": 75.0,
+        "temperature": 75.00000000000006,
         "flow": 149.24811558356865,
         "compressor_pressure_rise": -1.0492534840977896e-08
       },
@@ -438,7 +438,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 750.0,
         "spread": 0.0,
-        "temperature": 75.0,
+        "temperature": 75.00000000000006,
         "flow": 132.6649916522518,
         "compressor_pressure_rise": -2.018408196136079e-08
       },
@@ -456,7 +456,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 750.0,
         "spread": 0.0,
-        "temperature": 75.0,
+        "temperature": 75.00000000000006,
         "flow": 116.08186775302559,
         "compressor_pressure_rise": -4.2061838456675105e-08
       },
@@ -474,7 +474,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 750.0,
         "spread": 0.0,
-        "temperature": 75.0,
+        "temperature": 75.00000000000006,
         "flow": 99.49874395461133,
         "compressor_pressure_rise": -9.70906022246254e-08
       },
@@ -492,7 +492,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 750.0,
         "spread": 0.0,
-        "temperature": 75.0,
+        "temperature": 75.00000000000006,
         "flow": 82.91561975888493,
         "compressor_pressure_rise": 2.6645352591003757e-14
       }
@@ -526,7 +526,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 750.0,
         "spread": 0.0,
-        "temperature": 75.0,
+        "temperature": 75.00000000000006,
         "flow": 0.0,
         "compressor_pressure_rise": 0.0
       },
@@ -544,7 +544,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 750.0,
         "spread": 0.0,
-        "temperature": 75.0,
+        "temperature": 75.00000000000006,
         "flow": 16.583123989778766,
         "compressor_pressure_rise": -2.520751829493406e-09
       },
@@ -562,7 +562,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 750.0,
         "spread": 0.0,
-        "temperature": 75.0,
+        "temperature": 75.00000000000006,
         "flow": 33.16624790355381,
         "compressor_pressure_rise": 2.5757174171303632e-14
       },
@@ -580,7 +580,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 750.0,
         "spread": 0.0,
-        "temperature": 75.0,
+        "temperature": 75.00000000000006,
         "flow": 49.749371855982794,
         "compressor_pressure_rise": -1.297051355209078e-10
       },
@@ -598,7 +598,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 750.0,
         "spread": 0.0,
-        "temperature": 75.0,
+        "temperature": 75.00000000000006,
         "flow": 66.33249580711198,
         "compressor_pressure_rise": -1.0551559626037488e-12
       },
@@ -616,7 +616,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 750.0,
         "spread": 0.0,
-        "temperature": 75.0,
+        "temperature": 75.00000000000006,
         "flow": 82.91561975888503,
         "compressor_pressure_rise": -1.0658141036401503e-14
       },
@@ -634,7 +634,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 750.0,
         "spread": 0.0,
-        "temperature": 75.0,
+        "temperature": 75.00000000000006,
         "flow": 99.498743710662,
         "compressor_pressure_rise": 0.0
       },
@@ -652,7 +652,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 750.0,
         "spread": 0.0,
-        "temperature": 75.0,
+        "temperature": 75.00000000000006,
         "flow": 116.08186766243897,
         "compressor_pressure_rise": 1.0658141036401503e-14
       },
@@ -670,7 +670,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 750.0,
         "spread": 0.0,
-        "temperature": 75.0,
+        "temperature": 75.00000000000006,
         "flow": 132.66499171774356,
         "compressor_pressure_rise": -5.493793509003808e-08
       },
@@ -688,7 +688,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 750.0,
         "spread": 0.0,
-        "temperature": 75.0,
+        "temperature": 75.00000000000006,
         "flow": 149.24811560878365,
         "compressor_pressure_rise": -2.5545709547714068e-08
       },
@@ -706,7 +706,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 750.0,
         "spread": 0.0,
-        "temperature": 75.0,
+        "temperature": 75.00000000000006,
         "flow": 165.8312395372985,
         "compressor_pressure_rise": -1.2953762507095234e-08
       },
@@ -724,7 +724,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 750.0,
         "spread": 0.0,
-        "temperature": 75.0,
+        "temperature": 75.00000000000006,
         "flow": 182.41436347919287,
         "compressor_pressure_rise": -7.038210014798096e-09
       },
@@ -742,7 +742,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 750.0,
         "spread": 0.0,
-        "temperature": 75.0,
+        "temperature": 75.00000000000006,
         "flow": 198.99748742640622,
         "compressor_pressure_rise": -4.045404011776554e-09
       },
@@ -760,7 +760,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 750.0,
         "spread": 0.0,
-        "temperature": 75.0,
+        "temperature": 75.00000000000006,
         "flow": 215.5806113759266,
         "compressor_pressure_rise": -2.4365931494685356e-09
       },
@@ -778,7 +778,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 750.0,
         "spread": 0.0,
-        "temperature": 75.0,
+        "temperature": 75.00000000000006,
         "flow": 232.16373532652202,
         "compressor_pressure_rise": -1.5267005437635817e-09
       },
@@ -796,7 +796,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 750.0,
         "spread": 0.0,
-        "temperature": 75.0,
+        "temperature": 75.00000000000006,
         "flow": 248.74685927764952,
         "compressor_pressure_rise": -9.895018138195155e-10
       },
@@ -814,7 +814,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 750.0,
         "spread": 0.0,
-        "temperature": 75.0,
+        "temperature": 75.00000000000006,
         "flow": 265.32998322905416,
         "compressor_pressure_rise": -6.602931534871459e-10
       },
@@ -832,7 +832,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 750.0,
         "spread": 0.0,
-        "temperature": 75.0,
+        "temperature": 75.00000000000006,
         "flow": 265.32998322905416,
         "compressor_pressure_rise": -6.602931534871459e-10
       },
@@ -850,7 +850,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 750.0,
         "spread": 0.0,
-        "temperature": 75.0,
+        "temperature": 75.00000000000006,
         "flow": 265.32998322905416,
         "compressor_pressure_rise": -6.602931534871459e-10
       },
@@ -868,7 +868,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 750.0,
         "spread": 0.0,
-        "temperature": 75.0,
+        "temperature": 75.00000000000006,
         "flow": 265.32998322905416,
         "compressor_pressure_rise": -6.602931534871459e-10
       },
@@ -886,7 +886,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 750.0,
         "spread": 0.0,
-        "temperature": 75.0,
+        "temperature": 75.00000000000006,
         "flow": 265.32998322905416,
         "compressor_pressure_rise": -6.602931534871459e-10
       },
@@ -904,7 +904,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 750.0,
         "spread": 0.0,
-        "temperature": 75.0,
+        "temperature": 75.00000000000006,
         "flow": 265.32998322905416,
         "compressor_pressure_rise": -6.602931534871459e-10
       },
@@ -922,7 +922,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 750.0,
         "spread": 0.0,
-        "temperature": 75.0,
+        "temperature": 75.00000000000006,
         "flow": 265.32998322905416,
         "compressor_pressure_rise": -6.602931534871459e-10
       },
@@ -940,7 +940,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 750.0,
         "spread": 0.0,
-        "temperature": 75.0,
+        "temperature": 75.00000000000006,
         "flow": 265.32998322905416,
         "compressor_pressure_rise": -6.602931534871459e-10
       },
@@ -958,7 +958,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 750.0,
         "spread": 0.0,
-        "temperature": 75.0,
+        "temperature": 75.00000000000006,
         "flow": 265.32998322905416,
         "compressor_pressure_rise": -6.602931534871459e-10
       },
@@ -976,7 +976,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 750.0,
         "spread": 0.0,
-        "temperature": 75.0,
+        "temperature": 75.00000000000006,
         "flow": 265.32998322905416,
         "compressor_pressure_rise": -6.602931534871459e-10
       },
@@ -994,7 +994,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 750.0,
         "spread": 0.0,
-        "temperature": 75.0,
+        "temperature": 75.00000000000006,
         "flow": 265.32998322905416,
         "compressor_pressure_rise": -6.602931534871459e-10
       },
@@ -1012,7 +1012,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 750.0,
         "spread": 0.0,
-        "temperature": 75.0,
+        "temperature": 75.00000000000006,
         "flow": 265.32998322905416,
         "compressor_pressure_rise": -6.602931534871459e-10
       },
@@ -1030,7 +1030,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 750.0,
         "spread": 0.0,
-        "temperature": 75.0,
+        "temperature": 75.00000000000006,
         "flow": 265.32998322905416,
         "compressor_pressure_rise": -6.602931534871459e-10
       },
@@ -1048,7 +1048,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 750.0,
         "spread": 0.0,
-        "temperature": 75.0,
+        "temperature": 75.00000000000006,
         "flow": 265.32998322905416,
         "compressor_pressure_rise": -6.602931534871459e-10
       },
@@ -1066,7 +1066,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 750.0,
         "spread": 0.0,
-        "temperature": 75.0,
+        "temperature": 75.00000000000006,
         "flow": 265.32998322905416,
         "compressor_pressure_rise": -6.602931534871459e-10
       },
@@ -1084,7 +1084,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 750.0,
         "spread": 0.0,
-        "temperature": 75.0,
+        "temperature": 75.00000000000006,
         "flow": 248.74685927723823,
         "compressor_pressure_rise": -5.80314463149989e-10
       },
@@ -1102,7 +1102,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 750.0,
         "spread": 0.0,
-        "temperature": 75.0,
+        "temperature": 75.00000000000006,
         "flow": 232.1637353258062,
         "compressor_pressure_rise": -8.619878144600079e-10
       },
@@ -1120,7 +1120,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 750.0,
         "spread": 0.0,
-        "temperature": 75.0,
+        "temperature": 75.00000000000006,
         "flow": 215.58061137462755,
         "compressor_pressure_rise": -1.3164083156880224e-09
       },
@@ -1138,7 +1138,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 750.0,
         "spread": 0.0,
-        "temperature": 75.0,
+        "temperature": 75.00000000000006,
         "flow": 198.99748742393223,
         "compressor_pressure_rise": -2.0761774521815823e-09
       },
@@ -1156,7 +1156,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 750.0,
         "spread": 0.0,
-        "temperature": 75.0,
+        "temperature": 75.00000000000006,
         "flow": 182.4143634742057,
         "compressor_pressure_rise": -3.3993075021498953e-09
       }
@@ -1190,7 +1190,7 @@
         "suction_pressure": 725.0,
         "discharge_pressure": 750.0,
         "spread": 25.0,
-        "temperature": 75.5,
+        "temperature": 81.01658114160551,
         "flow": -111.80339887498955,
         "compressor_pressure_rise": 25.000000000000032
       },
@@ -1208,7 +1208,7 @@
         "suction_pressure": 725.0,
         "discharge_pressure": 750.0,
         "spread": 25.0,
-        "temperature": 75.5,
+        "temperature": 81.01658114160551,
         "flow": -110.56672214901056,
         "compressor_pressure_rise": 25.000000093553005
       },
@@ -1226,7 +1226,7 @@
         "suction_pressure": 725.0,
         "discharge_pressure": 750.0,
         "spread": 25.0,
-        "temperature": 75.5,
+        "temperature": 81.01658114160551,
         "flow": -106.77078252031492,
         "compressor_pressure_rise": 25.000000000000774
       },
@@ -1244,7 +1244,7 @@
         "suction_pressure": 725.0,
         "discharge_pressure": 750.0,
         "spread": 25.0,
-        "temperature": 75.5,
+        "temperature": 81.01658114160551,
         "flow": -100.12492197273077,
         "compressor_pressure_rise": 25.00000000009085
       },
@@ -1262,7 +1262,7 @@
         "suction_pressure": 725.0,
         "discharge_pressure": 750.0,
         "spread": 25.0,
-        "temperature": 75.5,
+        "temperature": 81.01658114160551,
         "flow": -90.00000001164389,
         "compressor_pressure_rise": 25.000000004191804
       },
@@ -1280,7 +1280,7 @@
         "suction_pressure": 725.0,
         "discharge_pressure": 750.0,
         "spread": 25.0,
-        "temperature": 75.5,
+        "temperature": 81.01658114160551,
         "flow": -75.00000000000009,
         "compressor_pressure_rise": 25.000000000000025
       },
@@ -1298,7 +1298,7 @@
         "suction_pressure": 725.0,
         "discharge_pressure": 750.0,
         "spread": 25.0,
-        "temperature": 75.5,
+        "temperature": 81.01658114160551,
         "flow": -50.990195136236345,
         "compressor_pressure_rise": 25.000000000062922
       },
@@ -1316,7 +1316,7 @@
         "suction_pressure": 725.0,
         "discharge_pressure": 750.0,
         "spread": 25.0,
-        "temperature": 75.5,
+        "temperature": 81.01658114160551,
         "flow": 31.224989992003177,
         "compressor_pressure_rise": 24.9999999999986
       },
@@ -1334,7 +1334,7 @@
         "suction_pressure": 725.0,
         "discharge_pressure": 750.0,
         "spread": 25.0,
-        "temperature": 75.5,
+        "temperature": 81.01658114160551,
         "flow": 71.41428429405339,
         "compressor_pressure_rise": 24.999999997536236
       },
@@ -1352,7 +1352,7 @@
         "suction_pressure": 725.0,
         "discharge_pressure": 750.0,
         "spread": 25.0,
-        "temperature": 75.5,
+        "temperature": 81.01658114160551,
         "flow": 98.86859966646716,
         "compressor_pressure_rise": 24.99999999998369
       },
@@ -1370,7 +1370,7 @@
         "suction_pressure": 725.0,
         "discharge_pressure": 750.0,
         "spread": 25.0,
-        "temperature": 75.5,
+        "temperature": 81.01658114160551,
         "flow": 122.4744871391589,
         "compressor_pressure_rise": 24.99999999999999
       },
@@ -1388,7 +1388,7 @@
         "suction_pressure": 725.0,
         "discharge_pressure": 750.0,
         "spread": 25.0,
-        "temperature": 75.5,
+        "temperature": 81.01658114160551,
         "flow": 144.13535305399563,
         "compressor_pressure_rise": 25.00000000000005
       },
@@ -1406,7 +1406,7 @@
         "suction_pressure": 725.0,
         "discharge_pressure": 750.0,
         "spread": 25.0,
-        "temperature": 75.5,
+        "temperature": 81.01658114160551,
         "flow": 164.62077645518087,
         "compressor_pressure_rise": 24.999999918586738
       },
@@ -1424,7 +1424,7 @@
         "suction_pressure": 725.0,
         "discharge_pressure": 750.0,
         "spread": 25.0,
-        "temperature": 75.5,
+        "temperature": 81.01658114160551,
         "flow": 184.3230859497481,
         "compressor_pressure_rise": 24.999999971923557
       },
@@ -1442,7 +1442,7 @@
         "suction_pressure": 725.0,
         "discharge_pressure": 750.0,
         "spread": 25.0,
-        "temperature": 75.5,
+        "temperature": 81.01658114160551,
         "flow": 203.46989950812963,
         "compressor_pressure_rise": 24.999999988303287
       },
@@ -1460,7 +1460,7 @@
         "suction_pressure": 725.0,
         "discharge_pressure": 750.0,
         "spread": 25.0,
-        "temperature": 75.5,
+        "temperature": 81.01658114160551,
         "flow": 222.20486043914704,
         "compressor_pressure_rise": 24.99999999443841
       },
@@ -1478,7 +1478,7 @@
         "suction_pressure": 725.0,
         "discharge_pressure": 750.0,
         "spread": 25.0,
-        "temperature": 75.5,
+        "temperature": 81.01658114160551,
         "flow": 203.46989949948772,
         "compressor_pressure_rise": 24.999999995336765
       },
@@ -1496,7 +1496,7 @@
         "suction_pressure": 725.0,
         "discharge_pressure": 750.0,
         "spread": 25.0,
-        "temperature": 75.5,
+        "temperature": 81.01658114160551,
         "flow": 184.3230859246868,
         "compressor_pressure_rise": 24.99999999040105
       },
@@ -1514,7 +1514,7 @@
         "suction_pressure": 725.0,
         "discharge_pressure": 750.0,
         "spread": 25.0,
-        "temperature": 75.5,
+        "temperature": 81.01658114160551,
         "flow": 164.62077636555352,
         "compressor_pressure_rise": 24.99999997760483
       },
@@ -1532,7 +1532,7 @@
         "suction_pressure": 725.0,
         "discharge_pressure": 750.0,
         "spread": 25.0,
-        "temperature": 75.5,
+        "temperature": 81.01658114160551,
         "flow": 144.135353162247,
         "compressor_pressure_rise": 24.99999993758866
       },
@@ -1550,7 +1550,7 @@
         "suction_pressure": 725.0,
         "discharge_pressure": 750.0,
         "spread": 25.0,
-        "temperature": 75.5,
+        "temperature": 81.01658114160551,
         "flow": 122.47448713915877,
         "compressor_pressure_rise": 25.00000000000005
       }
@@ -1584,7 +1584,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 775.0,
         "spread": 25.0,
-        "temperature": 75.5,
+        "temperature": 81.01658114160551,
         "flow": -111.80339887498955,
         "compressor_pressure_rise": 25.000000000000032
       },
@@ -1602,7 +1602,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 775.0,
         "spread": 25.0,
-        "temperature": 75.5,
+        "temperature": 81.01658114160551,
         "flow": -110.56672214901056,
         "compressor_pressure_rise": 25.000000093553005
       },
@@ -1620,7 +1620,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 775.0,
         "spread": 25.0,
-        "temperature": 75.5,
+        "temperature": 81.01658114160551,
         "flow": -106.77078252031492,
         "compressor_pressure_rise": 25.000000000000774
       },
@@ -1638,7 +1638,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 775.0,
         "spread": 25.0,
-        "temperature": 75.5,
+        "temperature": 81.01658114160551,
         "flow": -100.12492197273077,
         "compressor_pressure_rise": 25.00000000009085
       },
@@ -1656,7 +1656,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 775.0,
         "spread": 25.0,
-        "temperature": 75.5,
+        "temperature": 81.01658114160551,
         "flow": -90.00000001164389,
         "compressor_pressure_rise": 25.000000004191804
       },
@@ -1674,7 +1674,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 775.0,
         "spread": 25.0,
-        "temperature": 75.5,
+        "temperature": 81.01658114160551,
         "flow": -75.00000000000009,
         "compressor_pressure_rise": 25.000000000000025
       },
@@ -1692,7 +1692,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 775.0,
         "spread": 25.0,
-        "temperature": 75.5,
+        "temperature": 81.01658114160551,
         "flow": -50.990195136236345,
         "compressor_pressure_rise": 25.000000000062922
       },
@@ -1710,7 +1710,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 775.0,
         "spread": 25.0,
-        "temperature": 75.5,
+        "temperature": 81.01658114160551,
         "flow": 31.224989992003177,
         "compressor_pressure_rise": 24.9999999999986
       },
@@ -1728,7 +1728,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 775.0,
         "spread": 25.0,
-        "temperature": 75.5,
+        "temperature": 81.01658114160551,
         "flow": 71.41428429405339,
         "compressor_pressure_rise": 24.999999997536236
       },
@@ -1746,7 +1746,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 775.0,
         "spread": 25.0,
-        "temperature": 75.5,
+        "temperature": 81.01658114160551,
         "flow": 98.86859966646716,
         "compressor_pressure_rise": 24.99999999998369
       },
@@ -1764,7 +1764,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 775.0,
         "spread": 25.0,
-        "temperature": 75.5,
+        "temperature": 81.01658114160551,
         "flow": 122.4744871391589,
         "compressor_pressure_rise": 24.99999999999999
       },
@@ -1782,7 +1782,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 775.0,
         "spread": 25.0,
-        "temperature": 75.5,
+        "temperature": 81.01658114160551,
         "flow": 144.13535305399563,
         "compressor_pressure_rise": 25.00000000000005
       },
@@ -1800,7 +1800,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 775.0,
         "spread": 25.0,
-        "temperature": 75.5,
+        "temperature": 81.01658114160551,
         "flow": 164.62077645518087,
         "compressor_pressure_rise": 24.999999918586738
       },
@@ -1818,7 +1818,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 775.0,
         "spread": 25.0,
-        "temperature": 75.5,
+        "temperature": 81.01658114160551,
         "flow": 184.3230859497481,
         "compressor_pressure_rise": 24.999999971923557
       },
@@ -1836,7 +1836,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 775.0,
         "spread": 25.0,
-        "temperature": 75.5,
+        "temperature": 81.01658114160551,
         "flow": 203.46989950812963,
         "compressor_pressure_rise": 24.999999988303287
       },
@@ -1854,7 +1854,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 775.0,
         "spread": 25.0,
-        "temperature": 75.5,
+        "temperature": 81.01658114160551,
         "flow": 222.20486043914704,
         "compressor_pressure_rise": 24.99999999443841
       },
@@ -1872,7 +1872,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 775.0,
         "spread": 25.0,
-        "temperature": 75.5,
+        "temperature": 81.01658114160551,
         "flow": 203.46989949948772,
         "compressor_pressure_rise": 24.999999995336765
       },
@@ -1890,7 +1890,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 775.0,
         "spread": 25.0,
-        "temperature": 75.5,
+        "temperature": 81.01658114160551,
         "flow": 184.3230859246868,
         "compressor_pressure_rise": 24.99999999040105
       },
@@ -1908,7 +1908,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 775.0,
         "spread": 25.0,
-        "temperature": 75.5,
+        "temperature": 81.01658114160551,
         "flow": 164.62077636555352,
         "compressor_pressure_rise": 24.99999997760483
       },
@@ -1926,7 +1926,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 775.0,
         "spread": 25.0,
-        "temperature": 75.5,
+        "temperature": 81.01658114160551,
         "flow": 144.135353162247,
         "compressor_pressure_rise": 24.99999993758866
       },
@@ -1944,7 +1944,7 @@
         "suction_pressure": 750.0,
         "discharge_pressure": 775.0,
         "spread": 25.0,
-        "temperature": 75.5,
+        "temperature": 81.01658114160551,
         "flow": 122.47448713915877,
         "compressor_pressure_rise": 25.00000000000005
       }

@@ -54,6 +54,9 @@ drive equipment it has never seen before.
 - **Multi-domain solving** — `Engine.from_plant()` wires one solver per flow
   domain, so a plant spanning a liquid and a gas side runs. No topology ever
   mixes GPM with SCFM.
+- **A two-domain reference plant** — `config/plants/olefins_lite.yaml` runs a
+  liquid side (P-101) and a gas side (K-101) coupled only through V-101's
+  inventory, loaded at its own closed-form design equilibrium.
 - **Inventory coupling** — what joins two domains is a vessel's inventory,
   never a shared flow variable. Liquid level adds head to the boundary its
   outlet attaches to; gas-phase pressure replaces the boundary at every gas
@@ -77,7 +80,9 @@ drive equipment it has never seen before.
 - **Golden-value regression harness** — pins current numerical behaviour and
   fails loudly on drift.
 - **Flask API and browser pages** for the compressor and the pump.
-- **753 passing tests**, and a clean `mypy` over `app/` (24 source files).
+- A **full passing pytest suite** and a clean `mypy` over `app/`. For the
+  current count, run `python -m pytest --collect-only -q` — a number written
+  into a document has drifted twice already.
 
 ### Not built yet
 
@@ -87,11 +92,11 @@ all specified in the build plan and **none of them are implemented**. The
 snapshot's `controllers`, `envelope` and `alarms` sections are present and
 empty by design, so those layers can be built against a frozen shape.
 
-The integrated `olefins_lite.yaml` train does not exist yet either — the
-reference plants on `main` are the single-domain fixtures and the valve train
-under `config/plants/`. The single-device browser pages still run one machine
-between two fixed battery limits with no valve between them, which is a known
-interim state, not a bug.
+The **seven-device V1 train** is not assembled either. `olefins_lite.yaml`
+connects two domains through the separator, but `E-101` does not exist and its
+two vessel valves are manual. The single-device browser pages still run one
+machine between two fixed battery limits with no valve between them, which is a
+known interim state, not a bug.
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how current and target
 architecture differ, and [docs/PROJECT_STATE.md](docs/PROJECT_STATE.md) for

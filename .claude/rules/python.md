@@ -41,8 +41,6 @@ brought under a checker before M4 grew the architectural surface further.
   `app/statetypes.py`. Use it rather than a hand-rolled dict type — a dict
   return type is invariant, so a device narrowing its row to
   `dict[str, float]` would not be a valid override.
-- Tests may stay lightly typed; annotate one only where it makes the test
-  clearer. `mypy` is not configured over `tests/`.
 - New code passes `python -m mypy` before review. The configuration lives in
   `pyproject.toml` — do not loosen it to land a change; propose a change to it
   as its own task.

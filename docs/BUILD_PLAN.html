@@ -897,7 +897,7 @@ Scenario(initial_condition, malfunctions[], triggers[],
 
 <section id="agents">
   <div class="sec-head"><h2>Parallel agent assignments</h2></div>
-  <p class="sec-note">Which branches can be handed to a separate agent, when each is allowed to start, and where it must merge. Model level is a judgement about blast radius and ambiguity, not about task size &mdash; a small task that redefines a shared shape is an Opus task, and a large task with a written spec and a test list is not. The general rule &mdash; Haiku executes, Sonnet implements, Opus decides &mdash; is stated once, in the <em>Agent model guidance</em> section of <code>CLAUDE.md</code>; the assignments below apply it per task.</p>
+  <p class="sec-note">Which branches can be handed to a separate agent, when each is allowed to start, and where it must merge. Model level is a judgement about blast radius and ambiguity, not about task size &mdash; a small task that redefines a shared shape is an Opus task, and a large task with a written spec and a test list is not. The general rule &mdash; Sonnet implements and executes, Opus decides &mdash; is stated once, in the <em>Agent model guidance</em> section of <code>CLAUDE.md</code>; the assignments below apply it per task.</p>
 
   <div class="grid3" style="margin-bottom:18px">
     <div class="card">
@@ -906,11 +906,7 @@ Scenario(initial_condition, malfunctions[], triggers[],
     </div>
     <div class="card">
       <p class="kicker" style="color:var(--accent)">Sonnet</p>
-      <p>Feature work against a contract that already exists: equipment models, PID and modes, alarm management, the HTTP layer, the console, trends, scenario authoring. Most of the project.</p>
-    </div>
-    <div class="card">
-      <p class="kicker" style="color:var(--st-done)">Haiku</p>
-      <p>Narrow, fully-specified work with an obvious done condition: the clock, the RNG, the ring buffer, the isolation guard, CI wiring, hygiene, requirements, documentation.</p>
+      <p>Everything else, which is most of the project. Feature work against a contract that already exists &mdash; equipment models, PID and modes, alarm management, the HTTP layer, the console, trends, scenario authoring &mdash; and the narrow, fully-specified work with an obvious done condition: the clock, the RNG, the ring buffer, the isolation guard, CI wiring, hygiene, requirements, documentation.</p>
     </div>
   </div>
 
@@ -920,20 +916,20 @@ Scenario(initial_condition, malfunctions[], triggers[],
       <tbody>
         <tr><td colspan="5" style="background:var(--surface-2);font-family:var(--cond);font-size:10.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)">Wave 1 &middot; no gate, hand out today</td></tr>
         <tr><td class="b">test/golden-regression</td><td>Lock current numbers before the spine moves</td><td class="b">Sonnet</td><td class="b">now</td><td class="b">CP-A</td></tr>
-        <tr><td class="b">feature/simulation-clock</td><td>Sim time, speed, pause &mdash; pure arithmetic</td><td class="b">Haiku</td><td class="b">now</td><td class="b">CP-A</td></tr>
-        <tr><td class="b">feature/seeded-rng</td><td>One seeded source; determinism service</td><td class="b">Haiku</td><td class="b">now</td><td class="b">CP-A</td></tr>
+        <tr><td class="b">feature/simulation-clock</td><td>Sim time, speed, pause &mdash; pure arithmetic</td><td class="b">Sonnet</td><td class="b">now</td><td class="b">CP-A</td></tr>
+        <tr><td class="b">feature/seeded-rng</td><td>One seeded source; determinism service</td><td class="b">Sonnet</td><td class="b">now</td><td class="b">CP-A</td></tr>
         <tr><td class="b">feature/plant-config-schema</td><td>Contract C3 as JSON Schema plus validator</td><td class="b">Sonnet</td><td class="b">now</td><td class="b">CP-A</td></tr>
         <tr><td class="b">feature/flow-domains</td><td>Flow-domain declaration and partitioning (T3-5)</td><td class="b">Sonnet</td><td class="b">now</td><td class="b">CP-B</td></tr>
         <tr><td class="b">feature/multi-port-wiring</td><td>C3 ports and paths for multi-port devices (T3-6)</td><td class="b">Sonnet</td><td class="b">T3-5</td><td class="b">CP-C</td></tr>
         <tr><td class="b">feature/pid-block</td><td>PID with anti-windup against a fake process</td><td class="b">Sonnet</td><td class="b">now</td><td class="b">CP-D</td></tr>
         <tr><td class="b">feature/envelope-evaluator</td><td>Value + limits + time &rarr; band. No plant.</td><td class="b">Sonnet</td><td class="b">now</td><td class="b">CP-E</td></tr>
         <tr><td class="b">feature/alarm-state-machine</td><td>Contract C7 states, pure and event-driven</td><td class="b">Sonnet</td><td class="b">now</td><td class="b">CP-E</td></tr>
-        <tr><td class="b">feature/historian</td><td>Ring buffer, fixed memory, tag-keyed</td><td class="b">Haiku</td><td class="b">now</td><td class="b">CP-G</td></tr>
-        <tr><td class="b">test/import-direction-guard</td><td>Passes today, guards the layering forever</td><td class="b">Haiku</td><td class="b">now</td><td class="b">CP-A</td></tr>
-        <tr><td class="b">chore/portable-requirements</td><td>Unblocks CI and deployment entirely</td><td class="b">Haiku</td><td class="b">now</td><td class="b">CP-A</td></tr>
-        <tr><td class="b">chore/repo-hygiene</td><td>Untrack caches, clean diffs</td><td class="b">Haiku</td><td class="b">now</td><td class="b">CP-A</td></tr>
-        <tr><td class="b">docs/units-convention</td><td>Freeze units before constants multiply</td><td class="b">Haiku</td><td class="b">now</td><td class="b">CP-A</td></tr>
-        <tr><td class="b">feature/ci-pipeline</td><td>Green build on every push</td><td class="b">Haiku</td><td class="b">after requirements</td><td class="b">CP-H</td></tr>
+        <tr><td class="b">feature/historian</td><td>Ring buffer, fixed memory, tag-keyed</td><td class="b">Sonnet</td><td class="b">now</td><td class="b">CP-G</td></tr>
+        <tr><td class="b">test/import-direction-guard</td><td>Passes today, guards the layering forever</td><td class="b">Sonnet</td><td class="b">now</td><td class="b">CP-A</td></tr>
+        <tr><td class="b">chore/portable-requirements</td><td>Unblocks CI and deployment entirely</td><td class="b">Sonnet</td><td class="b">now</td><td class="b">CP-A</td></tr>
+        <tr><td class="b">chore/repo-hygiene</td><td>Untrack caches, clean diffs</td><td class="b">Sonnet</td><td class="b">now</td><td class="b">CP-A</td></tr>
+        <tr><td class="b">docs/units-convention</td><td>Freeze units before constants multiply</td><td class="b">Sonnet</td><td class="b">now</td><td class="b">CP-A</td></tr>
+        <tr><td class="b">feature/ci-pipeline</td><td>Green build on every push</td><td class="b">Sonnet</td><td class="b">after requirements</td><td class="b">CP-H</td></tr>
 
         <tr><td colspan="5" style="background:var(--surface-2);font-family:var(--cond);font-size:10.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)">Wave 2 &middot; after Checkpoint A &mdash; the equipment contract is on main</td></tr>
         <tr><td class="b">feature/control-valve</td><td>Valve as a first-class device with a characteristic</td><td class="b">Sonnet</td><td class="b">CP-A &middot; 2 Oct</td><td class="b">CP-C</td></tr>
@@ -1929,16 +1925,16 @@ Scenario(initial_condition, malfunctions[], triggers[],
   // model level — judged on blast radius and ambiguity, not size.
   // default: core tasks -> Opus, everything else -> Sonnet
   var AGENT={
-    "T0-2":"Haiku","T0-4":"Haiku","T0-5":"Haiku","T0-6":"Haiku",
-    "T2-1":"Haiku","T2-2":"Haiku",
+    "T0-2":"Sonnet","T0-4":"Sonnet","T0-5":"Sonnet","T0-6":"Sonnet",
+    "T2-1":"Sonnet","T2-2":"Sonnet",
     "T4-2":"Opus","T4-5":"Opus",
     "T6-1":"Opus",
-    "T13-1":"Opus","T13-5":"Haiku",
+    "T13-1":"Opus","T13-5":"Sonnet",
     "T14-5":"Opus",
-    "T15-4":"Haiku",
-    "T16-5":"Haiku",
-    "T17-1":"Haiku",
-    "T18-2":"Haiku"
+    "T15-4":"Sonnet",
+    "T16-5":"Sonnet",
+    "T17-1":"Sonnet",
+    "T18-2":"Sonnet"
   };
   function agentOf(t){ return AGENT[t.id] || (t.cat==="core" ? "Opus" : "Sonnet"); }
   function isDeferred(id){ return !!DEFERRED[id]; }

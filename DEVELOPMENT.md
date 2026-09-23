@@ -12,7 +12,7 @@ depend on frozen interface contracts.
 | Document | Purpose |
 |---|---|
 | [CLAUDE.md](CLAUDE.md) | Architectural invariants and agent operating rules — **read first** |
-| [.claude/rules/](.claude/rules/) | Path-scoped rules (engine, plant config, Python style, docs ownership) — load automatically when you open a matching file |
+| [.claude/rules/](.claude/rules/) | Path-scoped rules (engine, plant config, Python style, testing, docs ownership) — they apply when Claude works with files matching their configured `paths` |
 | [docs/PROJECT_STATE.md](docs/PROJECT_STATE.md) | Current `main`, active branches, what to work on next |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Current runtime vs. target architecture; state ownership |
 | [docs/BUILD_PLAN.html](docs/BUILD_PLAN.html) | Full master plan: tasks, milestones, contracts C1–C8, dependencies, schedule |
@@ -58,6 +58,9 @@ restated here. If you find a task marked Complete whose files are not on
 
 ### Starting a task
 
+The `start-task` skill runs these steps; keep the two in step when either
+changes.
+
 Tasks run in parallel across agents that share one clone, so more than one
 `git checkout` can be in flight at once. If each task checks out its branch in
 the same working directory, one agent's checkout can land between another's
@@ -86,25 +89,27 @@ directory against the same repo, which removes the race entirely.
 
 ### Picking a model
 
-Haiku executes, Sonnet implements, Opus decides. The full table — what each
-one is for, and the rule that a smaller model escalates rather than inventing
-a design — is the **Agent model guidance** section in [CLAUDE.md](CLAUDE.md).
+Sonnet implements and executes; Opus decides. The full table — what each one is
+for, and the rule that a Sonnet session escalates rather than inventing a
+design — is the **Agent model guidance** section in
+[CLAUDE.md](CLAUDE.md#agent-model-guidance).
 
 ### During development
 
 - Build against the **frozen interface contract**, not against another
   satellite's in-progress code.
 - Keep commits scoped to the task; unrelated cleanup goes in its own task.
-- New and modified production code under `app/` carries type hints — see the
-  typing rules in [CLAUDE.md](CLAUDE.md).
+- New and modified production code under `app/` carries type hints — full
+  rules in [.claude/rules/python.md](.claude/rules/python.md).
 - If you hit a blocker (a contract seems wrong, a dependency isn't actually
   ready), note it on the task rather than working around it silently.
 
 ### Before review
 
-**Ready for Review** means all four of these, not some of them: rebased on
-current `main`, full pytest suite green, static type check green over the
-configured production scope, PR open.
+**Ready for Review** is defined in
+[CLAUDE.md's Status vocabulary](CLAUDE.md#status-vocabulary), and it means all
+of it, not some of it. The steps below are how you get there; the
+`ready-for-review` skill runs the same checklist.
 
 - Run the **full** suite, not just your new tests, and the type checker:
 
@@ -128,6 +133,9 @@ configured production scope, PR open.
 - Set the task status to **Ready for Review**.
 
 ### Merging
+
+The `merge-task` skill runs these steps; keep the two in step when either
+changes.
 
 - Merge convention is a **merge commit** titled
   `Merge T{TASK-ID}: Brief description`:

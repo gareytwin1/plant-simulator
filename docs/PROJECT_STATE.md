@@ -77,12 +77,12 @@ dependency one. T6-5, T7-4 and T13-1 are the Opus-level tasks in that list.
 | **T15-1** | Operator action log | Sonnet | `feature/action-log` |
 | **T16-1** | Console design system | Sonnet | `design/console-system` |
 | **T18-1** | Container and WSGI serving | Sonnet | `chore/container-and-ci` |
-| **T18-2** | CI pipeline | Haiku | `chore/ci-pipeline` |
+| **T18-2** | CI pipeline | Sonnet | `chore/ci-pipeline` |
 | **T16-2** | Snapshot push transport | Sonnet | `feature/snapshot-transport` |
 | **T18-4** | Structured logging and health | Sonnet | `feature/observability` |
-| **T13-5** | Physics isolation guard | Haiku | `test/import-direction-guard` |
-| **T15-4** | Score persistence | Haiku | `feature/score-store` |
-| **T17-1** | Ring-buffer historian | Haiku | `feature/historian` |
+| **T13-5** | Physics isolation guard | Sonnet | `test/import-direction-guard` |
+| **T15-4** | Score persistence | Sonnet | `feature/score-store` |
+| **T17-1** | Ring-buffer historian | Sonnet | `feature/historian` |
 
 **Still waiting:** T8-3, T9-2 and T11-1 — on T8-2 and T9-1, unchanged by T6-1.
 

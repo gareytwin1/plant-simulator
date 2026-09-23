@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "23 September 2026",
-  "main_sha": "20a504ae0f69b0f546a1e5e7c7482c3d0dd77ddd",
-  "tests_passing_on_main": 974,
+  "main_sha": "0a4af4fbb80a94c174f22510da1e6661c461df0f",
+  "tests_passing_on_main": 999,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -43,7 +43,7 @@
     },
     "MR": {
       "name": "Remediation",
-      "complete": 0,
+      "complete": 1,
       "total": 13
     },
     "M6": {
@@ -119,7 +119,7 @@
   },
   "totals": {
     "tasks": 114,
-    "complete": 41,
+    "complete": 42,
     "startable_now": 29
   },
   "tasks": [
@@ -784,10 +784,9 @@
         "tests/test_plant_config_validation.py",
         "tests/test_plant_loader.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true,
-      "note": ""
+      "status": "Complete",
+      "status_key": "done",
+      "note": "COMPLETE - merged to main as 0a4af4f (PR #60), 23 Sep 2026. 999 passed on main (974 + 25 new), mypy clean over 25 source files. D1's layered enforcement: validate.py's generic \"number\" schema branch now rejects NaN/+inf/-inf ahead of the minimum check (a NaN comparison is always False and +inf clears any minimum, so the existing check let both through) - covers node pressure, limit fields, controller gains and interlock delay_s in one change. design carries no per-key schema, so app/plant/loader.py's _apply_design rejects a non-finite design number directly, before setattr - the only layer that can see it. loader.py's own boundary-pressure check also now rejects non-finite pressure explicitly (layered with the validator), extended to name internal nodes too, which previously had no check at all. DEFECT REPRODUCTION: all 25 new tests run against the merge-base (e840767) production code first - 22 failed outright, 3 -inf cases passed incidentally via pre-existing minimum checks and were kept alongside their nan/inf siblings. All reference configs still load."
     },
     {
       "id": "R2",
@@ -841,10 +840,7 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "R1"
-      ],
+      "startable": true,
       "note": ""
     },
     {

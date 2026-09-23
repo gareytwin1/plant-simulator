@@ -15,22 +15,22 @@ already in BUILD_PLAN_STATUS.json and does not need a second home.
 
 ## Right now
 
-**Last state refresh:** 23 September 2026, at `300659b` (MR milestone added,
-PR #59) — **this is a snapshot, not a live pointer.** Run
-`git log 300659b..HEAD --oneline` to see what has merged since.
-**Full suite as of this refresh:** **974 passed** · `python -m mypy` clean over 25 source files · compressor golden trace moved deliberately (temperature field only, on the two boundary-asymmetric scenarios — justified in T6-2's note)
+**Last state refresh:** 23 September 2026, at `0a4af4f` (R1, PR #60) —
+**this is a snapshot, not a live pointer.** Run
+`git log 0a4af4f..HEAD --oneline` to see what has merged since.
+**Full suite as of this refresh:** **999 passed** · `python -m mypy` clean over 25 source files · compressor golden trace moved deliberately (temperature field only, on the two boundary-asymmetric scenarios — justified in T6-2's note)
 **In flight:** nothing. **No spine lock is held.** No task is Blocked.
 
 **Recent merges** (full notes in [BUILD_PLAN_STATUS.json](BUILD_PLAN_STATUS.json)):
 
 | Task | SHA | What landed |
 |---|---|---|
+| **R1** | `0a4af4f` | Reject non-finite numbers at load. Finite numbers enforced in layers (D1): `validate.py`'s generic `"number"` branch now rejects NaN/±inf ahead of the `minimum` check, covering node pressure, limit fields, controller gains and interlock `delay_s` in one change; `loader.py`'s `_apply_design` rejects a non-finite design number directly, since `design` has no per-key schema for the validator to see; the loader's own boundary-pressure check also rejects non-finite pressure explicitly, extended to internal nodes too. 25 new tests, each confirmed to fail against the merge-base before the fix. Unblocks R4 |
 | — | `300659b` | (non-task) Added milestone **MR Remediation** (R1–R12, 13 tasks) to the build plan from the approved post-T6-2 audit. Puts **R9 and R2 in front of T6-5** and **R7 in front of T18-1**. Docs only — no code changed. PR #59 |
 | **T6-2** | `20a504a` | Polytropic compression temperature. `GasCompressor.temperature_at` replaces the piecewise table with `T2 = T1·(P2/P1)^((k-1)/(k·η))`; `isentropic_exponent`/`polytropic_efficiency` are named design attributes. Takes the actual solved suction/discharge pressures via `Session.compressor_state()`, not a fixed design target — an initial revision used the design target to avoid touching the `app/engine/` spine and was caught in review as physically wrong |
 | T7-2 | `537f206` | Extract valve logic from the compressor. `GasCompressor` loses `discharge_valve_position`/`target`/`rate`; `FV-201` (`ControlValve`) now sits on K-101's discharge in `olefins_lite.yaml`, over a new internal node N-204. Resistance re-split 0.04 machine + 0.01 valve so every T5-5 design value is unmoved. Dead `/api/valve` endpoint and page slider removed |
 | — | `f9ce10e` | (non-task) Fixed `start-task`/`merge-task` skills reading `$1` instead of `$0` for their own argument — Claude Code's positional substitution is zero-based, so both were silently reading an empty string. PR #56 |
 | T6-1 | `bb0b9ec` | Stream enthalpy and mixing. `app/plant/thermo.py`: Cp per unit of native flow, flow-weighted mixing at nodes (temperature by flow·Cp, composition by flow — closes energy identically). Imports nothing from `app.plant`, so equipment can import it. Unblocks T6-2 through T6-5 |
-| T5-4 | `e54e9df` | Mass balance conservation suite. Writes down ADR 0002 section 7.1's identity against `olefins_lite.yaml`'s cold-start transient; closes tightly cumulatively and per-step, proves the naive published-flow ledger wrong by one step. Tests only — **M5 is now Complete** |
 
 **ADRs on `main`:** ADR 0001 ([flow-domain separation](ADR_0001_FLOW_DOMAIN_SEPARATION.md))
 with Amendment 1, and ADR 0002 ([typed ports](ADR_0002_TYPED_PORTS.md)) with
@@ -45,10 +45,10 @@ what made this file 1,086 lines.
 | **M0**–**M5** | **Complete.** Checkpoint A (M1) and Checkpoint B (M4) both reached |
 | **M6** Energy Balance and Temperature | 2/5 — T6-1, T6-2 Complete; T6-3, T6-4 startable; T6-5 waits on R2 and R9 |
 | **M7** Control Valves and Final Elements | 2/5 — T7-1, T7-2 Complete; T7-3, T7-4, T7-5 startable |
-| **MR** Remediation | 0/13 — the whole no-spine set is startable, plus R2 and R10b at the head of the spine queue |
+| **MR** Remediation | 1/13 — R1 Complete; the rest of the no-spine set is startable, plus R2 and R10b at the head of the spine queue |
 | M8–M19 | Not started |
 
-**41 of 114 tasks Complete.** Next checkpoint is **C** (M5 + M6 + M7); M5 is
+**42 of 114 tasks Complete.** Next checkpoint is **C** (M5 + M6 + M7); M5 is
 closed, M6 has landed two tasks and M7 two. MR is scheduled to merge by
 Checkpoint C, because T6-5 waits on two of its tasks.
 
@@ -63,9 +63,9 @@ that list.
 
 | Task | Name | Model | Branch |
 |---|---|---|---|
-| **R1** | Reject non-finite numbers at load | Sonnet | `fix/finite-config-numbers` |
 | **R2** | Solver refuses non-finite curves | Opus · spine lock | `fix/solver-nonfinite` |
 | **R3** | Machine design ranges | Sonnet | `fix/machine-design-ranges` |
+| **R4** | Refuse structural design keys | Sonnet | `fix/structural-design-keys` |
 | **R5** | Request validation | Sonnet · `app/main.py` lock | `fix/request-validation` |
 | **R8** | Flow unit label | Sonnet | `fix/flow-unit-label` |
 | **R9** | Immutable composition | Sonnet | `fix/immutable-composition` |
@@ -94,13 +94,13 @@ that list.
 | **T17-1** | Ring-buffer historian | Sonnet | `feature/historian` |
 
 **Still waiting:** T8-3, T9-2 and T11-1 — on T8-2 and T9-1, unchanged by T6-1.
-From MR: **T6-5** on R2 and R9; **T18-1** on R7; R4 on R1; R6 on R5; R7 on R6.
+From MR: **T6-5** on R2 and R9; **T18-1** on R7; R6 on R5; R7 on R6.
 
 **Scheduling notes.** MR runs under **one global spine lock** (U1 in the
 approved design treats `network.py` and `scheduler.py` as spine too). The spine
 queue is R2 → R10b → R6 → R7 → T6-5, one at a time. The `app/main.py` lock
-goes R5 → R6. R1 and R4 both edit `app/plant/loader.py`, so they run in
-sequence. Everything else in MR runs in parallel now, alongside T18-2. T7-3 edits `app/equipment/valve.py` and should not run
+goes R5 → R6. R4 also edits `app/plant/loader.py`, which R1 (merged) touched
+too, but R1 is done so R4 is simply startable now, no sequencing left. T7-3 edits `app/equipment/valve.py` and should not run
 beside another valve change. T12-1 adds a *new* isolated module under
 `app/engine/`, which is satellite work under the `app/engine/` rule in
 CLAUDE.md.

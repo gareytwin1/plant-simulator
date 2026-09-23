@@ -32,12 +32,6 @@ class GasCompressor(Equipment):
         self.max_temperature = 120.0
         self.max_spread = 220.0
 
-        self.discharge_valve_position = 1.0
-        self.discharge_valve_target = 1.0
-        self.discharge_valve_rate = (
-            config.DISCHARGE_VALVE_RATE_PER_SECOND
-        )
-
     def start(self) -> None:
         self.running = True
 
@@ -49,12 +43,6 @@ class GasCompressor(Equipment):
         self.load_target = max(
             0.0,
             min(target, 1.0),
-        )
-
-    def set_discharge_valve_position(self, position: float) -> None:
-        self.discharge_valve_target = max(
-            0.10,
-            min(position, 1.0),
         )
 
     def temperature_at(self, spread: float) -> float:
@@ -90,13 +78,6 @@ class GasCompressor(Equipment):
             dt,
         )
 
-        self.discharge_valve_position = self._move_toward(
-            self.discharge_valve_position,
-            self.discharge_valve_target,
-            self.discharge_valve_rate,
-            dt,
-        )
-
     def characteristic(self, flow: float) -> float:
         return (
             self.shutoff_pressure_rise * self.load ** 2
@@ -114,6 +95,4 @@ class GasCompressor(Equipment):
             "max_spread": self.max_spread,
             "max_flow": self.max_flow,
             "max_temperature": self.max_temperature,
-            "discharge_valve_position": self.discharge_valve_position,
-            "discharge_valve_target": self.discharge_valve_target,
         }

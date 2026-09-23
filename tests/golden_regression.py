@@ -62,18 +62,19 @@ def compressor_ramp_load(comp, step_num):
     return None
 
 
-def compressor_valve_manipulation(comp, step_num):
-    """Ramp load, then manipulate discharge valve."""
+def compressor_sustained_load(comp, step_num):
+    """Ramp load to 0.8, hold well past the end of the ramp, stop.
+
+    Was `compressor_valve_manipulation` until T7-2: the two valve commands it
+    also issued moved nothing, because the compressor's discharge valve was
+    inert slow state with no branch of its own. Removing them leaves the run
+    it always was — a long hold at 0.8 — and every number in the trace
+    unchanged. The valve's real trace now belongs to `ControlValve`.
+    """
     if step_num == 0:
         comp.set_load_target(0.8)
         comp.start()
         return "set_load_target(0.8), start()"
-    if step_num == 10:
-        comp.set_discharge_valve_position(0.5)
-        return "set_discharge_valve_position(0.5)"
-    if step_num == 20:
-        comp.set_discharge_valve_position(0.1)
-        return "set_discharge_valve_position(0.1)"
     if step_num == 30:
         comp.stop()
         return "stop()"
@@ -226,7 +227,7 @@ def pump_header_rig() -> Rig:
 SCENARIOS = [
     ("compressor", "idle", compressor_rig, compressor_idle, 5),
     ("compressor", "ramp_load", compressor_rig, compressor_ramp_load, 20),
-    ("compressor", "valve_manipulation", compressor_rig, compressor_valve_manipulation, 35),
+    ("compressor", "sustained_load", compressor_rig, compressor_sustained_load, 35),
     ("compressor", "supply_pressure_change", compressor_supply_rig, compressor_supply_pressure_change, 20),
     ("compressor", "discharge_header_change", compressor_header_rig, compressor_discharge_header_change, 20),
     ("pump", "idle", pump_rig, pump_idle, 5),

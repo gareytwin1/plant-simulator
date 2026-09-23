@@ -85,47 +85,6 @@
                 >
             </div>
 
-            <div class="control-group">
-                <h4>Discharge Valve</h4>
-
-                <div class="control-values">
-                    <span>
-                        Current:
-                        <span id="discharge-valve-position">
-                            {{ "%.1f"|format(
-                                state.discharge_valve_position * 100
-                            ) }}%
-                        </span>
-                    </span>
-
-                    <span>
-                        Target:
-                        <span id="discharge-valve-target">
-                            {{ "%.1f"|format(
-                                state.discharge_valve_target * 100
-                            ) }}%
-                        </span>
-                    </span>
-                </div>
-
-                <input
-                    id="discharge-valve-slider"
-                    class="control-slider"
-                    type="range"
-                    min="10"
-                    max="100"
-                    step="5"
-                    value="{{ state.discharge_valve_target * 100 }}"
-                >
-
-                <p class="control-detail">
-                    Valve Pressure Drop:
-                    <span id="valve-pressure-drop">
-                        {{ "%.1f"|format(state.valve_pressure_drop) }}
-                    </span>
-                    psi
-                </p>
-            </div>
         </section>
 
         <section class="panel process-panel">

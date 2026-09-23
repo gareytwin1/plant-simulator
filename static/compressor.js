@@ -32,21 +32,6 @@ function updatePlantDisplay(state) {
     }
 
     setText(
-        "discharge-valve-target",
-        `${(state.discharge_valve_target * 100).toFixed(1)}%`,
-    );
-
-    setText(
-        "discharge-valve-position",
-        `${(state.discharge_valve_position * 100).toFixed(1)}%`,
-    ); 
-
-    setText(
-        "valve-pressure-drop",
-        state.valve_pressure_drop.toFixed(1),
-    );
-
-    setText(
         "suction-pressure",
         `${state.suction_pressure.toFixed(1)} psi`
     );
@@ -311,41 +296,6 @@ if (loadSlider) {
             `${(state.load_target * 100).toFixed(1)}%`
         );
     });
-}
-
-const dischargeValveSlider =
-    document.getElementById("discharge-valve-slider");
-
-if (dischargeValveSlider) {
-    dischargeValveSlider.addEventListener(
-        "input",
-        async () => {
-            const position =
-                Number(dischargeValveSlider.value) / 100;
-
-            setText(
-                "discharge-valve-target",
-                `${(position * 100).toFixed(1)}%`,
-            );
-
-            const response = await fetch(
-                "/api/valve",
-                {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify({
-                        discharge_valve_position: position,
-                    }),
-                },
-            );
-
-            const state = await response.json();
-
-            updatePlantDisplay(state);
-        },
-    );
 }
 
 if (startButton) {

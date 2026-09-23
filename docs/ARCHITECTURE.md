@@ -28,7 +28,7 @@ Browser (vanilla JS, 1 s poll — reads only, steps nothing)
   │   GET  /compressor            GET  /pump
   │   GET  /api/state             GET  /api/pump/state
   │   POST /api/start|stop        POST /api/pump/start|stop
-  │   POST /api/valve|load        POST /api/pump/speed
+  │   POST /api/load               POST /api/pump/speed
   ▼
 Flask routes  ·  app/main.py
   │   @before_request resolves a session cookie
@@ -67,11 +67,13 @@ T18-5's scope.
 page's machine sits between two fixed battery limits with no line resistance
 and no valve in between. Flow is therefore whatever the machine curve gives
 against that fixed differential — above `max_flow`, which nothing clamps any
-more — the discharge valve strokes without changing flow, and the process
-spread equals the boundary difference. The retired standalone solve is where
-those resistances used to live. T7-1 built the valve and a plant that uses it
-(`config/plants/liquid_valve_train.yaml`); the single-device pages have not
-been moved onto one.
+more — and the process spread equals the boundary difference. The retired
+standalone solve is where those resistances used to live. T7-1 built the
+valve and a plant that uses it (`config/plants/liquid_valve_train.yaml`) and
+T7-2 put one on K-101's discharge in `config/plants/olefins_lite.yaml`; the
+single-device pages have not been moved onto either, so **the compressor page
+carries no valve control at all** — T7-2 removed the inert slider rather than
+leave one that moves nothing.
 
 **Still not on the request path:** `EquipmentRegistry` and `SeededRNG` (T2-2).
 Nothing in `app/` draws a random number yet.

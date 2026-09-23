@@ -3,6 +3,13 @@ import pytest
 from app.plant.validate import validate
 
 
+# R1 DEFECT REPRODUCTION: before the fix, a NaN or infinite value in any of
+# these fields passed `< minimum` silently (a NaN comparison is always
+# False, and +inf clears any minimum a config would set) and reached
+# load_plant() unrejected.
+NON_FINITE = [float("nan"), float("inf"), float("-inf")]
+
+
 def valid_config():
     return {
         "nodes": [
@@ -156,3 +163,64 @@ def test_multiple_errors_all_reported():
     errors = validate(config)
 
     assert len(errors) == 2
+
+
+@pytest.mark.parametrize("value", NON_FINITE)
+def test_non_finite_boundary_pressure_rejected(value):
+    config = valid_config()
+    config["nodes"][0]["pressure"] = value
+
+    errors = validate(config)
+
+    assert any("$.nodes[0].pressure" in e for e in errors)
+
+
+@pytest.mark.parametrize("value", NON_FINITE)
+def test_non_finite_internal_pressure_rejected(value):
+    config = valid_config()
+    config["nodes"][1]["pressure"] = value
+
+    errors = validate(config)
+
+    assert any("$.nodes[1].pressure" in e for e in errors)
+
+
+@pytest.mark.parametrize("value", NON_FINITE)
+def test_non_finite_limit_field_rejected(value):
+    config = valid_config()
+    config["limits"][0]["lo"] = value
+
+    errors = validate(config)
+
+    assert any("$.limits[0].lo" in e for e in errors)
+
+
+@pytest.mark.parametrize("value", NON_FINITE)
+def test_non_finite_controller_gain_rejected(value):
+    config = valid_config()
+    config["controllers"][0]["kp"] = value
+
+    errors = validate(config)
+
+    assert any("$.controllers[0].kp" in e for e in errors)
+
+
+@pytest.mark.parametrize("value", NON_FINITE)
+def test_non_finite_interlock_delay_rejected(value):
+    config = valid_config()
+    config["interlocks"][0]["delay_s"] = value
+
+    errors = validate(config)
+
+    assert any("$.interlocks[0].delay_s" in e for e in errors)
+
+
+def test_finite_number_at_the_boundary_of_a_minimum_still_passes():
+    # Compatibility guard: the new isfinite() check must not shadow the
+    # ordinary minimum check for a plain out-of-range number.
+    config = valid_config()
+    config["interlocks"][0]["delay_s"] = -1.0
+
+    errors = validate(config)
+
+    assert errors == ["$.interlocks[0].delay_s: -1.0 is below the minimum of 0"]

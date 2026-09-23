@@ -64,6 +64,7 @@ them, so a plant round-trips back to the config it came from.
 
 import copy
 import json
+import math
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -428,10 +429,25 @@ def _reference_errors(
         else:
             node_paths[node["id"]] = path
 
-        if node["boundary"] and node["pressure"] <= 0.0:
+        pressure = node["pressure"]
+
+        if not math.isfinite(pressure):
+            # Layered with validate.py's own non-finite check on every
+            # schema-typed number (D1): this one is the loader's, so a
+            # config built and passed to load_plant() without going
+            # through the schema validator — as tests do throughout this
+            # module — still gets it, and boundary/internal pressure get
+            # a domain-worded message instead of the validator's generic
+            # one.
+            kind = "boundary" if node["boundary"] else "internal"
+            errors.append(
+                f"{path}.pressure: {kind} node {node['id']!r} holds "
+                f"{pressure} psia — a node pressure must be a finite number",
+            )
+        elif node["boundary"] and pressure <= 0.0:
             errors.append(
                 f"{path}.pressure: boundary node {node['id']!r} holds "
-                f"{node['pressure']} psia — a boundary needs a positive "
+                f"{pressure} psia — a boundary needs a positive "
                 f"absolute pressure to anchor the network",
             )
 
@@ -1124,6 +1140,16 @@ def _apply_design(
                 f"{path}.{key}: expected {type(current).__name__}, "
                 f"got {type(value).__name__} {value!r}",
             )
+            continue
+
+        # design has no per-key schema (C3 declares it only as {"type":
+        # "object"}), so the validator cannot see a design number at all —
+        # this is the only layer that can reject a non-finite one (D1).
+        # isinstance rather than the isinstance-plus-bool-exclusion helper
+        # above: _same_kind already confirmed value is numeric and not a
+        # bool by this point.
+        if isinstance(value, (int, float)) and not math.isfinite(value):
+            errors.append(f"{path}.{key}: {value} is not a finite number")
             continue
 
         try:

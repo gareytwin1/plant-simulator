@@ -198,6 +198,32 @@ def test_zero_pressure_on_an_internal_node_is_allowed():
     load_plant(config)
 
 
+# R1 DEFECT REPRODUCTION: `pressure <= 0.0` is silently False for both NaN
+# and every non-finite value, so before the fix a non-finite boundary
+# pressure reached `Node()` and, downstream, the solver.
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+def test_non_finite_boundary_pressure_is_rejected(value):
+    config = valid_config()
+    config["nodes"][0]["pressure"] = value
+
+    errors = rejected(config)
+
+    assert any("$.nodes[0].pressure" in error for error in errors)
+
+
+# R1 DEFECT REPRODUCTION: an internal (non-boundary) node's pressure had no
+# check at all beyond the schema's bare "number" type, so a non-finite value
+# reached `Node()` unrejected.
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+def test_non_finite_internal_pressure_is_rejected(value):
+    config = valid_config()
+    config["nodes"][1]["pressure"] = value
+
+    errors = rejected(config)
+
+    assert any("$.nodes[1].pressure" in error for error in errors)
+
+
 def test_no_boundary_node_is_rejected():
     config = valid_config()
 
@@ -294,6 +320,21 @@ def test_derived_design_attribute_is_rejected():
     errors = rejected(config)
 
     assert any("$.equipment[0].design.spread" in error for error in errors)
+
+
+# R1 DEFECT REPRODUCTION: `design` carries no per-key schema (C3 declares it
+# only as {"type": "object"}), so the validator cannot see a non-finite
+# design number at all — before the fix, `_apply_design` passed it straight
+# to setattr, and a device with no range check of its own (R3 is a separate
+# task) accepted it silently.
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+def test_non_finite_design_number_is_rejected(value):
+    config = valid_config()
+    config["equipment"][0]["design"]["shutoff_pressure_rise"] = value
+
+    errors = rejected(config)
+
+    assert any("$.equipment[0].design.shutoff_pressure_rise" in error for error in errors)
 
 
 def test_every_problem_is_reported_in_one_error():

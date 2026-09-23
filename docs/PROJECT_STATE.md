@@ -15,17 +15,18 @@ already in BUILD_PLAN_STATUS.json and does not need a second home.
 
 ## Right now
 
-**Last state refresh:** 22 September 2026, at `971b405` (docs restructure, PR #51) —
-**this is a snapshot, not a live pointer.** Run `git log 971b405..HEAD --oneline`
-to see what has merged since. Last code change: `c7bd412`, T5-5 (PR #49).
-**Full suite as of this refresh:** **933 passed** · `python -m mypy` clean over 24 source files · no golden trace moved
+**Last state refresh:** 22 September 2026, at `e54e9df` (T5-4, PR #53) —
+**this is a snapshot, not a live pointer.** Run `git log e54e9df..HEAD --oneline`
+to see what has merged since.
+**Full suite as of this refresh:** **938 passed** · `python -m mypy` clean over 24 source files · no golden trace moved
 **In flight:** nothing. **No spine lock is held.** No task is Blocked.
 
 **Recent merges** (full notes in [BUILD_PLAN_STATUS.json](BUILD_PLAN_STATUS.json)):
 
 | Task | SHA | What landed |
 |---|---|---|
-| **T5-5** | `37fbc36` | Integrated reference plant. `olefins_lite.yaml`: two domains (liquid P-101, gas K-101) coupled only through V-101 inventory, loaded at its own closed-form design equilibrium. Config + tests only |
+| **T5-4** | `e54e9df` | Mass balance conservation suite. Writes down ADR 0002 section 7.1's identity against `olefins_lite.yaml`'s cold-start transient; closes tightly cumulatively and per-step, proves the naive published-flow ledger wrong by one step. Tests only — **M5 is now Complete** |
+| T5-5 | `37fbc36` | Integrated reference plant. `olefins_lite.yaml`: two domains (liquid P-101, gas K-101) coupled only through V-101 inventory, loaded at its own closed-form design equilibrium. Config + tests only |
 | T5-7 | `4db428d` | Vessel configured-port mode via `accepts_configured_ports` |
 | T5-6 | `7643281` | Coupling aggregates over hydraulic nodes; `DOMAIN_UNITS` retired |
 | T3-7 | `8733b1a` | Typed ports: `phase` / `purpose` / `control` + port-name guard |
@@ -41,24 +42,24 @@ what made this file 1,086 lines.
 
 | Milestone | Status |
 |---|---|
-| **M0**–**M4** | **Complete.** Checkpoint A (M1) and Checkpoint B (M4) both reached |
-| **M5** Inventory and Mass Balance | **6/7** — only T5-4 remains, and it is startable |
+| **M0**–**M5** | **Complete.** Checkpoint A (M1) and Checkpoint B (M4) both reached |
 | **M7** Control Valves and Final Elements | 1/5 — T7-1 Complete; T7-2, T7-3, T7-4, T7-5 startable |
 | M6, M8–M19 | Not started |
 
-**37 of 101 tasks Complete.** Next checkpoint is **C** (M5 + M6 + M7), and it is
-not close: M6 has not started.
+**38 of 101 tasks Complete.** Next checkpoint is **C** (M5 + M6 + M7); M5 just
+closed, but it is not close overall: M6 has not started.
 
 ## The next task
 
-**T5-4, the mass balance conservation suite** (Sonnet) — T5-5 was its last
-blocker. See *Traps for the next tasks* below before writing a line of it.
+**M5 is Complete — no single task is "the" next one.** Twenty tasks are
+startable in parallel (table below); which to hand out next is a scheduling
+choice, not a dependency one. T7-2 and T6-1 are the two Opus-level satellites
+in that list.
 
-### Startable now (21 tasks)
+### Startable now (20 tasks)
 
 | Task | Name | Model | Branch |
 |---|---|---|---|
-| **T5-4** | Mass balance conservation suite | Sonnet | `test/mass-balance` |
 | **T7-2** | Extract valve logic from the compressor | Opus | `refactor/extract-compressor-valve` |
 | **T6-1** | Stream enthalpy and mixing | Opus | `feature/stream-enthalpy` |
 | **T7-3** | Valve fault modes | Sonnet | `feature/valve-faults` |
@@ -82,10 +83,10 @@ blocker. See *Traps for the next tasks* below before writing a line of it.
 
 **Still waiting:** T8-3, T9-2 and T11-1 — on T8-2 and T9-1, no longer on T5-5.
 
-**Scheduling notes.** T5-4 and T7-2 both edit files T5-5 just created; T7-3 edits
-`app/equipment/valve.py` and should not run beside another valve change. T12-1
-adds a *new* isolated module under `app/engine/`, which is satellite work under
-the `app/engine/` rule in CLAUDE.md.
+**Scheduling notes.** T7-3 edits `app/equipment/valve.py` and should not run
+beside another valve change. T12-1 adds a *new* isolated module under
+`app/engine/`, which is satellite work under the `app/engine/` rule in
+CLAUDE.md.
 
 ## Known interim behaviour — do not "fix" these in passing
 
@@ -167,27 +168,12 @@ scope, and item 1 in particular reads like a bug and is not.
 
 ## Traps for the next tasks
 
-**T5-4's "10,000 steps with no drift" criterion is only now a genuine one.** It
-was written against a vessel that fills monotonically: with no liquid draw, the
-only way to pass was to stop the run before level clamped at 1.0 — a test-horizon
-trick standing in for missing physics, which is why ADR 0002 §8.2 re-sequenced
-T5-4 after T5-5. T5-5's plant reaches a real steady state. **Do not shorten a
-horizon to make a conservation test pass**; that is the exact defect the
-re-sequencing removed.
-
-**T5-4 owns writing down the conservation identity** (ADR 0002 §7.1).
-`Engine._couple()` runs in the constructor, so a flow exists before the first
-`step()` and each `integrate` consumes the flow solved on the *previous* pass:
-
-```text
-Δinventory  =  Σ (n = 0 … N−1)  q_n · dt / 60
-```
-
-with `q₀` read from `engine.snapshot()` **before** the first step. Summing the N
-*published* flows instead is wrong by `(q_N − q₀)·dt/60` — measured at **2.36
-scf over 10,000 gas steps, 0.09%**, four orders outside any sensible tolerance,
-and it reads as a physics bug. It hides completely on a constant-flow domain.
-**Record it; do not paper over it in a fixture.**
+**The mass-balance conservation identity is now recorded, not open.** T5-4
+(`tests/test_mass_balance.py`) wrote down ADR 0002 §7.1's identity —
+`Δinventory = Σ(n=0…N-1) q_n·dt/60`, with `q₀` read before the first `step()` —
+and checked it against T5-5's cold-start transient, both cumulatively (no
+drift to 20,000 steps) and per-step. A later task touching conservation should
+read that file before re-deriving the identity.
 
 **Near zero vapour flow, explicit Euler limit-cycles.** Where `dε/dt ∝ −√ε` it
 settles into a stable period-2 cycle, measured at ±0.0615 SCFM and ±7.5e-6 psi,

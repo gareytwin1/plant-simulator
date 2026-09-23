@@ -37,19 +37,32 @@
 #   sit at a true steady state is for K-101's and PV-101's flows to sum to
 #   zero. PV-101 vents 2.0 * 0.5 * sqrt(200.0 - 100.0) = 10.0 SCFM forward, so
 #   K-101 must draw the same 10.0 SCFM *backward*, out of its own discharge
-#   header and into the vessel:
+#   header and into the vessel. K-101 discharges through FV-201 rather than
+#   straight into the header (T7-2), so its branch is a machine and a valve
+#   in series with the internal node N-204 between them — the machine
+#   publishes the rise, the valve publishes the drop, and the solver owns
+#   N-204's pressure:
 #
-#     PV-101: 1.0 * sqrt(200.0 - 100.0)                    ->  10.0 SCFM
-#     K-101:  100.0 - 0.05 * (-10.0)^2 = 305.0 - 200.0      -> -10.0 SCFM
+#     PV-101:  1.0 * sqrt(200.0 - 100.0)                     ->  10.0 SCFM
+#     K-101:   100.0 - 0.04 * signed_square(q)      \
+#     FV-201:        - 0.01 * signed_square(q)       } = 305.0 - 200.0
+#                                                   /   -> q = -10.0 SCFM
+#
+#   The 0.05 of resistance that used to sit inside K-101 alone is now split
+#   0.04 machine + 0.01 valve — FV-201 is linear with capacity 20.0 at 0.5
+#   travel, so K = 1 / (20.0 * 0.5)^2 = 0.01 — and the series pair still
+#   totals 0.05. Every flow in this fixture is therefore exactly where T5-5
+#   derived it, and N-204 sits at 200.0 + 100.0 + 0.04 * 100.0 = 304.0 psia.
 #
 #   This is ADR 0002 section 7.3's "K-101 reversing", named and kept credible
 #   by design rather than hidden: the reversal is required by conservation
-#   the moment PV-101 is open at all, and sizing K-101's own resistance to
-#   0.05 (instead of the class default 0.002) keeps both the running reversal
-#   and the cold one small. Cold, K-101 is pure resistance against the same
-#   105 psi gap: q = -sqrt(105.0 / 0.05) = -45.83 SCFM — four times the
-#   running reversal, not the multi-hundred-SCFM runaway an unsized
-#   resistance would give, and still well inside K-101's own 60 SCFM rating.
+#   the moment PV-101 is open at all, and sizing the K-101/FV-201 pair to
+#   0.05 in total (instead of the compressor class default 0.002) keeps both
+#   the running reversal and the cold one small. Cold, the pair is pure
+#   resistance against the same 105 psi gap:
+#   q = -sqrt(105.0 / 0.05) = -45.83 SCFM — four times the running reversal,
+#   not the multi-hundred-SCFM runaway an unsized resistance would give, and
+#   still well inside K-101's own 60 SCFM rating.
 #
 # Both flows stay exactly at their design values for as long as the plant
 # runs — there is no test-horizon trick standing in for missing physics.
@@ -60,6 +73,10 @@ nodes:
   - {id: N-201, boundary: true, pressure: 200.0, domain: gas}
   - {id: N-202, boundary: true, pressure: 305.0, domain: gas}
   - {id: N-203, boundary: true, pressure: 100.0, domain: gas}
+  # Internal — K-101's discharge, upstream of FV-201. Its pressure is a
+  # solver output; 304.0 is the design-point value, used as the initial
+  # iterate so the first solve starts where the plant already sits.
+  - {id: N-204, boundary: false, pressure: 304.0, domain: gas}
 equipment:
   - tag: P-101
     type: pump
@@ -82,12 +99,21 @@ equipment:
   - tag: K-101
     type: compressor
     node_in: N-201
-    node_out: N-202
+    node_out: N-204
     design:
       load_target: 1.0
       shutoff_pressure_rise: 100.0
-      compressor_resistance: 0.05
+      compressor_resistance: 0.04
       max_flow: 60.0
+  - tag: FV-201
+    type: control_valve
+    node_in: N-204
+    node_out: N-202
+    design:
+      capacity: 20.0
+      flow_characteristic: linear
+      position: 0.5
+      position_target: 0.5
   - tag: PV-101
     type: control_valve
     node_in: N-201

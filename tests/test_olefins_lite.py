@@ -22,6 +22,13 @@ same reason: the solver's own tolerance band makes this a bounded sawtooth,
 never bit-exact (T5-7 section C.11), so every settled comparison here is
 `rel=1e-6`, not equality.
 
+K-101 discharges through FV-201 (T7-2) rather than straight into the header:
+the machine publishes the rise, the valve publishes the drop, and N-204 —
+the gas domain's one internal node — is the solver's unknown between them.
+The 0.05 of resistance that once sat inside the compressor is split 0.04
+machine + 0.01 valve, so the series pair still totals 0.05 and every number
+below is the one T5-5 derived.
+
 Cold start and K-101's reversal are ADR 0002 section 7.3's, not a numerical
 artifact: V-101 has no vapor *inlet* port, so nothing manufactures vapor,
 and the only way gas pressure can sit at a true steady state is for K-101
@@ -54,7 +61,10 @@ DESIGN_K101_FLOW = -10.0   # reversed — see the module docstring
 DESIGN_PV101_FLOW = 10.0
 
 COLD_FEED_FLOW = -100.0    # P-101 off: pure resistance against the same 20 psi
-COLD_K101_FLOW = -math.sqrt(105.0 / 0.05)   # K-101 off: pure resistance, 105 psi gap
+# K-101 off: the machine and FV-201 are pure resistance in series against the
+# same 105 psi gap — 0.04 + 0.01, the same total the compressor carried alone.
+COLD_K101_FLOW = -math.sqrt(105.0 / (0.04 + 0.01))
+DESIGN_N204_PRESSURE = 304.0
 
 
 def load():
@@ -118,7 +128,7 @@ def test_the_fixture_loads_as_two_independent_domains():
 
     assert set(plant.topologies) == {"liquid", "gas"}
     assert set(plant.topologies["liquid"].devices) == {"P-101", "LV-101"}
-    assert set(plant.topologies["gas"].devices) == {"K-101", "PV-101"}
+    assert set(plant.topologies["gas"].devices) == {"K-101", "FV-201", "PV-101"}
 
     # V-101 is a coupling device: it has no Branch and sits in no Topology.
     assert "V-101" not in plant.topologies["liquid"].devices
@@ -147,6 +157,56 @@ def test_k_101_and_pv_101_are_two_branches_on_the_one_vapor_node():
     }
 
     assert on_vapor_node == {"K-101", "PV-101"}
+
+
+def test_k_101_discharges_through_fv_201_over_one_internal_node():
+    """T7-2: the discharge valve is a device on the branch, not state on the
+    machine. K-101 lands on N-204, FV-201 picks it up there, and N-204 is the
+    one node in this fixture whose pressure the solver owns rather than the
+    config.
+    """
+    plant = load()
+    gas = plant.topologies["gas"]
+
+    assert plant.devices["K-101"].ports["discharge"].node.id == "N-204"
+    assert plant.devices["FV-201"].ports["inlet"].node.id == "N-204"
+    assert plant.devices["FV-201"].ports["outlet"].node.id == "N-202"
+
+    assert gas.nodes["N-204"].is_boundary is False
+    assert set(gas.internal_nodes) == {"N-204"}
+
+    # Nothing of the valve is left on the machine (build plan T7-2).
+    for attribute in (
+        "discharge_valve_position",
+        "discharge_valve_target",
+        "discharge_valve_rate",
+        "valve_resistance",
+        "set_discharge_valve_position",
+    ):
+        assert not hasattr(plant.devices["K-101"], attribute)
+
+
+def test_the_series_pair_lands_k_101_at_its_design_point():
+    """The split is a re-division of one resistance, not a new number: 0.04
+    on the machine plus 0.01 on FV-201 is the 0.05 K-101 carried alone, so
+    the design flow is unmoved and N-204 sits at the derived 304.0 psia.
+    """
+    plant = load()
+    engine = Engine.from_plant(plant)
+    start(plant)
+
+    run(engine, 5000)
+    gas = plant.topologies["gas"]
+
+    assert flow(plant, "K-101", "gas") == pytest.approx(DESIGN_K101_FLOW, abs=0.03)
+    assert gas.nodes["N-204"].pressure == pytest.approx(
+        DESIGN_N204_PRESSURE, abs=0.03
+    )
+
+    # One branch, one flow: a series pair carries the same gas.
+    assert flow(plant, "FV-201", "gas") == pytest.approx(
+        flow(plant, "K-101", "gas"), rel=1e-9
+    )
 
 
 def test_pv_101_and_lv_101_are_manual_with_no_controller():
@@ -361,6 +421,43 @@ def test_closing_pv_101_raises_the_pressure():
 # --------------------------------------------------------------------------
 # 5. No domain mixes flow units
 # --------------------------------------------------------------------------
+
+
+def test_closing_fv_201_throttles_k_101_and_lowers_the_pressure():
+    """The acceptance criterion the compressor's own valve could never meet:
+    stroking it changes a flow. K-101 draws backward here (ADR 0002 7.3), so
+    throttling its discharge shrinks that draw, and the vessel — still
+    venting through PV-101 — loses the vapor it was being handed.
+    """
+    plant = load()
+    engine = Engine.from_plant(plant)
+    start(plant)
+
+    run(engine, 6000)
+    before_pressure = plant.devices["V-101"].pressure
+    before_flow = flow(plant, "K-101", "gas")
+
+    plant.devices["FV-201"].set_position_target(0.25)
+    run(engine, 6000)
+
+    assert abs(flow(plant, "K-101", "gas")) < abs(before_flow)
+    assert plant.devices["V-101"].pressure < before_pressure
+
+
+def test_opening_fv_201_raises_k_101_flow_and_the_pressure():
+    plant = load()
+    engine = Engine.from_plant(plant)
+    start(plant)
+
+    run(engine, 6000)
+    before_pressure = plant.devices["V-101"].pressure
+    before_flow = flow(plant, "K-101", "gas")
+
+    plant.devices["FV-201"].set_position_target(1.0)
+    run(engine, 6000)
+
+    assert abs(flow(plant, "K-101", "gas")) > abs(before_flow)
+    assert plant.devices["V-101"].pressure > before_pressure
 
 
 def test_the_liquid_domain_carries_only_gpm_and_the_gas_domain_only_scfm():

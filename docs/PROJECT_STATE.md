@@ -20,6 +20,11 @@ already in BUILD_PLAN_STATUS.json and does not need a second home.
 to see what has merged since.
 **Full suite as of this refresh:** **974 passed** · `python -m mypy` clean over 25 source files · compressor golden trace moved deliberately (temperature field only, on the two boundary-asymmetric scenarios — justified in T6-2's note)
 **In flight:** nothing. **No spine lock is held.** No task is Blocked.
+**Plan change since that refresh:** milestone **MR Remediation** (R1–R12, 13
+tasks) added to the build plan from the approved post-T6-2 audit. It puts
+**R9 and R2 in front of T6-5** and **R7 in front of T18-1**. The design is
+decided; the tasks, lock order and verification rule are on the build plan
+under MR.
 
 **Recent merges** (full notes in [BUILD_PLAN_STATUS.json](BUILD_PLAN_STATUS.json)):
 
@@ -43,26 +48,38 @@ what made this file 1,086 lines.
 | Milestone | Status |
 |---|---|
 | **M0**–**M5** | **Complete.** Checkpoint A (M1) and Checkpoint B (M4) both reached |
-| **M6** Energy Balance and Temperature | 2/5 — T6-1, T6-2 Complete; T6-3, T6-4, T6-5 startable |
+| **M6** Energy Balance and Temperature | 2/5 — T6-1, T6-2 Complete; T6-3, T6-4 startable; T6-5 waits on R2 and R9 |
 | **M7** Control Valves and Final Elements | 2/5 — T7-1, T7-2 Complete; T7-3, T7-4, T7-5 startable |
+| **MR** Remediation | 0/13 — the whole no-spine set is startable, plus R2 and R10b at the head of the spine queue |
 | M8–M19 | Not started |
 
-**41 of 101 tasks Complete.** Next checkpoint is **C** (M5 + M6 + M7); M5 is
-closed, M6 has landed two tasks and M7 two.
+**41 of 114 tasks Complete.** Next checkpoint is **C** (M5 + M6 + M7); M5 is
+closed, M6 has landed two tasks and M7 two. MR is scheduled to merge by
+Checkpoint C, because T6-5 waits on two of its tasks.
 
 ## The next task
 
-**No single task is "the" next one.** Twenty-one tasks are startable in
+**No single task is "the" next one.** Twenty-nine tasks are startable in
 parallel (table below); which to hand out next is a scheduling choice, not a
-dependency one. T6-5, T7-4 and T13-1 are the Opus-level tasks in that list.
+dependency one. R2, R10b, R12, T7-4 and T13-1 are the Opus-level tasks in
+that list.
 
-### Startable now (21 tasks)
+### Startable now (29 tasks)
 
 | Task | Name | Model | Branch |
 |---|---|---|---|
+| **R1** | Reject non-finite numbers at load | Sonnet | `fix/finite-config-numbers` |
+| **R2** | Solver refuses non-finite curves | Opus · spine lock | `fix/solver-nonfinite` |
+| **R3** | Machine design ranges | Sonnet | `fix/machine-design-ranges` |
+| **R5** | Request validation | Sonnet · `app/main.py` lock | `fix/request-validation` |
+| **R8** | Flow unit label | Sonnet | `fix/flow-unit-label` |
+| **R9** | Immutable composition | Sonnet | `fix/immutable-composition` |
+| **R10a** | Documentation corrections | Sonnet | `docs/solved-state-wording` |
+| **R10b** | C1/C4 docstring corrections | Opus · spine lock | `docs/c1-c4-docstrings` |
+| **R11** | Check in the status generator | Sonnet | `chore/status-generator` |
+| **R12** | Reconcile spine rules | Opus | `docs/spine-rules` |
 | **T6-3** | Heat exchanger model | Sonnet | `feature/heat-exchanger` |
 | **T6-4** | Furnace model | Sonnet | `feature/furnace` |
-| **T6-5** | Energy propagation through the network | Opus | `feature/energy-balance` |
 | **T7-3** | Valve fault modes | Sonnet | `feature/valve-faults` |
 | **T7-4** | Command arbitration | Opus | `feature/command-arbitration` |
 | **T7-5** | Relief device | Sonnet | `feature/relief-valve` |
@@ -74,7 +91,6 @@ dependency one. T6-5, T7-4 and T13-1 are the Opus-level tasks in that list.
 | **T14-1** | Scenario file schema | Sonnet | `feature/scenario-schema` |
 | **T15-1** | Operator action log | Sonnet | `feature/action-log` |
 | **T16-1** | Console design system | Sonnet | `design/console-system` |
-| **T18-1** | Container and WSGI serving | Sonnet | `chore/container-and-ci` |
 | **T18-2** | CI pipeline | Sonnet | `chore/ci-pipeline` |
 | **T16-2** | Snapshot push transport | Sonnet | `feature/snapshot-transport` |
 | **T18-4** | Structured logging and health | Sonnet | `feature/observability` |
@@ -83,8 +99,13 @@ dependency one. T6-5, T7-4 and T13-1 are the Opus-level tasks in that list.
 | **T17-1** | Ring-buffer historian | Sonnet | `feature/historian` |
 
 **Still waiting:** T8-3, T9-2 and T11-1 — on T8-2 and T9-1, unchanged by T6-1.
+From MR: **T6-5** on R2 and R9; **T18-1** on R7; R4 on R1; R6 on R5; R7 on R6.
 
-**Scheduling notes.** T7-3 edits `app/equipment/valve.py` and should not run
+**Scheduling notes.** MR runs under **one global spine lock** (U1 in the
+approved design treats `network.py` and `scheduler.py` as spine too). The spine
+queue is R2 → R10b → R6 → R7 → T6-5, one at a time. The `app/main.py` lock
+goes R5 → R6. R1 and R4 both edit `app/plant/loader.py`, so they run in
+sequence. Everything else in MR runs in parallel now, alongside T18-2. T7-3 edits `app/equipment/valve.py` and should not run
 beside another valve change. T12-1 adds a *new* isolated module under
 `app/engine/`, which is satellite work under the `app/engine/` rule in
 CLAUDE.md.

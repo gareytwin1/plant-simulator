@@ -15,27 +15,22 @@ already in BUILD_PLAN_STATUS.json and does not need a second home.
 
 ## Right now
 
-**Last state refresh:** 23 September 2026, at `20a504a` (T6-2, PR #58) —
-**this is a snapshot, not a live pointer.** Run `git log 20a504a..HEAD --oneline`
-to see what has merged since.
+**Last state refresh:** 23 September 2026, at `300659b` (MR milestone added,
+PR #59) — **this is a snapshot, not a live pointer.** Run
+`git log 300659b..HEAD --oneline` to see what has merged since.
 **Full suite as of this refresh:** **974 passed** · `python -m mypy` clean over 25 source files · compressor golden trace moved deliberately (temperature field only, on the two boundary-asymmetric scenarios — justified in T6-2's note)
 **In flight:** nothing. **No spine lock is held.** No task is Blocked.
-**Plan change since that refresh:** milestone **MR Remediation** (R1–R12, 13
-tasks) added to the build plan from the approved post-T6-2 audit. It puts
-**R9 and R2 in front of T6-5** and **R7 in front of T18-1**. The design is
-decided; the tasks, lock order and verification rule are on the build plan
-under MR.
 
 **Recent merges** (full notes in [BUILD_PLAN_STATUS.json](BUILD_PLAN_STATUS.json)):
 
 | Task | SHA | What landed |
 |---|---|---|
+| — | `300659b` | (non-task) Added milestone **MR Remediation** (R1–R12, 13 tasks) to the build plan from the approved post-T6-2 audit. Puts **R9 and R2 in front of T6-5** and **R7 in front of T18-1**. Docs only — no code changed. PR #59 |
 | **T6-2** | `20a504a` | Polytropic compression temperature. `GasCompressor.temperature_at` replaces the piecewise table with `T2 = T1·(P2/P1)^((k-1)/(k·η))`; `isentropic_exponent`/`polytropic_efficiency` are named design attributes. Takes the actual solved suction/discharge pressures via `Session.compressor_state()`, not a fixed design target — an initial revision used the design target to avoid touching the `app/engine/` spine and was caught in review as physically wrong |
 | T7-2 | `537f206` | Extract valve logic from the compressor. `GasCompressor` loses `discharge_valve_position`/`target`/`rate`; `FV-201` (`ControlValve`) now sits on K-101's discharge in `olefins_lite.yaml`, over a new internal node N-204. Resistance re-split 0.04 machine + 0.01 valve so every T5-5 design value is unmoved. Dead `/api/valve` endpoint and page slider removed |
 | — | `f9ce10e` | (non-task) Fixed `start-task`/`merge-task` skills reading `$1` instead of `$0` for their own argument — Claude Code's positional substitution is zero-based, so both were silently reading an empty string. PR #56 |
 | T6-1 | `bb0b9ec` | Stream enthalpy and mixing. `app/plant/thermo.py`: Cp per unit of native flow, flow-weighted mixing at nodes (temperature by flow·Cp, composition by flow — closes energy identically). Imports nothing from `app.plant`, so equipment can import it. Unblocks T6-2 through T6-5 |
 | T5-4 | `e54e9df` | Mass balance conservation suite. Writes down ADR 0002 section 7.1's identity against `olefins_lite.yaml`'s cold-start transient; closes tightly cumulatively and per-step, proves the naive published-flow ledger wrong by one step. Tests only — **M5 is now Complete** |
-| T5-5 | `37fbc36` | Integrated reference plant. `olefins_lite.yaml`: two domains (liquid P-101, gas K-101) coupled only through V-101 inventory, loaded at its own closed-form design equilibrium. Config + tests only |
 
 **ADRs on `main`:** ADR 0001 ([flow-domain separation](ADR_0001_FLOW_DOMAIN_SEPARATION.md))
 with Amendment 1, and ADR 0002 ([typed ports](ADR_0002_TYPED_PORTS.md)) with

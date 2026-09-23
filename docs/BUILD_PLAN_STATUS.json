@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "23 September 2026",
-  "main_sha": "f9ce10e4e2af1b07eceeba62cd40d922fb0b5abf",
-  "tests_passing_on_main": 969,
+  "main_sha": "20a504ae0f69b0f546a1e5e7c7482c3d0dd77ddd",
+  "tests_passing_on_main": 974,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -43,7 +43,7 @@
     },
     "M6": {
       "name": "Energy Balance and Temperature",
-      "complete": 1,
+      "complete": 2,
       "total": 5
     },
     "M7": {
@@ -114,8 +114,8 @@
   },
   "totals": {
     "tasks": 101,
-    "complete": 40,
-    "startable_now": 22
+    "complete": 41,
+    "startable_now": 21
   },
   "tasks": [
     {
@@ -794,10 +794,9 @@
       "files": [
         "app/equipment/compressor.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true,
-      "note": ""
+      "status": "Complete",
+      "status_key": "done",
+      "note": "COMPLETE - merged to main as 20a504a (PR #58), 23 Sep 2026. 974 passed on main, mypy clean over 25 source files. Replaced GasCompressor.temperature_at's three-branch piecewise table with the real polytropic relation, T2 = T1*(P2/P1)^((k-1)/(k*eta)). isentropic_exponent (1.3) and polytropic_efficiency (0.75) are named design attributes instead of the table's five magic constants. No longer clamps to max_temperature - nothing else in this codebase clamps solved output either; max_temperature stays published in get_state() as a nameplate value for a future alarm task. First revision computed the pressure ratio from spread and the device's own suction_pressure_target (a fixed design value) to avoid touching app/engine/sessions.py, a spine file - that was a bug, caught in review: two scenarios at the same spread but different absolute pressure levels (supply_pressure_change vs discharge_header_change) produced identical temperatures, defeating the point of a real ratio. Fixed in a second commit by passing the actual solved suction/discharge pressures through Session.compressor_state() (temperature_at now takes both pressures, not spread) - the only caller, no other branch in flight against app/engine/ so no lock conflict. Golden trace regenerated twice: first pass moved all five compressor scenarios (temperature field only), second pass (the ratio fix) moved only the two boundary-asymmetric scenarios - the three equal-boundary scenarios are unaffected since ratio is 1 regardless of denominator when suction equals discharge. Pump traces byte-identical throughout. New tests cover ratio 1.0 -> zero rise at multiple pressure levels, monotonic rise with ratio, no clamping, efficiency is a live parameter, and the exact absolute-pressure-level bug the fix addresses."
     },
     {
       "id": "T6-3",

@@ -15,6 +15,7 @@ errors list is the typed part, because that is what callers read.
 """
 
 import json
+import math
 from pathlib import Path
 from typing import Any
 
@@ -60,6 +61,15 @@ def _check(value: Any, schema: Schema, path: str, errors: list[str]) -> None:
         if "minLength" in schema and len(value) < schema["minLength"]:
             errors.append(f"{path}: length {len(value)} is below the minimum of {schema['minLength']}")
     elif expected_type == "number":
+        # Checked ahead of minimum: NaN and +inf pass `< minimum` silently
+        # (a NaN comparison is always False, and +inf clears anywhere a
+        # config would set one), so a range check alone lets both through.
+        # Returning here also avoids compounding one bad value into two
+        # error lines (D1).
+        if not math.isfinite(value):
+            errors.append(f"{path}: {value} is not a finite number")
+            return
+
         if "minimum" in schema and value < schema["minimum"]:
             errors.append(f"{path}: {value} is below the minimum of {schema['minimum']}")
 

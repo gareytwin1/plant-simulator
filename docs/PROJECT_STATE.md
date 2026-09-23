@@ -15,22 +15,23 @@ already in BUILD_PLAN_STATUS.json and does not need a second home.
 
 ## Right now
 
-**Last state refresh:** 23 September 2026, at `bb0b9ec` (T6-1, PR #55) —
-**this is a snapshot, not a live pointer.** Run `git log bb0b9ec..HEAD --oneline`
+**Last state refresh:** 23 September 2026, at `f9ce10e` (T7-2, PR #54; plus a
+skills bug fix, PR #56, non-task) —
+**this is a snapshot, not a live pointer.** Run `git log f9ce10e..HEAD --oneline`
 to see what has merged since.
-**Full suite as of this refresh:** **966 passed** · `python -m mypy` clean over 25 source files · no golden trace moved
+**Full suite as of this refresh:** **969 passed** · `python -m mypy` clean over 25 source files · no golden trace moved
 **In flight:** nothing. **No spine lock is held.** No task is Blocked.
 
 **Recent merges** (full notes in [BUILD_PLAN_STATUS.json](BUILD_PLAN_STATUS.json)):
 
 | Task | SHA | What landed |
 |---|---|---|
-| **T6-1** | `bb0b9ec` | Stream enthalpy and mixing. `app/plant/thermo.py`: Cp per unit of native flow, flow-weighted mixing at nodes (temperature by flow·Cp, composition by flow — closes energy identically). Imports nothing from `app.plant`, so equipment can import it. Unblocks T6-2 through T6-5 |
+| **T7-2** | `537f206` | Extract valve logic from the compressor. `GasCompressor` loses `discharge_valve_position`/`target`/`rate`; `FV-201` (`ControlValve`) now sits on K-101's discharge in `olefins_lite.yaml`, over a new internal node N-204. Resistance re-split 0.04 machine + 0.01 valve so every T5-5 design value is unmoved. Dead `/api/valve` endpoint and page slider removed |
+| — | `f9ce10e` | (non-task) Fixed `start-task`/`merge-task` skills reading `$1` instead of `$0` for their own argument — Claude Code's positional substitution is zero-based, so both were silently reading an empty string. PR #56 |
+| T6-1 | `bb0b9ec` | Stream enthalpy and mixing. `app/plant/thermo.py`: Cp per unit of native flow, flow-weighted mixing at nodes (temperature by flow·Cp, composition by flow — closes energy identically). Imports nothing from `app.plant`, so equipment can import it. Unblocks T6-2 through T6-5 |
 | T5-4 | `e54e9df` | Mass balance conservation suite. Writes down ADR 0002 section 7.1's identity against `olefins_lite.yaml`'s cold-start transient; closes tightly cumulatively and per-step, proves the naive published-flow ledger wrong by one step. Tests only — **M5 is now Complete** |
 | T5-5 | `37fbc36` | Integrated reference plant. `olefins_lite.yaml`: two domains (liquid P-101, gas K-101) coupled only through V-101 inventory, loaded at its own closed-form design equilibrium. Config + tests only |
 | T5-7 | `4db428d` | Vessel configured-port mode via `accepts_configured_ports` |
-| T5-6 | `7643281` | Coupling aggregates over hydraulic nodes; `DOMAIN_UNITS` retired |
-| T3-7 | `8733b1a` | Typed ports: `phase` / `purpose` / `control` + port-name guard |
 
 **ADRs on `main`:** ADR 0001 ([flow-domain separation](ADR_0001_FLOW_DOMAIN_SEPARATION.md))
 with Amendment 1, and ADR 0002 ([typed ports](ADR_0002_TYPED_PORTS.md)) with
@@ -44,20 +45,19 @@ what made this file 1,086 lines.
 |---|---|
 | **M0**–**M5** | **Complete.** Checkpoint A (M1) and Checkpoint B (M4) both reached |
 | **M6** Energy Balance and Temperature | 1/5 — T6-1 Complete; T6-2, T6-3, T6-4, T6-5 all startable |
-| **M7** Control Valves and Final Elements | 1/5 — T7-1 Complete; T7-2, T7-3, T7-4, T7-5 startable |
+| **M7** Control Valves and Final Elements | 2/5 — T7-1, T7-2 Complete; T7-3, T7-4, T7-5 startable |
 | M8–M19 | Not started |
 
-**39 of 101 tasks Complete.** Next checkpoint is **C** (M5 + M6 + M7); M5 is
-closed, M6 and M7 have each landed one task.
+**40 of 101 tasks Complete.** Next checkpoint is **C** (M5 + M6 + M7); M5 is
+closed, M6 has landed one task and M7 two.
 
 ## The next task
 
-**No single task is "the" next one.** Twenty-three tasks are startable in
+**No single task is "the" next one.** Twenty-two tasks are startable in
 parallel (table below); which to hand out next is a scheduling choice, not a
-dependency one. T6-5, T7-2, T7-4 and T13-1 are the Opus-level tasks in that
-list.
+dependency one. T6-5, T7-4 and T13-1 are the Opus-level tasks in that list.
 
-### Startable now (23 tasks)
+### Startable now (22 tasks)
 
 | Task | Name | Model | Branch |
 |---|---|---|---|
@@ -65,7 +65,6 @@ list.
 | **T6-3** | Heat exchanger model | Sonnet | `feature/heat-exchanger` |
 | **T6-4** | Furnace model | Sonnet | `feature/furnace` |
 | **T6-5** | Energy propagation through the network | Opus | `feature/energy-balance` |
-| **T7-2** | Extract valve logic from the compressor | Opus | `refactor/extract-compressor-valve` |
 | **T7-3** | Valve fault modes | Sonnet | `feature/valve-faults` |
 | **T7-4** | Command arbitration | Opus | `feature/command-arbitration` |
 | **T7-5** | Relief device | Sonnet | `feature/relief-valve` |
@@ -87,11 +86,12 @@ list.
 
 **Still waiting:** T8-3, T9-2 and T11-1 — on T8-2 and T9-1, unchanged by T6-1.
 
-**Scheduling notes.** T6-2 and T7-2 both edit `app/equipment/compressor.py` —
-do not run them concurrently; sequence M6 before M7 or expect a conflict.
-T7-3 edits `app/equipment/valve.py` and should not run beside another valve
-change. T12-1 adds a *new* isolated module under `app/engine/`, which is
-satellite work under the `app/engine/` rule in CLAUDE.md.
+**Scheduling notes.** T6-2 now starts from the `compressor.py` T7-2 left
+behind — no discharge-valve state on the device, load/temperature only; the
+piecewise temperature table it replaces is unaffected. T7-3 edits
+`app/equipment/valve.py` and should not run beside another valve change.
+T12-1 adds a *new* isolated module under `app/engine/`, which is satellite
+work under the `app/engine/` rule in CLAUDE.md.
 
 ## Known interim behaviour — do not "fix" these in passing
 

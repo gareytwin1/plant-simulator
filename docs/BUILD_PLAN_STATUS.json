@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "23 September 2026",
-  "main_sha": "bb0b9ec1b8e41b3016c3e8c434ff58dfac34fdce",
-  "tests_passing_on_main": 966,
+  "main_sha": "f9ce10e4e2af1b07eceeba62cd40d922fb0b5abf",
+  "tests_passing_on_main": 969,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -48,7 +48,7 @@
     },
     "M7": {
       "name": "Control Valves and Final Elements",
-      "complete": 1,
+      "complete": 2,
       "total": 5
     },
     "M8": {
@@ -114,8 +114,8 @@
   },
   "totals": {
     "tasks": 101,
-    "complete": 39,
-    "startable_now": 23
+    "complete": 40,
+    "startable_now": 22
   },
   "tasks": [
     {
@@ -884,10 +884,9 @@
         "app/equipment/compressor.py",
         "config/plants/olefins_lite.yaml"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true,
-      "note": "UNBLOCKED 22 Sep 2026 - T5-5 merged as 37fbc36 (PR #49). All three dependencies (T7-1, T4-4, T5-5) are now satisfied. Depends on T5-5, which creates config/plants/olefins_lite.yaml; explicit because milestone ordering alone is too implicit for agents (docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md)."
+      "status": "Complete",
+      "status_key": "done",
+      "note": "COMPLETE - merged to main as 537f206 (PR #54), 23 Sep 2026. 969 passed on main, mypy clean over 25 source files, no golden trace moved. Removed discharge_valve_position/target/rate and set_discharge_valve_position from GasCompressor - the valve was inert slow state characteristic() never read. Placed FV-201 (ControlValve) on K-101's discharge in olefins_lite.yaml: K-101 now lands on new internal node N-204, FV-201 carries the gas on to N-202. Split the prior 0.05 compressor_resistance into 0.04 machine + 0.01 valve (FV-201 linear, capacity 20.0 at 0.5 travel) so every T5-5 design value is unmoved - K-101 -10.0 SCFM, PV-101 +10.0, level 0.5, pressure 200.0, N-204 solves to 304.0 psia. Removed the dead /api/valve endpoint, its slider on the compressor page (frozen file, deletion only), and the discharge_valve_position/target rows and valve_pressure_drop placeholder from Session.compressor_state(). Golden traces regenerated: three fields dropped (discharge_valve_position/target, valve_pressure_drop), valve_manipulation scenario renamed sustained_load since its two valve commands moved nothing; every retained field verified bit-identical to the prior trace by exact equality, pump traces byte-identical. Four new tests on the reference plant assert what the compressor's own valve never could: closing/opening FV-201 changes K-101's flow and vessel pressure. NEXT: T6-2 (polytropic temperature) also touches compressor.py - sequence after this, do not run concurrently."
     },
     {
       "id": "T7-3",

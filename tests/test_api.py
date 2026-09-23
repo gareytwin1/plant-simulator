@@ -15,7 +15,7 @@ def test_api_state():
     assert state["suction_pressure"] == 750.0
     assert state["discharge_pressure"] == 750.0
     assert state["spread"] == 0.0
-    assert state["temperature"] == 75.0
+    assert state["temperature"] == pytest.approx(75.0)
     assert state["flow"] == 0.0
 
 

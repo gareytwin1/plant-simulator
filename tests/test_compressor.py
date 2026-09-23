@@ -83,17 +83,74 @@ def test_load_reaches_its_target_and_holds():
     assert simulator.characteristic(0.0) == pytest.approx(220.0)
 
 
-def test_temperature_at_reads_the_spread_the_solver_found():
-    """Temperature is a function of the process spread, and the spread is a
-    solver output now — so the device is asked for it rather than holding it.
+def test_temperature_at_reads_the_pressures_the_solver_found():
+    """Temperature is a function of the actual solved pressures, not a
+    device-owned target — so the device is asked for them rather than
+    holding them.
     """
     simulator = GasCompressor()
 
-    assert simulator.temperature_at(0.0) == pytest.approx(75.0)
-    assert simulator.temperature_at(200.0) == pytest.approx(87.0)
-    assert simulator.temperature_at(1000.0) == pytest.approx(
-        simulator.max_temperature,
+    assert simulator.temperature_at(675.0, 675.0) == pytest.approx(75.0)
+    assert simulator.temperature_at(675.0, 875.0) == pytest.approx(
+        119.44399037483498,
     )
+
+
+def test_temperature_at_equal_pressures_gives_zero_rise():
+    """A ratio of 1.0 is the identity case of the polytropic relation —
+    discharge temperature equals suction temperature, at any pressure
+    level."""
+    simulator = GasCompressor()
+
+    assert simulator.temperature_at(675.0, 675.0) == pytest.approx(
+        simulator.base_temperature,
+    )
+    assert simulator.temperature_at(300.0, 300.0) == pytest.approx(
+        simulator.base_temperature,
+    )
+
+
+def test_temperature_rises_monotonically_with_ratio():
+    simulator = GasCompressor()
+
+    discharges = (675.0, 700.0, 775.0, 875.0, 1075.0, 1675.0)
+    temperatures = [
+        simulator.temperature_at(675.0, discharge)
+        for discharge in discharges
+    ]
+
+    for lower, higher in zip(temperatures, temperatures[1:]):
+        assert higher > lower
+
+
+def test_temperature_responds_to_absolute_pressure_level_not_just_spread():
+    """The same 25 psia spread at two different suction levels is two
+    different pressure ratios, and only the ratio determines temperature
+    rise — a table keyed on spread alone could not tell these apart."""
+    simulator = GasCompressor()
+
+    elevated_suction = simulator.temperature_at(725.0, 750.0)
+    elevated_discharge = simulator.temperature_at(750.0, 775.0)
+
+    assert elevated_suction != pytest.approx(elevated_discharge)
+
+
+def test_temperature_is_not_clamped():
+    """The piecewise table clamped to max_temperature; the polytropic
+    relation does not — equipment does not clamp its own output."""
+    simulator = GasCompressor()
+
+    assert simulator.temperature_at(675.0, 6750.0) > simulator.max_temperature
+
+
+def test_polytropic_efficiency_is_a_live_parameter_not_a_literal():
+    simulator = GasCompressor()
+
+    baseline = simulator.temperature_at(675.0, 875.0)
+    simulator.polytropic_efficiency = 0.5
+    lower_efficiency = simulator.temperature_at(675.0, 875.0)
+
+    assert lower_efficiency > baseline
 
 def test_shutdown_reduces_load():
     simulator = GasCompressor()

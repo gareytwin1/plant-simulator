@@ -17,12 +17,12 @@ that restates something another file already owns, link to it instead.
 
 | Fact | Owner | Never restated in |
 |---|---|---|
-| Architectural invariants, contracts, model/commit/status rules | **CLAUDE.md** | PROJECT_STATE.md, DEVELOPMENT.md |
+| Architectural invariants, contracts, model guidance, status vocabulary | **CLAUDE.md** | PROJECT_STATE.md, DEVELOPMENT.md |
 | What is true *right now* — current `main`, next task, open decisions | **PROJECT_STATE.md** | CLAUDE.md |
 | Current vs. target architecture, module map, state ownership | **ARCHITECTURE.md** | CLAUDE.md, PROJECT_STATE.md |
 | Why a decision was made | **The ADR itself** | CLAUDE.md, PROJECT_STATE.md — link, do not summarize |
 | A task's full completion note | **BUILD_PLAN_STATUS.json** | PROJECT_STATE.md — one line only |
-| Branch / worktree / merge procedure | **DEVELOPMENT.md** | CLAUDE.md — link, do not restate |
+| Branch / worktree / merge procedure, commit conventions and examples, file ownership table | **DEVELOPMENT.md** | CLAUDE.md — one-line summary and a link, never the full table or examples |
 | Test count | **`pytest --collect-only`**, run live | Nowhere — a hand-maintained count has drifted twice already |
 
 ## PROJECT_STATE.md regrowth rule

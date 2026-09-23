@@ -15,9 +15,10 @@ already in BUILD_PLAN_STATUS.json and does not need a second home.
 
 ## Right now
 
-**Last refreshed:** 22 September 2026
-**Current `main`:** `6a3fb50` (code `c7bd412`, T5-5 merged as `37fbc36`, PR #49)
-**Full suite:** **933 passed** · `python -m mypy` clean over 24 source files · no golden trace moved
+**Last state refresh:** 22 September 2026, at `971b405` (docs restructure, PR #51) —
+**this is a snapshot, not a live pointer.** Run `git log 971b405..HEAD --oneline`
+to see what has merged since. Last code change: `c7bd412`, T5-5 (PR #49).
+**Full suite as of this refresh:** **933 passed** · `python -m mypy` clean over 24 source files · no golden trace moved
 **In flight:** nothing. **No spine lock is held.** No task is Blocked.
 
 **Recent merges** (full notes in [BUILD_PLAN_STATUS.json](BUILD_PLAN_STATUS.json)):

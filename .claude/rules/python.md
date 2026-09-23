@@ -1,10 +1,13 @@
 ---
 paths:
   - "app/**/*.py"
-  - "tests/**/*.py"
 ---
 
 # Python style and typing
+
+Production code only — test style and conventions are
+[.claude/rules/testing.md](testing.md), scoped separately so the two don't
+co-fire and repeat each other.
 
 ## Style
 
@@ -16,8 +19,6 @@ Match the surrounding code:
 - Comments are rare — naming carries the explanation. Module-level docstrings
   explaining *why* a module exists are the exception and are welcome on spine
   files.
-- Tests are flat `def test_*` functions, no classes, `pytest.approx` for every
-  float comparison.
 
 ## Typing
 

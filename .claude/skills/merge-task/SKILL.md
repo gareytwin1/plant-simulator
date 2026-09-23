@@ -5,7 +5,7 @@ disable-model-invocation: true
 argument-hint: [pr-number]
 ---
 
-Merge PR `$1` and close out its task. This skill has a hard checkpoint before
+Merge PR `$0` and close out its task. This skill has a hard checkpoint before
 the merge and never touches another task's branches, worktrees, or docs. Steps
 1-4 and 7 mirror
 [DEVELOPMENT.md's "Merging" section](../../../DEVELOPMENT.md#merging); if the
@@ -13,7 +13,7 @@ two disagree, DEVELOPMENT.md is authoritative and this skill is stale.
 
 ## Steps
 
-1. `gh pr view $1` — confirm it's open, checks are green, and it's actually
+1. `gh pr view $0` — confirm it's open, checks are green, and it's actually
    been reviewed. Show the title, files changed, and check status.
 
 2. **Stop and get explicit confirmation before merging.** Merging to `main`
@@ -25,7 +25,7 @@ two disagree, DEVELOPMENT.md is authoritative and this skill is stale.
    squash):
 
    ```bash
-   gh pr merge $1 --merge --subject "Merge T{TASK-ID}: Brief description"
+   gh pr merge $0 --merge --subject "Merge T{TASK-ID}: Brief description"
    ```
 
 4. Verify on `main`:

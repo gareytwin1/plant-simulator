@@ -1,6 +1,7 @@
 import pytest
 
 from app.equipment.pump import CentrifugalPump
+from app.plant.loader import load_plant
 
 
 def test_initial_pump_state():
@@ -121,3 +122,71 @@ def test_pump_curve_is_not_clamped_past_runout():
     assert device.characteristic(overrun) == pytest.approx(
         75.0 * device.speed ** 2 - 1.5e-05 * overrun ** 2,
     )
+
+
+def test_shutoff_pressure_rise_must_be_non_negative():
+    pump = CentrifugalPump()
+
+    with pytest.raises(ValueError, match="shutoff_pressure_rise"):
+        pump.shutoff_pressure_rise = -1.0
+
+    pump.shutoff_pressure_rise = 0.0
+
+
+def test_pump_resistance_must_be_positive():
+    pump = CentrifugalPump()
+
+    for bad in (0.0, -0.000015):
+        with pytest.raises(ValueError, match="pump_resistance"):
+            pump.pump_resistance = bad
+
+
+def pump_plant_config(design):
+    return {
+        "nodes": [
+            {"id": "N-01", "boundary": True, "pressure": 50.0},
+            {"id": "N-02", "boundary": True, "pressure": 110.0},
+        ],
+        "equipment": [
+            {
+                "tag": "P-101",
+                "type": "pump",
+                "node_in": "N-01",
+                "node_out": "N-02",
+                "design": design,
+            },
+        ],
+    }
+
+
+@pytest.mark.parametrize(
+    ("key", "bad_value"),
+    [
+        ("shutoff_pressure_rise", -1.0),
+        ("pump_resistance", 0.0),
+    ],
+)
+def test_a_design_value_out_of_range_is_a_config_error_naming_the_path(
+    key,
+    bad_value,
+):
+    from app.plant.loader import PlantConfigError
+
+    with pytest.raises(PlantConfigError) as raised:
+        load_plant(pump_plant_config({key: bad_value}))
+
+    assert any(
+        error.startswith(f"$.equipment[0].design.{key}:")
+        for error in raised.value.errors
+    )
+
+
+def test_get_state_keys_are_unchanged():
+    state = CentrifugalPump().get_state()
+
+    assert set(state) == {
+        "running",
+        "speed",
+        "speed_target",
+        "max_flow",
+    }

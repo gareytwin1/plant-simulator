@@ -196,18 +196,16 @@ note on a Complete task should name the merge SHA.
 ## Agent model guidance
 
 Use the smallest model that can do the work safely. This is guidance, not a
-restriction — but **do not use Opus for routine mechanical work Haiku or Sonnet
-can finish safely.**
+restriction — but **do not use Opus for routine work Sonnet can finish safely.**
 
 | Model | Use it for |
 |---|---|
-| **Haiku** | Execution. Shell and Git commands, small Bash or Python scripts, simple file operations, small documentation edits, formatting, straightforward test additions, repetitive typing fixes, simple `mypy` fixes where the intended type is already clear — mechanical work with little architectural ambiguity. |
-| **Sonnet** | Implementation. Feature work, debugging, API work, test development, refactors inside an established contract, most satellite tasks, moderate multi-file changes, building a design someone already decided. |
-| **Opus** | Architecture and integration judgment. Contract design, spine changes, the network solver, integration reviews, build-plan changes, cross-cutting refactors, repository-wide standards, anything spanning several subsystems or milestones, and ambiguous problems where the design has to be worked out before any code is written. |
+| **Sonnet** | Implementation and execution. Feature work, debugging, tests, documentation, Git and shell work, routine refactors, straightforward scripts, mechanical changes, and any work inside an already-decided contract. |
+| **Opus** | Architecture and integration judgment. Contract design, spine changes, solver changes, cross-cutting refactors, repository-wide standards, build-plan changes, ambiguous design problems, and work spanning several subsystems. |
 
-In short: **Haiku executes, Sonnet implements, Opus decides.**
+In short: **Sonnet implements and executes. Opus decides.**
 
-A smaller model that runs into architectural ambiguity or a contract question
+A Sonnet session that reaches an architectural ambiguity or a contract question
 **stops and escalates** — record the question on the task and hand it up. Never
 invent a design to get unblocked.
 

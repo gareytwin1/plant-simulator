@@ -86,9 +86,10 @@ directory against the same repo, which removes the race entirely.
 
 ### Picking a model
 
-Haiku executes, Sonnet implements, Opus decides. The full table — what each
-one is for, and the rule that a smaller model escalates rather than inventing
-a design — is the **Agent model guidance** section in [CLAUDE.md](CLAUDE.md).
+Sonnet implements and executes; Opus decides. The full table — what each one is
+for, and the rule that a Sonnet session escalates rather than inventing a
+design — is the **Agent model guidance** section in
+[CLAUDE.md](CLAUDE.md#agent-model-guidance).
 
 ### During development
 

@@ -210,7 +210,7 @@ Everything else in those two methods is snapshot-only and gets no lock.
 ### Writes
 
 These mutate live equipment and each takes the relevant `step_lock` around the
-mutation only: `/api/start`, `/api/stop`, `/api/load`, `/api/valve`,
+mutation only: `/api/start`, `/api/stop`, `/api/load`,
 `/api/pump/start`, `/api/pump/stop`, `/api/pump/speed`, and the two easily-missed
 HTML redirect routes `/start` and `/stop`.
 

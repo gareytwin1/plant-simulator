@@ -7,7 +7,6 @@ def test_initial_state():
     assert simulator.running is False
     assert simulator.load == 0.0
     assert simulator.load_target == 0.0
-    assert simulator.discharge_valve_position == 1.0
 
 
 def test_the_compressor_owns_no_flow_or_pressure():
@@ -119,7 +118,6 @@ def test_get_state():
     assert state["running"] is False
     assert state["load"] == 0.0
     assert state["load_target"] == 0.0
-    assert state["discharge_valve_position"] == 1.0
 
 
 def test_get_state_reports_no_flow_or_pressure():
@@ -141,52 +139,25 @@ def test_set_load_target():
     assert simulator.load_target == 0.0
 
 
-def test_the_discharge_valve_strokes_but_does_not_yet_change_the_curve():
-    """The valve is slow state with no hydraulic path of its own until T7-1
-    gives it a branch. It must still stroke: the stroke is what T7-1 reads.
+def test_the_compressor_owns_no_valve_state():
+    """T7-2 moved the discharge valve out of the machine and onto its own
+    branch, where the solver can see it. A valve position left on the
+    compressor would be a second, inert answer to a question the
+    ControlValve on config/plants/olefins_lite.yaml now answers for real.
     """
     simulator = GasCompressor()
-    simulator.set_load_target(1.0)
-    simulator.start()
 
-    for _ in range(20):
-        simulator.integrate(1.0)
+    for attribute in (
+        "discharge_valve_position",
+        "discharge_valve_target",
+        "discharge_valve_rate",
+        "valve_resistance",
+        "set_discharge_valve_position",
+    ):
+        assert not hasattr(simulator, attribute)
 
-    wide_open = simulator.characteristic(100.0)
-
-    simulator.set_discharge_valve_position(0.10)
-
-    for _ in range(18):
-        simulator.integrate(1.0)
-
-    assert simulator.discharge_valve_position == pytest.approx(0.10)
-    assert simulator.characteristic(100.0) == pytest.approx(wide_open)
-
-
-def test_valve_target_stays_fixed_while_valve_moves():
-    simulator = GasCompressor()
-
-    simulator.set_discharge_valve_position(0.10)
-
-    for _ in range(18):
-        simulator.integrate(1.0)
-
-    assert simulator.discharge_valve_position == pytest.approx(0.10)
-
-    simulator.set_discharge_valve_position(0.70)
-
-    assert simulator.discharge_valve_target == pytest.approx(0.70)
-    assert simulator.discharge_valve_position == pytest.approx(0.10)
-
-    simulator.integrate(1.0)
-
-    assert simulator.discharge_valve_target == pytest.approx(0.70)
-    assert simulator.discharge_valve_position == pytest.approx(0.15)
-
-    simulator.integrate(1.0)
-
-    assert simulator.discharge_valve_target == pytest.approx(0.70)
-    assert simulator.discharge_valve_position == pytest.approx(0.20)
+    for key in ("discharge_valve_position", "discharge_valve_target"):
+        assert key not in simulator.get_state()
 
 
 def test_compressor_characteristic_never_rises_with_flow():

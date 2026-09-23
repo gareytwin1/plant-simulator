@@ -101,8 +101,10 @@ class Session:
         """The compressor page's row: the device's own state plus what the
         solver put on its branch and nodes.
 
-        The discharge valve is state only until T7-1 gives it a branch of its
-        own, so it drops nothing and valve_pressure_drop reports zero.
+        The page carries no valve: T7-2 retired the compressor's own valve
+        state, and this plant has no valve branch to read one from. The
+        reference plant config/plants/olefins_lite.yaml is where K-101
+        discharges through a real ControlValve.
 
         temperature_at(spread) and characteristic(flow) are live-device
         queries over a solved value, so they cannot move into get_state().
@@ -127,7 +129,6 @@ class Session:
                 "temperature": self.compressor.temperature_at(spread),
                 "flow": flow,
                 "compressor_pressure_rise": self.compressor.characteristic(flow),
-                "valve_pressure_drop": 0.0,
             }
 
     def pump_state(self) -> StateRow:

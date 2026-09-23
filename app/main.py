@@ -110,18 +110,6 @@ def api_step() -> ResponseReturnValue:
     return jsonify(g.plant.compressor_state())
 
 
-@app.post("/api/valve")
-def set_valve() -> ResponseReturnValue:
-    data = request.get_json()
-
-    with g.plant.compressor_scheduler.step_lock:
-        g.plant.compressor.set_discharge_valve_position(
-            data["discharge_valve_position"]
-        )
-
-    return jsonify(g.plant.compressor_state())
-
-
 @app.post("/api/load")
 def set_load() -> ResponseReturnValue:
     data = request.get_json()

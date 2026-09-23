@@ -235,8 +235,6 @@ COMPRESSOR_SLOW_FIELDS = (
     "load",
     "load_target",
     "running",
-    "discharge_valve_position",
-    "discharge_valve_target",
 )
 
 

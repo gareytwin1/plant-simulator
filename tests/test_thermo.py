@@ -66,6 +66,36 @@ def test_stream_refuses_a_phase_outside_the_frozen_vocabulary():
         StreamState(flow=10.0, temperature=100.0, phase=MIXED)
 
 
+def test_a_component_refuses_the_phase_c3_never_lets_through():
+    # Anything that is not vapor would otherwise read as liquid, and MIXED is
+    # the phase ADR 0002 D6 refuses so it never reaches physics.
+    with pytest.raises(ValueError, match="is not one of"):
+        COMPONENTS["water"].heat_capacity(MIXED)
+
+
+def test_a_composition_that_does_not_sum_to_one_is_refused():
+    with pytest.raises(ValueError, match="must sum to 1.0"):
+        vapor(10.0, 100.0, {"methane": 0.5})
+
+    with pytest.raises(ValueError, match="must sum to 1.0"):
+        heat_capacity({"methane": 0.5}, VAPOR)
+
+
+def test_a_negative_fraction_is_refused():
+    with pytest.raises(ValueError, match="negative"):
+        vapor(10.0, 100.0, {"methane": 1.2, "ethane": -0.2})
+
+
+def test_a_stream_does_not_share_the_mapping_it_was_built_from():
+    composition = {"methane": 1.0}
+    stream = vapor(10.0, 100.0, composition)
+
+    composition["methane"] = 0.0
+    composition["propane"] = 1.0
+
+    assert stream.composition == {"methane": 1.0}
+
+
 def test_a_stream_at_the_datum_carries_no_enthalpy():
     assert enthalpy_flow(liquid(50.0, REFERENCE_TEMPERATURE)) == pytest.approx(0.0)
 
@@ -78,6 +108,13 @@ def test_enthalpy_flow_is_a_duty_in_btu_per_hour():
 
     assert enthalpy_flow(stream) == pytest.approx(expected)
     assert heat_capacity_rate(stream) == pytest.approx(expected / 10.0)
+
+
+def test_a_stagnant_stream_carries_no_capacity_rate():
+    # Zero, deliberately unguarded: a duty into a stagnant stream is a
+    # transient against metal, which the device owns, not a division this
+    # module can rescue.
+    assert heat_capacity_rate(liquid(0.0, 100.0)) == pytest.approx(0.0)
 
 
 def test_reversed_flow_carries_enthalpy_backwards():

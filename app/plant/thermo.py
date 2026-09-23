@@ -44,7 +44,12 @@ from dataclasses import dataclass, field
 from app.equipment.base import LIQUID, PORT_PHASES, VAPOR
 
 
-REFERENCE_TEMPERATURE = 60.0  # °F — the enthalpy datum, standard conditions
+# The enthalpy datum. A second spelling of topology.STANDARD_TEMPERATURE on
+# purpose, for the reason app/config.py duplicates ATMOSPHERIC_PRESSURE: this
+# module does not import from app.plant, so the two cannot be one constant.
+# They are the same 60 °F, and moving the datum means moving both.
+REFERENCE_TEMPERATURE = 60.0  # °F
+
 MINUTES_PER_HOUR = 60.0
 
 # An ideal gas at 60 °F and 14.696 psia: R·T/P with R = 10.7316
@@ -57,6 +62,11 @@ STANDARD_MOLAR_VOLUME = 379.5  # scf/lbmol
 # above this and is weighted normally, which is the intent — see the idle-flow
 # note in docs/PROJECT_STATE.md.
 WEIGHT_TOLERANCE = 1e-12
+
+# Matches topology.COMPOSITION_TOLERANCE. A composition that sums to 0.9 is a
+# bug that would otherwise surface as a quietly low heat capacity, which is
+# the same reason C2 refuses one.
+COMPOSITION_TOLERANCE = 1e-6
 
 
 @dataclass(frozen=True)
@@ -79,6 +89,12 @@ class Component:
     liquid_heat_capacity: float | None = None  # BTU/(gal·°F)
 
     def heat_capacity(self, phase: str) -> float:
+        # Checked here and not only at the module's entry points: without it
+        # anything that is not VAPOR reads as liquid, so MIXED — the phase
+        # ADR 0002 D6 refuses precisely so it never reaches physics — would
+        # quietly return a number.
+        _check_phase(phase)
+
         capacity = (
             self.vapor_heat_capacity
             if phase == VAPOR
@@ -158,6 +174,12 @@ class StreamState:
     balance is a signed sum with no special case. `mix_streams` is the one
     place that refuses a negative flow, because there the sign means the
     caller has not worked out which streams are arriving.
+
+    It validates and copies its composition rather than leaning on C2 to have
+    done it. Nothing requires one of these to have come from a `Stream` — a
+    mix builds them from nothing — so trusting C2's check would leave the
+    common case unguarded, and a composition summing to 0.5 would read as a
+    fluid with half the heat capacity instead of as the error it is.
     """
 
     flow: float  # GPM if liquid, SCFM if vapor
@@ -167,6 +189,11 @@ class StreamState:
 
     def __post_init__(self) -> None:
         _check_phase(self.phase)
+        _check_composition(self.composition)
+
+        # Frozen stops the field being rebound; it does nothing about a
+        # mapping the caller still holds. C2's Stream copies for this reason.
+        object.__setattr__(self, "composition", dict(self.composition))
 
 
 def heat_capacity(composition: Mapping[str, float], phase: str) -> float:
@@ -178,12 +205,9 @@ def heat_capacity(composition: Mapping[str, float], phase: str) -> float:
     deliberate one: the alternative is carrying molecular weights and
     densities to convert between the two, which is the property package this
     project does not want.
-
-    Fractions are trusted to sum to 1. C2's `Stream` already refuses a
-    composition that does not, and checking it twice would put the error in
-    the wrong place.
     """
     _check_phase(phase)
+    _check_composition(composition)
 
     fractions = composition or {DEFAULT_COMPONENT[phase]: 1.0}
 
@@ -199,6 +223,13 @@ def heat_capacity_rate(stream: StreamState) -> float:
     The bridge between a duty and a temperature: a device with a duty in
     BTU/hr divides by this and has its temperature change in °F, with no unit
     conversion anywhere inside the device.
+
+    **It is zero at zero flow, and the caller owns that case.** No guard is
+    offered here because there is no honest algebraic answer: a duty into a
+    stagnant stream does not produce a temperature rise, it produces a
+    transient against the metal it is sitting in. That is a dynamic the
+    device has to model — T6-3's metal thermal inertia — not a division this
+    module can rescue.
     """
     return (
         stream.flow
@@ -232,6 +263,16 @@ def mix_streams(streams: Iterable[StreamState]) -> StreamState:
     plain average of the inputs. That keeps the temperature field finite
     through a blocked-in node; it is not a claim about what a dead junction
     is actually at.
+
+    **The composition it emits is flow-weighted.** For a vapour that is a
+    mole fraction, exactly as C2 means it, because a standard cubic foot is a
+    fixed number of moles. For a liquid it is a volume fraction wearing a
+    mole fraction's name: 50 GPM of propane meeting 50 GPM of water comes out
+    50/50, where the true mole split is nearer 17/83. Correcting it needs
+    molecular weights, which V1 does not carry, and no plant config names a
+    component at all yet — so this is recorded rather than fixed, and the
+    first config to declare a liquid composition is what makes it matter.
+    The mixed *temperature* is unaffected either way.
     """
     arrivals = tuple(streams)
 
@@ -332,6 +373,26 @@ def _component(name: str) -> Component:
         )
 
     return component
+
+
+def _check_composition(composition: Mapping[str, float]) -> None:
+    if not composition:
+        return
+
+    for component, fraction in composition.items():
+        if fraction < 0.0:
+            raise ValueError(
+                f"composition fraction for {component!r} is negative: "
+                f"{fraction}",
+            )
+
+    total = sum(composition.values())
+
+    if abs(total - 1.0) > COMPOSITION_TOLERANCE:
+        raise ValueError(
+            f"composition fractions must sum to 1.0, got {total} for "
+            f"{sorted(composition)}",
+        )
 
 
 def _check_phase(phase: str) -> None:

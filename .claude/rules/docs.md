@@ -4,6 +4,7 @@ paths:
   - "CLAUDE.md"
   - "DEVELOPMENT.md"
   - "README.md"
+  - ".claude/skills/**"
 ---
 
 # Which doc owns what
@@ -17,12 +18,12 @@ that restates something another file already owns, link to it instead.
 
 | Fact | Owner | Never restated in |
 |---|---|---|
-| Architectural invariants, contracts, model/commit/status rules | **CLAUDE.md** | PROJECT_STATE.md, DEVELOPMENT.md |
+| Architectural invariants, contracts, model guidance, status vocabulary | **CLAUDE.md** | PROJECT_STATE.md, DEVELOPMENT.md |
 | What is true *right now* — current `main`, next task, open decisions | **PROJECT_STATE.md** | CLAUDE.md |
 | Current vs. target architecture, module map, state ownership | **ARCHITECTURE.md** | CLAUDE.md, PROJECT_STATE.md |
 | Why a decision was made | **The ADR itself** | CLAUDE.md, PROJECT_STATE.md — link, do not summarize |
 | A task's full completion note | **BUILD_PLAN_STATUS.json** | PROJECT_STATE.md — one line only |
-| Branch / worktree / merge procedure | **DEVELOPMENT.md** | CLAUDE.md — link, do not restate |
+| Branch / worktree / merge procedure, commit conventions and examples, file ownership table | **DEVELOPMENT.md** | CLAUDE.md — one-line summary and a link, never the full table or examples |
 | Test count | **`pytest --collect-only`**, run live | Nowhere — a hand-maintained count has drifted twice already |
 
 ## PROJECT_STATE.md regrowth rule
@@ -32,6 +33,20 @@ full note — files touched, numbers, what it deliberately did not do — goes i
 BUILD_PLAN_STATUS.json, where the build-plan tooling already expects it. Do not
 add a per-task handoff section to PROJECT_STATE.md; that is exactly the pattern
 that grew it past 1,000 lines once.
+
+## Skills that mirror a DEVELOPMENT.md procedure
+
+A `.claude/skills/*/SKILL.md` needs to be self-contained and actionable, so it
+restates a workflow's concrete steps rather than just linking to them — unlike
+a doc, which should link instead of restate. That's a deliberate exception,
+not a hole in the one-owner rule: **a skill that mirrors a DEVELOPMENT.md
+section must say so explicitly and name which section**, so a later change to
+DEVELOPMENT.md's procedure has something to grep for. See
+`start-task`/`ready-for-review`/`merge-task` for the pattern. Never point a
+skill at generating or hand-editing `docs/BUILD_PLAN_STATUS.json` directly —
+it is a derived file (task definitions from `BUILD_PLAN.html`, status from the
+live artifact's `ArtifactData`); update the live artifact first and regenerate
+the JSON from it, per the project's build-plan-status-regeneration memory.
 
 ## Before adding a new stable rule
 

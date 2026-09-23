@@ -35,7 +35,17 @@ paths into documentation, scripts or CI**:
 conda activate plant-simulator
 pip install -r requirements.txt       # runtime
 pip install -r requirements-dev.txt   # tests and mypy
+
+# Single file / single test
+python -m pytest tests/test_pump.py -q
+python -m pytest -k "test_pump_half_speed_operating_point" -q
+
+# Run the app
+flask --app app.main run     # http://127.0.0.1:5000/compressor and /pump
 ```
+
+`conftest.py` only customizes pytest's status glyphs (✓ / ✗ / ○); it defines no
+fixtures.
 
 ## Status vocabulary
 
@@ -147,10 +157,19 @@ configured production scope, PR open.
 
 ## File ownership
 
-The full table is **File ownership and high-conflict areas** in
-[CLAUDE.md](CLAUDE.md#file-ownership-and-high-conflict-areas) — check it before
-starting step 5 above. The `app/engine/` satellite-vs-spine distinction is
-[.claude/rules/engine.md](.claude/rules/engine.md).
+Check this before starting step 5 above.
+
+| Path | Rule |
+|---|---|
+| `app/equipment/base.py` | **Spine** — one branch at a time, no satellite edits |
+| `app/engine/` | **Spine** for its existing modules — one branch at a time. A new isolated module here can be satellite work; see [.claude/rules/engine.md](.claude/rules/engine.md). |
+| `app/plant/topology.py` | **Spine** — one branch at a time |
+| `app/main.py` | **Highest-conflict file.** Exactly one branch at a time until the C5 single action endpoint lands. Release it immediately after merging. |
+| `app/config.py` | **Append-only** — add a clearly-headed section, never reorder |
+| `config/schema/plant.schema.json` | Shared — each top-level key has one owner |
+| `config/plants/*.yaml` | Shared — each top-level key has one owner |
+| `tests/fixtures/golden/*.json` | Regenerate only with explicit justification |
+| `static/compressor.js`, `static/pump.js` | **Frozen** — replaced wholesale at M16. Do not invest in them. |
 
 ## Naming conventions
 
@@ -164,11 +183,21 @@ chore/ci-pipeline
 docs/project-handoff-refresh
 ```
 
-**Commits** — small, focused, and concisely described. Keep one commit to one
-clear change, lead the subject with the task ID where there is one, keep it
-short, and add a body only when it carries something the subject and the diff
-do not. Do not combine unrelated work in one commit. The full convention is the
-**Commit discipline** section in [CLAUDE.md](CLAUDE.md).
+**Commits** — small, focused, and concisely described:
+
+- One commit is one clear change, or one coherent part of a task. Do not
+  bundle unrelated cleanup, formatting, refactoring, documentation and feature
+  work together unless they genuinely cannot be separated. Split a task with
+  independent stages into independent commits.
+- Prefer several small understandable commits to one "everything changed"
+  commit, and leave the branch in a sensible state at each one where
+  practical.
+- Subject lines say what changed, not how — lead with the task ID when there
+  is one.
+- Write a body only when the reason, tradeoff, migration concern or important
+  test information isn't already obvious from the subject and the diff.
+  Routine changes do not get essays, and no commit needs a list of the files
+  it touched.
 
 ```text
 T8-1: Add PID block with anti-windup
@@ -176,6 +205,12 @@ T8-1: Add PID block with anti-windup
 Anti-windup, output clamping and derivative on measurement. Testable
 against a fake first-order process, so it carries no plant dependency.
 ```
+
+Good: `T4-1: Add branch characteristic interface` ·
+`T3-3: Validate topology references` · `Typing: Annotate Equipment contract` ·
+`Docs: Add agent model guidance`
+
+Bad: `update files` · `fixes` · `misc changes` · `work in progress`
 
 **Pull requests:** title `T{TASK-ID}: Brief description`; body summarises the
 change and its test plan.

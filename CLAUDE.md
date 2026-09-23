@@ -9,11 +9,12 @@ architectural invariants and working rules, not current status.
 decisions — read [docs/PROJECT_STATE.md](docs/PROJECT_STATE.md).
 
 `.claude/rules/*.md` carries rules scoped to specific paths (engine, plant
-config, Python style, docs ownership) — meant to load when you open a matching
-file with `Read`, though this has not been independently confirmed in every
-environment, and a file only touched through `Bash`/`grep`/`sed` never
-triggers it. They are not listed in the reading order below for that reason;
-see [.claude/rules/docs.md](.claude/rules/docs.md) for which invariants get a
+config, Python style, docs ownership) — confirmed to load when a matching file
+is opened with `Read` (verified empirically, not just documented). Whether a
+file touched only through `Bash`/`grep`/`sed` also triggers it is untested —
+treat that as unconfirmed, not as "doesn't happen." They are not listed in the
+reading order below for that reason; see
+[.claude/rules/docs.md](.claude/rules/docs.md) for which invariants get a
 CLAUDE.md-level backstop because of it.
 
 ## Reading order for a new session
@@ -215,77 +216,37 @@ link here rather than restating it.
 
 ## Commit discipline
 
-Small commit, clear purpose, short message.
-
-- One commit is one clear change, or one coherent part of a task.
-- Do not bundle unrelated cleanup, formatting, refactoring, documentation and
-  feature work together unless they genuinely cannot be separated. Split a task
-  with independent stages into independent commits.
-- Prefer several small understandable commits to one "everything changed"
-  commit, and leave the branch in a sensible state at each one where practical.
-- Subject lines are short and say what changed, not how it was implemented.
-  Lead with the build plan task ID when the work has one.
-- Write a body only when the reason, the tradeoff, a migration concern or
-  important test information is not already obvious from the subject and the
-  diff. Routine changes do not get essays, and no commit needs a list of the
-  files it touched.
-
-Good: `T4-1: Add branch characteristic interface` ·
-`T3-3: Validate topology references` · `Typing: Annotate Equipment contract` ·
-`Docs: Add agent model guidance`
-
-Bad: `update files` · `fixes` · `misc changes` · `work in progress`
+Small commit, clear purpose, short message: one commit is one clear change,
+subject lines say what changed (not how), lead with the task ID when there is
+one. Full convention and examples: [DEVELOPMENT.md](DEVELOPMENT.md#naming-conventions).
 
 ## File ownership and high-conflict areas
 
-| Path | Rule |
-|---|---|
-| `app/equipment/base.py` | **Spine** — one branch at a time, no satellite edits |
-| `app/engine/` | **Spine** for its existing modules — one branch at a time. A new isolated module here can be satellite work; see [.claude/rules/engine.md](.claude/rules/engine.md). |
-| `app/plant/topology.py` | **Spine** — one branch at a time |
-| `app/main.py` | **Highest-conflict file.** Exactly one branch at a time until the C5 single action endpoint lands. Release it immediately after merging. |
-| `app/config.py` | **Append-only** — add a clearly-headed section, never reorder |
-| `config/schema/plant.schema.json` | Shared — each top-level key has one owner |
-| `config/plants/*.yaml` | Shared — each top-level key has one owner |
-| `tests/fixtures/golden/*.json` | Regenerate only with explicit justification |
-| `static/compressor.js`, `static/pump.js` | **Frozen** — replaced wholesale at M16. Do not invest in them. |
+Which files are spine (one branch at a time), append-only, or frozen — check
+before you start editing. Full table:
+[DEVELOPMENT.md](DEVELOPMENT.md#file-ownership).
 
 ## Commands
 
-The project runs in a conda environment named `plant-simulator`. Activate it
-first, then use portable commands:
-
 ```bash
 conda activate plant-simulator
-
-# Full suite
-python -m pytest -q
-
-# Static type check (configured over app/ in pyproject.toml)
-python -m mypy
-
-# Single file / single test
-python -m pytest tests/test_pump.py -q
-python -m pytest -k "test_pump_half_speed_operating_point" -q
-
-# Run the app
-flask --app app.main run     # http://127.0.0.1:5000/compressor and /pump
+python -m pytest -q   # full suite
+python -m mypy        # type check, configured over app/ in pyproject.toml
 ```
 
-Runtime dependencies are in `requirements.txt`; test/dev dependencies are in
-`requirements-dev.txt`. Do not write machine-specific interpreter paths into
-documentation or scripts.
-
-`conftest.py` only customizes pytest's status glyphs (✓ / ✗ / ○). It defines no
-fixtures.
+More commands (single-test runs, running the app) in
+[DEVELOPMENT.md](DEVELOPMENT.md#environment). Do not write machine-specific
+interpreter paths into documentation or scripts.
 
 ## Code style and typing
 
 Type hints are **required** in new and modified production code under `app/`;
 match the surrounding code's formatting otherwise. Full rules — what must be
 typed, `Any` policy, style details — are in
-[.claude/rules/python.md](.claude/rules/python.md), scoped to `app/**/*.py` and
-`tests/**/*.py`.
+[.claude/rules/python.md](.claude/rules/python.md) (`app/**/*.py`). Test
+conventions, including the golden-trace policy, are
+[.claude/rules/testing.md](.claude/rules/testing.md) (`tests/**/*.py`) — kept
+separate so the two rules don't co-fire and repeat each other.
 
 ## Where authoritative state lives
 

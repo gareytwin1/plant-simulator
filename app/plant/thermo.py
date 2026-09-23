@@ -40,6 +40,8 @@ which is the route T6-2, T6-3 and T6-4 need.
 
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
+from types import MappingProxyType
+from typing import Any
 
 from app.equipment.base import LIQUID, PORT_PHASES, VAPOR
 
@@ -180,6 +182,14 @@ class StreamState:
     mix builds them from nothing — so trusting C2's check would leave the
     common case unguarded, and a composition summing to 0.5 would read as a
     fluid with half the heat capacity instead of as the error it is.
+
+    `composition` is a `MappingProxyType` over that copy, so item assignment
+    on it raises `TypeError` instead of quietly mutating a value the rest of
+    the plant is still holding. `__copy__` and `__deepcopy__` return `self`
+    for the same reason a frozen dataclass needs no copy in the first place —
+    there is nothing a copy could protect that the proxy does not already.
+    Pickle is not supported (`MappingProxyType` refuses it); hashing already
+    was not, since `composition` is a mapping.
     """
 
     flow: float  # GPM if liquid, SCFM if vapor
@@ -192,8 +202,18 @@ class StreamState:
         _check_composition(self.composition)
 
         # Frozen stops the field being rebound; it does nothing about a
-        # mapping the caller still holds. C2's Stream copies for this reason.
-        object.__setattr__(self, "composition", dict(self.composition))
+        # mapping the caller still holds, or one this object hands out. The
+        # proxy closes both: it wraps a private copy, and it is itself
+        # read-only.
+        object.__setattr__(
+            self, "composition", MappingProxyType(dict(self.composition)),
+        )
+
+    def __copy__(self) -> "StreamState":
+        return self
+
+    def __deepcopy__(self, memo: dict[int, Any]) -> "StreamState":
+        return self
 
 
 def heat_capacity(composition: Mapping[str, float], phase: str) -> float:

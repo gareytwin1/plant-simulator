@@ -41,6 +41,11 @@
       "complete": 7,
       "total": 7
     },
+    "MR": {
+      "name": "Remediation",
+      "complete": 0,
+      "total": 13
+    },
     "M6": {
       "name": "Energy Balance and Temperature",
       "complete": 2,
@@ -113,9 +118,9 @@
     }
   },
   "totals": {
-    "tasks": 101,
+    "tasks": 114,
     "complete": 41,
-    "startable_now": 21
+    "startable_now": 29
   },
   "tasks": [
     {
@@ -767,6 +772,250 @@
       "note": "COMPLETE - merged to main as 4db428d (PR #47), 22 Sep 2026. 916 passed on main (971 - 70 removed sweep items from seven retired test-only Separator(Vessel) subclasses + 15 new tests), mypy clean over 24 source files, no golden trace moved. Implements ADR 0002 AMENDMENT 3 sections C.4-C.11: Vessel gains accepts_configured_ports: ClassVar[bool] = True; app/plant/loader.py builds a device's port set from a ports map whose every entry carries direction, replacing the class's fixed set in config order, and rejects a mix of direction-carrying and plain entries, a direction on a non-opted-in device, and design.accepts_configured_ports on any device (the internal-capability- marker finding raised on PR #46's review, addressed here before implementation). app/equipment/base.py and app/engine/coupling.py are untouched. tests/test_coupling_aggregation.py drops its seven test-only Separator subclasses for the production Vessel. Mutation check per C.11 re-run in the worktree and reverted, never committed: naive per-port summing, net-only aggregation, and counting a node once per port fail 7, 2 and 5 tests respectively, so the removed subclasses' coverage survives. NEXT: T5-5 is unblocked and startable."
     },
     {
+      "id": "R1",
+      "milestone": "MR",
+      "name": "Reject non-finite numbers at load",
+      "category": "ind",
+      "branch": "fix/finite-config-numbers",
+      "depends_on": [],
+      "files": [
+        "app/plant/validate.py",
+        "app/plant/loader.py",
+        "tests/test_plant_config_validation.py",
+        "tests/test_plant_loader.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": true,
+      "note": ""
+    },
+    {
+      "id": "R2",
+      "milestone": "MR",
+      "name": "Solver refuses non-finite curves",
+      "category": "core",
+      "branch": "fix/solver-nonfinite",
+      "depends_on": [],
+      "files": [
+        "app/engine/network.py",
+        "tests/test_network_solver.py",
+        "tests/test_solver_diagnostics.py",
+        "tests/test_scheduler.py",
+        "tests/test_snapshot.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": true,
+      "note": ""
+    },
+    {
+      "id": "R3",
+      "milestone": "MR",
+      "name": "Machine design ranges",
+      "category": "ind",
+      "branch": "fix/machine-design-ranges",
+      "depends_on": [],
+      "files": [
+        "app/equipment/compressor.py",
+        "app/equipment/pump.py",
+        "tests/test_compressor.py",
+        "tests/test_pump.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": true,
+      "note": ""
+    },
+    {
+      "id": "R4",
+      "milestone": "MR",
+      "name": "Refuse structural design keys",
+      "category": "dep",
+      "branch": "fix/structural-design-keys",
+      "depends_on": [
+        "R1"
+      ],
+      "files": [
+        "app/plant/loader.py",
+        "tests/test_plant_loader.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "R1"
+      ],
+      "note": ""
+    },
+    {
+      "id": "R5",
+      "milestone": "MR",
+      "name": "Request validation",
+      "category": "ind",
+      "branch": "fix/request-validation",
+      "depends_on": [],
+      "files": [
+        "app/main.py",
+        "tests/test_api.py",
+        "tests/test_pump_api.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": true,
+      "note": ""
+    },
+    {
+      "id": "R6",
+      "milestone": "MR",
+      "name": "Coherent commands and atomic manual step",
+      "category": "core",
+      "branch": "fix/coherent-commands",
+      "depends_on": [
+        "R5"
+      ],
+      "files": [
+        "app/engine/scheduler.py",
+        "app/engine/sessions.py",
+        "app/main.py",
+        "tests/test_scheduler.py",
+        "tests/test_sessions.py",
+        "tests/test_api.py",
+        "tests/test_pump_api.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "R5"
+      ],
+      "note": ""
+    },
+    {
+      "id": "R7",
+      "milestone": "MR",
+      "name": "Atomic admission and permanent closure",
+      "category": "core",
+      "branch": "fix/atomic-session-admission",
+      "depends_on": [
+        "R6"
+      ],
+      "files": [
+        "app/engine/sessions.py",
+        "app/engine/scheduler.py",
+        "tests/test_sessions.py",
+        "tests/test_session_isolation.py",
+        "tests/test_scheduler.py",
+        "docs/BUILD_PLAN.html"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "R6"
+      ],
+      "note": ""
+    },
+    {
+      "id": "R8",
+      "milestone": "MR",
+      "name": "Flow unit label",
+      "category": "ind",
+      "branch": "fix/flow-unit-label",
+      "depends_on": [],
+      "files": [
+        "templates/compressor.html",
+        "static/compressor.js"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": true,
+      "note": ""
+    },
+    {
+      "id": "R9",
+      "milestone": "MR",
+      "name": "Immutable composition",
+      "category": "ind",
+      "branch": "fix/immutable-composition",
+      "depends_on": [],
+      "files": [
+        "app/plant/thermo.py",
+        "tests/test_thermo.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": true,
+      "note": ""
+    },
+    {
+      "id": "R10a",
+      "milestone": "MR",
+      "name": "Documentation corrections",
+      "category": "ind",
+      "branch": "docs/solved-state-wording",
+      "depends_on": [],
+      "files": [
+        "CLAUDE.md",
+        ".claude/rules/testing.md",
+        "docs/PROJECT_STATE.md",
+        "docs/ARCHITECTURE.md"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": true,
+      "note": ""
+    },
+    {
+      "id": "R10b",
+      "milestone": "MR",
+      "name": "C1/C4 docstring corrections",
+      "category": "core",
+      "branch": "docs/c1-c4-docstrings",
+      "depends_on": [],
+      "files": [
+        "app/equipment/base.py",
+        "app/engine/snapshot.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": true,
+      "note": ""
+    },
+    {
+      "id": "R11",
+      "milestone": "MR",
+      "name": "Check in the status generator",
+      "category": "ind",
+      "branch": "chore/status-generator",
+      "depends_on": [],
+      "files": [
+        "scripts/build_plan_status.py",
+        "DEVELOPMENT.md",
+        ".claude/skills/merge-task/SKILL.md",
+        ".claude/skills/ready-for-review/SKILL.md"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": true,
+      "note": ""
+    },
+    {
+      "id": "R12",
+      "milestone": "MR",
+      "name": "Reconcile spine rules",
+      "category": "ind",
+      "branch": "docs/spine-rules",
+      "depends_on": [],
+      "files": [
+        "DEVELOPMENT.md",
+        ".claude/rules/engine.md"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": true,
+      "note": ""
+    },
+    {
       "id": "T6-1",
       "milestone": "M6",
       "name": "Stream enthalpy and mixing",
@@ -840,14 +1089,20 @@
       "branch": "feature/energy-balance",
       "depends_on": [
         "T6-1",
-        "T4-4"
+        "T4-4",
+        "R9",
+        "R2"
       ],
       "files": [
         "app/engine/engine.py"
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": true,
+      "startable": false,
+      "blocked_by": [
+        "R9",
+        "R2"
+      ],
       "note": ""
     },
     {
@@ -1872,7 +2127,8 @@
       "category": "ind",
       "branch": "chore/container-and-ci",
       "depends_on": [
-        "T0-6"
+        "T0-6",
+        "R7"
       ],
       "files": [
         "Dockerfile",
@@ -1880,7 +2136,10 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": true,
+      "startable": false,
+      "blocked_by": [
+        "R7"
+      ],
       "note": ""
     },
     {

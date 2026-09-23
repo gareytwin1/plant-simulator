@@ -6,7 +6,10 @@ argument-hint: [task-id]
 ---
 
 Set up to work on task `$1`. Do not begin implementing the task itself — this
-skill ends at "environment ready," and hands back for the actual work.
+skill ends at "environment ready," and hands back for the actual work. Steps
+1-6 mirror
+[DEVELOPMENT.md's "Starting a task" section](../../../DEVELOPMENT.md#starting-a-task);
+if the two disagree, DEVELOPMENT.md is authoritative and this skill is stale.
 
 ## Steps
 

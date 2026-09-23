@@ -6,7 +6,10 @@ argument-hint: [pr-number]
 ---
 
 Merge PR `$1` and close out its task. This skill has a hard checkpoint before
-the merge and never touches another task's branches, worktrees, or docs.
+the merge and never touches another task's branches, worktrees, or docs. Steps
+1-4 and 7 mirror
+[DEVELOPMENT.md's "Merging" section](../../../DEVELOPMENT.md#merging); if the
+two disagree, DEVELOPMENT.md is authoritative and this skill is stale.
 
 ## Steps
 
@@ -34,9 +37,15 @@ the merge and never touches another task's branches, worktrees, or docs.
    If the suite doesn't pass on `main` post-merge, stop and report — do not
    proceed to cleanup on a broken `main`.
 
-5. Set the task's status to **Complete** in `docs/BUILD_PLAN_STATUS.json`,
-   with the merge SHA and post-merge test count in the note (and flag that the
-   live build plan artifact needs the same update).
+5. Set the task's status to **Complete** — **in the live build plan artifact
+   first** (`https://claude.ai/artifact/DXqzpwKxeKZNzZGrC3HkQ9`), with the
+   merge SHA and post-merge test count in the note. **Never hand-patch
+   `docs/BUILD_PLAN_STATUS.json` directly** — it's a derived file with three
+   separate sources (task definitions from `BUILD_PLAN.html`, status and notes
+   from the artifact's `ArtifactData`), and hand-editing it is exactly the
+   drift the build plan exists to prevent. Regenerate it from the artifact
+   afterward per the project's build-plan-status-regeneration memory, and
+   confirm the diff shows only the intended fields before committing it.
 
 6. **Refresh `docs/PROJECT_STATE.md` — current-state fields only.** Per
    [.claude/rules/docs.md](../../rules/docs.md), this skill never edits

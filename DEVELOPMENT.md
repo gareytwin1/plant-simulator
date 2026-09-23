@@ -187,13 +187,17 @@ docs/project-handoff-refresh
 
 - One commit is one clear change, or one coherent part of a task. Do not
   bundle unrelated cleanup, formatting, refactoring, documentation and feature
-  work together unless they genuinely cannot be separated.
+  work together unless they genuinely cannot be separated. Split a task with
+  independent stages into independent commits.
 - Prefer several small understandable commits to one "everything changed"
-  commit.
+  commit, and leave the branch in a sensible state at each one where
+  practical.
 - Subject lines say what changed, not how — lead with the task ID when there
   is one.
 - Write a body only when the reason, tradeoff, migration concern or important
   test information isn't already obvious from the subject and the diff.
+  Routine changes do not get essays, and no commit needs a list of the files
+  it touched.
 
 ```text
 T8-1: Add PID block with anti-windup
@@ -203,7 +207,8 @@ against a fake first-order process, so it carries no plant dependency.
 ```
 
 Good: `T4-1: Add branch characteristic interface` ·
-`T3-3: Validate topology references` · `Typing: Annotate Equipment contract`
+`T3-3: Validate topology references` · `Typing: Annotate Equipment contract` ·
+`Docs: Add agent model guidance`
 
 Bad: `update files` · `fixes` · `misc changes` · `work in progress`
 

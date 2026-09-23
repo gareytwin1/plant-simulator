@@ -9,7 +9,11 @@ primary checkout. If `git worktree list` doesn't show the current directory as
 a worktree, stop and say so rather than proceeding.
 
 **Ready for Review** means all of the following are true, not some of them —
-see [CLAUDE.md's Status vocabulary](../../../CLAUDE.md#status-vocabulary).
+see [CLAUDE.md's Status vocabulary](../../../CLAUDE.md#status-vocabulary). The
+steps below mirror
+[DEVELOPMENT.md's "Before review" section](../../../DEVELOPMENT.md#before-review);
+if the two disagree, DEVELOPMENT.md is authoritative and this skill is stale
+and needs updating to match — do not follow this skill over DEVELOPMENT.md.
 
 ## Steps
 
@@ -51,10 +55,14 @@ see [CLAUDE.md's Status vocabulary](../../../CLAUDE.md#status-vocabulary).
    proposed title (`T{TASK-ID}: Brief description`) and a one-line summary.
    Opening a PR is visible to others; don't do it without a checkpoint.
 
-7. On confirmation, open the PR and set the task's status to **Ready for
-   Review** in `docs/BUILD_PLAN_STATUS.json` (and note that the live build
-   plan artifact should be updated too — this skill does not write to it
-   directly).
+7. On confirmation, open the PR. Then set the task's status to **Ready for
+   Review** — **in the live build plan artifact first**
+   (`https://claude.ai/artifact/DXqzpwKxeKZNzZGrC3HkQ9`), never by
+   hand-editing `docs/BUILD_PLAN_STATUS.json` directly. That file is derived
+   from the artifact; editing it by hand is exactly the drift the build plan
+   exists to prevent. Regenerate it from the artifact afterward per the
+   project's build-plan-status-regeneration memory, and confirm the diff shows
+   only the intended fields.
 
 8. Report: PR URL, final test count, mypy result, and confirmation that no
    golden trace moved.

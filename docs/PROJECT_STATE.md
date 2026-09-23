@@ -15,22 +15,22 @@ already in BUILD_PLAN_STATUS.json and does not need a second home.
 
 ## Right now
 
-**Last state refresh:** 22 September 2026, at `e54e9df` (T5-4, PR #53) —
-**this is a snapshot, not a live pointer.** Run `git log e54e9df..HEAD --oneline`
+**Last state refresh:** 23 September 2026, at `bb0b9ec` (T6-1, PR #55) —
+**this is a snapshot, not a live pointer.** Run `git log bb0b9ec..HEAD --oneline`
 to see what has merged since.
-**Full suite as of this refresh:** **938 passed** · `python -m mypy` clean over 24 source files · no golden trace moved
+**Full suite as of this refresh:** **966 passed** · `python -m mypy` clean over 25 source files · no golden trace moved
 **In flight:** nothing. **No spine lock is held.** No task is Blocked.
 
 **Recent merges** (full notes in [BUILD_PLAN_STATUS.json](BUILD_PLAN_STATUS.json)):
 
 | Task | SHA | What landed |
 |---|---|---|
-| **T5-4** | `e54e9df` | Mass balance conservation suite. Writes down ADR 0002 section 7.1's identity against `olefins_lite.yaml`'s cold-start transient; closes tightly cumulatively and per-step, proves the naive published-flow ledger wrong by one step. Tests only — **M5 is now Complete** |
+| **T6-1** | `bb0b9ec` | Stream enthalpy and mixing. `app/plant/thermo.py`: Cp per unit of native flow, flow-weighted mixing at nodes (temperature by flow·Cp, composition by flow — closes energy identically). Imports nothing from `app.plant`, so equipment can import it. Unblocks T6-2 through T6-5 |
+| T5-4 | `e54e9df` | Mass balance conservation suite. Writes down ADR 0002 section 7.1's identity against `olefins_lite.yaml`'s cold-start transient; closes tightly cumulatively and per-step, proves the naive published-flow ledger wrong by one step. Tests only — **M5 is now Complete** |
 | T5-5 | `37fbc36` | Integrated reference plant. `olefins_lite.yaml`: two domains (liquid P-101, gas K-101) coupled only through V-101 inventory, loaded at its own closed-form design equilibrium. Config + tests only |
 | T5-7 | `4db428d` | Vessel configured-port mode via `accepts_configured_ports` |
 | T5-6 | `7643281` | Coupling aggregates over hydraulic nodes; `DOMAIN_UNITS` retired |
 | T3-7 | `8733b1a` | Typed ports: `phase` / `purpose` / `control` + port-name guard |
-| T2-6 | `4e48949` | Scheduler owns simulated time |
 
 **ADRs on `main`:** ADR 0001 ([flow-domain separation](ADR_0001_FLOW_DOMAIN_SEPARATION.md))
 with Amendment 1, and ADR 0002 ([typed ports](ADR_0002_TYPED_PORTS.md)) with
@@ -43,27 +43,31 @@ what made this file 1,086 lines.
 | Milestone | Status |
 |---|---|
 | **M0**–**M5** | **Complete.** Checkpoint A (M1) and Checkpoint B (M4) both reached |
+| **M6** Energy Balance and Temperature | 1/5 — T6-1 Complete; T6-2, T6-3, T6-4, T6-5 all startable |
 | **M7** Control Valves and Final Elements | 1/5 — T7-1 Complete; T7-2, T7-3, T7-4, T7-5 startable |
-| M6, M8–M19 | Not started |
+| M8–M19 | Not started |
 
-**38 of 101 tasks Complete.** Next checkpoint is **C** (M5 + M6 + M7); M5 just
-closed, but it is not close overall: M6 has not started.
+**39 of 101 tasks Complete.** Next checkpoint is **C** (M5 + M6 + M7); M5 is
+closed, M6 and M7 have each landed one task.
 
 ## The next task
 
-**M5 is Complete — no single task is "the" next one.** Twenty tasks are
-startable in parallel (table below); which to hand out next is a scheduling
-choice, not a dependency one. T7-2 and T6-1 are the two Opus-level satellites
-in that list.
+**No single task is "the" next one.** Twenty-three tasks are startable in
+parallel (table below); which to hand out next is a scheduling choice, not a
+dependency one. T6-5, T7-2, T7-4 and T13-1 are the Opus-level tasks in that
+list.
 
-### Startable now (20 tasks)
+### Startable now (23 tasks)
 
 | Task | Name | Model | Branch |
 |---|---|---|---|
+| **T6-2** | Polytropic compression temperature | Sonnet | `feature/polytropic-temperature` |
+| **T6-3** | Heat exchanger model | Sonnet | `feature/heat-exchanger` |
+| **T6-4** | Furnace model | Sonnet | `feature/furnace` |
+| **T6-5** | Energy propagation through the network | Opus | `feature/energy-balance` |
 | **T7-2** | Extract valve logic from the compressor | Opus | `refactor/extract-compressor-valve` |
-| **T6-1** | Stream enthalpy and mixing | Opus | `feature/stream-enthalpy` |
 | **T7-3** | Valve fault modes | Sonnet | `feature/valve-faults` |
-| **T7-4** | Command arbitration | Sonnet | `feature/command-arbitration` |
+| **T7-4** | Command arbitration | Opus | `feature/command-arbitration` |
 | **T7-5** | Relief device | Sonnet | `feature/relief-valve` |
 | **T13-1** | Malfunction model and registry | Opus | `feature/malfunction-model` |
 | **T12-1** | Plant snapshot save and restore | Sonnet | `feature/state-persistence` |
@@ -81,12 +85,13 @@ in that list.
 | **T15-4** | Score persistence | Haiku | `feature/score-store` |
 | **T17-1** | Ring-buffer historian | Haiku | `feature/historian` |
 
-**Still waiting:** T8-3, T9-2 and T11-1 — on T8-2 and T9-1, no longer on T5-5.
+**Still waiting:** T8-3, T9-2 and T11-1 — on T8-2 and T9-1, unchanged by T6-1.
 
-**Scheduling notes.** T7-3 edits `app/equipment/valve.py` and should not run
-beside another valve change. T12-1 adds a *new* isolated module under
-`app/engine/`, which is satellite work under the `app/engine/` rule in
-CLAUDE.md.
+**Scheduling notes.** T6-2 and T7-2 both edit `app/equipment/compressor.py` —
+do not run them concurrently; sequence M6 before M7 or expect a conflict.
+T7-3 edits `app/equipment/valve.py` and should not run beside another valve
+change. T12-1 adds a *new* isolated module under `app/engine/`, which is
+satellite work under the `app/engine/` rule in CLAUDE.md.
 
 ## Known interim behaviour — do not "fix" these in passing
 

@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
-  "refreshed": "22 September 2026",
-  "main_sha": "e54e9df283df39aae2f44c7d35b088a7072a6232",
-  "tests_passing_on_main": 938,
+  "refreshed": "23 September 2026",
+  "main_sha": "bb0b9ec1b8e41b3016c3e8c434ff58dfac34fdce",
+  "tests_passing_on_main": 966,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -43,7 +43,7 @@
     },
     "M6": {
       "name": "Energy Balance and Temperature",
-      "complete": 0,
+      "complete": 1,
       "total": 5
     },
     "M7": {
@@ -114,8 +114,8 @@
   },
   "totals": {
     "tasks": 101,
-    "complete": 38,
-    "startable_now": 20
+    "complete": 39,
+    "startable_now": 23
   },
   "tasks": [
     {
@@ -778,10 +778,9 @@
       "files": [
         "app/plant/thermo.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true,
-      "note": ""
+      "status": "Complete",
+      "status_key": "done",
+      "note": "COMPLETE \u2014 merged to main as bb0b9ec (Merge T6-1: Stream enthalpy and flow-weighted mixing at nodes, PR #55), 23 Sep 2026. 966 passed on main (938 + 26 new + 2 from the port-name/random-source guard sweeps picking up the new source module), mypy clean over 25 source files, no golden trace moved. New module app/plant/thermo.py: Cp model per component (BTU per unit of native flow per \u00b0F, density folded in), flow-weighted mixing at nodes (temperature weighted by flow\u00b7Cp, composition by flow \u2014 the pairing that makes Q\u00b7Cp_out = \u03a3 q\u00b7Cp and closes energy identically, not to a tolerance), zero-flow guarded by a float epsilon rather than a process deadband. Imports nothing from app.plant, by design, so T6-2/T6-3/T6-4 can import it from app/equipment/ without inverting the layer app/config.py already preserves. Two review findings fixed pre-merge: StreamState now validates and copies its own composition rather than trusting C2's Stream to have done it (it need never have come from one), and Component.heat_capacity now checks its own phase (MIXED was silently reading as liquid). Known limitation recorded, not fixed: mix_streams emits a liquid composition as a volume fraction wearing a mole fraction's name \u2014 correct for vapor, approximate for liquid \u2014 because correcting it needs molecular weights V1 does not carry, and no plant config names a liquid composition yet."
     },
     {
       "id": "T6-2",
@@ -797,10 +796,7 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "T6-1"
-      ],
+      "startable": true,
       "note": ""
     },
     {
@@ -817,10 +813,7 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "T6-1"
-      ],
+      "startable": true,
       "note": ""
     },
     {
@@ -837,10 +830,7 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "T6-1"
-      ],
+      "startable": true,
       "note": ""
     },
     {
@@ -858,10 +848,7 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "T6-1"
-      ],
+      "startable": true,
       "note": ""
     },
     {

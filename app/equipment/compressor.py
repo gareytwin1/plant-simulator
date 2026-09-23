@@ -52,11 +52,12 @@ class GasCompressor(Equipment):
             min(target, 1.0),
         )
 
-    def temperature_at(self, spread: float) -> float:
-        ratio = (
-            (self.suction_pressure_target + spread)
-            / self.suction_pressure_target
-        )
+    def temperature_at(
+        self,
+        suction_pressure: float,
+        discharge_pressure: float,
+    ) -> float:
+        ratio = discharge_pressure / suction_pressure
         exponent = (
             (self.isentropic_exponent - 1.0)
             / (self.isentropic_exponent * self.polytropic_efficiency)

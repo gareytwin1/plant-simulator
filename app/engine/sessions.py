@@ -106,11 +106,11 @@ class Session:
         reference plant config/plants/olefins_lite.yaml is where K-101
         discharges through a real ControlValve.
 
-        temperature_at(spread) and characteristic(flow) are live-device
-        queries over a solved value, so they cannot move into get_state().
-        One step_lock acquisition covers the snapshot read and both queries,
-        so all three come from the same coherent step even while the
-        scheduler is running concurrently.
+        temperature_at(suction, discharge) and characteristic(flow) are
+        live-device queries over a solved value, so they cannot move into
+        get_state(). One step_lock acquisition covers the snapshot read and
+        both queries, so all three come from the same coherent step even
+        while the scheduler is running concurrently.
         """
         with self.compressor_scheduler.step_lock:
             snapshot = self.compressor_scheduler.snapshot_locked()
@@ -118,15 +118,17 @@ class Session:
             flow = _flow_of(snapshot.streams)
             suction = _pressure_at(snapshot.nodes, "N-201")
             discharge = _pressure_at(snapshot.nodes, "N-202")
-            spread = discharge - suction
 
             return {
                 **snapshot.equipment["K-101"],
                 "pressure": discharge,
                 "suction_pressure": suction,
                 "discharge_pressure": discharge,
-                "spread": spread,
-                "temperature": self.compressor.temperature_at(spread),
+                "spread": discharge - suction,
+                "temperature": self.compressor.temperature_at(
+                    suction,
+                    discharge,
+                ),
                 "flow": flow,
                 "compressor_pressure_rise": self.compressor.characteristic(flow),
             }

@@ -56,14 +56,14 @@ new or existing `.claude/rules/*.md` file, scoped with `paths` frontmatter to
 where it applies.
 
 **Exception: give a scoped rule a one-line CLAUDE.md backstop when getting it
-wrong is silent and expensive.** A path-scoped rule only loads when a matching
-file is opened with `Read`, and not at all through `Bash`/`grep`/`sed` — so the
-session that most needs the warning may never see it. Three rules get this
-backstop even though a `.claude/rules/*.md` file also covers them in full:
-the golden-trace policy and the worktree-per-task rule (wrong *tool*, not
-wrong *file* — a session can violate either without opening anything the
-scope would catch), and the branch-characteristic monotonicity requirement
-(a single non-conforming device can silently break the solver's convergence
-for the *entire* plant, not just its own branch). A rule whose violation is
-caught by the code itself — a rejected config, a failing guard test — does
-not need this; the failure mode there is a clear error, not silence.
+wrong is silent and expensive.** A path-scoped rule applies when Claude works
+with files matching its configured `paths`; it is not unconditional startup
+context, so a session that never touches a matching path never sees it. Three
+rules get this backstop even though a `.claude/rules/*.md` file also covers
+them in full: the golden-trace policy and the worktree-per-task rule (both can
+be violated without going near the paths that would carry the warning), and the
+branch-characteristic monotonicity requirement (a single non-conforming device
+can silently break the solver's convergence for the *entire* plant, not just
+its own branch). A rule whose violation is caught by the code itself — a
+rejected config, a failing guard test — does not need this; the failure mode
+there is a clear error, not silence.

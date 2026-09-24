@@ -1,5 +1,6 @@
 import pytest
 from app.equipment.compressor import GasCompressor
+from app.plant.loader import load_plant
 
 def test_initial_state():
     simulator = GasCompressor()
@@ -267,3 +268,140 @@ def test_compressor_curve_is_not_clamped_past_runout():
     assert device.characteristic(overrun) == pytest.approx(
         220.0 * device.load ** 2 - 0.002 * overrun ** 2,
     )
+
+
+def test_shutoff_pressure_rise_must_be_non_negative():
+    simulator = GasCompressor()
+
+    with pytest.raises(ValueError, match="shutoff_pressure_rise"):
+        simulator.shutoff_pressure_rise = -1.0
+
+    simulator.shutoff_pressure_rise = 0.0
+
+
+def test_compressor_resistance_must_be_positive():
+    simulator = GasCompressor()
+
+    for bad in (0.0, -0.002):
+        with pytest.raises(ValueError, match="compressor_resistance"):
+            simulator.compressor_resistance = bad
+
+
+def test_base_temperature_must_exceed_absolute_zero():
+    simulator = GasCompressor()
+
+    for bad in (-459.67, -500.0, float("-inf")):
+        with pytest.raises(ValueError, match="base_temperature"):
+            simulator.base_temperature = bad
+
+
+def test_isentropic_exponent_must_be_in_the_ideal_gas_range():
+    simulator = GasCompressor()
+
+    for bad in (1.0, 0.5, 5.0 / 3.0 + 0.01):
+        with pytest.raises(ValueError, match="isentropic_exponent"):
+            simulator.isentropic_exponent = bad
+
+    simulator.isentropic_exponent = 5.0 / 3.0
+
+
+def test_polytropic_efficiency_must_be_a_fraction():
+    simulator = GasCompressor()
+
+    for bad in (0.0, -0.1, 1.5):
+        with pytest.raises(ValueError, match="polytropic_efficiency"):
+            simulator.polytropic_efficiency = bad
+
+    simulator.polytropic_efficiency = 1.0
+
+
+def test_temperature_at_rejects_a_non_positive_suction_pressure():
+    simulator = GasCompressor()
+
+    with pytest.raises(ValueError, match="suction_pressure"):
+        simulator.temperature_at(0.0, 100.0)
+
+    with pytest.raises(ValueError, match="suction_pressure"):
+        simulator.temperature_at(-1.0, 100.0)
+
+
+def test_temperature_at_rejects_a_non_positive_discharge_pressure():
+    simulator = GasCompressor()
+
+    with pytest.raises(ValueError, match="discharge_pressure"):
+        simulator.temperature_at(675.0, 0.0)
+
+    with pytest.raises(ValueError, match="discharge_pressure"):
+        simulator.temperature_at(675.0, -100.0)
+
+
+def test_temperature_at_rejects_non_finite_pressures():
+    simulator = GasCompressor()
+
+    for bad in (float("nan"), float("inf"), float("-inf")):
+        with pytest.raises(ValueError, match="suction_pressure"):
+            simulator.temperature_at(bad, 875.0)
+
+        with pytest.raises(ValueError, match="discharge_pressure"):
+            simulator.temperature_at(675.0, bad)
+
+
+def compressor_plant_config(design):
+    return {
+        "nodes": [
+            {"id": "N-01", "boundary": True, "pressure": 675.0},
+            {"id": "N-02", "boundary": True, "pressure": 875.0},
+        ],
+        "equipment": [
+            {
+                "tag": "K-101",
+                "type": "compressor",
+                "node_in": "N-01",
+                "node_out": "N-02",
+                "design": design,
+            },
+        ],
+    }
+
+
+@pytest.mark.parametrize(
+    ("key", "bad_value"),
+    [
+        ("shutoff_pressure_rise", -1.0),
+        ("compressor_resistance", 0.0),
+        ("base_temperature", -459.67),
+        ("isentropic_exponent", 1.0),
+        ("isentropic_exponent", 2.0),
+        ("polytropic_efficiency", 0.0),
+        ("polytropic_efficiency", 1.5),
+    ],
+)
+def test_a_design_value_out_of_range_is_a_config_error_naming_the_path(
+    key,
+    bad_value,
+):
+    from app.plant.loader import PlantConfigError
+
+    with pytest.raises(PlantConfigError) as raised:
+        load_plant(compressor_plant_config({key: bad_value}))
+
+    assert any(
+        error.startswith(f"$.equipment[0].design.{key}:")
+        for error in raised.value.errors
+    )
+
+
+def test_get_state_keys_are_unchanged():
+    state = GasCompressor().get_state()
+
+    assert set(state) == {
+        "running",
+        "load",
+        "load_target",
+        "suction_pressure_target",
+        "discharge_pressure_target",
+        "flow_target",
+        "max_spread",
+        "max_flow",
+        "max_temperature",
+    }

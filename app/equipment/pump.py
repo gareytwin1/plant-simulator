@@ -1,5 +1,6 @@
 from app import config
 from app.equipment.base import Equipment, INLET, OUTLET, signed_square
+from app.equipment.ranges import checked
 from app.statetypes import StateRow
 
 
@@ -23,6 +24,26 @@ class CentrifugalPump(Equipment):
 
         self.shutoff_pressure_rise = 75.0
         self.pump_resistance = 0.000015
+
+    @property
+    def shutoff_pressure_rise(self) -> float:
+        return self._shutoff_pressure_rise
+
+    @shutoff_pressure_rise.setter
+    def shutoff_pressure_rise(self, value: float) -> None:
+        self._shutoff_pressure_rise = checked(
+            self.tag, "shutoff_pressure_rise", value, 0.0,
+        )
+
+    @property
+    def pump_resistance(self) -> float:
+        return self._pump_resistance
+
+    @pump_resistance.setter
+    def pump_resistance(self, value: float) -> None:
+        self._pump_resistance = checked(
+            self.tag, "pump_resistance", value, 0.0, above=True,
+        )
 
     def start(self) -> None:
         self.running = True

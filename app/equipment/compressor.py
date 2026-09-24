@@ -1,5 +1,8 @@
+import math
+
 from app import config
 from app.equipment.base import Equipment, INLET, OUTLET, signed_square
+from app.equipment.ranges import checked
 from app.statetypes import StateRow
 
 # °F to °R: the polytropic relation is defined on absolute temperature, and
@@ -39,6 +42,56 @@ class GasCompressor(Equipment):
         self.isentropic_exponent = 1.3
         self.polytropic_efficiency = 0.75
 
+    @property
+    def shutoff_pressure_rise(self) -> float:
+        return self._shutoff_pressure_rise
+
+    @shutoff_pressure_rise.setter
+    def shutoff_pressure_rise(self, value: float) -> None:
+        self._shutoff_pressure_rise = checked(
+            self.tag, "shutoff_pressure_rise", value, 0.0,
+        )
+
+    @property
+    def compressor_resistance(self) -> float:
+        return self._compressor_resistance
+
+    @compressor_resistance.setter
+    def compressor_resistance(self, value: float) -> None:
+        self._compressor_resistance = checked(
+            self.tag, "compressor_resistance", value, 0.0, above=True,
+        )
+
+    @property
+    def base_temperature(self) -> float:
+        return self._base_temperature
+
+    @base_temperature.setter
+    def base_temperature(self, value: float) -> None:
+        self._base_temperature = checked(
+            self.tag, "base_temperature", value, -RANKINE_OFFSET, above=True,
+        )
+
+    @property
+    def isentropic_exponent(self) -> float:
+        return self._isentropic_exponent
+
+    @isentropic_exponent.setter
+    def isentropic_exponent(self, value: float) -> None:
+        self._isentropic_exponent = checked(
+            self.tag, "isentropic_exponent", value, 1.0, 5.0 / 3.0, above=True,
+        )
+
+    @property
+    def polytropic_efficiency(self) -> float:
+        return self._polytropic_efficiency
+
+    @polytropic_efficiency.setter
+    def polytropic_efficiency(self, value: float) -> None:
+        self._polytropic_efficiency = checked(
+            self.tag, "polytropic_efficiency", value, 0.0, 1.0, above=True,
+        )
+
     def start(self) -> None:
         self.running = True
 
@@ -57,6 +110,15 @@ class GasCompressor(Equipment):
         suction_pressure: float,
         discharge_pressure: float,
     ) -> float:
+        for label, pressure in (
+            ("suction_pressure", suction_pressure),
+            ("discharge_pressure", discharge_pressure),
+        ):
+            if not math.isfinite(pressure) or pressure <= 0.0:
+                raise ValueError(
+                    f"{label} must be finite and positive, got {pressure!r}",
+                )
+
         ratio = discharge_pressure / suction_pressure
         exponent = (
             (self.isentropic_exponent - 1.0)

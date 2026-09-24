@@ -939,7 +939,7 @@
       ],
       "status": "Ready for Review",
       "status_key": "review",
-      "startable": true,
+      "startable": false,
       "note": "READY FOR REVIEW - PR #62 (fix/immutable-composition), rebased on main at 18819f2. D7 (revised): StreamState.composition is now a MappingProxyType over a private dict copy, so item assignment raises TypeError instead of mutating a value another part of the plant may still hold. __copy__ and __deepcopy__ return self - a frozen dataclass with an already-immutable composition has nothing left for a copy to protect. No custom Mapping class. Pickle unsupported (MappingProxyType refuses it, noted for T12-1); hashing already was not. DEFECT REPRODUCTION: item-assignment and copy/deepcopy-identity tests confirmed to fail against the merge-base production code and pass after the fix. Full suite 1002 passed (999 + 3 new), mypy clean over 25 files, golden fixtures byte-unchanged. Not yet merged."
     },
     {

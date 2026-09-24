@@ -15,22 +15,22 @@ already in BUILD_PLAN_STATUS.json and does not need a second home.
 
 ## Right now
 
-**Last state refresh:** 24 September 2026, at `17330bc` (R3, PR #61) —
+**Last state refresh:** 24 September 2026, at `b84767d` (R9, PR #62) —
 **this is a snapshot, not a live pointer.** Run
-`git log 17330bc..HEAD --oneline` to see what has merged since.
-**Full suite as of this refresh:** **1022 passed** · `python -m mypy` clean over 26 source files · compressor golden trace moved deliberately (temperature field only, on the two boundary-asymmetric scenarios — justified in T6-2's note)
+`git log b84767d..HEAD --oneline` to see what has merged since.
+**Full suite as of this refresh:** **1025 passed** · `python -m mypy` clean over 26 source files · compressor golden trace moved deliberately (temperature field only, on the two boundary-asymmetric scenarios — justified in T6-2's note)
 **In flight:** nothing. **No spine lock is held.** No task is Blocked.
 
 **Recent merges** (full notes in [BUILD_PLAN_STATUS.json](BUILD_PLAN_STATUS.json)):
 
 | Task | SHA | What landed |
 |---|---|---|
+| **R9** | `b84767d` | Immutable composition. `StreamState.composition` is now a `MappingProxyType` over a private dict copy, so item assignment raises `TypeError`; `__copy__`/`__deepcopy__` return `self`. No custom `Mapping` class. Pickle unsupported (noted for T12-1); hashing already was not. 3 new tests, each confirmed to fail against the merge-base before the fix. Rebased onto main after R3 (conflict in the derived status file), which also caught and fixed a stale `startable=true` flag R3's own regeneration had left on R9's entry. Unblocks T6-5 alongside R2 |
 | **R3** | `17330bc` | Machine design ranges. Property setters enforce D3 on `GasCompressor` and `CentrifugalPump`: `1 < isentropic_exponent <= 5/3`, `0 < polytropic_efficiency <= 1`, every `*_resistance > 0`, `shutoff_pressure_rise >= 0`, `base_temperature > -459.67`°F; `temperature_at` rejects a non-finite or non-positive pressure with `ValueError`. Vessel's numeric range-check helper lifted into `app/equipment/ranges.py`, shared by all three devices. 18 new tests, each confirmed to fail against the merge-base before the fix. `app/equipment/base.py` untouched — no spine lock |
 | **R1** | `0a4af4f` | Reject non-finite numbers at load. Finite numbers enforced in layers (D1): `validate.py`'s generic `"number"` branch now rejects NaN/±inf ahead of the `minimum` check, covering node pressure, limit fields, controller gains and interlock `delay_s` in one change; `loader.py`'s `_apply_design` rejects a non-finite design number directly, since `design` has no per-key schema for the validator to see; the loader's own boundary-pressure check also rejects non-finite pressure explicitly, extended to internal nodes too. 25 new tests, each confirmed to fail against the merge-base before the fix. Unblocks R4 |
 | — | `300659b` | (non-task) Added milestone **MR Remediation** (R1–R12, 13 tasks) to the build plan from the approved post-T6-2 audit. Puts **R9 and R2 in front of T6-5** and **R7 in front of T18-1**. Docs only — no code changed. PR #59 |
 | **T6-2** | `20a504a` | Polytropic compression temperature. `GasCompressor.temperature_at` replaces the piecewise table with `T2 = T1·(P2/P1)^((k-1)/(k·η))`; `isentropic_exponent`/`polytropic_efficiency` are named design attributes. Takes the actual solved suction/discharge pressures via `Session.compressor_state()`, not a fixed design target — an initial revision used the design target to avoid touching the `app/engine/` spine and was caught in review as physically wrong |
 | T7-2 | `537f206` | Extract valve logic from the compressor. `GasCompressor` loses `discharge_valve_position`/`target`/`rate`; `FV-201` (`ControlValve`) now sits on K-101's discharge in `olefins_lite.yaml`, over a new internal node N-204. Resistance re-split 0.04 machine + 0.01 valve so every T5-5 design value is unmoved. Dead `/api/valve` endpoint and page slider removed |
-| — | `f9ce10e` | (non-task) Fixed `start-task`/`merge-task` skills reading `$1` instead of `$0` for their own argument — Claude Code's positional substitution is zero-based, so both were silently reading an empty string. PR #56 |
 
 **ADRs on `main`:** ADR 0001 ([flow-domain separation](ADR_0001_FLOW_DOMAIN_SEPARATION.md))
 with Amendment 1, and ADR 0002 ([typed ports](ADR_0002_TYPED_PORTS.md)) with
@@ -43,22 +43,21 @@ what made this file 1,086 lines.
 | Milestone | Status |
 |---|---|
 | **M0**–**M5** | **Complete.** Checkpoint A (M1) and Checkpoint B (M4) both reached |
-| **M6** Energy Balance and Temperature | 2/5 — T6-1, T6-2 Complete; T6-3, T6-4 startable; T6-5 waits on R2 and R9 |
+| **M6** Energy Balance and Temperature | 2/5 — T6-1, T6-2 Complete; T6-3, T6-4 startable; T6-5 waits on R2 |
 | **M7** Control Valves and Final Elements | 2/5 — T7-1, T7-2 Complete; T7-3, T7-4, T7-5 startable |
-| **MR** Remediation | 2/13 — R1, R3 Complete; R9 Ready for Review (PR #62); the rest of the no-spine set is startable, plus R2 and R10b at the head of the spine queue |
+| **MR** Remediation | 3/13 — R1, R3, R9 Complete; the rest of the no-spine set is startable, plus R2 and R10b at the head of the spine queue |
 | M8–M19 | Not started |
 
-**43 of 114 tasks Complete.** Next checkpoint is **C** (M5 + M6 + M7); M5 is
+**44 of 114 tasks Complete.** Next checkpoint is **C** (M5 + M6 + M7); M5 is
 closed, M6 has landed two tasks and M7 two. MR is scheduled to merge by
-Checkpoint C, because T6-5 waits on two of its tasks.
+Checkpoint C, because T6-5 waits on one of its remaining tasks (R2).
 
 ## The next task
 
 **No single task is "the" next one.** Twenty-seven tasks are startable in
 parallel (table below); which to hand out next is a scheduling choice, not a
 dependency one. R2, R10b, R12, T7-4 and T13-1 are the Opus-level tasks in
-that list. R9 is no longer in this list — it's on its own branch, Ready for
-Review, not yet merged.
+that list.
 
 ### Startable now (27 tasks)
 
@@ -93,7 +92,7 @@ Review, not yet merged.
 | **T17-1** | Ring-buffer historian | Sonnet | `feature/historian` |
 
 **Still waiting:** T8-3, T9-2 and T11-1 — on T8-2 and T9-1, unchanged by T6-1.
-From MR: **T6-5** on R2 and R9; **T18-1** on R7; R6 on R5; R7 on R6.
+From MR: **T6-5** on R2; **T18-1** on R7; R6 on R5; R7 on R6.
 
 **Scheduling notes.** MR runs under **one global spine lock** (U1 in the
 approved design treats `network.py` and `scheduler.py` as spine too). The spine

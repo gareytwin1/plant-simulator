@@ -43,7 +43,7 @@
     },
     "MR": {
       "name": "Remediation",
-      "complete": 2,
+      "complete": 3,
       "total": 13
     },
     "M6": {
@@ -119,7 +119,7 @@
   },
   "totals": {
     "tasks": 114,
-    "complete": 43,
+    "complete": 44,
     "startable_now": 27
   },
   "tasks": [
@@ -937,10 +937,9 @@
         "app/plant/thermo.py",
         "tests/test_thermo.py"
       ],
-      "status": "Ready for Review",
-      "status_key": "review",
-      "startable": false,
-      "note": "READY FOR REVIEW - PR #62 (fix/immutable-composition), rebased on main at 18819f2. D7 (revised): StreamState.composition is now a MappingProxyType over a private dict copy, so item assignment raises TypeError instead of mutating a value another part of the plant may still hold. __copy__ and __deepcopy__ return self - a frozen dataclass with an already-immutable composition has nothing left for a copy to protect. No custom Mapping class. Pickle unsupported (MappingProxyType refuses it, noted for T12-1); hashing already was not. DEFECT REPRODUCTION: item-assignment and copy/deepcopy-identity tests confirmed to fail against the merge-base production code and pass after the fix. Full suite 1002 passed (999 + 3 new), mypy clean over 25 files, golden fixtures byte-unchanged. Not yet merged."
+      "status": "Complete",
+      "status_key": "done",
+      "note": "COMPLETE - merged to main as b84767d (Merge R9: Immutable composition, PR #62), 24 Sep 2026. 1025 passed on main (1022 + 3 new), mypy clean over 26 source files, no golden trace moved. D7 (revised): StreamState.composition is now a MappingProxyType over a private dict copy, so item assignment raises TypeError instead of mutating a value another part of the plant may still hold. __copy__ and __deepcopy__ return self - a frozen dataclass with an already-immutable composition has nothing left for a copy to protect. No custom Mapping class. Pickle unsupported (MappingProxyType refuses it, noted for T12-1); hashing already was not. DEFECT REPRODUCTION: item-assignment and copy/deepcopy-identity tests confirmed to fail against the merge-base production code and pass after the fix. Branch was rebased onto main after R3 merged (which touched the same derived status file) and force-pushed to resolve the conflict; that rebase also caught and fixed a stale startable=true flag R3's own regeneration had left on R9's entry. Unblocks T6-5 alongside R2."
     },
     {
       "id": "R10a",
@@ -1095,7 +1094,6 @@
       "status_key": "todo",
       "startable": false,
       "blocked_by": [
-        "R9",
         "R2"
       ],
       "note": ""

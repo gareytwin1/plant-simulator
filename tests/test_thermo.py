@@ -1,3 +1,5 @@
+import copy
+
 import pytest
 
 from app.equipment.base import LIQUID, MIXED, VAPOR
@@ -94,6 +96,32 @@ def test_a_stream_does_not_share_the_mapping_it_was_built_from():
     composition["propane"] = 1.0
 
     assert stream.composition == {"methane": 1.0}
+
+
+def test_composition_refuses_item_assignment():
+    stream = vapor(10.0, 100.0, {"methane": 1.0})
+
+    with pytest.raises(TypeError):
+        stream.composition["methane"] = 0.5
+
+
+def test_composition_compares_equal_to_a_plain_dict():
+    stream = vapor(10.0, 100.0, {"methane": 1.0})
+
+    assert stream.composition == {"methane": 1.0}
+
+
+def test_copy_and_deepcopy_return_the_same_stream():
+    stream = vapor(10.0, 100.0, {"methane": 1.0})
+
+    assert copy.copy(stream) is stream
+    assert copy.deepcopy(stream) is stream
+
+    holder = {"stream": stream}
+    deep_copied_holder = copy.deepcopy(holder)
+
+    assert deep_copied_holder["stream"] is stream
+    assert deep_copied_holder is not holder
 
 
 def test_a_stream_at_the_datum_carries_no_enthalpy():

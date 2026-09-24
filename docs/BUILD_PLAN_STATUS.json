@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
-  "refreshed": "23 September 2026",
-  "main_sha": "0a4af4fbb80a94c174f22510da1e6661c461df0f",
-  "tests_passing_on_main": 999,
+  "refreshed": "24 September 2026",
+  "main_sha": "17330bcee0fdc96138f9261a9f30519153b44f01",
+  "tests_passing_on_main": 1022,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -43,7 +43,7 @@
     },
     "MR": {
       "name": "Remediation",
-      "complete": 1,
+      "complete": 2,
       "total": 13
     },
     "M6": {
@@ -119,8 +119,8 @@
   },
   "totals": {
     "tasks": 114,
-    "complete": 42,
-    "startable_now": 29
+    "complete": 43,
+    "startable_now": 27
   },
   "tasks": [
     {
@@ -820,10 +820,9 @@
         "tests/test_compressor.py",
         "tests/test_pump.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true,
-      "note": ""
+      "status": "Complete",
+      "status_key": "done",
+      "note": "COMPLETE - merged to main as 17330bc (PR #61), 24 Sep 2026. 1022 passed on main, mypy clean over 26 source files, no golden trace moved. D3's ranges enforced by property setters on GasCompressor and CentrifugalPump, following the Vessel/ControlValve precedent: 1 < isentropic_exponent <= 5/3, 0 < polytropic_efficiency <= 1, every *_resistance > 0, shutoff_pressure_rise >= 0, base_temperature > -459.67 degF. temperature_at now rejects a non-finite or non-positive suction/discharge pressure with ValueError instead of a ZeroDivisionError or a silent non-finite result. First commit lifted Vessel's numeric range-check helper into app/equipment/ranges.py (behaviour-preserving; app/equipment/base.py untouched, no spine lock) so compressor.py and pump.py reuse it instead of duplicating it. DEFECT REPRODUCTION: 18 new tests run against the merge-base (18819f2) production code first and all failed as expected (7 assignment-range tests, 7 parametrized load-path tests via PlantConfigError, 4 temperature_at pressure-guard tests), then passed after the fix. get_state() keys pinned unchanged for both devices as a compatibility guard."
     },
     {
       "id": "R4",
@@ -938,10 +937,10 @@
         "app/plant/thermo.py",
         "tests/test_thermo.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
+      "status": "Ready for Review",
+      "status_key": "review",
       "startable": true,
-      "note": ""
+      "note": "READY FOR REVIEW - PR #62 (fix/immutable-composition), rebased on main at 18819f2. D7 (revised): StreamState.composition is now a MappingProxyType over a private dict copy, so item assignment raises TypeError instead of mutating a value another part of the plant may still hold. __copy__ and __deepcopy__ return self - a frozen dataclass with an already-immutable composition has nothing left for a copy to protect. No custom Mapping class. Pickle unsupported (MappingProxyType refuses it, noted for T12-1); hashing already was not. DEFECT REPRODUCTION: item-assignment and copy/deepcopy-identity tests confirmed to fail against the merge-base production code and pass after the fix. Full suite 1002 passed (999 + 3 new), mypy clean over 25 files, golden fixtures byte-unchanged. Not yet merged."
     },
     {
       "id": "R10a",

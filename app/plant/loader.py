@@ -83,6 +83,7 @@ from app.equipment.base import (
     Equipment,
 )
 from app.equipment.compressor import GasCompressor
+from app.equipment.exchanger import HeatExchanger
 from app.equipment.pump import CentrifugalPump
 from app.equipment.valve import ControlValve
 from app.equipment.vessel import Vessel
@@ -110,6 +111,7 @@ DEVICE_TYPES: dict[str, type[Equipment]] = {
     "compressor": GasCompressor,
     "control_valve": ControlValve,
     "vessel": Vessel,
+    "heat_exchanger": HeatExchanger,
 }
 
 

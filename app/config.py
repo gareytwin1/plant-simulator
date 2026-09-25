@@ -19,6 +19,11 @@ PUMP_SPEED_RATE_PER_SECOND = 0.10
 VALVE_STROKE_RATE_PER_SECOND = 0.05
 
 
+# Heat exchanger timing
+
+EXCHANGER_METAL_RESPONSE_RATE_PER_SECOND = 2.0  # °F/s
+
+
 # Gas inventory
 #
 # Standard conditions for SCFM, from docs/UNITS_CONVENTION.md: 60 F and 1 atm.

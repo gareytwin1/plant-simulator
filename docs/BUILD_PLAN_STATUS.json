@@ -1,7 +1,7 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "25 September 2026",
-  "main_sha": "1467dccf247901aed64b5ea9ec51e999cf15eb75",
+  "main_sha": "07e69df7699f391789aa6fd93bc25027393bbbbf",
   "tests_passing_on_main": 1083,
   "status_vocabulary": {
     "Not Started": "No work begun",
@@ -43,7 +43,7 @@
     },
     "MR": {
       "name": "Remediation",
-      "complete": 7,
+      "complete": 8,
       "total": 13
     },
     "M6": {
@@ -119,8 +119,8 @@
   },
   "totals": {
     "tasks": 114,
-    "complete": 48,
-    "startable_now": 25
+    "complete": 49,
+    "startable_now": 24
   },
   "tasks": [
     {
@@ -957,10 +957,9 @@
         ".workspace/memory/project_state.md",
         "docs/ARCHITECTURE.md"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true,
-      "note": ""
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged to main as 07e69df (merge commit from docs/solved-state-wording, PR #69). AGENTS.md's solved-state paragraph replaced in place: inventory is device slow state, reaching the plant only as a boundary the coupling writes. The integrate(dt) bullet now reads 'never touches a solved flow or a node pressure.' D9 golden-regeneration wording in AGENTS.md and .claude/rules/testing.md now allows an approved numeric change that is the task's own point, with a field-level old/new comparison in the PR - reconciling the written policy with the T6-2 precedent. project_state.md item 3 corrected to temperature_at(suction, discharge), matching the actual signature. docs/ARCHITECTURE.md needed no change; already consistent. Retargeted from stale CLAUDE.md/docs/PROJECT_STATE.md line-number references first (61f7707), before this task's own session started - required wording unchanged throughout. 1083 passed post-merge, mypy clean, no golden movement."
     },
     {
       "id": "R10b",

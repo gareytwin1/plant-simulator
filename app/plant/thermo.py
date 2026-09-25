@@ -227,7 +227,7 @@ class ThermalDevice(Protocol):
     matter at this level of rigour - a valve, a pipe, a pump - and
     temperature passes through it unchanged. The method's name is the whole
     marker: `DomainTransport` classifies a device as thermal by it, once,
-    when the Engine is built from the plant.
+    when the Engine is built.
 
     `arriving` is the stream entering the device. Its flow is signed in the
     device's own orientation, positive inlet to outlet, exactly as

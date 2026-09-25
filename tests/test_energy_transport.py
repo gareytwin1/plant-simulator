@@ -383,6 +383,74 @@ def test_a_loop_returning_more_heat_than_its_feed_removes_holds_and_reports():
     assert transport.temperatures["N-1"] == STANDARD_TEMPERATURE
 
 
+class Refusing(Heater):
+    """A heater that refuses the solved state once told to."""
+
+    refuse = False
+
+    def leaving_temperature(self, arriving, inlet_pressure, outlet_pressure):
+        if self.refuse:
+            raise ValueError("inlet_pressure must be finite and positive")
+
+        return super().leaving_temperature(
+            arriving, inlet_pressure, outlet_pressure,
+        )
+
+
+def test_a_device_refusing_the_solved_state_holds_the_domain_not_the_step():
+    nodes = {
+        "WEST": Node("WEST", 100.0, is_boundary=True),
+        "EAST": Node("EAST", 50.0, is_boundary=True),
+        "N-1": Node("N-1", 75.0),
+    }
+    heater = Refusing(temperature_rise=30.0)
+    branches = [
+        Branch("B-1", nodes["WEST"], nodes["N-1"], Line("L-1")),
+        Branch("B-2", nodes["N-1"], nodes["EAST"], heater),
+    ]
+    engine = Engine(
+        [branch.device for branch in branches],
+        topology=Topology(nodes.values(), branches),
+        boundary_temperatures={"WEST": 200.0},
+    )
+    before = temperatures(engine.step(1.0))
+
+    heater.refuse = True
+    nodes["WEST"].set_boundary_pressure(10.0)
+    held = engine.step(1.0)
+    transport = engine.transports["default"]
+
+    assert temperatures(held) == before
+    assert not transport.settled
+    assert "inlet_pressure" in transport.failure
+
+    assert held.streams["B-1"]["flow"] < 0.0
+
+    heater.refuse = False
+    recovered = engine.step(1.0)
+
+    assert transport.settled
+    assert recovered.nodes["N-1"]["temperature"] == pytest.approx(90.0)
+
+
+def test_an_unsettled_loop_keeps_its_stream_temperatures_too():
+    transport = recycle_loop(Heater(temperature_rise=0.5))
+    transport.propagate()
+    streams = {
+        branch_id: branch.stream.temperature
+        for branch_id, branch in transport.topology.branches.items()
+    }
+
+    transport.thermal["B-3"] = Compressing(factor=1.1)
+    transport.propagate()
+
+    assert not transport.settled
+    assert {
+        branch_id: branch.stream.temperature
+        for branch_id, branch in transport.topology.branches.items()
+    } == streams
+
+
 def test_a_heated_loop_no_feed_reaches_keeps_its_temperature():
     transport = recycle_loop(Heater(temperature_rise=5.0), feed=0.0, recycle=10.0)
     transport.propagate()

@@ -61,9 +61,11 @@ committed plant alone and stepping a stopped engine republishes it
 bit-for-bit.
 
 A loop whose devices return more heat than its feed can carry away has no
-steady temperature. That is reported, not raised: the domain keeps the
-temperatures it had, `settled` goes False and `failure` says why, the same
-bargain a solve that does not converge makes. C4 carries no field for it;
+steady temperature, and a device can refuse a solved state it cannot model -
+a compressor suction pulled below 0 psia, say. Both are reported, not
+raised: the domain keeps every node and stream temperature it had, `settled`
+goes False and `failure` says why, the same bargain a solve that does not
+converge makes. C4 carries no field for it;
 widening the snapshot is its own task.
 
 Composition is not transported. No boundary supplies one (C3 has no field for
@@ -142,10 +144,22 @@ class DomainTransport:
         """
         arrivals = self._arrivals()
 
+        # A thermal device refuses an input it cannot model with ValueError,
+        # and the solver can commit one - a suction pulled below 0 psia has
+        # no floor. That is a state the plant reached, not a configuration
+        # error, so it holds the domain like any other unsettled answer.
         try:
             temperatures = self._solve(arrivals, _fed(self.topology, arrivals))
             failure = _unphysical(temperatures)
-        except SolverError as error:
+            streams = {
+                branch_id: self._leaving(
+                    branch_id,
+                    temperatures[_upstream(branch)],
+                )
+                for branch_id, branch in self.topology.branches.items()
+                if branch.flow != 0.0
+            }
+        except (SolverError, ValueError) as error:
             failure = str(error)
 
         if failure is not None:
@@ -157,12 +171,8 @@ class DomainTransport:
         self.failure = None
         self.temperatures = temperatures
 
-        for branch_id, branch in self.topology.branches.items():
-            if branch.flow != 0.0:
-                branch.stream.temperature = self._leaving(
-                    branch_id,
-                    temperatures[_upstream(branch)],
-                )
+        for branch_id, temperature in streams.items():
+            self.topology.branches[branch_id].stream.temperature = temperature
 
     def _solve(
         self,
@@ -196,7 +206,14 @@ class DomainTransport:
                     else:
                         rhs[row] += weight * slope * temperatures[upstream]
 
-            solution = solve_linear(matrix, rhs) if fed else []
+            try:
+                solution = solve_linear(matrix, rhs) if fed else []
+            except SolverError:
+                raise SolverError(
+                    "no steady temperature - a loop's heat return exactly "
+                    "balances its feed",
+                ) from None
+
             change = max(
                 (
                     abs(value - temperatures[node_id])

@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "24 September 2026",
-  "main_sha": "17330bcee0fdc96138f9261a9f30519153b44f01",
-  "tests_passing_on_main": 1022,
+  "main_sha": "539809e80d5768fd56fdfdf02532a84668afe116",
+  "tests_passing_on_main": 1025,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -120,7 +120,7 @@
   "totals": {
     "tasks": 114,
     "complete": 44,
-    "startable_now": 25
+    "startable_now": 23
   },
   "tasks": [
     {
@@ -242,7 +242,10 @@
       ],
       "status": "Complete",
       "status_key": "done",
-      "note": "Establish static typing before T4 solver interfaces expand the architectural surface area. mypy 2.3.1 pinned in requirements-dev.txt, configured in pyproject.toml over app/ only (disallow_untyped_defs, disallow_any_generics, no_implicit_optional, warn_return_any, strict_equality). All of app/ is typed and the check is clean; app/config.py is deliberately unannotated because its constants infer exactly, and tests/ are outside the scope. New module app/statetypes.py names the JSON-safe row every get_state() returns, so C1, C2 and C4 agree on one invariant dict type. Port.node is typed against a PortNode protocol so C1 still does not import C2. Only deliberate Any is in app/plant/validate.py, which walks decoded JSON of unknown shape. No runtime behaviour change; 202 tests green and golden traces unchanged. CLAUDE.md now carries the typing policy (replacing the no-type-hints rule), the Agent model guidance section and the Commit discipline section; DEVELOPMENT.md requires a green type check for Ready for Review and links to CLAUDE.md. Cross-cutting: held the spine lock until merged, then released it for T4-1. T18-2 (CI) should run the same check. Merged to main as 4128876cc35f42bba1cb3382a2b038901f7edac8 (Merge T0-7: Static typing baseline for production Python), 19 Sep. Full suite 202/202 green on main post-merge."
+      "note": "Establish static typing before T4 solver interfaces expand the architectural surface area. mypy 2.3.1 pinned in requirements-dev.txt, configured in pyproject.toml over app/ only (disallow_untyped_defs, disallow_any_generics, no_implicit_optional, warn_return_any, strict_equality). All of app/ is typed and the check is clean; app/config.py is deliberately unannotated because its constants infer exactly, and tests/ are outside the scope. New module app/statetypes.py names the JSON-safe row every get_state() returns, so C1, C2 and C4 agree on one invariant dict type. Port.node is typed against a PortNode protocol so C1 still does not import C2. Only deliberate Any is in app/plant/validate.py, which walks decoded JSON of unknown shape. No runtime behaviour change; 202 tests green and golden traces unchanged. CLAUDE.md now carries the typing policy (replacing the no-type-hints rule), the Agent model guidance section and the Commit discipline section; DEVELOPMENT.md requires a green type check for Ready for Review and links to CLAUDE.md. Cross-cutting: held the spine lock until merged, then released it for T4-1. T18-2 (CI) should run the same check. Merged to main as 4128876cc35f42bba1cb3382a2b038901f7edac8 (Merge T0-7: Static typing baseline for production Python), 19 Sep. Full suite 202/202 green on main post-merge.",
+      "planned_files_not_on_main": [
+        "docs/PROJECT_STATE.md"
+      ]
     },
     {
       "id": "T1-1",
@@ -551,7 +554,10 @@
       ],
       "status": "Complete",
       "status_key": "done",
-      "note": "Merged to main as 8733b1a (PR #42, merge commit over feature/typed-ports head 4382590), 20 Sep 2026. main verified after merge: 868 tests passing (753 + 52 typed-port + 62 port-name-guard + 1 from a schema/loader test split), mypy clean over 24 source files, no golden trace moved. Production change is app/equipment/base.py and app/plant/loader.py only; coupling.py, engine.py, network.py, topology.py and snapshot.py untouched. Implements docs/ADR_0002_TYPED_PORTS.md AMENDMENT 1: a connection carries name (identifier only), direction, phase (liquid|vapor), purpose (process|vent|drain|relief) and an optional control (flow|pressure|level|temperature); purpose and control are orthogonal, and only phase and direction may participate in a balance. Typed C3 ports entries {node, phase, purpose, control?} are loader-enforced (no oneOf), round-trip form-preserving, and legacy strings stay untyped. Two existing tests changed deliberately because each pinned the old contract. The port-name guard was narrowed in review to a Port's own name. app/equipment/base.py spine lock RELEASED. Next: T5-6 (feature/coupling-aggregation, Opus, SPINE) consumes this vocabulary."
+      "note": "Merged to main as 8733b1a (PR #42, merge commit over feature/typed-ports head 4382590), 20 Sep 2026. main verified after merge: 868 tests passing (753 + 52 typed-port + 62 port-name-guard + 1 from a schema/loader test split), mypy clean over 24 source files, no golden trace moved. Production change is app/equipment/base.py and app/plant/loader.py only; coupling.py, engine.py, network.py, topology.py and snapshot.py untouched. Implements docs/ADR_0002_TYPED_PORTS.md AMENDMENT 1: a connection carries name (identifier only), direction, phase (liquid|vapor), purpose (process|vent|drain|relief) and an optional control (flow|pressure|level|temperature); purpose and control are orthogonal, and only phase and direction may participate in a balance. Typed C3 ports entries {node, phase, purpose, control?} are loader-enforced (no oneOf), round-trip form-preserving, and legacy strings stay untyped. Two existing tests changed deliberately because each pinned the old contract. The port-name guard was narrowed in review to a Port's own name. app/equipment/base.py spine lock RELEASED. Next: T5-6 (feature/coupling-aggregation, Opus, SPINE) consumes this vocabulary.",
+      "planned_files_not_on_main": [
+        "docs/PROJECT_STATE.md"
+      ]
     },
     {
       "id": "T4-1",
@@ -769,7 +775,10 @@
       ],
       "status": "Complete",
       "status_key": "done",
-      "note": "COMPLETE - merged to main as 4db428d (PR #47), 22 Sep 2026. 916 passed on main (971 - 70 removed sweep items from seven retired test-only Separator(Vessel) subclasses + 15 new tests), mypy clean over 24 source files, no golden trace moved. Implements ADR 0002 AMENDMENT 3 sections C.4-C.11: Vessel gains accepts_configured_ports: ClassVar[bool] = True; app/plant/loader.py builds a device's port set from a ports map whose every entry carries direction, replacing the class's fixed set in config order, and rejects a mix of direction-carrying and plain entries, a direction on a non-opted-in device, and design.accepts_configured_ports on any device (the internal-capability- marker finding raised on PR #46's review, addressed here before implementation). app/equipment/base.py and app/engine/coupling.py are untouched. tests/test_coupling_aggregation.py drops its seven test-only Separator subclasses for the production Vessel. Mutation check per C.11 re-run in the worktree and reverted, never committed: naive per-port summing, net-only aggregation, and counting a node once per port fail 7, 2 and 5 tests respectively, so the removed subclasses' coverage survives. NEXT: T5-5 is unblocked and startable."
+      "note": "COMPLETE - merged to main as 4db428d (PR #47), 22 Sep 2026. 916 passed on main (971 - 70 removed sweep items from seven retired test-only Separator(Vessel) subclasses + 15 new tests), mypy clean over 24 source files, no golden trace moved. Implements ADR 0002 AMENDMENT 3 sections C.4-C.11: Vessel gains accepts_configured_ports: ClassVar[bool] = True; app/plant/loader.py builds a device's port set from a ports map whose every entry carries direction, replacing the class's fixed set in config order, and rejects a mix of direction-carrying and plain entries, a direction on a non-opted-in device, and design.accepts_configured_ports on any device (the internal-capability- marker finding raised on PR #46's review, addressed here before implementation). app/equipment/base.py and app/engine/coupling.py are untouched. tests/test_coupling_aggregation.py drops its seven test-only Separator subclasses for the production Vessel. Mutation check per C.11 re-run in the worktree and reverted, never committed: naive per-port summing, net-only aggregation, and counting a node once per port fail 7, 2 and 5 tests respectively, so the removed subclasses' coverage survives. NEXT: T5-5 is unblocked and startable.",
+      "planned_files_not_on_main": [
+        "docs/PROJECT_STATE.md"
+      ]
     },
     {
       "id": "R1",
@@ -854,10 +863,10 @@
         "tests/test_api.py",
         "tests/test_pump_api.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
+      "status": "Ready for Review",
+      "status_key": "review",
       "startable": true,
-      "note": ""
+      "note": "Ready for Review - PR #66 (https://github.com/gareytwin1/plant-simulator/pull/66), branch fix/request-validation, commit 06a321a. _number_field() helper added to app/main.py, used by /api/load and /api/pump/speed: requires a JSON object with a finite int/float at the named key, rejects missing/null/string/bool/array/NaN/non-JSON body with 400. 16 new DEFECT REPRODUCTION tests across tests/test_api.py and tests/test_pump_api.py, each confirmed to fail against merge-base f210473 before the fix. Full suite 1041 passed (1025 baseline + 16 new), mypy clean over 26 source files, no golden trace moved. Hands the app/main.py lock to R6 once merged."
     },
     {
       "id": "R6",
@@ -988,10 +997,10 @@
         ".claude/skills/merge-task/SKILL.md",
         ".claude/skills/ready-for-review/SKILL.md"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
+      "status": "Ready for Review",
+      "status_key": "review",
       "startable": true,
-      "note": ""
+      "note": "Ready for Review: PR #68 (chore/status-generator). scripts/build_plan_status.py regenerates docs/BUILD_PLAN_STATUS.json from BUILD_PLAN.html + a taskStatus export via node; verified to reproduce the current file byte-for-byte against this artifact's live data. DEVELOPMENT.md carries the authoritative procedure now; merge-task and ready-for-review skills cite the script instead of the old memory-only note. 1043 passed (1025 baseline + 18 new), mypy clean, no golden trace moved. Found but did not fix (out of R11's declared files): 3 Complete tasks still declare docs/PROJECT_STATE.md, renamed to .workspace/memory/project_state.md by an earlier unrelated docs commit - worth a follow-up regeneration."
     },
     {
       "id": "R12",

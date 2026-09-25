@@ -131,8 +131,9 @@ scope, and item 1 in particular reads like a bug and is not.
 3. **`get_state()` on a device is slow state only.** Flow and the two pressures
    are not device attributes; a page's row is assembled from the snapshot by
    `Session.compressor_state()` / `pump_state()`. The compressor's `temperature`
-   became `temperature_at(spread)` because spread is a solver output. **Do not
-   put a flow or a pressure back on a device.**
+   became `temperature_at(suction, discharge)` because suction and discharge
+   pressure are solver outputs. **Do not put a flow or a pressure back on a
+   device.**
 
 ## Known technical debt (recorded, not scheduled)
 

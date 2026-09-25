@@ -15,8 +15,10 @@ below the 1% drift the harness exists to catch.
 **Do not regenerate a golden trace to make a test pass.** If a trace moves, stop
 and explain why. A moved trace means behaviour changed — either that was the
 point of the task and it needs justifying in the PR, or you have a bug.
-Regenerating is legitimate only for non-numeric changes, such as a recorded
-command-description string that names a renamed attribute.
+Regenerating is legitimate for a non-numeric change, such as a recorded
+command-description string that names a renamed attribute, or for an approved
+numeric change that is the task's own point, with a field-level old/new
+comparison in the PR.
 
 ## Style
 

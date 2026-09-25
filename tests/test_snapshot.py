@@ -1,10 +1,18 @@
 import dataclasses
 import json
+from pathlib import Path
 
 import pytest
 
+from app.engine.engine import Engine
 from app.engine.network import SolverResult
 from app.engine.snapshot import SOLVER_KEYS, build_snapshot, solver_status
+from app.plant.loader import load_plant_file
+
+
+REFERENCE_PLANTS = sorted(
+    (Path(__file__).resolve().parents[1] / "config" / "plants").glob("*.yaml"),
+)
 
 
 C4_KEYS = {
@@ -202,3 +210,21 @@ def test_an_unexpected_solver_key_is_refused():
                 "pressure_residual": 2.5e-8,
             },
         )
+
+
+@pytest.mark.parametrize("path", REFERENCE_PLANTS, ids=lambda path: path.stem)
+def test_every_reference_plant_publishes_strict_json(path):
+    # COMPATIBILITY (R2): no NaN or infinity reaches a snapshot a console
+    # would parse, as built and after running.
+    engine = Engine.from_plant(load_plant_file(path))
+
+    json.dumps(engine.snapshot().as_dict(), allow_nan=False)
+
+    for device in engine.equipment.values():
+        start = getattr(device, "start", None)
+
+        if start is not None:
+            start()
+
+    for _ in range(20):
+        json.dumps(engine.step(1.0).as_dict(), allow_nan=False)

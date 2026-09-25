@@ -1,3 +1,4 @@
+import json
 import logging
 import threading
 import time
@@ -5,6 +6,7 @@ import time
 import pytest
 
 from app.engine.engine import Engine
+from app.engine.network import SolverError
 from app.engine.scheduler import Cadence, Scheduler
 from app.engine.snapshot import build_snapshot
 
@@ -311,6 +313,46 @@ def test_start_after_failure_clears_the_error():
     scheduler.stop()
 
     assert scheduler.error is None
+
+
+def test_a_solve_that_raises_stops_the_worker_and_keeps_the_last_snapshot_clean():
+    # DEFECT REPRODUCTION (R2): a non-finite curve used to "converge" with
+    # residual=nan, so the worker kept running and published a snapshot
+    # that is not strict JSON.
+    from tests.test_network_solver import single_branch
+
+    topology = single_branch()
+    engine = Engine(topology.devices.values(), topology=topology)
+    stepped = threading.Event()
+    real_step = engine.step
+
+    def signalling_step(dt):
+        snapshot = real_step(dt)
+        stepped.set()
+
+        return snapshot
+
+    engine.step = signalling_step
+    scheduler = Scheduler(engine, step_seconds=0.001)
+
+    try:
+        scheduler.start()
+        assert stepped.wait(WAIT)
+
+        with scheduler.step_lock:
+            topology.branch("B-01").device.resistance = float("nan")
+
+        scheduler._thread.join(WAIT)
+
+        assert not scheduler.running
+        assert isinstance(scheduler.error, SolverError)
+        assert "B-01" in str(scheduler.error)
+
+        published = scheduler.snapshot().as_dict()
+        json.dumps(published, allow_nan=False)
+        assert published["solver"]["converged"] is True
+    finally:
+        scheduler.stop()
 
 
 # Snapshots

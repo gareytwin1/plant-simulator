@@ -35,16 +35,22 @@ converge — for any reason, including an exception part way through — leaves
 the plant exactly where it found it rather than holding a guess nobody
 checked. See `solve()` for the invariant in full.
 
-This module is the mathematics only. `Engine.step()` does not call it and the
-Flask routes do not reach it — wiring it in, and retiring the devices' own
-standalone operating point, is T4-4.
+This module is the mathematics only. `Engine` (app/engine/engine.py) owns
+the wiring: it builds one NetworkSolver per flow domain and solves each of
+them once per step.
 
 Failure policy (T4-3) is two-sided, and which side a failure falls on is the
 difference between a plant that cannot be solved and a plant that merely was
 not. A network that is ill-posed — no boundary node to anchor the pressure
-field, an unknown appearing in no equation — raises `SolverError`, because no
-iteration count or tolerance would have helped and a caller has nothing to
-decide. Ordinary numerical non-convergence returns
+field, an unknown appearing in no equation, or a residual that is NaN,
+infinite, or overflows its tolerance scaling before the first iteration —
+raises `SolverError`, because no iteration count or tolerance would have
+helped and a caller has nothing to decide. Such a residual at entry means a
+device curve broke C1 (every real flow maps to a finite pressure change) or
+a node already holds a non-finite value; either way there is no number to
+converge on. A trial iterate that turns non-finite part way through is
+different: it is only a step that did not improve, and the line search
+treats it as one. Ordinary numerical non-convergence returns
 `SolverResult(converged=False)` instead: the iteration cap was reached, or the
 line search stalled, and the same plant may well solve from a different state
 or with a looser tolerance. That is a flag, never a success — `converged` is
@@ -70,6 +76,7 @@ inventory rather than through a shared flow variable — is decided by the
 reference plant and the vessel work, not here.
 """
 
+import math
 from dataclasses import dataclass
 
 from app.plant.topology import Branch, Node, Topology
@@ -116,7 +123,8 @@ class SolverError(RuntimeError):
     """The network cannot be solved as posed.
 
     Structural, not numerical: no boundary node to anchor the pressure field,
-    an internal node nothing connects to, a Jacobian with no pivot. Running
+    an internal node nothing connects to, a Jacobian with no pivot, a
+    residual that is non-finite before the solve has moved anything. Running
     out of iterations is not one of these — that is an ordinary
     non-converged SolverResult, because a plant can be hard to solve without
     being ill-posed.
@@ -138,8 +146,10 @@ class SolverResult:
     `failure` is set on exactly the results that did not converge, and
     `converged` and `failure` cannot disagree — a result claiming success
     while naming a reason it failed is refused at construction rather than
-    left for a consumer to puzzle over. Only the first three reach a
-    snapshot: C4's solver section is `converged`, `iterations` and
+    left for a consumer to puzzle over. All three residuals are finite, and a
+    converged result has `residual <= 1.0`, so a NaN can never pass for a
+    landed solve or reach a snapshot's strict JSON. Only the first three
+    reach a snapshot: C4's solver section is `converged`, `iterations` and
     `residual`, and the rest stay here (`app.engine.snapshot.solver_status`
     is the projection).
     """
@@ -156,6 +166,18 @@ class SolverResult:
             raise ValueError(
                 f"a result converged if and only if it names no failure, got "
                 f"converged={self.converged} and failure={self.failure!r}",
+            )
+
+        for name in ("residual", "pressure_residual", "flow_residual"):
+            value = getattr(self, name)
+
+            if not math.isfinite(value):
+                raise ValueError(f"{name} must be finite, got {value!r}")
+
+        if self.converged and self.residual > 1.0:
+            raise ValueError(
+                f"a converged result has residual <= 1.0, "
+                f"got {self.residual!r}",
             )
 
     def raise_if_not_converged(self) -> "SolverResult":
@@ -201,8 +223,8 @@ class NetworkSolver:
     number.
 
     A solver holds no solution of its own. It is cheap to keep one per plant
-    across timesteps, which is what T4-4 will do, and equally correct to
-    build a fresh one per solve.
+    across timesteps, which is what Engine does, one per flow domain, and
+    equally correct to build a fresh one per solve.
     """
 
     topology: Topology
@@ -215,9 +237,12 @@ class NetworkSolver:
         max_iterations: int = DEFAULT_MAX_ITERATIONS,
         damping: float = DEFAULT_DAMPING,
     ) -> None:
-        if pressure_tolerance <= 0.0 or flow_tolerance <= 0.0:
+        if not all(
+            math.isfinite(tolerance) and tolerance > 0.0
+            for tolerance in (pressure_tolerance, flow_tolerance)
+        ):
             raise ValueError(
-                f"tolerances must be positive, got pressure "
+                f"tolerances must be positive and finite, got pressure "
                 f"{pressure_tolerance} psia and flow {flow_tolerance}",
             )
 
@@ -298,8 +323,11 @@ class NetworkSolver:
         `converged=False` and `failure` naming which of the two numerical
         walls it hit — ITERATION_CAP or LINE_SEARCH_STALL. A network that
         cannot be solved as posed is the other case and raises SolverError,
-        from here or from the constructor. Nothing about a failed solve is
-        silent in either direction, and no unchecked iterate survives it.
+        from here or from the constructor — including one whose residuals
+        are not finite, or overflow their tolerance scaling, on entry, which
+        is reported by branch and node before any iteration runs. Nothing
+        about a failed solve is silent in either direction, and no unchecked
+        iterate survives it.
         """
         if self._size == 0:
             return SolverResult(
@@ -319,6 +347,8 @@ class NetworkSolver:
             x = list(entry_flows) + list(entry_pressures)
 
             residuals = self._residuals(x)
+            self._refuse_non_finite(residuals)
+
             iterations = 0
 
             while self._norm(residuals) > 1.0:
@@ -373,6 +403,32 @@ class NetworkSolver:
         ]
 
         return residuals
+
+    def _refuse_non_finite(self, residuals: list[float]) -> None:
+        # Checked after scaling, as _norm sees it: a finite residual above
+        # about 1.8e301 overflows once divided by a 1e-7 tolerance, and
+        # would otherwise slip past here only to be refused by SolverResult.
+        rows = [
+            f"branch {branch.id}"
+            for branch, residual in zip(self._branches, residuals)
+            if not math.isfinite(residual / self.pressure_tolerance)
+        ]
+
+        rows += [
+            f"node {node.id}"
+            for node, residual in zip(self._internal, residuals[self._flows :])
+            if not math.isfinite(residual / self.flow_tolerance)
+        ]
+
+        if rows:
+            raise SolverError(
+                f"the network cannot be solved as posed: on entry, the "
+                f"residual at {', '.join(rows)} is not finite or overflows "
+                f"when scaled by its tolerance, so a device curve returned a "
+                f"non-finite or absurdly large pressure change, or a node "
+                f"pressure or branch flow already holds a non-finite or "
+                f"absurdly large value",
+            )
 
     def _newton_step(
         self,
@@ -447,6 +503,13 @@ class NetworkSolver:
         # Dimensionless: psia against the pressure tolerance, flow against
         # the flow tolerance. Adding a psia to a GPM would be the one thing
         # docs/UNITS_CONVENTION.md forbids outright.
+        #
+        # max() skips a NaN anywhere but first, so a non-finite row is
+        # reported as infinitely far from converged: the line search then
+        # refuses the trial instead of carrying a NaN into the iterate.
+        if not all(math.isfinite(residual) for residual in residuals):
+            return math.inf
+
         scaled = [
             abs(residual) / self.pressure_tolerance
             for residual in residuals[: self._flows]

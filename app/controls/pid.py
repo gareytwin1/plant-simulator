@@ -15,6 +15,12 @@ it takes, so saturation is escaped rather than latched.
 Derivative acts on measurement, not on error. A setpoint step changes the
 proportional and integral terms immediately but leaves measurement unchanged,
 so it produces no derivative kick.
+
+The saturation-direction check above infers which way the integral would push
+the output from the sign of the error alone, which only holds for ki >= 0;
+a negative ki would flip that inference and reopen the latch. Direct-acting
+loops only, until a reverse-acting mode exists to flip the error's sign
+instead.
 """
 
 from __future__ import annotations
@@ -34,6 +40,8 @@ class PID:
             raise ValueError(
                 f"output_min ({output_min}) must not exceed output_max ({output_max})"
             )
+        if ki < 0.0:
+            raise ValueError(f"ki must be non-negative, got {ki}")
 
         self.kp = kp
         self.ki = ki

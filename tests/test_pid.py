@@ -26,6 +26,11 @@ def test_output_min_above_output_max_is_rejected():
         PID(kp=1.0, ki=1.0, kd=1.0, output_min=10.0, output_max=-10.0)
 
 
+def test_negative_ki_is_rejected():
+    with pytest.raises(ValueError):
+        PID(kp=1.0, ki=-1.0, kd=1.0, output_min=-10.0, output_max=10.0)
+
+
 def test_step_response_reaches_setpoint_with_no_sustained_offset():
     process = FakeFirstOrderProcess(gain=2.0, time_constant=5.0)
     pid = PID(kp=0.8, ki=0.4, kd=0.05, output_min=-100.0, output_max=100.0)

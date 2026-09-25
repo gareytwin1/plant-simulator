@@ -126,6 +126,18 @@ def test_reversed_flow_is_cooled_the_same_as_forward_flow(flow):
     assert exchanger.duty(forward) > 0.0
 
 
+def test_metal_colder_than_the_coolant_clamps_to_no_cooling_rather_than_negative():
+    exchanger = HeatExchanger()
+    # Reachable in a running plant: metal_temperature chases inlet_temperature,
+    # and nothing stops that target from sitting below cold_temperature.
+    exchanger.metal_temperature = exchanger.cold_temperature - 20.0
+
+    stream = process_stream(flow=500.0, temperature=300.0)
+
+    assert leaving(exchanger, stream) == pytest.approx(300.0)
+    assert exchanger.duty(stream) == pytest.approx(0.0)
+
+
 def test_setting_the_inlet_temperature_does_not_move_duty_before_integrate():
     exchanger = HeatExchanger()
     exchanger.metal_temperature = 200.0

@@ -125,6 +125,26 @@ class HeatExchanger(Equipment):
         self._fouling = checked(self.tag, "fouling", value, 0.0, 1.0)
 
     @property
+    def metal_temperature(self) -> float:
+        return self._metal_temperature
+
+    @metal_temperature.setter
+    def metal_temperature(self, value: float) -> None:
+        self._metal_temperature = checked(
+            self.tag, "metal_temperature", value, -RANKINE_OFFSET, above=True,
+        )
+
+    @property
+    def inlet_temperature(self) -> float:
+        return self._inlet_temperature
+
+    @inlet_temperature.setter
+    def inlet_temperature(self, value: float) -> None:
+        self._inlet_temperature = checked(
+            self.tag, "inlet_temperature", value, -RANKINE_OFFSET, above=True,
+        )
+
+    @property
     def cold_temperature(self) -> float:
         return self._cold_temperature
 

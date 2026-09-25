@@ -64,8 +64,8 @@ def slopeless_plant():
 
 
 def snapshot_of(topology, result):
-    """The snapshot a caller would publish after a solve — which is what T4-4
-    will do, from the engine, with the diagnostics this task defines.
+    """The snapshot a caller would publish after a solve — what Engine does
+    for every flow domain, with the diagnostics this module tests.
     """
     return build_snapshot(
         sim_time=0.0,
@@ -157,6 +157,51 @@ def test_a_result_cannot_claim_success_and_name_a_failure():
             iterations=3,
             residual=99.0,
             pressure_residual=1.0,
+            flow_residual=0.0,
+        )
+
+
+@pytest.mark.parametrize(
+    "converged, residual, failure",
+    [(True, float("nan"), None), (False, float("inf"), ITERATION_CAP)],
+)
+def test_a_result_refuses_a_non_finite_residual(converged, residual, failure):
+    # DEFECT REPRODUCTION (R2): both used to construct, and a converged NaN
+    # reached the snapshot as a clean solve.
+    with pytest.raises(ValueError, match="residual must be finite"):
+        SolverResult(
+            converged=converged,
+            iterations=3,
+            residual=residual,
+            pressure_residual=0.0,
+            flow_residual=0.0,
+            failure=failure,
+        )
+
+
+@pytest.mark.parametrize("name", ["pressure_residual", "flow_residual"])
+def test_a_result_refuses_a_non_finite_residual_in_its_own_units(name):
+    fields = dict(
+        converged=False,
+        iterations=3,
+        residual=99.0,
+        pressure_residual=1.0,
+        flow_residual=0.0,
+        failure=ITERATION_CAP,
+    )
+    fields[name] = float("nan")
+
+    with pytest.raises(ValueError, match=f"{name} must be finite"):
+        SolverResult(**fields)
+
+
+def test_a_converged_result_cannot_carry_a_residual_above_tolerance():
+    with pytest.raises(ValueError, match="residual <= 1.0"):
+        SolverResult(
+            converged=True,
+            iterations=3,
+            residual=1.5,
+            pressure_residual=1.5e-7,
             flow_residual=0.0,
         )
 

@@ -72,7 +72,9 @@ this causes.
 - `converged`: `bool` — whether the solver converged.
 - `iterations`: `int` — number of Newton-Raphson iterations.
 - `residual`: `float` — maximum of all residuals, dimensionless (each scaled by
-  its own tolerance); `converged` is exactly `residual <= 1.0`.
+  its own tolerance); `converged` is exactly `residual <= 1.0`. All three
+  residuals are finite, and `SolverResult` refuses anything else at
+  construction.
 - `pressure_residual`: `float` — worst branch-equation residual, psia.
 - `flow_residual`: `float` — worst mass-balance residual, in the branch's flow
   unit.
@@ -84,9 +86,12 @@ this causes.
 **Failure policy is two-sided, deliberately:**
 
 - **A structural / ill-posed network raises `SolverError`** — no boundary node
-  to anchor the pressure field, an unknown appearing in no equation. No
-  iteration count or tolerance would have helped, so there is nothing for a
-  caller to decide.
+  to anchor the pressure field, an unknown appearing in no equation, or a
+  residual that is non-finite on entry (a C1-violating curve or a non-finite
+  node value, named by branch and node). No iteration count or tolerance
+  would have helped, so there is nothing for a caller to decide. A trial
+  iterate that turns non-finite mid-solve is only a rejected step: the line
+  search treats it as infinitely far from converged.
 - **Numerical non-convergence returns `SolverResult(converged=False)`** with
   `failure` set. The same plant may solve from a different state or at a
   looser tolerance — this is a flag, never a success.

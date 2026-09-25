@@ -122,6 +122,7 @@ def series_plant(
     initial_pressure=50.0,
     pump=None,
     line_resistance=0.00005,
+    line=None,
 ):
     """Supply -> pump -> N-MID -> line -> delivery.
 
@@ -148,7 +149,11 @@ def series_plant(
                 "B-LINE",
                 middle,
                 delivery,
-                SolverCurve("FV-101", resistance=line_resistance),
+                (
+                    SolverCurve("FV-101", resistance=line_resistance)
+                    if line is None
+                    else line
+                ),
             ),
         ],
     )
@@ -823,3 +828,94 @@ def test_the_result_reports_both_residuals_in_their_own_units():
             result.flow_residual / DEFAULT_FLOW_TOLERANCE,
         ),
     )
+
+
+class HoledCurve(SolverCurve):
+    """A resistance that returns NaN inside one band of flow: a C1
+    violation, but away from the answer. The solver's first full Newton step
+    from a cold plant lands in the band, so the line search meets the NaN in
+    a trial iterate rather than at entry.
+    """
+
+    def __init__(self, tag="R-903", resistance=0.01, hole=(65.0, 75.0)):
+        super().__init__(tag, resistance=resistance)
+
+        self.hole = hole
+
+    def characteristic(self, flow):
+        low, high = self.hole
+
+        if low < abs(flow) < high:
+            return float("nan")
+
+        return super().characteristic(flow)
+
+
+def test_a_nan_curve_on_entry_raises_naming_the_branch_and_restores_the_plant():
+    # DEFECT REPRODUCTION (R2): the solve used to report converged=True
+    # with residual=nan, because NaN > 1.0 is False.
+    topology = series_plant(pump=ramped_pump(speed_target=0.5))
+    solve_network(topology)
+
+    branches = [topology.branch("B-PUMP"), topology.branch("B-LINE")]
+    pressure = topology.node("N-MID").pressure
+    flows = [branch.flow for branch in branches]
+
+    topology.branch("B-LINE").device.resistance = float("nan")
+
+    with pytest.raises(SolverError, match="branch B-LINE"):
+        solve_network(topology)
+
+    assert topology.node("N-MID").pressure == pressure
+    assert [branch.flow for branch in branches] == flows
+
+
+def test_an_infinite_shutoff_raises_rather_than_stalling_on_infinity():
+    # DEFECT REPRODUCTION (R2): this used to come back as a line-search
+    # stall carrying residual=inf.
+    topology = single_branch()
+    topology.branch("B-01").device.shutoff_rise = float("inf")
+
+    with pytest.raises(SolverError, match="branch B-01"):
+        solve_network(topology)
+
+    assert topology.branch("B-01").flow == 0.0
+
+
+def test_a_non_finite_node_pressure_on_entry_raises_naming_the_rows_it_poisons():
+    topology = series_plant(pump=ramped_pump())
+    topology.node("N-MID").set_pressure(float("nan"))
+
+    with pytest.raises(SolverError, match="branch B-LINE") as refused:
+        solve_network(topology)
+
+    assert "branch B-PUMP" in str(refused.value)
+
+
+def test_a_non_finite_trial_iterate_is_refused_by_the_line_search():
+    # DEFECT REPRODUCTION (R2): max() skips a NaN that is not the first
+    # element, so a trial whose B-2 row was NaN read as an improvement on
+    # B-1's and the NaN was carried into the iterate.
+    supply = Node("N-A", pressure=100.0, is_boundary=True)
+    middle = Node("N-B", pressure=100.0)
+    delivery = Node("N-C", pressure=100.0, is_boundary=True)
+
+    topology = Topology(
+        [supply, middle, delivery],
+        [
+            Branch(
+                "B-1",
+                supply,
+                middle,
+                SolverCurve("R-1", shutoff_rise=75.0, resistance=0.01),
+            ),
+            Branch("B-2", middle, delivery, HoledCurve("R-2")),
+        ],
+    )
+
+    result = solve_network(topology)
+
+    # 75 psi of head across two equal resistances of 0.01: 0.02 q^2 = 75.
+    assert result.converged
+    assert topology.branch("B-2").flow == pytest.approx(75.0**0.5 / 0.02**0.5)
+    assert middle.pressure == pytest.approx(137.5)

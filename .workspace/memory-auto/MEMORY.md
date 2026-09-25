@@ -1,0 +1,3 @@
+- [No Claude attribution](no-claude-attribution.md) - no Co-Authored-By/Generated-with lines in commits, PRs, merges
+- [Build-plan status regeneration](build-plan-status-regeneration.md) - BUILD_PLAN_STATUS.json is derived from the live artifact; never hand-patch it
+- [AGENTS.md no growth](agents-md-no-growth.md) - never add to AGENTS.md; route new rules to .claude/rules/, DEVELOPMENT.md, or project_state.md instead

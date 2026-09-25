@@ -592,7 +592,7 @@ def _confirmed_unit(
     units = set()
 
     for branch in topology.branches_at(node.id):
-        unit = _flow_unit(branch.device)
+        unit = flow_unit(branch.device)
 
         if unit is None:
             raise ValueError(
@@ -618,7 +618,7 @@ def _confirmed_unit(
     return units.pop() if units else None
 
 
-def _flow_unit(device: Equipment) -> str | None:
+def flow_unit(device: Equipment) -> str | None:
     for kind in type(device).__mro__:
         if kind in FLOW_UNITS:
             return FLOW_UNITS[kind]

@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "25 September 2026",
-  "main_sha": "332ca8c9389f0085d809dda30d0e9d7a5e6f7413",
-  "tests_passing_on_main": 1249,
+  "main_sha": "96f888ef8279d5c92178a188dd59fc2f73ef001a",
+  "tests_passing_on_main": 1303,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -53,7 +53,7 @@
     },
     "M7": {
       "name": "Control Valves and Final Elements",
-      "complete": 2,
+      "complete": 3,
       "total": 5
     },
     "M8": {
@@ -119,7 +119,7 @@
   },
   "totals": {
     "tasks": 114,
-    "complete": 55,
+    "complete": 56,
     "startable_now": 18
   },
   "tasks": [
@@ -1154,10 +1154,9 @@
       "files": [
         "app/controls/arbitration.py"
       ],
-      "status": "Ready for Review",
-      "status_key": "review",
-      "startable": true,
-      "note": "Ready for Review: PR #75 (feature/command-arbitration), not yet merged. CommandArbiter in app/controls/arbitration.py: standing demands per bound output keyed by (source, requester), resolved by fixed precedence interlock > operator > controller, independent of arrival order. A demand holds until its requester releases it; several requesters of one source may hold an output and releasing one keeps the other; disagreeing requesters raise ConflictingDemand (values within 1e-9 agree). apply() is the only caller of a bound actuator, writes every output even if one raises, then raises an ExceptionGroup; an undemanded output is left alone. 50 tests in tests/test_command_arbitration.py including all 24 arrival orderings and a real ControlValve stroked to fail position and back. 1160 passed, mypy clean over 28 source files, no golden trace moved. SCOPE (agreed with user before implementation): not wired to anything yet. The existing operator routes in app/main.py still call device setters directly (roborev finding on the first commit); they must be rewired through the arbiter before M11 interlocks go live, otherwise an operator command could undo a trip. T8-4 and T11-2 bind to it. Start/stop is not arbitrated, only numeric targets - T11-2 decides how 'stop the machine' is expressed."
+      "status": "Complete",
+      "status_key": "done",
+      "note": "COMPLETE - merged to main as 96f888e (Merge T7-4, PR #75), 25 Sep 2026. 1303 passed on main post-merge, mypy clean over 30 source files, no golden trace moved. CommandArbiter in app/controls/arbitration.py: standing demands per bound output keyed by (source, requester), resolved by fixed precedence interlock > operator > controller, independent of arrival order. A demand holds until its requester releases it; several requesters of one source may hold an output and releasing one keeps the other; disagreeing requesters raise ConflictingDemand (values within 1e-9 agree). apply() is the only caller of a bound actuator, writes every output even if one raises, then raises an ExceptionGroup; an undemanded output is left alone. 50 tests in tests/test_command_arbitration.py including all 24 arrival orderings and a real ControlValve stroked to fail position and back. SCOPE, unchanged at merge: not wired to anything yet. The existing operator routes in app/main.py still call device setters directly; they must be rewired through the arbiter before M11 interlocks go live, otherwise an operator command could undo a trip. T8-4 and T11-2 bind to it. Start/stop is not arbitrated, only numeric targets - T11-2 decides how 'stop the machine' is expressed."
     },
     {
       "id": "T7-5",
@@ -1496,8 +1495,7 @@
       "status_key": "todo",
       "startable": false,
       "blocked_by": [
-        "T11-1",
-        "T7-4"
+        "T11-1"
       ],
       "note": ""
     },

@@ -42,10 +42,13 @@ two disagree, DEVELOPMENT.md is authoritative and this skill is stale.
    merge SHA and post-merge test count in the note. **Never hand-patch
    `docs/BUILD_PLAN_STATUS.json` directly** — it's a derived file, and
    hand-editing it is exactly the drift the build plan exists to prevent.
-   Regenerate it with `scripts/build_plan_status.py` per
+   Regenerate it on `main` with `scripts/build_plan_status.py` per
    [DEVELOPMENT.md's "Regenerating docs/BUILD_PLAN_STATUS.json"
    section](../../../DEVELOPMENT.md#regenerating-docsbuild_plan_statusjson),
-   and confirm the diff shows only the intended fields before committing it.
+   and confirm the diff shows only the intended fields. It also picks up
+   every other task's live status - Ready for Review is recorded only in the
+   artifact until a merge regenerates the file. Commit it together with
+   step 6's project_state.md refresh, as one close-out commit.
 
 6. **Refresh `.workspace/memory/project_state.md` — current-state fields only.** Per
    [.claude/rules/docs.md](../../rules/docs.md), this skill never edits

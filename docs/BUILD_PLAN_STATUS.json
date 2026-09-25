@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "25 September 2026",
-  "main_sha": "96f888ef8279d5c92178a188dd59fc2f73ef001a",
-  "tests_passing_on_main": 1303,
+  "main_sha": "df1f91fdd19b8c4ad033611882470f6652baa450",
+  "tests_passing_on_main": 1313,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -58,7 +58,7 @@
     },
     "M8": {
       "name": "PID Controllers and Modes",
-      "complete": 0,
+      "complete": 1,
       "total": 5
     },
     "M9": {
@@ -119,8 +119,8 @@
   },
   "totals": {
     "tasks": 114,
-    "complete": 56,
-    "startable_now": 18
+    "complete": 57,
+    "startable_now": 19
   },
   "tasks": [
     {
@@ -1185,10 +1185,9 @@
       "files": [
         "app/controls/pid.py"
       ],
-      "status": "Ready for Review",
-      "status_key": "review",
-      "startable": true,
-      "note": "PR #76: feature/pid-block"
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged df1f91f (PR #76). 1313 passed post-merge."
     },
     {
       "id": "T8-2",
@@ -1204,10 +1203,7 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "T8-1"
-      ],
+      "startable": true,
       "note": ""
     },
     {

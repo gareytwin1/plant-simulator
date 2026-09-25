@@ -42,22 +42,22 @@ them once per step.
 Failure policy (T4-3) is two-sided, and which side a failure falls on is the
 difference between a plant that cannot be solved and a plant that merely was
 not. A network that is ill-posed — no boundary node to anchor the pressure
-field, an unknown appearing in no equation, or a residual that is already NaN
-or infinite before the first iteration — raises `SolverError`, because no
-iteration count or tolerance would have helped and a caller has nothing to
-decide. A non-finite residual at entry means a device curve broke C1 (every
-real flow maps to a finite pressure change) or a node already holds a
-non-finite value; either way there is no number to converge on. A trial
-iterate that turns non-finite part way through is different: it is only a
-step that did not improve, and the line search treats it as one. Ordinary
-numerical non-convergence returns `SolverResult(converged=False)` instead:
-the iteration cap was reached, or the line search stalled, and the same plant
-may well solve from a different state or with a looser tolerance. That is a
-flag, never a success — `converged` is the only thing that says a solve
-landed, `failure` says which way it did not, and the solve is atomic either
-way, so a caller that ignores the flag reads the pre-solve plant rather than
-the last iterate. `raise_if_not_converged()` is there for a caller that would
-rather have the exception.
+field, an unknown appearing in no equation, or a residual that is NaN,
+infinite, or overflows its tolerance scaling before the first iteration —
+raises `SolverError`, because no iteration count or tolerance would have
+helped and a caller has nothing to decide. Such a residual at entry means a
+device curve broke C1 (every real flow maps to a finite pressure change) or
+a node already holds a non-finite value; either way there is no number to
+converge on. A trial iterate that turns non-finite part way through is
+different: it is only a step that did not improve, and the line search
+treats it as one. Ordinary numerical non-convergence returns
+`SolverResult(converged=False)` instead: the iteration cap was reached, or the
+line search stalled, and the same plant may well solve from a different state
+or with a looser tolerance. That is a flag, never a success — `converged` is
+the only thing that says a solve landed, `failure` says which way it did not,
+and the solve is atomic either way, so a caller that ignores the flag reads
+the pre-solve plant rather than the last iterate. `raise_if_not_converged()`
+is there for a caller that would rather have the exception.
 
 Units follow docs/UNITS_CONVENTION.md: pressures and branch residuals in psia,
 flows and mass-balance residuals in the branch's own process-domain unit
@@ -237,9 +237,12 @@ class NetworkSolver:
         max_iterations: int = DEFAULT_MAX_ITERATIONS,
         damping: float = DEFAULT_DAMPING,
     ) -> None:
-        if pressure_tolerance <= 0.0 or flow_tolerance <= 0.0:
+        if not all(
+            math.isfinite(tolerance) and tolerance > 0.0
+            for tolerance in (pressure_tolerance, flow_tolerance)
+        ):
             raise ValueError(
-                f"tolerances must be positive, got pressure "
+                f"tolerances must be positive and finite, got pressure "
                 f"{pressure_tolerance} psia and flow {flow_tolerance}",
             )
 
@@ -321,9 +324,10 @@ class NetworkSolver:
         walls it hit — ITERATION_CAP or LINE_SEARCH_STALL. A network that
         cannot be solved as posed is the other case and raises SolverError,
         from here or from the constructor — including one whose residuals
-        are not all finite on entry, which is reported by branch and node
-        before any iteration runs. Nothing about a failed solve is silent in
-        either direction, and no unchecked iterate survives it.
+        are not finite, or overflow their tolerance scaling, on entry, which
+        is reported by branch and node before any iteration runs. Nothing
+        about a failed solve is silent in either direction, and no unchecked
+        iterate survives it.
         """
         if self._size == 0:
             return SolverResult(
@@ -418,10 +422,12 @@ class NetworkSolver:
 
         if rows:
             raise SolverError(
-                f"the network cannot be solved as posed: the residual is not "
-                f"finite on entry at {', '.join(rows)}, so a device curve "
-                f"returned a non-finite pressure change or a node already "
-                f"holds a non-finite value",
+                f"the network cannot be solved as posed: on entry, the "
+                f"residual at {', '.join(rows)} is not finite or overflows "
+                f"when scaled by its tolerance, so a device curve returned a "
+                f"non-finite or absurdly large pressure change, or a node "
+                f"pressure or branch flow already holds a non-finite or "
+                f"absurdly large value",
             )
 
     def _newton_step(

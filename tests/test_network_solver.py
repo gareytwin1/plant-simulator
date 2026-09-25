@@ -688,6 +688,15 @@ def test_tolerances_and_the_iteration_cap_are_checked_at_construction():
         NetworkSolver(single_branch(), max_iterations=0)
 
 
+@pytest.mark.parametrize("tolerance", [float("nan"), float("inf")])
+@pytest.mark.parametrize("name", ["pressure_tolerance", "flow_tolerance"])
+def test_a_non_finite_tolerance_is_refused_at_construction(name, tolerance):
+    # NaN <= 0.0 is False, so a NaN tolerance used to pass the check and
+    # surface later as every row of the plant blamed for a bad curve.
+    with pytest.raises(ValueError, match="positive and finite"):
+        NetworkSolver(single_branch(), **{name: tolerance})
+
+
 def test_a_looser_tolerance_converges_sooner_on_the_same_plant():
     tight = single_branch()
     loose = single_branch()

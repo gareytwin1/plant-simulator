@@ -87,11 +87,12 @@ this causes.
 
 - **A structural / ill-posed network raises `SolverError`** — no boundary node
   to anchor the pressure field, an unknown appearing in no equation, or a
-  residual that is non-finite on entry (a C1-violating curve or a non-finite
-  node value, named by branch and node). No iteration count or tolerance
-  would have helped, so there is nothing for a caller to decide. A trial
-  iterate that turns non-finite mid-solve is only a rejected step: the line
-  search treats it as infinitely far from converged.
+  residual that is non-finite on entry or overflows when scaled by its
+  tolerance (a C1-violating curve or a non-finite node value, named by branch
+  and node). No iteration count or tolerance would have helped, so there is
+  nothing for a caller to decide. A trial iterate that turns non-finite
+  mid-solve is only a rejected step: the line search treats it as infinitely
+  far from converged.
 - **Numerical non-convergence returns `SolverResult(converged=False)`** with
   `failure` set. The same plant may solve from a different state or at a
   looser tolerance — this is a flag, never a success.

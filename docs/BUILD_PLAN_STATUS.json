@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "25 September 2026",
-  "main_sha": "03f1d25e90decc8675fa01ba4ddf13c79baa8052",
-  "tests_passing_on_main": 1106,
+  "main_sha": "71e2b99250e1fbeecd8311626f483b0d80963b5a",
+  "tests_passing_on_main": 1218,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -48,7 +48,7 @@
     },
     "M6": {
       "name": "Energy Balance and Temperature",
-      "complete": 2,
+      "complete": 3,
       "total": 5
     },
     "M7": {
@@ -119,7 +119,7 @@
   },
   "totals": {
     "tasks": 114,
-    "complete": 53,
+    "complete": 54,
     "startable_now": 18
   },
   "tasks": [
@@ -1085,10 +1085,9 @@
       "files": [
         "app/engine/engine.py"
       ],
-      "status": "Ready for Review",
-      "status_key": "review",
-      "startable": true,
-      "note": "Ready for Review: PR #78 (feature/energy-balance), not yet merged. Holds the spine lock. New spine module app/engine/transport.py: DomainTransport runs after each converged domain solve and writes node and stream temperatures upwind of the solved flows. The upstream end comes from the flow's sign, so reversal needs no special case. Internal nodes mix what arrives at them; boundary nodes are reservoirs at a temperature given to Engine/Engine.from_plant (boundary_temperatures, default 60 F). Nodes no flowing path from a boundary reaches, and lines at exactly zero flow, keep their last temperature. The temperatures of fed nodes are one linear system, with each thermal device linearised, so recycle loops settle exactly. A loop with no steady temperature, or a device refusing the solved state (e.g. a compressor suction the solver pulled below 0 psia), holds the domain and is reported on transport.settled/.failure, not raised from step(). The snapshot's node rows now carry temperature. DECISIONS (settled with the user, 25 Sep): (1) the device hook is thermo.ThermalDevice.leaving_temperature(arriving: StreamState, inlet_pressure, outlet_pressure) -> F, a pure query; (2) boundary temperatures are an Engine argument, and a C3 node temperature field is a separate follow-up task; (3) a domain's phase is declared on a port, else confirmed by its machines (the coupling's rule), and a phase-less domain refuses a thermal device. GasCompressor implements the hook: polytropic rise from the arriving temperature for forward flow against a rise, constant temperature otherwise. temperature_at is unchanged, so the compressor page still uses the 75 F base_temperature and the golden traces stay put. coupling.flow_unit and network.solve_linear are made public. CONFLICT: T6-3 (PR #77) exposes outlet_temperature(inlet), not leaving_temperature, so transport treats the exchanger as a device that does not change temperature until the two are reconciled. C4 has no field for transport failure. 1218 passed, mypy clean over 27 files, no golden trace moved."
+      "status": "Complete",
+      "status_key": "done",
+      "note": "COMPLETE - merged to main as 71e2b99 (Merge T6-5, PR #78), 25 Sep 2026. 1218 passed on main post-merge, mypy clean over 27 source files, no golden trace moved. Releases the spine lock; this closes the remediation spine queue. New spine module app/engine/transport.py: DomainTransport runs after each converged domain solve and writes node and stream temperatures upwind of the solved flows. The upstream end comes from the flow's sign, so reversal needs no special case. Internal nodes mix what arrives at them; boundary nodes are reservoirs at a temperature given to Engine/Engine.from_plant (boundary_temperatures, default 60 F). Nodes no flowing path from a boundary reaches, and lines at exactly zero flow, keep their last temperature. The temperatures of fed nodes are one linear system, with each thermal device linearised, so recycle loops settle exactly. A loop with no steady temperature, or a device refusing the solved state (e.g. a compressor suction pulled below 0 psia), holds the domain and is reported on transport.settled/.failure, not raised from step(). The snapshot's node rows now carry temperature. DECISIONS (settled with the user, 25 Sep): (1) the device hook is thermo.ThermalDevice.leaving_temperature(arriving: StreamState, inlet_pressure, outlet_pressure) -> F, a pure query; (2) boundary temperatures are an Engine argument, and a C3 node temperature field is a separate follow-up task (none owns it yet); (3) a domain's phase is declared on a port, else confirmed by its machines (the coupling's rule), and a phase-less domain refuses a thermal device. GasCompressor implements the hook: polytropic rise from the arriving temperature for forward flow against a rise, constant temperature otherwise. temperature_at is unchanged, so the compressor page still uses the 75 F base_temperature. coupling.flow_unit and network.solve_linear are public. OPEN: T6-3 (PR #77) must switch its exchanger to leaving_temperature, or transport treats it as a device that does not change temperature. C4 has no field for transport failure."
     },
     {
       "id": "T7-1",

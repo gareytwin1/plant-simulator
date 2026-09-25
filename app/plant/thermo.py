@@ -226,8 +226,8 @@ class ThermalDevice(Protocol):
     changes the temperature of what passes through it by too little to
     matter at this level of rigour - a valve, a pipe, a pump - and
     temperature passes through it unchanged. The method's name is the whole
-    marker: the engine classifies a device as thermal by it, once, when the
-    plant is built.
+    marker: `DomainTransport` classifies a device as thermal by it, once,
+    when the Engine is built from the plant.
 
     `arriving` is the stream entering the device. Its flow is signed in the
     device's own orientation, positive inlet to outlet, exactly as

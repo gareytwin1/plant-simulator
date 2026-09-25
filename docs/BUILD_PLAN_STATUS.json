@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
-  "refreshed": "24 September 2026",
-  "main_sha": "539809e80d5768fd56fdfdf02532a84668afe116",
-  "tests_passing_on_main": 1025,
+  "refreshed": "25 September 2026",
+  "main_sha": "6cffddd3ce4863d24ba7bc132909316ae43fadbe",
+  "tests_passing_on_main": 1045,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -43,7 +43,7 @@
     },
     "MR": {
       "name": "Remediation",
-      "complete": 3,
+      "complete": 4,
       "total": 13
     },
     "M6": {
@@ -119,8 +119,8 @@
   },
   "totals": {
     "tasks": 114,
-    "complete": 44,
-    "startable_now": 23
+    "complete": 45,
+    "startable_now": 24
   },
   "tasks": [
     {
@@ -811,10 +811,9 @@
         "tests/test_scheduler.py",
         "tests/test_snapshot.py"
       ],
-      "status": "Ready for Review",
-      "status_key": "review",
-      "startable": true,
-      "note": "PR #67 (fix/solver-nonfinite, dc4290e): a residual that is non-finite or overflows its tolerance scaling on entry raises SolverError naming branch/node rows, plant restored bit-identically; SolverResult refuses non-finite residuals and converged with residual > 1.0; _norm treats a non-finite trial row as inf; NaN/inf tolerances refused. 11 defect reproductions fail on merge-base. 1045 passed, mypy clean, no golden movement. Holds the spine lock; R10b next."
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged to main as 6cffddd (merge commit from fix/solver-nonfinite, PR #67). A residual that is non-finite or overflows its tolerance scaling on entry raises SolverError naming branch/node rows, plant restored bit-identically; SolverResult refuses non-finite residuals and converged with residual > 1.0; _norm treats a non-finite trial row as inf; NaN/inf tolerances refused. 11 defect reproductions failed against the merge-base. 1045 passed post-merge, mypy clean, no golden movement. Releases the spine lock: R10b is next in the queue. T6-5's remaining dependency is now clear (T6-1, T4-4, R9 already Complete)."
     },
     {
       "id": "R3",
@@ -1101,10 +1100,7 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "R2"
-      ],
+      "startable": true,
       "note": ""
     },
     {

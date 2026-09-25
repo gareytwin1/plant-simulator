@@ -15,24 +15,24 @@ already in BUILD_PLAN_STATUS.json and does not need a second home.
 
 ## Right now
 
-**Last state refresh:** 25 September 2026, at `70d301d` (Merge R10b: C1/C4
-docstring corrections, PR #70) — **this is a snapshot, not a live pointer.**
-Run `git log 70d301d..HEAD --oneline` to see what has merged since.
-**Full suite as of this refresh:** **1083 passed** · `python -m mypy` clean over 26 source files · compressor golden trace moved deliberately (temperature field only, on the two boundary-asymmetric scenarios — justified in T6-2's note)
-**In flight:** nothing. **No spine lock is held** — R10b released it; R6 is
-next in the queue, and also takes the `app/main.py` lock R5 released. No
-task is Blocked.
+**Last state refresh:** 25 September 2026, at `617bc9e` (Merge R6: Coherent
+commands and atomic manual step, PR #71) — **this is a snapshot, not a live
+pointer.** Run `git log 617bc9e..HEAD --oneline` to see what has merged since.
+**Full suite as of this refresh:** **1098 passed** · `python -m mypy` clean over 26 source files · compressor golden trace moved deliberately (temperature field only, on the two boundary-asymmetric scenarios — justified in T6-2's note)
+**In flight:** nothing. **No spine lock is held** — R6 released it and the
+`app/main.py` lock together; R7 is next in the queue and takes both. No task
+is Blocked.
 
 **Recent merges** (full notes in [BUILD_PLAN_STATUS.json](../../docs/BUILD_PLAN_STATUS.json)):
 
 | Task | SHA | What landed |
 |---|---|---|
-| **R10b** | `70d301d` | C1/C4 docstring corrections. `app/equipment/base.py`'s `Equipment.characteristic` docstring mirrors R10a's AGENTS.md wording verbatim; `app/engine/snapshot.py`'s module docstring stops calling `nodes`/`streams` "present but empty" — they carry real solved numbers for any `Engine` built from a plant, since T4-4. Docstrings only, no code change. Releases the global remediation spine lock — R6 is next, and also takes the `app/main.py` lock |
-| **R10a** | `07e69df` | Documentation corrections. AGENTS.md's solved-state paragraph replaced in place: inventory is device slow state, reaching the plant only as a boundary the coupling writes; the `integrate(dt)` bullet now says it never touches a solved flow or a node pressure. D9 golden-regeneration wording in AGENTS.md and `.claude/rules/testing.md` now allows an approved numeric change that is the task's own point, with a field-level old/new comparison in the PR — reconciling the written policy with the T6-2 precedent. `project_state.md` item 3 corrected to `temperature_at(suction, discharge)`, matching the actual signature. Retargeted from stale `CLAUDE.md`/`docs/PROJECT_STATE.md` line-number references first (`61f7707`) — required wording unchanged throughout |
-| **R5** | `1467dcc` | Request validation. `_number_field()` helper in `app/main.py`, used by `/api/load` and `/api/pump/speed`: requires a JSON object with a finite int/float at the named key, rejects missing/null/string/bool/array/NaN/non-JSON body with 400. 16 new defect-reproduction tests, each confirmed to fail against the merge-base before the fix. Releases the `app/main.py` lock — R6 is next |
-| **R11** | `e4357f3` | Check in the status generator. `scripts/build_plan_status.py` regenerates `docs/BUILD_PLAN_STATUS.json` from `BUILD_PLAN.html`'s `TASKS` array plus a `taskStatus` export, via `node`; validated to reproduce the current file byte-for-byte before use. `DEVELOPMENT.md` carries the authoritative procedure now |
+| **R6** | `617bc9e` | Coherent commands and atomic manual step. `Scheduler.command()` holds `step_lock`, applies an operator action, republishes `engine.snapshot()` without advancing time. `step_once()` takes `_lifecycle` then `step_lock`; refused while running or once `close()`d, but still allowed after a worker stopped on an error. Every command route and both manual-step routes in `app/main.py` go through these two methods; a closed session answers 409 "session ended". `Session.step_compressor`/`step_pump` (the unlocked, unpublished bypass behind the bug) are removed. Releases the spine lock and the `app/main.py` lock — R7 is next |
+| **R10b** | `70d301d` | C1/C4 docstring corrections. `app/equipment/base.py`'s `Equipment.characteristic` docstring mirrors R10a's AGENTS.md wording verbatim; `app/engine/snapshot.py`'s module docstring stops calling `nodes`/`streams` "present but empty" — they carry real solved numbers for any `Engine` built from a plant, since T4-4. Docstrings only, no code change |
+| **R10a** | `07e69df` | Documentation corrections. AGENTS.md's solved-state paragraph replaced in place: inventory is device slow state, reaching the plant only as a boundary the coupling writes; the `integrate(dt)` bullet now says it never touches a solved flow or a node pressure. D9 golden-regeneration wording in AGENTS.md and `.claude/rules/testing.md` now allows an approved numeric change that is the task's own point, with a field-level old/new comparison in the PR — reconciling the written policy with the T6-2 precedent |
+| **R5** | `1467dcc` | Request validation. `_number_field()` helper in `app/main.py`, used by `/api/load` and `/api/pump/speed`: requires a JSON object with a finite int/float at the named key, rejects missing/null/string/bool/array/NaN/non-JSON body with 400. 16 new defect-reproduction tests, each confirmed to fail against the merge-base before the fix |
+| **R11** | `e4357f3` | Check in the status generator. `scripts/build_plan_status.py` regenerates `docs/BUILD_PLAN_STATUS.json` from `BUILD_PLAN.html`'s `TASKS` array plus a `taskStatus` export, via `node`; validated to reproduce the current file byte-for-byte before use |
 | **R4** | `993a25d` | Refuse structural design keys. `STRUCTURAL_ATTRIBUTES` denylist (`tag`, `ports`) plus `_`-prefixed rejection in `_apply_design`, so a plant config can't smuggle a structural or private attribute in through `design` |
-| **R2** | `6cffddd` | Solver refuses non-finite curves. A residual that is non-finite, or overflows its tolerance scaling, on entry raises `SolverError` naming the branch or node row, with the plant restored bit-identically; `SolverResult` refuses a non-finite residual or a converged result with `residual > 1.0`. Unblocks T6-5 (its other three dependencies were already Complete) |
 
 **ADRs on `main`:** ADR 0001 ([flow-domain separation](../../docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md))
 with Amendment 1, and ADR 0002 ([typed ports](../../docs/ADR_0002_TYPED_PORTS.md)) with
@@ -47,12 +47,12 @@ what made this file 1,086 lines.
 | **M0**–**M5** | **Complete.** Checkpoint A (M1) and Checkpoint B (M4) both reached |
 | **M6** Energy Balance and Temperature | 2/5 — T6-1, T6-2 Complete; T6-3, T6-4, T6-5 all startable |
 | **M7** Control Valves and Final Elements | 2/5 — T7-1, T7-2 Complete; T7-3, T7-4, T7-5 startable |
-| **MR** Remediation | 9/13 — R1, R2, R3, R4, R5, R9, R10a, R10b, R11 Complete; the rest of the no-spine set is startable, plus R6 at the head of the spine queue |
+| **MR** Remediation | 10/13 — R1, R2, R3, R4, R5, R6, R9, R10a, R10b, R11 Complete; the rest of the no-spine set is startable, plus R7 at the head of the spine queue |
 | M8–M19 | Not started |
 
-**50 of 114 tasks Complete.** Next checkpoint is **C** (M5 + M6 + M7); M5 is
+**51 of 114 tasks Complete.** Next checkpoint is **C** (M5 + M6 + M7); M5 is
 closed, M6 has landed two tasks and M7 two. MR is scheduled to merge by
-Checkpoint C; its remaining spine work is R6 → R7.
+Checkpoint C; its remaining spine work is R7.
 
 ## The next task
 
@@ -61,14 +61,14 @@ twenty-three tasks are startable, but that count trusts `depends_on` alone —
 **T6-5 is one of the 23 and is not actually safe to start** (see the
 correction above); treat this table as 22 genuinely free tasks plus T6-5
 queued behind R7. Which to hand out next is a scheduling choice, not a
-dependency one. R6, R12, T7-4 and T13-1 are the Opus-level tasks among the
+dependency one. R7, R12, T7-4 and T13-1 are the Opus-level tasks among the
 22.
 
 ### Startable now (23 by the build plan; 22 actually free — see T6-5 above)
 
 | Task | Name | Model | Branch |
 |---|---|---|---|
-| **R6** | Coherent commands and atomic manual step | Opus · spine lock · `app/main.py` lock | `fix/coherent-commands` |
+| **R7** | Atomic admission and permanent closure | Opus · spine lock | `fix/atomic-session-admission` |
 | **R8** | Flow unit label | Sonnet | `fix/flow-unit-label` |
 | **R12** | Reconcile spine rules | Opus | `docs/spine-rules` |
 | **T6-3** | Heat exchanger model | Sonnet | `feature/heat-exchanger` |
@@ -93,23 +93,22 @@ dependency one. R6, R12, T7-4 and T13-1 are the Opus-level tasks among the
 | **T18-4** | Structured logging and health | Sonnet | `feature/observability` |
 
 **Still waiting:** T8-3, T9-2 and T11-1 — on T8-2 and T9-1, unchanged by T6-1.
-From MR: **T18-1** on R7; R7 on R6.
+From MR: **T18-1** on R7.
 
 **Correction from an earlier refresh: T6-5 is not actually startable yet,**
 despite its `startable: true` flag and its place in the table above. Its
 formal `depends_on` (T6-1, T4-4, R9, R2) is satisfied, but its own build-plan
 entry says it "runs last in the remediation spine queue R2 → R10b → R6 → R7
-→ T6-5" under U1's single global lock — the same lock R6 is about to take.
-That queue position is prose-only, the same way R10b's and R6's ordering
-was never a `depends_on` edge either, so the generator's `startable` flag
-can't see it. **Do not start T6-5 until R7 has merged.** An earlier refresh
-in this file listed it as freely startable; that was wrong.
+→ T6-5" under U1's single global lock — the same lock R7 now holds. That
+queue position is prose-only, the same way R10b's and R6's ordering was
+never a `depends_on` edge either, so the generator's `startable` flag can't
+see it. **Do not start T6-5 until R7 has merged.** An earlier refresh in this
+file listed it as freely startable; that was wrong.
 
 **Scheduling notes.** MR runs under **one global spine lock** (U1 in the
 approved design treats `network.py` and `scheduler.py` as spine too). The
-spine queue is now **R6 → R7 → T6-5**, one at a time. **R6 also takes the
-`app/main.py` lock**, which R5's merge released — the two locks land on the
-same task here, so R6 can't start beside anything else touching either file.
+spine queue is now **R7 → T6-5**, one at a time. R7 takes the spine lock
+(`app/engine/sessions.py`, `app/engine/scheduler.py`) and blocks T18-1.
 T7-3 edits `app/equipment/valve.py` and should not run beside another valve
 change. T12-1 adds a *new* isolated module under `app/engine/`, which is
 satellite work under the `app/engine/` rule in AGENTS.md.

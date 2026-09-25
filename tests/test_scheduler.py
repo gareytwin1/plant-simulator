@@ -16,7 +16,8 @@ WAIT = 5.0
 
 class FakeEngine:
     """Records steps and can hold one open, so tests coordinate with Events
-    rather than sleeps."""
+    rather than sleeps. Counts every call to step() and records whether two
+    ever ran at once."""
 
     def __init__(self, target=None):
         self.dts = []
@@ -25,8 +26,24 @@ class FakeEngine:
         self.gate = None
         self.entered = threading.Event()
         self.fail_on = None
+        self.calls = 0
+        self.overlapped = False
+        self._active = 0
+        self._count = threading.Lock()
 
     def step(self, dt):
+        with self._count:
+            self.calls += 1
+            self._active += 1
+            self.overlapped = self.overlapped or self._active > 1
+
+        try:
+            return self._step(dt)
+        finally:
+            with self._count:
+                self._active -= 1
+
+    def _step(self, dt):
         self.entered.set()
 
         if self.gate is not None:
@@ -403,6 +420,149 @@ def test_external_mutation_waits_for_the_step_lock():
     assert acquired.wait(WAIT)
 
     thread.join()
+    scheduler.stop()
+
+
+# Commands and manual steps
+
+
+def test_command_publishes_without_advancing_time():
+    # DEFECT REPRODUCTION
+    engine = FakeEngine()
+    scheduler = Scheduler(engine, step_seconds=0.001)
+    applied = []
+
+    scheduler.step_once()
+    scheduler.step_once()
+    published = scheduler.command(lambda: applied.append(True))
+
+    assert applied == [True]
+    assert published.sim_time == 2.0
+    assert scheduler.snapshot() is published
+    assert engine.calls == 2
+
+
+def test_manual_step_steps_once_and_publishes():
+    engine = FakeEngine()
+    scheduler = Scheduler(engine, step_seconds=0.001)
+
+    published = scheduler.step_once()
+
+    assert published.sim_time == 1.0
+    assert scheduler.snapshot() is published
+    assert engine.dts == [0.001]
+
+
+def test_manual_step_while_running_is_refused_without_stepping():
+    # DEFECT REPRODUCTION
+    engine = FakeEngine()
+    engine.gate = threading.Event()
+    scheduler = Scheduler(engine, step_seconds=0.001)
+
+    scheduler.start()
+
+    try:
+        assert engine.entered.wait(WAIT)
+
+        assert scheduler.step_once() is None
+        assert engine.calls == 1
+    finally:
+        engine.gate.set()
+        scheduler.stop()
+
+    assert not engine.overlapped
+
+
+def test_start_during_a_manual_step_waits_for_it_with_no_overlap():
+    # DEFECT REPRODUCTION
+    engine = FakeEngine(target=3)
+    engine.gate = threading.Event()
+    scheduler = Scheduler(engine, step_seconds=0.001)
+
+    manual = threading.Thread(target=scheduler.step_once)
+    manual.start()
+    assert engine.entered.wait(WAIT)
+
+    starter = threading.Thread(target=scheduler.start)
+    starter.start()
+    starter.join(0.05)
+
+    assert starter.is_alive()
+    assert not live_workers()
+
+    engine.gate.set()
+    manual.join(WAIT)
+    starter.join(WAIT)
+
+    assert engine.reached.wait(WAIT)
+    scheduler.stop()
+
+    assert not engine.overlapped
+
+
+def test_close_during_a_manual_step_completes_once_the_step_finishes():
+    # DEFECT REPRODUCTION
+    engine = FakeEngine()
+    engine.gate = threading.Event()
+    scheduler = Scheduler(engine, step_seconds=0.001)
+    results = []
+
+    manual = threading.Thread(target=lambda: results.append(scheduler.step_once()))
+    manual.start()
+    assert engine.entered.wait(WAIT)
+
+    closer = threading.Thread(target=scheduler.close)
+    closer.start()
+    engine.gate.set()
+    closer.join(WAIT)
+    manual.join(WAIT)
+
+    assert not closer.is_alive()
+    assert scheduler.closed
+    assert results[0].sim_time == 1.0
+
+
+def test_manual_step_after_close_is_refused_without_stepping():
+    # DEFECT REPRODUCTION
+    engine = FakeEngine()
+    scheduler = Scheduler(engine, step_seconds=0.001)
+
+    scheduler.close()
+
+    assert scheduler.step_once() is None
+    assert engine.calls == 0
+
+
+def test_close_stops_a_running_worker():
+    engine = FakeEngine()
+    scheduler = Scheduler(engine, step_seconds=0.001)
+
+    scheduler.start()
+    assert engine.entered.wait(WAIT)
+    scheduler.close()
+
+    assert not scheduler.running
+    assert not live_workers()
+
+
+def test_manual_step_is_allowed_after_the_worker_stops_on_an_error():
+    # DEFECT REPRODUCTION
+    engine = FakeEngine()
+    engine.fail_on = 1
+    scheduler = Scheduler(engine, step_seconds=0.001)
+
+    scheduler.start()
+    scheduler._thread.join(WAIT)
+
+    assert not scheduler.running
+    assert scheduler.error is not None
+
+    engine.fail_on = None
+    published = scheduler.step_once()
+
+    assert published.sim_time == 1.0
+    assert scheduler.snapshot() is published
+
     scheduler.stop()
 
 

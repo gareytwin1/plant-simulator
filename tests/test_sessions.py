@@ -50,7 +50,7 @@ def test_two_sessions_have_independent_equipment_with_no_cross_talk():
 
     session_a.compressor.set_load_target(0.8)
     session_a.compressor.start()
-    session_a.step_compressor()
+    session_a.compressor_scheduler.step_once()
 
     assert session_a.compressor.running is True
     assert session_b.compressor.running is False
@@ -171,3 +171,16 @@ def test_registry_rejects_a_capacity_below_one():
     # registry, so it is refused at construction rather than at create().
     with pytest.raises(ValueError):
         SessionRegistry(max_sessions=0)
+
+
+def test_a_command_reaches_the_published_state_without_advancing_time():
+    # DEFECT REPRODUCTION
+    session = Session()
+    scheduler = session.compressor_scheduler
+
+    scheduler.step_once()
+    before = scheduler.snapshot().sim_time
+    scheduler.command(session.compressor.start)
+
+    assert session.compressor_state()["running"] is True
+    assert scheduler.snapshot().sim_time == before

@@ -4,6 +4,7 @@ import uuid
 from flask import Flask, Response, g, jsonify, redirect, render_template, request, url_for
 from flask.typing import ResponseReturnValue
 
+from app.engine.scheduler import Scheduler
 from app.engine.sessions import SessionRegistry
 
 
@@ -40,6 +41,7 @@ def persist_session_cookie(response: Response) -> Response:
 STEP_UNAVAILABLE_REASON = (
     "manual stepping is unavailable while the background scheduler is running"
 )
+SESSION_ENDED_REASON = "session ended"
 
 
 def _number_field(field: str) -> tuple[float, None] | tuple[None, ResponseReturnValue]:
@@ -63,6 +65,13 @@ def _number_field(field: str) -> tuple[float, None] | tuple[None, ResponseReturn
     return float(value), None
 
 
+def _step_refused(scheduler: Scheduler) -> ResponseReturnValue:
+    """The 409 for a manual step the scheduler refused."""
+    reason = SESSION_ENDED_REASON if scheduler.closed else STEP_UNAVAILABLE_REASON
+
+    return jsonify({"error": reason}), 409
+
+
 @app.route("/compressor")
 def compressor_page() -> ResponseReturnValue:
     # A page render is the only real evidence a human is watching this
@@ -78,16 +87,14 @@ def compressor_page() -> ResponseReturnValue:
 
 @app.route("/start")
 def start() -> ResponseReturnValue:
-    with g.plant.compressor_scheduler.step_lock:
-        g.plant.compressor.start()
+    g.plant.compressor_scheduler.command(g.plant.compressor.start)
 
     return redirect(url_for("compressor_page"))
 
 
 @app.route("/stop")
 def stop() -> ResponseReturnValue:
-    with g.plant.compressor_scheduler.step_lock:
-        g.plant.compressor.stop()
+    g.plant.compressor_scheduler.command(g.plant.compressor.stop)
 
     return redirect(url_for("compressor_page"))
 
@@ -109,26 +116,25 @@ def api_state() -> ResponseReturnValue:
 
 @app.route("/api/start", methods=["POST"])
 def api_start() -> ResponseReturnValue:
-    with g.plant.compressor_scheduler.step_lock:
-        g.plant.compressor.start()
+    g.plant.compressor_scheduler.command(g.plant.compressor.start)
 
     return jsonify(g.plant.compressor_state())
 
 
 @app.route("/api/stop", methods=["POST"])
 def api_stop() -> ResponseReturnValue:
-    with g.plant.compressor_scheduler.step_lock:
-        g.plant.compressor.stop()
+    g.plant.compressor_scheduler.command(g.plant.compressor.stop)
 
     return jsonify(g.plant.compressor_state())
 
 
 @app.route("/api/step", methods=["POST"])
 def api_step() -> ResponseReturnValue:
-    if g.plant.compressor_scheduler.running:
-        return jsonify({"error": STEP_UNAVAILABLE_REASON}), 409
+    scheduler = g.plant.compressor_scheduler
 
-    g.plant.step_compressor()
+    if scheduler.step_once() is None:
+        return _step_refused(scheduler)
+
     return jsonify(g.plant.compressor_state())
 
 
@@ -138,8 +144,9 @@ def set_load() -> ResponseReturnValue:
     if error is not None:
         return error
 
-    with g.plant.compressor_scheduler.step_lock:
-        g.plant.compressor.set_load_target(load_target)
+    g.plant.compressor_scheduler.command(
+        lambda: g.plant.compressor.set_load_target(load_target)
+    )
 
     return jsonify(g.plant.compressor_state())
 
@@ -151,26 +158,25 @@ def api_pump_state() -> ResponseReturnValue:
 
 @app.route("/api/pump/start", methods=["POST"])
 def api_pump_start() -> ResponseReturnValue:
-    with g.plant.pump_scheduler.step_lock:
-        g.plant.pump.start()
+    g.plant.pump_scheduler.command(g.plant.pump.start)
 
     return jsonify(g.plant.pump_state())
 
 
 @app.route("/api/pump/stop", methods=["POST"])
 def api_pump_stop() -> ResponseReturnValue:
-    with g.plant.pump_scheduler.step_lock:
-        g.plant.pump.stop()
+    g.plant.pump_scheduler.command(g.plant.pump.stop)
 
     return jsonify(g.plant.pump_state())
 
 
 @app.route("/api/pump/step", methods=["POST"])
 def api_pump_step() -> ResponseReturnValue:
-    if g.plant.pump_scheduler.running:
-        return jsonify({"error": STEP_UNAVAILABLE_REASON}), 409
+    scheduler = g.plant.pump_scheduler
 
-    g.plant.step_pump()
+    if scheduler.step_once() is None:
+        return _step_refused(scheduler)
+
     return jsonify(g.plant.pump_state())
 
 
@@ -180,8 +186,9 @@ def set_pump_speed() -> ResponseReturnValue:
     if error is not None:
         return error
 
-    with g.plant.pump_scheduler.step_lock:
-        g.plant.pump.set_speed_target(speed_target)
+    g.plant.pump_scheduler.command(
+        lambda: g.plant.pump.set_speed_target(speed_target)
+    )
 
     return jsonify(g.plant.pump_state())
 

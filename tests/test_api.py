@@ -1,6 +1,23 @@
+import time
+
 import pytest
 
 from app import main
+
+
+WAIT = 5.0
+
+
+def session_for(client):
+    return main.sessions.get(client.get_cookie(main.SESSION_COOKIE).value)
+
+
+def wait_for_a_published_step(scheduler):
+    deadline = time.monotonic() + WAIT
+
+    while scheduler.snapshot().sim_time == 0.0:
+        assert time.monotonic() < deadline
+        time.sleep(0.01)
 
 
 def test_api_state():
@@ -137,3 +154,49 @@ def test_stop_redirect():
     assert response.status_code == 302
     assert state["running"] is False
     assert state["load_target"] == 0.0
+
+
+def test_commands_show_in_the_response_while_the_scheduler_runs():
+    # DEFECT REPRODUCTION
+    client = main.app.test_client()
+    client.get("/compressor")
+    session = session_for(client)
+
+    try:
+        wait_for_a_published_step(session.compressor_scheduler)
+
+        started = client.post("/api/start").get_json()
+        commanded = client.post("/api/load", json={"load_target": 0.8}).get_json()
+
+        assert started["running"] is True
+        assert commanded["load_target"] == pytest.approx(0.8)
+    finally:
+        session.end()
+
+
+def test_manual_step_while_the_scheduler_runs_keeps_its_409_reason():
+    # COMPATIBILITY
+    client = main.app.test_client()
+    client.get("/compressor")
+    session = session_for(client)
+
+    try:
+        response = client.post("/api/step")
+
+        assert response.status_code == 409
+        assert response.get_json() == {"error": main.STEP_UNAVAILABLE_REASON}
+    finally:
+        session.end()
+
+
+def test_manual_step_on_an_ended_session_is_refused_with_session_ended():
+    # DEFECT REPRODUCTION
+    client = main.app.test_client()
+    client.get("/api/state")
+    session = session_for(client)
+    session.compressor_scheduler.close()
+
+    response = client.post("/api/step")
+
+    assert response.status_code == 409
+    assert response.get_json() == {"error": "session ended"}

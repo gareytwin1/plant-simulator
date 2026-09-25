@@ -139,6 +139,20 @@ REQUIRED_TYPED_PORT_KEYS = (
 # round-tripped, and silently ignored (ADR 0002, Amendment 3 C6a).
 CAPABILITY_MARKERS = ("accepts_configured_ports",)
 
+# Structural device state, named here rather than left to the generic
+# hasattr()/setattr() path below (D4): `tag` and `ports` are plain instance
+# attributes with no property guard, so before this denylist a design block
+# could silently rename a device or rewrite its port table after
+# construction — `Plant.devices`/`Engine.equipment` key a device by the tag
+# it was built with, so a design-set tag would leave that key and
+# `device.tag` disagreeing. Every `_`-prefixed name is refused for the same
+# reason without being named individually: it is a device's own private
+# state (e.g. `_construction_state`, `reset()`'s snapshot), never a
+# published design parameter. A per-class allowlist that reopens some of
+# this is deferred to the C1 design/configure hook (the open
+# `Equipment.reset()` decision in project_state.md).
+STRUCTURAL_ATTRIBUTES = ("tag", "ports")
+
 
 @dataclass(frozen=True)
 class PortDeclaration:
@@ -1124,6 +1138,22 @@ def _apply_design(
                 f"{path}.{key}: {key!r} is an internal capability marker, "
                 f"not a design parameter — {device.tag}'s port structure "
                 f"cannot be set through design",
+            )
+            continue
+
+        if key in STRUCTURAL_ATTRIBUTES:
+            errors.append(
+                f"{path}.{key}: {key!r} is structural device state, not a "
+                f"design parameter — {device.tag}'s identity and wiring "
+                f"are set by the plant config, not by design",
+            )
+            continue
+
+        if key.startswith("_"):
+            errors.append(
+                f"{path}.{key}: {key!r} is a private attribute, not a "
+                f"design parameter — {device.tag}'s internal state cannot "
+                f"be set through design",
             )
             continue
 

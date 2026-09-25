@@ -3,6 +3,7 @@ import json
 
 import pytest
 
+from app.engine.engine import Engine
 from app.equipment.base import INLET, OUTLET, Equipment
 from app.equipment.compressor import GasCompressor
 from app.equipment.pump import CentrifugalPump
@@ -335,6 +336,75 @@ def test_non_finite_design_number_is_rejected(value):
     errors = rejected(config)
 
     assert any("$.equipment[0].design.shutoff_pressure_rise" in error for error in errors)
+
+
+# R4 DEFECT REPRODUCTION: `tag` and `ports` are plain instance attributes
+# with no property guard, so before the fix `_apply_design` found them via
+# hasattr(), matched `_same_kind`, and set them with no complaint — silently
+# renaming a device or rewriting its port table from a config's design block.
+def test_design_tag_is_rejected():
+    config = valid_config()
+    config["equipment"][0]["design"]["tag"] = "X-999"
+
+    errors = rejected(config)
+
+    assert any("$.equipment[0].design.tag" in error for error in errors)
+    assert any("structural device state" in error for error in errors)
+
+
+def test_design_ports_is_rejected():
+    config = valid_config()
+    config["equipment"][0]["design"]["ports"] = {}
+
+    errors = rejected(config)
+
+    assert any("$.equipment[0].design.ports" in error for error in errors)
+    assert any("structural device state" in error for error in errors)
+
+
+# R4 DEFECT REPRODUCTION: an underscore-prefixed name is a device's own
+# private state, never a published design parameter — `_construction_state`
+# is `reset()`'s own snapshot (app/equipment/base.py), a plain attribute
+# settable with no guard before the fix. Before the fix this still failed,
+# but with the generic "has no such attribute" reason rather than one
+# naming it as private.
+def test_design_private_attribute_is_rejected():
+    config = valid_config()
+    config["equipment"][0]["design"]["_construction_state"] = {}
+
+    errors = rejected(config)
+
+    assert any(
+        "$.equipment[0].design._construction_state" in error for error in errors
+    )
+    assert any("private attribute" in error for error in errors)
+    assert not any("has no such attribute" in error for error in errors)
+
+
+# R4 DEFECT REPRODUCTION: `Plant.devices` is keyed by the tag the config
+# item was written with; `Engine.equipment` is keyed by `device.tag` at
+# add-equipment time (`Engine.add_equipment`). Before the fix, a design
+# block could rename `device.tag` after the `Plant.devices` entry was
+# already made, so `plant.devices["P-101"]` held a device whose own `.tag`
+# said "X-999" — and `Engine.from_plant`, which keys by `device.tag`, filed
+# that same device under "X-999" instead, so the two dicts disagreed with
+# each other as well as with the device.
+def test_devices_and_equipment_are_keyed_by_the_devices_own_tag():
+    config = valid_config()
+    config["equipment"][0]["design"]["tag"] = "X-999"
+
+    try:
+        plant = load_plant(config)
+    except PlantConfigError:
+        return  # rejected outright: the invariant can no longer be broken
+
+    engine = Engine.from_plant(plant)
+
+    for tag, device in plant.devices.items():
+        assert device.tag == tag
+
+    for tag, device in engine.equipment.items():
+        assert device.tag == tag
 
 
 def test_every_problem_is_reported_in_one_error():

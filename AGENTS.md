@@ -63,16 +63,18 @@ Violating any of these is a contract break, not a style preference.
 a node pressure**; it publishes a curve and the solver finds where the plant
 lands on it. `Port` carries *connection metadata, never process state* — the
 node it attaches to plus the descriptors below — and `Port.__slots__` makes
-that structural. A pressure, flow, temperature or level is a solver output; a
-boundary pressure owned by a device is one in disguise, and belongs to the
-topology.
+that structural. A node pressure or branch flow is a solver output, and a
+device holding a copy of one is a solver output in disguise. Inventory - a
+vessel's level and gas pressure - is device slow state; it reaches the plant
+only as a boundary the coupling writes.
 
 **The integrate / characteristic split is the whole point of C1.**
 
 - `integrate(dt)` advances **slow state only** — a load ramp, a valve stroke, a
   vessel level, metal temperature. It is the only method allowed to mutate the
-  device, and it never touches flow or pressure. **`integrate(0)` must be a
-  no-op**, or a solver iteration would change the plant.
+  device, and it never touches a solved flow or a node pressure.
+  **`integrate(0)` must be a no-op**, or a solver iteration would change the
+  plant.
 - `characteristic(flow)` is a **pure query**: the pressure change across the
   device at that flow, with slow state wherever `integrate` left it. Positive
   is a rise (machine), negative a drop (valve, pipe). It mutates nothing, so
@@ -113,8 +115,10 @@ numbers for any `Engine` built from a plant.
 **Golden regressions protect existing physics. Do not regenerate a golden trace
 to make a test pass.** If a trace moves, stop and explain why: either that was
 the point of the task and it needs justifying, or you have a bug. Regenerating
-is legitimate only for non-numeric changes. Tolerances, rationale and the full
-policy: [.claude/rules/testing.md](.claude/rules/testing.md).
+is legitimate for a non-numeric change, or for an approved numeric change that
+is the task's own point, with a field-level old/new comparison in the PR.
+Tolerances, rationale and the full policy:
+[.claude/rules/testing.md](.claude/rules/testing.md).
 
 ## Development rules
 

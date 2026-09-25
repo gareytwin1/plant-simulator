@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "25 September 2026",
-  "main_sha": "6cffddd3ce4863d24ba7bc132909316ae43fadbe",
-  "tests_passing_on_main": 1045,
+  "main_sha": "e4357f304500ecdac6fa7e1fa3b182d556f534b0",
+  "tests_passing_on_main": 1067,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -43,7 +43,7 @@
     },
     "MR": {
       "name": "Remediation",
-      "complete": 4,
+      "complete": 6,
       "total": 13
     },
     "M6": {
@@ -119,7 +119,7 @@
   },
   "totals": {
     "tasks": 114,
-    "complete": 45,
+    "complete": 47,
     "startable_now": 24
   },
   "tasks": [
@@ -845,10 +845,9 @@
         "app/plant/loader.py",
         "tests/test_plant_loader.py"
       ],
-      "status": "Ready for Review",
-      "status_key": "review",
-      "startable": true,
-      "note": "PR #65 (fix/structural-design-keys, 6b65fb0): STRUCTURAL_ATTRIBUTES denylist (tag, ports) plus _-prefixed rejection in _apply_design. 1029 passed, mypy clean, no golden movement."
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged to main as 993a25d (merge commit from fix/structural-design-keys, PR #65). STRUCTURAL_ATTRIBUTES denylist (tag, ports) plus _-prefixed rejection in _apply_design. 1049 passed post-merge, mypy clean, no golden movement."
     },
     {
       "id": "R5",
@@ -996,10 +995,9 @@
         ".claude/skills/merge-task/SKILL.md",
         ".claude/skills/ready-for-review/SKILL.md"
       ],
-      "status": "Ready for Review",
-      "status_key": "review",
-      "startable": true,
-      "note": "Ready for Review: PR #68 (chore/status-generator). scripts/build_plan_status.py regenerates docs/BUILD_PLAN_STATUS.json from BUILD_PLAN.html + a taskStatus export via node; verified to reproduce the current file byte-for-byte against this artifact's live data. DEVELOPMENT.md carries the authoritative procedure now; merge-task and ready-for-review skills cite the script instead of the old memory-only note. 1043 passed (1025 baseline + 18 new), mypy clean, no golden trace moved. Found but did not fix (out of R11's declared files): 3 Complete tasks still declare docs/PROJECT_STATE.md, renamed to .workspace/memory/project_state.md by an earlier unrelated docs commit - worth a follow-up regeneration."
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged to main as e4357f3 (merge commit from chore/status-generator, PR #68). scripts/build_plan_status.py regenerates docs/BUILD_PLAN_STATUS.json from BUILD_PLAN.html + a taskStatus export via node; verified to reproduce the current file byte-for-byte before use. DEVELOPMENT.md carries the authoritative procedure now; merge-task and ready-for-review skills cite the script. 1067 passed post-merge, mypy clean, no golden trace moved. Found but did not fix: 3 Complete tasks still declare docs/PROJECT_STATE.md, renamed to .workspace/memory/project_state.md by an earlier unrelated docs commit - worth a follow-up."
     },
     {
       "id": "R12",

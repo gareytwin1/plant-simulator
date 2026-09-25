@@ -3,6 +3,7 @@ import math
 from app import config
 from app.equipment.base import Equipment, INLET, OUTLET, signed_square
 from app.equipment.ranges import checked
+from app.plant.thermo import StreamState
 from app.statetypes import StateRow
 
 # °F to °R: the polytropic relation is defined on absolute temperature, and
@@ -119,12 +120,35 @@ class GasCompressor(Equipment):
                     f"{label} must be finite and positive, got {pressure!r}",
                 )
 
-        ratio = discharge_pressure / suction_pressure
+        return self._polytropic(
+            self.base_temperature,
+            discharge_pressure / suction_pressure,
+        )
+
+    def leaving_temperature(
+        self,
+        arriving: StreamState,
+        inlet_pressure: float,
+        outlet_pressure: float,
+    ) -> float:
+        # Only gas driven forward against a rise is being compressed. Gas
+        # flowing backwards, or forwards down a pressure drop, is throttled
+        # through the machine, and an ideal gas throttles at constant
+        # temperature.
+        if arriving.flow <= 0.0 or outlet_pressure <= inlet_pressure:
+            return arriving.temperature
+
+        return self._polytropic(
+            arriving.temperature,
+            outlet_pressure / inlet_pressure,
+        )
+
+    def _polytropic(self, suction_temperature: float, ratio: float) -> float:
         exponent = (
             (self.isentropic_exponent - 1.0)
             / (self.isentropic_exponent * self.polytropic_efficiency)
         )
-        suction_rankine = self.base_temperature + RANKINE_OFFSET
+        suction_rankine = suction_temperature + RANKINE_OFFSET
 
         return suction_rankine * float(ratio ** exponent) - RANKINE_OFFSET
 

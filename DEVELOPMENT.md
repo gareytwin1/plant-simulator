@@ -148,9 +148,11 @@ of it, not some of it. The steps below are how you get there; the
   ```
 
 - Open a PR titled `T{TASK-ID}: Brief description`.
-- Set the task status to **Ready for Review** — in the live artifact first,
-  then regenerate `docs/BUILD_PLAN_STATUS.json`; see
-  [below](#regenerating-docsbuild_plan_statusjson).
+- Set the task status to **Ready for Review** in the live artifact only. Do
+  not regenerate `docs/BUILD_PLAN_STATUS.json` for it, on the branch or on
+  `main`: every task shares that file, so a branch commit to it conflicts
+  with the next one, and a `main` commit puts every open PR behind. The next
+  merge's regeneration picks the status up.
 
 ### Merging
 
@@ -172,7 +174,8 @@ changes.
 
 - Set the task status to **Complete**, with the merge SHA and the post-merge test
   count in the note — in the live artifact first, then regenerate
-  `docs/BUILD_PLAN_STATUS.json`; see
+  `docs/BUILD_PLAN_STATUS.json` on `main`, in one commit with the
+  project_state.md refresh below; see
   [below](#regenerating-docsbuild_plan_statusjson).
 - Delete the merged branch (local and remote) and remove the worktree:
 
@@ -189,7 +192,9 @@ changes.
 
 `docs/BUILD_PLAN_STATUS.json` is a derived file with two independent sources —
 never hand-patch it, which is exactly the drift the build plan exists to
-prevent. Update the **live artifact first**
+prevent. It is regenerated only on `main` when closing out a merge, never on
+a task branch and never just to record Ready for Review; it is a durable
+snapshot, and lagging the live artifact between merges is expected. Update the **live artifact first**
 (`https://claude.ai/artifact/DXqzpwKxeKZNzZGrC3HkQ9`), then rebuild the JSON
 with `scripts/build_plan_status.py`:
 

@@ -56,14 +56,12 @@ and needs updating to match — do not follow this skill over DEVELOPMENT.md.
    Opening a PR is visible to others; don't do it without a checkpoint.
 
 7. On confirmation, open the PR. Then set the task's status to **Ready for
-   Review** — **in the live build plan artifact first**
-   (`https://claude.ai/artifact/DXqzpwKxeKZNzZGrC3HkQ9`), never by
-   hand-editing `docs/BUILD_PLAN_STATUS.json` directly. That file is derived;
-   editing it by hand is exactly the drift the build plan exists to prevent.
-   Regenerate it with `scripts/build_plan_status.py` per
-   [DEVELOPMENT.md's "Regenerating docs/BUILD_PLAN_STATUS.json"
-   section](../../../DEVELOPMENT.md#regenerating-docsbuild_plan_statusjson),
-   and confirm the diff shows only the intended fields.
+   Review** **in the live build plan artifact only**
+   (`https://claude.ai/artifact/DXqzpwKxeKZNzZGrC3HkQ9`). **Do not touch
+   `docs/BUILD_PLAN_STATUS.json`** - not on this branch, not on `main`.
+   Every task shares that file: a branch commit to it conflicts with the
+   next task's, and a `main` commit puts every open PR behind. `merge-task`
+   regenerates it after the next merge, which picks this status up.
 
 8. Report: PR URL, final test count, mypy result, and confirmation that no
    golden trace moved.

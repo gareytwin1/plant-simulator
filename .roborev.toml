@@ -1,0 +1,10 @@
+# roborev per-repo config. Every field roborev supports (agent overrides per
+# review type, severity floors, hooks, etc.) is optional and defaults to the
+# global config in ~/.roborev/config.toml if omitted here — see
+# https://roborev.io/docs/configuration/. Only the fields plant-simulator
+# actually overrides are listed; `roborev init` regenerates the full
+# self-documenting list if you need to see what else exists.
+
+# Pinned so every contributor's commits get reviewed by the same agent,
+# regardless of which review CLIs happen to be installed locally.
+agent = 'claude-code'

@@ -199,6 +199,8 @@ machine-specific interpreter paths into documentation or scripts.
 - Session continuity from the toolkit: `/handoff` before `/clear` or a host
   swap, `/continue` to resume. `/align` pins down what "done" means before
   non-trivial work.
+- Continuous review: `/roborev-refine` before opening a PR — see
+  [DEVELOPMENT.md](DEVELOPMENT.md#continuous-review-roborev).
 
 ## Project memory
 

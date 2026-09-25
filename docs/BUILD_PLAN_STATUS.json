@@ -1,7 +1,7 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "25 September 2026",
-  "main_sha": "07e69df7699f391789aa6fd93bc25027393bbbbf",
+  "main_sha": "70d301d4b105ef6bb103323f3c4714d4cfaac82a",
   "tests_passing_on_main": 1083,
   "status_vocabulary": {
     "Not Started": "No work begun",
@@ -43,7 +43,7 @@
     },
     "MR": {
       "name": "Remediation",
-      "complete": 8,
+      "complete": 9,
       "total": 13
     },
     "M6": {
@@ -119,8 +119,8 @@
   },
   "totals": {
     "tasks": 114,
-    "complete": 49,
-    "startable_now": 24
+    "complete": 50,
+    "startable_now": 23
   },
   "tasks": [
     {
@@ -972,10 +972,9 @@
         "app/equipment/base.py",
         "app/engine/snapshot.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true,
-      "note": ""
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged to main as 70d301d (merge commit from docs/c1-c4-docstrings, PR #70). app/equipment/base.py's Equipment.characteristic docstring now mirrors R10a's AGENTS.md wording verbatim: a node pressure or branch flow is a solver output, and a device holding a copy of one is a solver output in disguise; inventory is device slow state reaching the plant only as a boundary the coupling writes. The integrate(dt) line now reads 'never touches a solved flow or a node pressure.' app/engine/snapshot.py's module docstring stops calling nodes/streams 'present but empty' - they carry real solved numbers for any Engine built from a plant, since T4-4. Docstrings only, no code change. 1083 passed post-merge, mypy clean, no golden movement. Releases the global remediation spine lock: R6 is next in the queue, and also takes the app/main.py lock R5 released."
     },
     {
       "id": "R11",

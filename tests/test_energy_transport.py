@@ -13,7 +13,7 @@ import pytest
 from app.engine.engine import Engine
 from app.engine.transport import DomainTransport
 from app.equipment.base import INLET, LIQUID, OUTLET, VAPOR, Equipment, signed_square
-from app.plant.loader import load_plant_file
+from app.plant.loader import load_plant, load_plant_file
 from app.plant.thermo import StreamState, enthalpy_flow, heat_capacity_rate
 from app.plant.topology import STANDARD_TEMPERATURE, Branch, Node, Topology
 
@@ -431,6 +431,74 @@ def test_a_device_refusing_the_solved_state_holds_the_domain_not_the_step():
 
     assert transport.settled
     assert recovered.nodes["N-1"]["temperature"] == pytest.approx(90.0)
+
+
+class Doubling(Line):
+    """Doubles the arriving temperature in °F - exact in binary."""
+
+    def leaving_temperature(self, arriving, inlet_pressure, outlet_pressure):
+        return 2.0 * arriving.temperature
+
+
+class Broken(Line):
+    def leaving_temperature(self, arriving, inlet_pressure, outlet_pressure):
+        return float("nan")
+
+
+def test_a_loop_whose_heat_return_exactly_balances_its_feed_is_reported():
+    transport = recycle_loop(Doubling("K-1"), feed=1.0, recycle=1.0)
+    transport.propagate()
+
+    assert not transport.settled
+    assert "exactly balances its feed" in transport.failure
+    assert transport.temperatures["N-1"] == STANDARD_TEMPERATURE
+
+
+def test_a_device_returning_a_non_finite_temperature_is_loud():
+    transport = recycle_loop(Broken("K-1"))
+
+    with pytest.raises(ValueError, match="must be finite"):
+        transport.propagate()
+
+
+def test_a_compressor_suction_pulled_below_zero_psia_holds_not_crashes():
+    engine = Engine.from_plant(
+        load_plant(
+            {
+                "nodes": [
+                    {"id": "N-201", "boundary": True, "pressure": 10.0, "domain": "gas"},
+                    {"id": "N-202", "boundary": False, "pressure": 10.0, "domain": "gas"},
+                    {"id": "N-203", "boundary": True, "pressure": 50.0, "domain": "gas"},
+                ],
+                "equipment": [
+                    {
+                        "tag": "FV-201",
+                        "type": "control_valve",
+                        "node_in": "N-201",
+                        "node_out": "N-202",
+                        "design": {"capacity": 1.0, "position": 0.1, "position_target": 0.1},
+                    },
+                    {
+                        "tag": "K-101",
+                        "type": "compressor",
+                        "node_in": "N-202",
+                        "node_out": "N-203",
+                        "design": {"load": 1.0, "load_target": 1.0, "running": True},
+                    },
+                ],
+            },
+        ),
+        boundary_temperatures={"N-201": 90.0},
+    )
+    snapshot = engine.step(1.0)
+    transport = engine.transports["gas"]
+
+    assert snapshot.solver["converged"]
+    assert snapshot.nodes["N-202"]["pressure"] < 0.0
+    assert not transport.settled
+    assert "K-101" in transport.failure
+    assert snapshot.nodes["N-202"]["temperature"] == STANDARD_TEMPERATURE
+    assert snapshot.streams["B-K-101"]["temperature"] == STANDARD_TEMPERATURE
 
 
 def test_an_unsettled_loop_keeps_its_stream_temperatures_too():

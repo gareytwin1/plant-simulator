@@ -144,22 +144,20 @@ class DomainTransport:
         """
         arrivals = self._arrivals()
 
-        # A thermal device refuses an input it cannot model with ValueError,
-        # and the solver can commit one - a suction pulled below 0 psia has
-        # no floor. That is a state the plant reached, not a configuration
-        # error, so it holds the domain like any other unsettled answer.
         try:
             temperatures = self._solve(arrivals, _fed(self.topology, arrivals))
             failure = _unphysical(temperatures)
-            streams = {
-                branch_id: self._leaving(
-                    branch_id,
-                    temperatures[_upstream(branch)],
-                )
-                for branch_id, branch in self.topology.branches.items()
-                if branch.flow != 0.0
-            }
-        except (SolverError, ValueError) as error:
+
+            if failure is None:
+                streams = {
+                    branch_id: self._leaving(
+                        branch_id,
+                        temperatures[_upstream(branch)],
+                    )
+                    for branch_id, branch in self.topology.branches.items()
+                    if branch.flow != 0.0
+                }
+        except SolverError as error:
             failure = str(error)
 
         if failure is not None:
@@ -270,11 +268,22 @@ class DomainTransport:
         assert self.phase is not None
 
         branch = self.topology.branches[branch_id]
-        leaving = device.leaving_temperature(
-            StreamState(branch.flow, arriving, self.phase),
-            branch.from_node.pressure,
-            branch.to_node.pressure,
-        )
+
+        # A device refuses an input it cannot model with ValueError, and the
+        # solver can commit one - a suction pulled below 0 psia has no floor.
+        # That is a state the plant reached, so it holds the domain. A
+        # non-finite answer is a broken device instead, and stays loud.
+        try:
+            leaving = device.leaving_temperature(
+                StreamState(branch.flow, arriving, self.phase),
+                branch.from_node.pressure,
+                branch.to_node.pressure,
+            )
+        except ValueError as error:
+            raise SolverError(
+                f"{branch.device.tag} on branch {branch_id!r} refused the "
+                f"solved state: {error}",
+            ) from error
 
         if not math.isfinite(leaving):
             raise ValueError(

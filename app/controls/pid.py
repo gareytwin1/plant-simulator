@@ -1,11 +1,16 @@
 """
-PID block (T8-1) — standalone, no plant dependency.
+PID block (T8-1) - standalone, no plant dependency.
 
-Anti-windup is conditional integration: a step accumulates into the integral
-only if doing so keeps the unclamped output inside [output_min, output_max].
-A step that would saturate the output freezes the integral instead of growing
-it further, so release from saturation produces no overshoot from a wound-up
-term.
+Anti-windup is conditional integration: a step freezes the integral only when
+the unclamped output is saturated *and* the current error would push it
+further into that same saturation - never merely because the output happens
+to be clamped this step. Freezing on clamped-ness alone would also block an
+error that is already pulling the output back into range, so a large integral
+built up before an unrelated change (a lowered output_max, a decayed
+derivative) could latch the output at its limit forever with no way for the
+error to unwind it. Checking the error's direction against the saturation
+side is what lets a reversing error always drain the integral, however long
+it takes, so saturation is escaped rather than latched.
 
 Derivative acts on measurement, not on error. A setpoint step changes the
 proportional and integral terms immediately but leaves measurement unchanged,
@@ -25,6 +30,11 @@ class PID:
         output_max: float,
         setpoint: float = 0.0,
     ) -> None:
+        if output_min > output_max:
+            raise ValueError(
+                f"output_min ({output_min}) must not exceed output_max ({output_max})"
+            )
+
         self.kp = kp
         self.ki = ki
         self.kd = kd
@@ -50,7 +60,10 @@ class PID:
         unclamped = self.kp * error + self.ki * candidate_integral + derivative
         output = min(max(unclamped, self.output_min), self.output_max)
 
-        if output == unclamped:
+        saturating_further = (unclamped > self.output_max and error > 0.0) or (
+            unclamped < self.output_min and error < 0.0
+        )
+        if not saturating_further:
             self._integral = candidate_integral
 
         return output

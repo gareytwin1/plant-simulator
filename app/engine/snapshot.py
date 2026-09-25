@@ -6,11 +6,13 @@ trend API, the scoring module and the scenario engine all take this and
 nothing else. Freezing its shape is what lets the rest of the system be
 built before the physics behind it exists.
 
-Sections that don't have a subsystem yet — nodes, streams, controllers,
-envelope, alarms — are present but empty, and solver reports a trivial
-placeholder until something on the request path actually solves a network
-(T4-4). The shape is fixed now; the content fills in as each milestone
-lands. Nothing in a Snapshot can be mutated after it is built:
+Sections that don't have a subsystem yet — controllers, envelope, alarms —
+are present but empty, and solver reports a trivial placeholder until
+something on the request path actually solves a network. nodes and streams
+are not in that category: they carry real solved numbers for any Engine
+built from a plant, since T4-4. The shape is fixed now; the content fills in
+as each milestone lands. Nothing in a Snapshot can be mutated after it is
+built:
 every mapping is a MappingProxyType over a deep copy of its input, and
 alarms is a tuple of the same, so a consumer holding a reference cannot
 corrupt what another consumer already read, and mutating the caller's

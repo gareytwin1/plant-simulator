@@ -15,7 +15,7 @@ serving the page that displays a machine starts its scheduler, and only
 Session.end() (called directly, by SessionRegistry.end(), or by LRU
 eviction) stops them. It closes them, so a request still holding an ended
 session cannot start a worker the registry no longer counts.
-SessionRegistry bounds how many sessions — and so how many worker threads —
+SessionRegistry bounds how many sessions - and so how many worker threads -
 stay alive at once: past config.MAX_SESSIONS, create ends the
 least-recently-touched session first. See docs/T2-6_SCHEDULER_OWNERSHIP.md
 for the design this implements.

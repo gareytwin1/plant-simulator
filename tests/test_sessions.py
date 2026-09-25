@@ -292,6 +292,7 @@ def test_session_end_then_start_creates_no_thread():
 
 
 def test_session_start_then_end_joins_both_workers():
+    # DEFECT REPRODUCTION
     session = Session()
     session.compressor_scheduler.start()
     session.pump_scheduler.start()

@@ -189,3 +189,62 @@ machine-specific interpreter paths into documentation or scripts.
 | How do I branch, test and merge? | [DEVELOPMENT.md](DEVELOPMENT.md) |
 | What units does a number carry? | [docs/UNITS_CONVENTION.md](docs/UNITS_CONVENTION.md) |
 | Which doc owns which fact? | [.claude/rules/docs.md](.claude/rules/docs.md) |
+
+## Slash commands (Claude Code)
+
+- Task lifecycle for build-plan tasks: `start-task`, `ready-for-review` and
+  `merge-task` in `.claude/skills/`, mirroring [DEVELOPMENT.md](DEVELOPMENT.md).
+- Session continuity from the toolkit: `/handoff` before `/clear` or a host
+  swap, `/continue` to resume. `/align` pins down what "done" means before
+  non-trivial work.
+
+## Project memory
+
+Memory is index-only at session start. `.workspace/memory/MEMORY_INDEX.md`
+lists every memory file with its `status`, `last_referenced`, `tokens` and
+`anchors`. Read the body of an indexed file on demand when its topic is
+relevant; the index tells you what exists and whether it is current. Never
+`@`-include a memory file other than the index - that loads the full text into
+every context window and bypasses the memory budget.
+
+@.workspace/memory/MEMORY_INDEX.md
+
+### Claude auto-memory (writer-asymmetric)
+
+Claude Code writes autonomous learnings to `.workspace/memory-auto/MEMORY.md`,
+redirected there from the default `~/.claude/projects/<slug>/memory/` via
+`autoMemoryDirectory` in `.claude/settings.json`. Claude loads it natively.
+Codex has no equivalent and reads it on demand, like any other memory file.
+
+It sits outside `.workspace/memory/` on purpose: the memory plugin recurses
+into that directory, so auto-memory nested inside it would be seeded into the
+index and swept by `/memory-gc`. Model-authored memory accumulates through
+Claude sessions only; Codex-only sessions rely on the curated files.
+
+### Session progress
+
+Session progress goes to timestamped `.workspace/transitions/YYYY-MM-DD/HHMMSS.md`
+files, one per event, written by the `transition` plugin's own
+PreCompact/PostCompact/SessionEnd hooks. No per-project wiring is needed.
+`/handoff` covers events with no compaction (before `/clear`, a Claude/Codex
+host swap, a milestone); `/continue` resumes. Both agents share the files.
+
+```bash
+ls -r .workspace/transitions/$(date +%Y-%m-%d)/*.md   # newest first
+```
+
+## Agent infrastructure layout
+
+```text
+AGENTS.md                  # this file - Codex reads natively
+CLAUDE.md                  # one line: @AGENTS.md
+.workspace/                # SHARED state for both Claude and Codex
+  memory/                  #   curated memory; only MEMORY_INDEX.md is @-included
+  memory-auto/             #   Claude auto-memory (harness writes; Codex reads)
+  transitions/             #   session progress (transition plugin writes; gitignored)
+  work/                    #   active work units / plans
+.claude/                   # CLAUDE-SPECIFIC ONLY
+  settings.json            #   enabled plugins, autoMemoryDirectory
+  rules/                   #   path-scoped rules (Codex: read the matching file)
+  skills/                  #   task lifecycle skills
+```

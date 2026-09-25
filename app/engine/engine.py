@@ -43,11 +43,19 @@ coupling device such as a Vessel sits in no topology and would otherwise
 never be integrated (ADR 0001 section 12.6), and it wires one solver against
 each entry in `Plant.topologies`.
 
+Energy follows the flow (T6-5). Once a domain converges, its transport
+recomputes every node and stream temperature upwind of the flows just
+solved - see app/engine/transport.py. It runs after the solve and before the
+snapshot, moves no mass and touches no pressure, so it cannot disturb the
+solve it reads. Boundary nodes supply at the temperatures the engine was
+built with, and at the 60 °F standard wherever none was given.
+
 A solve that does not converge leaves that domain exactly as it was (T4-3),
 so the step still advances time and slow state but its flow and pressure
 hold their last solved values, and the failure is published in the
 snapshot's solver section rather than raised. No coupling reads a flow out
-of a domain that failed. A network that cannot be solved as posed raises
+of a domain that failed, and no transport does either: its temperatures hold
+with its flows. A network that cannot be solved as posed raises
 SolverError.
 
 start()/stop() and the snapshot's running field delegate entirely to the
@@ -63,12 +71,14 @@ dt is always injected by the caller, never defaulted from config or read
 from a wall clock — determinism depends on the caller owning time.
 """
 
+import math
 from collections.abc import Iterable, Mapping
 
 from app.engine.clock import SimulationClock
 from app.engine.coupling import VesselCoupling, build_couplings
 from app.engine.network import NetworkSolver, SolverResult
 from app.engine.snapshot import DEFAULT_SOLVER_STATUS, JSONValue, Snapshot, build_snapshot
+from app.engine.transport import ABSOLUTE_ZERO, DomainTransport
 from app.equipment.base import Equipment
 from app.plant.loader import DEFAULT_DOMAIN, Plant
 from app.plant.topology import Topology
@@ -81,6 +91,7 @@ class Engine:
         topology: Topology | None = None,
         topologies: Mapping[str, Topology] | None = None,
         couplings: Iterable[VesselCoupling] = (),
+        boundary_temperatures: Mapping[str, float] | None = None,
     ) -> None:
         if topology is not None and topologies is not None:
             raise ValueError(
@@ -101,17 +112,32 @@ class Engine:
         self.solver_results: dict[str, SolverResult] = {}
         self.couplings: list[VesselCoupling] = list(couplings)
 
+        _check_boundary_temperatures(
+            boundary_temperatures or {},
+            self.topologies,
+        )
+
+        self.transports: dict[str, DomainTransport] = {
+            domain: DomainTransport(domain, graph, boundary_temperatures or {})
+            for domain, graph in self.topologies.items()
+        }
+
         for device in equipment:
             self.add_equipment(device)
 
         self._couple()
 
     @classmethod
-    def from_plant(cls, plant: Plant) -> "Engine":
+    def from_plant(
+        cls,
+        plant: Plant,
+        boundary_temperatures: Mapping[str, float] | None = None,
+    ) -> "Engine":
         return cls(
             plant.devices.values(),
             topologies=plant.topologies,
             couplings=build_couplings(plant.devices.values(), plant.topologies),
+            boundary_temperatures=boundary_temperatures,
         )
 
     @property
@@ -201,10 +227,14 @@ class Engine:
         nodes: dict[str, dict[str, JSONValue]] = {}
         streams: dict[str, dict[str, JSONValue]] = {}
 
-        for graph in self.topologies.values():
+        for domain, graph in self.topologies.items():
             state = graph.get_state()
+            temperatures = self.transports[domain].temperatures
 
-            nodes.update(state["nodes"])
+            nodes.update(
+                (node_id, {**row, "temperature": temperatures[node_id]})
+                for node_id, row in state["nodes"].items()
+            )
             streams.update(state["streams"])
 
         return build_snapshot(
@@ -239,6 +269,9 @@ class Engine:
         for coupling in self.couplings:
             coupling.write_flows(converged)
 
+        for domain in converged:
+            self.transports[domain].propagate()
+
     def _solve(self) -> None:
         for domain, solver in self.solvers.items():
             self.solver_results[domain] = solver.solve()
@@ -261,3 +294,28 @@ class Engine:
             return None
 
         return next(iter(self.topologies))
+
+
+def _check_boundary_temperatures(
+    temperatures: Mapping[str, float],
+    topologies: Mapping[str, Topology],
+) -> None:
+    boundaries = {
+        node_id
+        for graph in topologies.values()
+        for node_id in graph.boundary_nodes
+    }
+
+    for node_id, temperature in temperatures.items():
+        if node_id not in boundaries:
+            raise ValueError(
+                f"boundary temperature given for {node_id!r}, which is not a "
+                f"boundary node of this plant - only a battery limit supplies "
+                f"a temperature, an internal node's is transported",
+            )
+
+        if not math.isfinite(temperature) or temperature <= ABSOLUTE_ZERO:
+            raise ValueError(
+                f"node {node_id!r}: boundary temperature {temperature} °F is "
+                f"not a finite temperature above absolute zero",
+            )

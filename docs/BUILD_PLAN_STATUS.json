@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "25 September 2026",
-  "main_sha": "e4357f304500ecdac6fa7e1fa3b182d556f534b0",
-  "tests_passing_on_main": 1067,
+  "main_sha": "1467dccf247901aed64b5ea9ec51e999cf15eb75",
+  "tests_passing_on_main": 1083,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -43,7 +43,7 @@
     },
     "MR": {
       "name": "Remediation",
-      "complete": 6,
+      "complete": 7,
       "total": 13
     },
     "M6": {
@@ -119,8 +119,8 @@
   },
   "totals": {
     "tasks": 114,
-    "complete": 47,
-    "startable_now": 24
+    "complete": 48,
+    "startable_now": 25
   },
   "tasks": [
     {
@@ -861,10 +861,9 @@
         "tests/test_api.py",
         "tests/test_pump_api.py"
       ],
-      "status": "Ready for Review",
-      "status_key": "review",
-      "startable": true,
-      "note": "Ready for Review - PR #66 (https://github.com/gareytwin1/plant-simulator/pull/66), branch fix/request-validation, commit 06a321a. _number_field() helper added to app/main.py, used by /api/load and /api/pump/speed: requires a JSON object with a finite int/float at the named key, rejects missing/null/string/bool/array/NaN/non-JSON body with 400. 16 new DEFECT REPRODUCTION tests across tests/test_api.py and tests/test_pump_api.py, each confirmed to fail against merge-base f210473 before the fix. Full suite 1041 passed (1025 baseline + 16 new), mypy clean over 26 source files, no golden trace moved. Hands the app/main.py lock to R6 once merged."
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged to main as 1467dcc (merge commit from fix/request-validation, PR #66). _number_field() helper added to app/main.py, used by /api/load and /api/pump/speed: requires a JSON object with a finite int/float at the named key, rejects missing/null/string/bool/array/NaN/non-JSON body with 400. 16 new DEFECT REPRODUCTION tests across tests/test_api.py and tests/test_pump_api.py, each confirmed to fail against merge-base before the fix. Rebased onto main after R2/R4/R11 merged (dropped the branch's own stale build-plan-status commit, a derived-file conflict only, before rebasing). 1083 passed post-merge, mypy clean, no golden movement. Hands the app/main.py lock to R6."
     },
     {
       "id": "R6",
@@ -886,10 +885,7 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "R5"
-      ],
+      "startable": true,
       "note": ""
     },
     {

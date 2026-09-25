@@ -15,26 +15,24 @@ already in BUILD_PLAN_STATUS.json and does not need a second home.
 
 ## Right now
 
-**Last state refresh:** 25 September 2026, at `e4357f3` (Merge R11: Check in
-the status generator, PR #68) — **this is a snapshot, not a live pointer.**
-Run `git log e4357f3..HEAD --oneline` to see what has merged since.
-**Full suite as of this refresh:** **1067 passed** · `python -m mypy` clean over 26 source files · compressor golden trace moved deliberately (temperature field only, on the two boundary-asymmetric scenarios — justified in T6-2's note)
-**In flight:** R5 is Ready for Review (not yet merged) — its
-`docs/BUILD_PLAN_STATUS.json` needs regenerating against current `main`
-before it merges cleanly (a derived-file conflict, not a code one). **No
-spine lock is held** — R2 released it; R10b is next in the queue. No task is
-Blocked.
+**Last state refresh:** 25 September 2026, at `1467dcc` (Merge R5: Request
+validation, PR #66) — **this is a snapshot, not a live pointer.** Run
+`git log 1467dcc..HEAD --oneline` to see what has merged since.
+**Full suite as of this refresh:** **1083 passed** · `python -m mypy` clean over 26 source files · compressor golden trace moved deliberately (temperature field only, on the two boundary-asymmetric scenarios — justified in T6-2's note)
+**In flight:** nothing. **No spine lock is held** — R2 released it; R10b is
+next in the queue. The `app/main.py` lock is released too — R5 was the last
+holder; R6 is next to take it. No task is Blocked.
 
 **Recent merges** (full notes in [BUILD_PLAN_STATUS.json](../../docs/BUILD_PLAN_STATUS.json)):
 
 | Task | SHA | What landed |
 |---|---|---|
+| **R5** | `1467dcc` | Request validation. `_number_field()` helper in `app/main.py`, used by `/api/load` and `/api/pump/speed`: requires a JSON object with a finite int/float at the named key, rejects missing/null/string/bool/array/NaN/non-JSON body with 400. 16 new defect-reproduction tests, each confirmed to fail against the merge-base before the fix. Rebased onto main after R2/R4/R11 merged — dropped its own stale `BUILD_PLAN_STATUS.json` commit first (a derived-file conflict only, not a code one). Releases the `app/main.py` lock — R6 is next |
 | **R11** | `e4357f3` | Check in the status generator. `scripts/build_plan_status.py` regenerates `docs/BUILD_PLAN_STATUS.json` from `BUILD_PLAN.html`'s `TASKS` array plus a `taskStatus` export, via `node`; validated to reproduce the current file byte-for-byte before use, and used for real for the first time on this merge and R4's. `DEVELOPMENT.md` carries the authoritative procedure now; `merge-task`/`ready-for-review` skills cite the script instead of a memory-only note. Found, not fixed: 3 Complete tasks still declare `docs/PROJECT_STATE.md`, renamed to `.workspace/memory/project_state.md` by an earlier docs commit — worth a follow-up regeneration pass |
 | **R4** | `993a25d` | Refuse structural design keys. `STRUCTURAL_ATTRIBUTES` denylist (`tag`, `ports`) plus `_`-prefixed rejection in `_apply_design`, so a plant config can't smuggle a structural or private attribute in through `design`. `app/plant/loader.py`, which R1 also touched — R1 merged first, so no sequencing was needed |
 | **R2** | `6cffddd` | Solver refuses non-finite curves. A residual that is non-finite, or overflows its tolerance scaling, on entry raises `SolverError` naming the branch or node row, with the plant restored bit-identically; `SolverResult` refuses a non-finite residual or a converged result with `residual > 1.0`; `_norm` treats a non-finite trial row as infinitely far from converged, since `max()` was skipping a NaN that wasn't the first row. 11 defect-reproduction tests, each confirmed to fail against the merge-base before the fix. Releases the global remediation spine lock — R10b is next. Unblocks T6-5 (its other three dependencies were already Complete) |
 | — | `99a2f75` | (non-task) Enabled roborev continuous review: `.roborev.toml` pins `agent = 'claude-code'` (the only review agent installed on this machine); `roborev@local` plugin enabled in `.claude/settings.json` so open reviews surface at session start; new "Continuous review (roborev)" section in `DEVELOPMENT.md` (`roborev show HEAD`, `roborev tui`, `/roborev-refine` before opening a PR). Post-commit/post-rewrite/pre-push git hooks installed locally (machine state, not in the diff — each contributor runs `roborev init` themselves). Verified end-to-end: the setup commit's own post-commit review ran and passed. Docs and config only — no `app/` code changed. PR #64 |
 | — | `b1ba496` | (non-task) Adopted the coding-agent-toolkit layout: `CLAUDE.md` content moved to `AGENTS.md` (`CLAUDE.md` is now `@AGENTS.md`); `docs/PROJECT_STATE.md` moved to `.workspace/memory/project_state.md`; added `.workspace/{memory,memory-auto,transitions,work}`, a seeded `MEMORY_INDEX.md`, and `.claude/settings.json` enabling the system/workflow/memory/development plugins; copied the three Claude auto-memories into `.workspace/memory-auto/`; adopted the toolkit author's unrelated-fixes rule (fix unrelated lint/test failures as you go, own commit each, except spine files and contracts). Docs and config only — no `app/` code changed. PR #63 |
-| **R9** | `b84767d` | Immutable composition. `StreamState.composition` is now a `MappingProxyType` over a private dict copy, so item assignment raises `TypeError`; `__copy__`/`__deepcopy__` return `self`. No custom `Mapping` class. Pickle unsupported (noted for T12-1); hashing already was not. 3 new tests, each confirmed to fail against the merge-base before the fix. Rebased onto main after R3 (conflict in the derived status file), which also caught and fixed a stale `startable=true` flag R3's own regeneration had left on R9's entry. Unblocks T6-5 alongside R2 |
 
 **ADRs on `main`:** ADR 0001 ([flow-domain separation](../../docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md))
 with Amendment 1, and ADR 0002 ([typed ports](../../docs/ADR_0002_TYPED_PORTS.md)) with
@@ -49,25 +47,25 @@ what made this file 1,086 lines.
 | **M0**–**M5** | **Complete.** Checkpoint A (M1) and Checkpoint B (M4) both reached |
 | **M6** Energy Balance and Temperature | 2/5 — T6-1, T6-2 Complete; T6-3, T6-4, T6-5 all startable |
 | **M7** Control Valves and Final Elements | 2/5 — T7-1, T7-2 Complete; T7-3, T7-4, T7-5 startable |
-| **MR** Remediation | 6/13 — R1, R2, R3, R4, R9, R11 Complete; R5 Ready for Review; the rest of the no-spine set is startable, plus R10b at the head of the spine queue |
+| **MR** Remediation | 7/13 — R1, R2, R3, R4, R5, R9, R11 Complete; the rest of the no-spine set is startable, plus R10b at the head of the spine queue (R6 now startable behind it too) |
 | M8–M19 | Not started |
 
-**47 of 114 tasks Complete.** Next checkpoint is **C** (M5 + M6 + M7); M5 is
+**48 of 114 tasks Complete.** Next checkpoint is **C** (M5 + M6 + M7); M5 is
 closed, M6 has landed two tasks and M7 two. MR is scheduled to merge by
 Checkpoint C; its remaining spine work is R10b → R6 → R7.
 
 ## The next task
 
-**No single task is "the" next one.** Twenty-four tasks are startable in
+**No single task is "the" next one.** Twenty-five tasks are startable in
 parallel (table below); which to hand out next is a scheduling choice, not a
-dependency one. R10b, R12, T6-5, T7-4 and T13-1 are the Opus-level tasks in
-that list. R5 is Ready for Review, not startable — it's already claimed and
-awaiting merge.
+dependency one. R6, R10b, R12, T6-5, T7-4 and T13-1 are the Opus-level tasks
+in that list.
 
-### Startable now (24 tasks)
+### Startable now (25 tasks)
 
 | Task | Name | Model | Branch |
 |---|---|---|---|
+| **R6** | Coherent commands and atomic manual step | Opus · spine lock · `app/main.py` lock | `fix/coherent-commands` |
 | **R8** | Flow unit label | Sonnet | `fix/flow-unit-label` |
 | **R10a** | Documentation corrections | Sonnet | `docs/solved-state-wording` |
 | **R10b** | C1/C4 docstring corrections | Opus · spine lock | `docs/c1-c4-docstrings` |
@@ -94,15 +92,16 @@ awaiting merge.
 | **T18-4** | Structured logging and health | Sonnet | `feature/observability` |
 
 **Still waiting:** T8-3, T9-2 and T11-1 — on T8-2 and T9-1, unchanged by T6-1.
-From MR: **T18-1** on R7; R6 on R5; R7 on R6.
+From MR: **T18-1** on R7; R7 on R6.
 
 **Scheduling notes.** MR runs under **one global spine lock** (U1 in the
 approved design treats `network.py` and `scheduler.py` as spine too). The spine
 queue is now R10b → R6 → R7, one at a time — **R2 released the lock on
 merge, and T6-5 runs last in it**, per the approved remediation design,
-alongside whichever of R10b/R6/R7 is current. The `app/main.py` lock is held
-by R5 (Ready for Review, awaiting merge); R6 is next in that queue once R5
-merges. T7-3 edits `app/equipment/valve.py` and should not run beside another
+alongside whichever of R10b/R6/R7 is current. **R6 also takes the
+`app/main.py` lock**, which R5's merge just released — the two locks land on
+the same task here, so R6 can't start beside anything else touching either
+file. T7-3 edits `app/equipment/valve.py` and should not run beside another
 valve change. T12-1 adds a *new* isolated module under `app/engine/`, which
 is satellite work under the `app/engine/` rule in AGENTS.md.
 

@@ -1,6 +1,7 @@
 import pytest
 from app.equipment.compressor import GasCompressor
 from app.plant.loader import load_plant
+from app.plant.thermo import StreamState
 
 def test_initial_state():
     simulator = GasCompressor()
@@ -405,3 +406,57 @@ def test_get_state_keys_are_unchanged():
         "max_flow",
         "max_temperature",
     }
+
+
+def gas(flow, temperature):
+    return StreamState(flow, temperature, "vapor")
+
+
+def test_leaving_temperature_compresses_from_the_arriving_temperature():
+    simulator = GasCompressor()
+    simulator.base_temperature = 75.0
+
+    ratio = 875.0 / 675.0
+    exponent = (1.3 - 1.0) / (1.3 * 0.75)
+    expected = (100.0 + 459.67) * ratio ** exponent - 459.67
+
+    assert simulator.leaving_temperature(
+        gas(50.0, 100.0), 675.0, 875.0,
+    ) == pytest.approx(expected)
+
+
+@pytest.mark.parametrize(
+    "flow, inlet, outlet",
+    [
+        (50.0, 875.0, 675.0),   # forward, down a pressure drop
+        (50.0, 675.0, 675.0),   # forward, no rise
+        (0.0, 675.0, 875.0),    # no flow
+        (-50.0, 675.0, 875.0),  # reversed
+    ],
+)
+def test_leaving_temperature_throttles_whatever_it_is_not_compressing(
+    flow, inlet, outlet,
+):
+    simulator = GasCompressor()
+
+    assert simulator.leaving_temperature(
+        gas(flow, 100.0), inlet, outlet,
+    ) == pytest.approx(100.0)
+
+
+@pytest.mark.parametrize(
+    "inlet, outlet, label",
+    [
+        (0.0, 100.0, "inlet_pressure"),
+        (-1.0, 100.0, "inlet_pressure"),
+        (675.0, float("nan"), "outlet_pressure"),
+    ],
+)
+@pytest.mark.parametrize("flow", [50.0, 0.0, -50.0])
+def test_leaving_temperature_rejects_a_non_physical_pressure_in_any_direction(
+    flow, inlet, outlet, label,
+):
+    simulator = GasCompressor()
+
+    with pytest.raises(ValueError, match=label):
+        simulator.leaving_temperature(gas(flow, 100.0), inlet, outlet)

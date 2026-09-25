@@ -41,7 +41,7 @@ which is the route T6-2, T6-3 and T6-4 need.
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from types import MappingProxyType
-from typing import Any
+from typing import Any, Protocol, runtime_checkable
 
 from app.equipment.base import LIQUID, PORT_PHASES, VAPOR
 
@@ -214,6 +214,43 @@ class StreamState:
 
     def __deepcopy__(self, memo: dict[int, Any]) -> "StreamState":
         return self
+
+
+@runtime_checkable
+class ThermalDevice(Protocol):
+    """A device that changes the temperature of what flows through it.
+
+    The energy counterpart of `Equipment.characteristic`, and bound by the
+    same rules: a pure query that reads slow state and mutates nothing, so
+    the engine may call it as often as transport needs. A device without it
+    changes the temperature of what passes through it by too little to
+    matter at this level of rigour - a valve, a pipe, a pump - and
+    temperature passes through it unchanged. The method's name is the whole
+    marker: `DomainTransport` classifies a device as thermal by it, once,
+    when the Engine is built.
+
+    `arriving` is the stream entering the device. Its flow is signed in the
+    device's own orientation, positive inlet to outlet, exactly as
+    `characteristic(flow)` reads it, so a reversed flow arrives at the outlet
+    port and the device knows it. Its temperature is the one at whichever end
+    the flow enters, and at exactly zero flow that is the inlet end. The
+    return value is the temperature at the end it leaves.
+
+    The two pressures are the solved pressures at the nodes the inlet and
+    outlet ports attach to, handed in as arguments. The device never reads a
+    node; this is the same bargain `GasCompressor.temperature_at` makes.
+
+    Every finite flow is in range, including zero, where a fixed duty has no
+    stream to heat - the device owns that case (see `heat_capacity_rate`),
+    and must return a finite temperature.
+    """
+
+    def leaving_temperature(
+        self,
+        arriving: StreamState,
+        inlet_pressure: float,
+        outlet_pressure: float,
+    ) -> float: ...
 
 
 def heat_capacity(composition: Mapping[str, float], phase: str) -> float:

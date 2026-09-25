@@ -47,6 +47,7 @@ Engine.step(dt)  ·  app/engine/engine.py
   │   ├── write boundary conditions from coupling-device slow state
   │   ├── NetworkSolver.solve() over EVERY entry in Plant.topologies
   │   ├── read solved flows back onto the coupling devices
+  │   ├── DomainTransport.propagate() on every converged domain
   │   └── build_snapshot(...) with the solved nodes and streams
   ▼
 Session.compressor_state() / pump_state()
@@ -184,6 +185,9 @@ Engine.step(dt)
   ├── 6. topology owns the result    → node pressures written to Node,
   │                                     stream flows written to Stream    [live]
   │
+  ├── 6a. energy transport           → app/engine/transport.py, one per domain,
+  │        upwind of the solved flows: node and stream temperatures      [live]
+  │
   └── 7. publish Snapshot (C4)       → immutable, the single read contract [live]
             │
             ├── controllers (C-)   PID loops, auto/manual        [M8]
@@ -225,6 +229,7 @@ ownership violation.
 |---|---|---|
 | **Node pressure** | **Topology** (`Node.pressure`, written only by the solver via `set_pressure`; boundary values via `set_boundary_pressure`, written only by the coupling) | A device must never read or write a node pressure. A boundary pressure owned by a device is a solver output in disguise. |
 | **Stream flow** | **Topology** (`Stream.flow`, written only by the solver via `set_flow`) | Same rule. `Branch.flow` is a read-only property over the stream. |
+| **Temperature** | **`DomainTransport`** (`app/engine/transport.py`) writes `Stream.temperature` and holds the node temperature field; boundary temperatures are given to the `Engine` | Recomputed after each converged solve from the flows and pressures it committed. A device changes temperature only by implementing `thermo.ThermalDevice.leaving_temperature`, a pure query like `characteristic(flow)`. |
 | **Slow actuator state** (load, speed, valve position, level, vessel pressure, metal temp) | **Device** | Mutated *only* by `integrate(dt)`. `integrate(0)` must be a no-op. |
 | **Equipment characteristic curve** | **Device** | `characteristic(flow)` is pure: reads slow state, returns a number, mutates nothing. The solver may call it many times per timestep. |
 | **Port wiring** | `Port` | Connection metadata, not process state. `__slots__` makes it structurally impossible to store a pressure or flow on a port. Survives `reset()`. T3-7 adds `phase`, `purpose` and optional `control` — still description, still not process state, and only `phase` and `direction` may reach a balance. |
@@ -316,11 +321,13 @@ app/
     snapshot.py           C4: immutable Snapshot
     sessions.py           Session / SessionRegistry
     coupling.py           Vessel inventory ↔ boundary conditions
+    transport.py          Energy transport: node and stream temperatures
     network.py            NetworkSolver (new isolated module, satellite-built)
     scheduler.py          Background stepping (new isolated module)
     rng.py                SeededRNG (required seed; no global stream)
   plant/
     topology.py           C2: Node / Branch / Stream / Topology  [SPINE]
+    thermo.py             Heat capacity, stream mixing, ThermalDevice hook
     validate.py           C3 validator
     loader.py             load_plant(): C3 config → Plant, rejects unsolvable graphs
 config/

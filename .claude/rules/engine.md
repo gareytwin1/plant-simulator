@@ -21,8 +21,8 @@ save/restore, which T12-1 and T14-5 will need.
 
 The existing spine modules are `clock.py`, `engine.py`, `snapshot.py` and
 `sessions.py` — one branch at a time, no satellite edits. `coupling.py` (T5-2)
-is a spine module too, despite being new when it landed: the Engine change and
-the coupling were one design, not two.
+and `transport.py` (T6-5) are spine modules too, despite being new when they
+landed: each Engine change and its module were one design, not two.
 
 A **new isolated module** may be developed as a satellite when the build-plan
 task explicitly owns that new file and does not modify an existing spine

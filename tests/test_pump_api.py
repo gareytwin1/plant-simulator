@@ -107,6 +107,34 @@ def test_pump_api_speed_target_clamps_below_zero():
     assert state["speed_target"] == pytest.approx(0.0)
 
 
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        pytest.param({"json": {}}, id="missing-field"),
+        pytest.param({"data": "null", "content_type": "application/json"}, id="null-body"),
+        pytest.param({"json": {"speed_target": "abc"}}, id="non-numeric-string"),
+        pytest.param({"json": {"speed_target": "0.8"}}, id="numeric-string"),
+        pytest.param({"json": {"speed_target": True}}, id="bool"),
+        pytest.param({"json": {"speed_target": [1]}}, id="array"),
+        pytest.param(
+            {"data": '{"speed_target": NaN}', "content_type": "application/json"},
+            id="raw-nan-literal",
+        ),
+        pytest.param({"data": "not json", "content_type": "text/plain"}, id="non-json-body"),
+    ],
+)
+def test_pump_api_set_speed_rejects_invalid_body(kwargs):
+    client = main.app.test_client()
+
+    response = client.post("/api/pump/speed", **kwargs)
+
+    assert response.status_code == 400
+    assert "error" in response.get_json()
+
+    state = client.get("/api/pump/state").get_json()
+    assert state["speed_target"] == 0.0
+
+
 def test_pump_page_renders():
     client = main.app.test_client()
 

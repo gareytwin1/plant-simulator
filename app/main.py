@@ -1,3 +1,4 @@
+import math
 import uuid
 
 from flask import Flask, Response, g, jsonify, redirect, render_template, request, url_for
@@ -39,6 +40,27 @@ def persist_session_cookie(response: Response) -> Response:
 STEP_UNAVAILABLE_REASON = (
     "manual stepping is unavailable while the background scheduler is running"
 )
+
+
+def _number_field(field: str) -> tuple[float, None] | tuple[None, ResponseReturnValue]:
+    """Read `field` from a JSON body as a finite int or float, or a 400 error."""
+    data = request.get_json(silent=True)
+
+    if not isinstance(data, dict):
+        return None, (jsonify({"error": "request body must be a JSON object"}), 400)
+
+    if field not in data:
+        return None, (jsonify({"error": f"missing field: {field}"}), 400)
+
+    value = data[field]
+
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None, (jsonify({"error": f"{field} must be a number"}), 400)
+
+    if not math.isfinite(value):
+        return None, (jsonify({"error": f"{field} must be finite"}), 400)
+
+    return float(value), None
 
 
 @app.route("/compressor")
@@ -112,12 +134,12 @@ def api_step() -> ResponseReturnValue:
 
 @app.post("/api/load")
 def set_load() -> ResponseReturnValue:
-    data = request.get_json()
+    load_target, error = _number_field("load_target")
+    if error is not None:
+        return error
 
     with g.plant.compressor_scheduler.step_lock:
-        g.plant.compressor.set_load_target(
-            float(data["load_target"])
-        )
+        g.plant.compressor.set_load_target(load_target)
 
     return jsonify(g.plant.compressor_state())
 
@@ -154,12 +176,12 @@ def api_pump_step() -> ResponseReturnValue:
 
 @app.post("/api/pump/speed")
 def set_pump_speed() -> ResponseReturnValue:
-    data = request.get_json()
+    speed_target, error = _number_field("speed_target")
+    if error is not None:
+        return error
 
     with g.plant.pump_scheduler.step_lock:
-        g.plant.pump.set_speed_target(
-            float(data["speed_target"])
-        )
+        g.plant.pump.set_speed_target(speed_target)
 
     return jsonify(g.plant.pump_state())
 

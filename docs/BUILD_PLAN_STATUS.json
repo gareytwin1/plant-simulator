@@ -1,7 +1,7 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "25 September 2026",
-  "main_sha": "7492298033d98473b3c375ed3c25f3e32eec4ad2",
+  "main_sha": "03f1d25e90decc8675fa01ba4ddf13c79baa8052",
   "tests_passing_on_main": 1106,
   "status_vocabulary": {
     "Not Started": "No work begun",
@@ -108,7 +108,7 @@
     },
     "M18": {
       "name": "Deployment and Operations",
-      "complete": 0,
+      "complete": 1,
       "total": 5
     },
     "M19": {
@@ -119,7 +119,7 @@
   },
   "totals": {
     "tasks": 114,
-    "complete": 52,
+    "complete": 53,
     "startable_now": 18
   },
   "tasks": [
@@ -2136,10 +2136,9 @@
       "files": [
         ".github/workflows/ci.yml"
       ],
-      "status": "Ready for Review",
-      "status_key": "review",
-      "startable": true,
-      "note": "Ready for Review: PR #73 (chore/ci-pipeline), not yet merged. .github/workflows/ci.yml runs pytest and mypy on ubuntu-latest / Python 3.12 for every push to main and every pull request, installing from requirements.txt + requirements-dev.txt for a clean checkout. Local: 1106 passed, mypy clean over 26 source files. Both acceptance criteria verified end to end on GitHub Actions, not just locally: 'CI green from clean checkout' confirmed by run 36144731296 on PR #73 (pytest + mypy both green). 'A deliberately failing test blocks the merge' confirmed via a throwaway PR #74 (closed, unmerged) off a branch with one failing test - its CI run failed and the PR's mergeStateStatus came back BLOCKED against main's required 'test' check; branch and PR were deleted/closed after verification. Repo visibility was changed private -> public at the user's explicit direction (2026-09-25) specifically to unlock GitHub branch protection: required status checks return 403 Upgrade to GitHub Pro or make this repository public for a private repo on the free plan, confirmed via the branches/main/protection and rulesets APIs before the change. Branch protection on main now requires the 'test' check (strict, enforce_admins on)."
+      "status": "Complete",
+      "status_key": "done",
+      "note": "COMPLETE - merged to main as e8c4d2b (Merge T18-2, PR #73), 25 Sep 2026, after a server-side rebase onto main (the branch was 4 status commits behind and strict protection required it up to date); CI green on the rebased head. 1106 passed on main post-merge. .github/workflows/ci.yml runs pytest and mypy on ubuntu-latest / Python 3.12 for every push to main and every pull request, installing from requirements.txt + requirements-dev.txt. Both acceptance criteria verified on GitHub Actions: CI green from a clean checkout (run 36144731296), and a deliberately failing test blocks the merge (throwaway PR #74, BLOCKED against main's required 'test' check, closed unmerged). Repo made public at the user's direction (2026-09-25) so branch protection could require the 'test' check on the free plan. Note: the protection API reports enforce_admins as false, so admins can still bypass the check."
     },
     {
       "id": "T18-3",

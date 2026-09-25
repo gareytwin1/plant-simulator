@@ -15,24 +15,24 @@ already in BUILD_PLAN_STATUS.json and does not need a second home.
 
 ## Right now
 
-**Last state refresh:** 25 September 2026, at `33aa68f` (Merge R7: Atomic
-admission and permanent closure, PR #72) — **this is a snapshot, not a live
-pointer.** Run `git log 33aa68f..HEAD --oneline` to see what has merged since.
+**Last state refresh:** 25 September 2026, at `e8c4d2b` (Merge T18-2: Add CI
+workflow, PR #73) - **this is a snapshot, not a live pointer.** Run
+`git log e8c4d2b..HEAD --oneline` to see what has merged since.
 **Full suite as of this refresh:** **1106 passed** · `python -m mypy` clean over 26 source files · compressor golden trace moved deliberately (temperature field only, on the two boundary-asymmetric scenarios — justified in T6-2's note)
-**In flight:** nothing. **No spine lock is held** — R7 released it; T6-5 is
-the last task in the remediation spine queue and takes it next. No task is
-Blocked.
+**In flight:** Ready for Review, not merged - T6-5 (PR #78, **holds the spine
+lock**), T6-3 (#77), T8-1 (#76), T7-4 (#75). No task is Blocked. CI now runs
+on every PR, and `main` requires its `test` check before a merge.
 
 **Recent merges** (full notes in [BUILD_PLAN_STATUS.json](../../docs/BUILD_PLAN_STATUS.json)):
 
 | Task | SHA | What landed |
 |---|---|---|
+| **T18-2** | `e8c4d2b` | CI pipeline. `.github/workflows/ci.yml` runs `pytest` and `mypy` on Python 3.12 for every push to `main` and every PR; `main`'s branch protection requires the `test` check, strict (a PR must be up to date with `main`) |
 | **R7** | `33aa68f` | Atomic admission and permanent closure. `SessionRegistry` builds a `Session` outside a new registry `_lock`, then under it returns an already-admitted entry (ending the unstarted loser) or evicts the LRU session, closing and joining it, before inserting. `get`, `end` and `__len__` take the lock. `Scheduler.start()` is a no-op once `close()`d, and `Session.end()` closes both schedulers, so a request holding an evicted session cannot start an uncounted worker. Eviction stalls lookups for the victim's current step or command, by D6's design. T18-1 must run one Gunicorn worker process. Releases the spine lock — T6-5 is next |
 | **R6** | `617bc9e` | Coherent commands and atomic manual step. `Scheduler.command()` holds `step_lock`, applies an operator action, republishes `engine.snapshot()` without advancing time. `step_once()` takes `_lifecycle` then `step_lock`; refused while running or once `close()`d, but still allowed after a worker stopped on an error. Every command route and both manual-step routes in `app/main.py` go through these two methods; a closed session answers 409 "session ended". `Session.step_compressor`/`step_pump` (the unlocked, unpublished bypass behind the bug) are removed. Releases the spine lock and the `app/main.py` lock — R7 is next |
 | **R10b** | `70d301d` | C1/C4 docstring corrections. `app/equipment/base.py`'s `Equipment.characteristic` docstring mirrors R10a's AGENTS.md wording verbatim; `app/engine/snapshot.py`'s module docstring stops calling `nodes`/`streams` "present but empty" — they carry real solved numbers for any `Engine` built from a plant, since T4-4. Docstrings only, no code change |
 | **R10a** | `07e69df` | Documentation corrections. AGENTS.md's solved-state paragraph replaced in place: inventory is device slow state, reaching the plant only as a boundary the coupling writes; the `integrate(dt)` bullet now says it never touches a solved flow or a node pressure. D9 golden-regeneration wording in AGENTS.md and `.claude/rules/testing.md` now allows an approved numeric change that is the task's own point, with a field-level old/new comparison in the PR — reconciling the written policy with the T6-2 precedent |
 | **R5** | `1467dcc` | Request validation. `_number_field()` helper in `app/main.py`, used by `/api/load` and `/api/pump/speed`: requires a JSON object with a finite int/float at the named key, rejects missing/null/string/bool/array/NaN/non-JSON body with 400. 16 new defect-reproduction tests, each confirmed to fail against the merge-base before the fix |
-| **R11** | `e4357f3` | Check in the status generator. `scripts/build_plan_status.py` regenerates `docs/BUILD_PLAN_STATUS.json` from `BUILD_PLAN.html`'s `TASKS` array plus a `taskStatus` export, via `node`; validated to reproduce the current file byte-for-byte before use |
 
 **ADRs on `main`:** ADR 0001 ([flow-domain separation](../../docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md))
 with Amendment 1, and ADR 0002 ([typed ports](../../docs/ADR_0002_TYPED_PORTS.md)) with
@@ -48,20 +48,21 @@ what made this file 1,086 lines.
 | **M6** Energy Balance and Temperature | 2/5 — T6-1, T6-2 Complete; T6-3, T6-4, T6-5 all startable |
 | **M7** Control Valves and Final Elements | 2/5 — T7-1, T7-2 Complete; T7-3, T7-4, T7-5 startable |
 | **MR** Remediation | 11/13 — R1–R7, R9, R10a, R10b, R11 Complete; R8 and R12 remain, both no-spine and startable |
-| M8–M19 | Not started |
+| **M18** Deployment and Operations | 1/5 - T18-2 Complete |
+| M8–M17, M19 | Not started |
 
-**52 of 114 tasks Complete.** Next checkpoint is **C** (M5 + M6 + M7); M5 is
+**53 of 114 tasks Complete.** Next checkpoint is **C** (M5 + M6 + M7); M5 is
 closed, M6 has landed two tasks and M7 two. MR is scheduled to merge by
 Checkpoint C; its spine work is done, and T6-5 closes the spine queue.
 
 ## The next task
 
-**No single task is "the" next one.** Twenty-three tasks are startable, and
+**No single task is "the" next one.** Twenty-two tasks are startable, and
 with R7 merged that now includes T6-5 for real. Which to hand out next is a
 scheduling choice, not a dependency one. T6-5, R12, T7-4 and T13-1 are the
 Opus-level tasks among them.
 
-### Startable now (23)
+### Startable now (22)
 
 | Task | Name | Model | Branch |
 |---|---|---|---|
@@ -86,7 +87,6 @@ Opus-level tasks among them.
 | **T16-2** | Snapshot push transport | Sonnet | `feature/snapshot-transport` |
 | **T17-1** | Ring-buffer historian | Sonnet | `feature/historian` |
 | **T18-1** | Container and WSGI serving | Sonnet · one worker process | `chore/container-and-ci` |
-| **T18-2** | CI pipeline | Sonnet | `chore/ci-pipeline` |
 | **T18-4** | Structured logging and health | Sonnet | `feature/observability` |
 
 **Still waiting:** T8-3, T9-2 and T11-1 — on T8-2 and T9-1, unchanged by T6-1.

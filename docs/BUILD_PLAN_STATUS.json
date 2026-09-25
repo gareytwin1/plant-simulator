@@ -952,9 +952,9 @@
       "branch": "docs/solved-state-wording",
       "depends_on": [],
       "files": [
-        "CLAUDE.md",
+        "AGENTS.md",
         ".claude/rules/testing.md",
-        "docs/PROJECT_STATE.md",
+        ".workspace/memory/project_state.md",
         "docs/ARCHITECTURE.md"
       ],
       "status": "Not Started",

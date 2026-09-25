@@ -452,8 +452,11 @@ def test_leaving_temperature_throttles_whatever_it_is_not_compressing(
         (675.0, float("nan"), "outlet_pressure"),
     ],
 )
-def test_leaving_temperature_rejects_a_non_physical_pressure(inlet, outlet, label):
+@pytest.mark.parametrize("flow", [50.0, 0.0, -50.0])
+def test_leaving_temperature_rejects_a_non_physical_pressure_in_any_direction(
+    flow, inlet, outlet, label,
+):
     simulator = GasCompressor()
 
     with pytest.raises(ValueError, match=label):
-        simulator.leaving_temperature(gas(50.0, 100.0), inlet, outlet)
+        simulator.leaving_temperature(gas(flow, 100.0), inlet, outlet)

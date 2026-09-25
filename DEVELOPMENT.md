@@ -106,6 +106,22 @@ design — is the **Agent model guidance** section in
 - If you hit a blocker (a contract seems wrong, a dependency isn't actually
   ready), note it on the task rather than working around it silently.
 
+### Continuous review (roborev)
+
+A git post-commit hook sends every commit to [roborev](https://roborev.io) for
+an automated review (agent: `claude-code`, pinned in `.roborev.toml`).
+Findings surface at the next Claude Code session start and via:
+
+```bash
+roborev show HEAD    # review for the most recent commit
+roborev tui           # interactive queue across all commits
+```
+
+Address findings before opening a PR — `/roborev-refine` reviews every commit
+on the branch, applies fixes, and re-reviews until clean. This runs alongside
+`pytest`/`mypy`, not instead of them; a review-clean branch can still fail the
+suite.
+
 ### Before review
 
 **Ready for Review** is defined in
@@ -201,7 +217,8 @@ docs/project-handoff-refresh
   independent stages into independent commits.
 - Prefer several small understandable commits to one "everything changed"
   commit, and leave the branch in a sensible state at each one where
-  practical.
+  practical. roborev reviews each commit separately (see below), so this also
+  keeps its feedback focused.
 - Subject lines say what changed, not how — lead with the task ID when there
   is one.
 - Write a body only when the reason, tradeoff, migration concern or important

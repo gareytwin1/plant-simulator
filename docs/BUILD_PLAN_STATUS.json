@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "25 September 2026",
-  "main_sha": "70d301d4b105ef6bb103323f3c4714d4cfaac82a",
-  "tests_passing_on_main": 1083,
+  "main_sha": "617bc9e8c31946b9930bcf5c98943b234ca022cd",
+  "tests_passing_on_main": 1098,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -43,7 +43,7 @@
     },
     "MR": {
       "name": "Remediation",
-      "complete": 9,
+      "complete": 10,
       "total": 13
     },
     "M6": {
@@ -119,7 +119,7 @@
   },
   "totals": {
     "tasks": 114,
-    "complete": 50,
+    "complete": 51,
     "startable_now": 23
   },
   "tasks": [
@@ -883,10 +883,9 @@
         "tests/test_api.py",
         "tests/test_pump_api.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true,
-      "note": ""
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged to main as 617bc9e (merge commit from fix/coherent-commands, PR #71). D5 implemented: Scheduler.command() holds step_lock, applies the operator action, then republishes engine.snapshot() without advancing time - a response read right after a command sees it even while the worker runs. step_once() takes _lifecycle then step_lock; refused (returns None, no step) while the worker is running or once the scheduler is closed; a worker stopped on an error still allows a manual step. close() stops the worker and marks the scheduler permanently closed, so a subsequent manual step answers 409 'session ended' instead of the running-scheduler reason. Every command route and both manual-step routes in app/main.py now go through these two methods; lock order documented on the scheduler's module docstring. Session.step_compressor/step_pump - the unlocked, unpublished bypass behind the defect - are removed; tests/golden_regression.py (not on R6's file list, but a mechanical follow-on of that removal) now steps through scheduler.step_once() instead, fixtures byte-unchanged. 11 new DEFECT REPRODUCTION tests, each confirmed to fail against the merge-base and pass after the fix. 1098 passed post-merge (up from 1083), mypy clean over 26 source files, no golden movement. Releases the spine lock and the app/main.py lock: R7 is next in the queue."
     },
     {
       "id": "R7",
@@ -907,10 +906,7 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "R6"
-      ],
+      "startable": true,
       "note": ""
     },
     {

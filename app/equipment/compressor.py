@@ -111,14 +111,10 @@ class GasCompressor(Equipment):
         suction_pressure: float,
         discharge_pressure: float,
     ) -> float:
-        for label, pressure in (
-            ("suction_pressure", suction_pressure),
-            ("discharge_pressure", discharge_pressure),
-        ):
-            if not math.isfinite(pressure) or pressure <= 0.0:
-                raise ValueError(
-                    f"{label} must be finite and positive, got {pressure!r}",
-                )
+        _check_pressures(
+            suction_pressure=suction_pressure,
+            discharge_pressure=discharge_pressure,
+        )
 
         return self._polytropic(
             self.base_temperature,
@@ -131,6 +127,11 @@ class GasCompressor(Equipment):
         inlet_pressure: float,
         outlet_pressure: float,
     ) -> float:
+        _check_pressures(
+            inlet_pressure=inlet_pressure,
+            outlet_pressure=outlet_pressure,
+        )
+
         # Only gas driven forward against a rise is being compressed. Gas
         # flowing backwards, or forwards down a pressure drop, is throttled
         # through the machine, and an ideal gas throttles at constant
@@ -184,3 +185,11 @@ class GasCompressor(Equipment):
             "max_flow": self.max_flow,
             "max_temperature": self.max_temperature,
         }
+
+
+def _check_pressures(**pressures: float) -> None:
+    for label, pressure in pressures.items():
+        if not math.isfinite(pressure) or pressure <= 0.0:
+            raise ValueError(
+                f"{label} must be finite and positive, got {pressure!r}",
+            )

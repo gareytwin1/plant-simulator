@@ -120,7 +120,7 @@
   "totals": {
     "tasks": 114,
     "complete": 44,
-    "startable_now": 27
+    "startable_now": 26
   },
   "tasks": [
     {
@@ -837,10 +837,10 @@
         "app/plant/loader.py",
         "tests/test_plant_loader.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
+      "status": "Ready for Review",
+      "status_key": "review",
       "startable": true,
-      "note": ""
+      "note": "PR #65 (fix/structural-design-keys, 6b65fb0): STRUCTURAL_ATTRIBUTES denylist (tag, ports) plus _-prefixed rejection in _apply_design. 1029 passed, mypy clean, no golden movement."
     },
     {
       "id": "R5",

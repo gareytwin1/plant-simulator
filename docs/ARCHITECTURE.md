@@ -325,6 +325,9 @@ app/
     network.py            NetworkSolver (new isolated module, satellite-built)
     scheduler.py          Background stepping (new isolated module)
     rng.py                SeededRNG (required seed; no global stream)
+  controls/
+    arbitration.py        CommandArbiter: interlock > operator > controller
+                          per final element (not yet wired to any route)
   plant/
     topology.py           C2: Node / Branch / Stream / Topology  [SPINE]
     thermo.py             Heat capacity, stream mixing, ThermalDevice hook

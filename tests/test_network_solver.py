@@ -882,6 +882,17 @@ def test_an_infinite_shutoff_raises_rather_than_stalling_on_infinity():
     assert topology.branch("B-01").flow == 0.0
 
 
+def test_a_residual_that_overflows_its_tolerance_scaling_raises_on_entry():
+    # 1e302 psia is finite, but divided by the 1e-7 psia tolerance it is not.
+    # It must fail as an ill-posed network, not as a ValueError out of
+    # SolverResult.
+    topology = single_branch()
+    topology.branch("B-01").device.shutoff_rise = 1e302
+
+    with pytest.raises(SolverError, match="branch B-01"):
+        solve_network(topology)
+
+
 def test_a_non_finite_node_pressure_on_entry_raises_naming_the_rows_it_poisons():
     topology = series_plant(pump=ramped_pump())
     topology.node("N-MID").set_pressure(float("nan"))

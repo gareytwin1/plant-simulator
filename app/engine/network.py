@@ -401,16 +401,19 @@ class NetworkSolver:
         return residuals
 
     def _refuse_non_finite(self, residuals: list[float]) -> None:
+        # Checked after scaling, as _norm sees it: a finite residual above
+        # about 1.8e301 overflows once divided by a 1e-7 tolerance, and
+        # would otherwise slip past here only to be refused by SolverResult.
         rows = [
             f"branch {branch.id}"
             for branch, residual in zip(self._branches, residuals)
-            if not math.isfinite(residual)
+            if not math.isfinite(residual / self.pressure_tolerance)
         ]
 
         rows += [
             f"node {node.id}"
             for node, residual in zip(self._internal, residuals[self._flows :])
-            if not math.isfinite(residual)
+            if not math.isfinite(residual / self.flow_tolerance)
         ]
 
         if rows:

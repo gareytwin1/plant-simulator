@@ -204,7 +204,7 @@ class Equipment:
     `integrate(dt)` advances SLOW state only — a load ramp, a valve stroke,
     a vessel level, metal temperature. It is the only method allowed to
     mutate the device, it moves it forward by dt seconds of simulated time,
-    and it never touches flow or pressure.
+    and it never touches a solved flow or a node pressure.
 
     `characteristic(flow)` is a pure query — the pressure change across the
     device at that flow, right now, with the slow state wherever integrate
@@ -213,9 +213,11 @@ class Equipment:
     times per timestep as its iteration needs.
 
     A device therefore never reads or writes a node pressure. It publishes a
-    curve; the solver finds where the plant lands on it. A boundary pressure
-    owned by a device is a solver output in disguise and belongs to the
-    topology instead.
+    curve; the solver finds where the plant lands on it. A node pressure or
+    branch flow is a solver output, and a device holding a copy of one is a
+    solver output in disguise. Inventory — a vessel's level and gas pressure
+    — is device slow state; it reaches the plant only as a boundary the
+    coupling writes.
 
     Slow state is captured at the end of construction, so `reset()` restores
     every device exactly without each one reimplementing it. Port wiring is

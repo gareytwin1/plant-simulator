@@ -1,7 +1,7 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "25 September 2026",
-  "main_sha": "208c6366d4e9083c8e6f19bfd555ab179551641f",
+  "main_sha": "4232dd996fa59a1debbbba81e737a0fefc3877a3",
   "tests_passing_on_main": 1106,
   "status_vocabulary": {
     "Not Started": "No work begun",
@@ -120,7 +120,7 @@
   "totals": {
     "tasks": 114,
     "complete": 52,
-    "startable_now": 21
+    "startable_now": 19
   },
   "tasks": [
     {
@@ -1048,10 +1048,10 @@
       "files": [
         "app/equipment/exchanger.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
+      "status": "Ready for Review",
+      "status_key": "review",
       "startable": true,
-      "note": ""
+      "note": "Ready for Review: PR #77 (feature/heat-exchanger), not yet merged. HeatExchanger in app/equipment/exchanger.py: UA-based duty against a fixed cold-utility temperature (cold_temperature), mediated by a metal wall (metal_temperature) with thermal inertia. metal_temperature chases the process inlet temperature via the same rate-limited _move_toward every other device's slow state uses (compressor load, valve stroke) rather than a self-referential exponential lag, chosen because _move_toward is stable for any dt while an explicit-Euler time-constant ODE is not once dt exceeds twice the constant, and SimulationClock's speed multiplier has no ceiling. duty reads only metal_temperature and cold_temperature, never the live process inlet, so it cannot jump the instant that temperature does; at full settle it reduces exactly to Q = UA * approach. outlet_temperature() closes the process-side energy balance exactly via thermo.heat_capacity_rate, not to a tolerance. Fouling ([0,1]) scales effective_ua and duty directly. Registers heat_exchanger in app/plant/loader.py's DEVICE_TYPES (mirrors T7-1's control_valve registration) and adds the module to the C1 contract-test battery in tests/test_equipment_contract.py. 9 tests in tests/test_exchanger.py covering the build plan's three acceptance criteria directly: energy balance closes exactly, fouling reduces UA and duty (including full fouling to zero), and cutting the process heat load raises downstream temperature only gradually (probe-stream test isolating the ramp from the inlet term itself). 1127 passed, mypy clean over 27 source files, no golden trace moved. Not wired to a running plant/engine yet - T6-5 (energy propagation through the network) does not depend on T6-3, so that wiring is a later task's job."
     },
     {
       "id": "T6-4",
@@ -1188,10 +1188,10 @@
       "files": [
         "app/controls/pid.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
+      "status": "Ready for Review",
+      "status_key": "review",
       "startable": true,
-      "note": ""
+      "note": "PR #76: feature/pid-block"
     },
     {
       "id": "T8-2",

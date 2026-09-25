@@ -15,9 +15,9 @@ already in BUILD_PLAN_STATUS.json and does not need a second home.
 
 ## Right now
 
-**Last state refresh:** 24 September 2026, at `b1ba496` (Agents: Adopt
-coding-agent-toolkit layout, PR #63) — **this is a snapshot, not a live
-pointer.** Run `git log b1ba496..HEAD --oneline` to see what has merged since.
+**Last state refresh:** 24 September 2026, at `99a2f75` (Chore: Enable
+roborev continuous review, PR #64) — **this is a snapshot, not a live
+pointer.** Run `git log 99a2f75..HEAD --oneline` to see what has merged since.
 **Full suite as of this refresh:** **1025 passed** · `python -m mypy` clean over 26 source files · compressor golden trace moved deliberately (temperature field only, on the two boundary-asymmetric scenarios — justified in T6-2's note)
 **In flight:** nothing. **No spine lock is held.** No task is Blocked.
 
@@ -25,12 +25,12 @@ pointer.** Run `git log b1ba496..HEAD --oneline` to see what has merged since.
 
 | Task | SHA | What landed |
 |---|---|---|
+| — | `99a2f75` | (non-task) Enabled roborev continuous review: `.roborev.toml` pins `agent = 'claude-code'` (the only review agent installed on this machine); `roborev@local` plugin enabled in `.claude/settings.json` so open reviews surface at session start; new "Continuous review (roborev)" section in `DEVELOPMENT.md` (`roborev show HEAD`, `roborev tui`, `/roborev-refine` before opening a PR). Post-commit/post-rewrite/pre-push git hooks installed locally (machine state, not in the diff — each contributor runs `roborev init` themselves). Verified end-to-end: the setup commit's own post-commit review ran and passed. Docs and config only — no `app/` code changed. PR #64 |
 | — | `b1ba496` | (non-task) Adopted the coding-agent-toolkit layout: `CLAUDE.md` content moved to `AGENTS.md` (`CLAUDE.md` is now `@AGENTS.md`); `docs/PROJECT_STATE.md` moved to `.workspace/memory/project_state.md`; added `.workspace/{memory,memory-auto,transitions,work}`, a seeded `MEMORY_INDEX.md`, and `.claude/settings.json` enabling the system/workflow/memory/development plugins; copied the three Claude auto-memories into `.workspace/memory-auto/`; adopted the toolkit author's unrelated-fixes rule (fix unrelated lint/test failures as you go, own commit each, except spine files and contracts). Docs and config only — no `app/` code changed. PR #63 |
 | **R9** | `b84767d` | Immutable composition. `StreamState.composition` is now a `MappingProxyType` over a private dict copy, so item assignment raises `TypeError`; `__copy__`/`__deepcopy__` return `self`. No custom `Mapping` class. Pickle unsupported (noted for T12-1); hashing already was not. 3 new tests, each confirmed to fail against the merge-base before the fix. Rebased onto main after R3 (conflict in the derived status file), which also caught and fixed a stale `startable=true` flag R3's own regeneration had left on R9's entry. Unblocks T6-5 alongside R2 |
 | **R3** | `17330bc` | Machine design ranges. Property setters enforce D3 on `GasCompressor` and `CentrifugalPump`: `1 < isentropic_exponent <= 5/3`, `0 < polytropic_efficiency <= 1`, every `*_resistance > 0`, `shutoff_pressure_rise >= 0`, `base_temperature > -459.67`°F; `temperature_at` rejects a non-finite or non-positive pressure with `ValueError`. Vessel's numeric range-check helper lifted into `app/equipment/ranges.py`, shared by all three devices. 18 new tests, each confirmed to fail against the merge-base before the fix. `app/equipment/base.py` untouched — no spine lock |
 | **R1** | `0a4af4f` | Reject non-finite numbers at load. Finite numbers enforced in layers (D1): `validate.py`'s generic `"number"` branch now rejects NaN/±inf ahead of the `minimum` check, covering node pressure, limit fields, controller gains and interlock `delay_s` in one change; `loader.py`'s `_apply_design` rejects a non-finite design number directly, since `design` has no per-key schema for the validator to see; the loader's own boundary-pressure check also rejects non-finite pressure explicitly, extended to internal nodes too. 25 new tests, each confirmed to fail against the merge-base before the fix. Unblocks R4 |
 | — | `300659b` | (non-task) Added milestone **MR Remediation** (R1–R12, 13 tasks) to the build plan from the approved post-T6-2 audit. Puts **R9 and R2 in front of T6-5** and **R7 in front of T18-1**. Docs only — no code changed. PR #59 |
-| **T6-2** | `20a504a` | Polytropic compression temperature. `GasCompressor.temperature_at` replaces the piecewise table with `T2 = T1·(P2/P1)^((k-1)/(k·η))`; `isentropic_exponent`/`polytropic_efficiency` are named design attributes. Takes the actual solved suction/discharge pressures via `Session.compressor_state()`, not a fixed design target — an initial revision used the design target to avoid touching the `app/engine/` spine and was caught in review as physically wrong |
 
 **ADRs on `main`:** ADR 0001 ([flow-domain separation](../../docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md))
 with Amendment 1, and ADR 0002 ([typed ports](../../docs/ADR_0002_TYPED_PORTS.md)) with

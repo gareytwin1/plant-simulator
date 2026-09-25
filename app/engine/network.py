@@ -453,7 +453,7 @@ class NetworkSolver:
             for i, sign in incidence:
                 jacobian[self._flows + row][i] = sign
 
-        return _solve_linear(
+        return solve_linear(
             jacobian,
             [-residual for residual in residuals],
         )
@@ -587,7 +587,7 @@ def solve_network(
     ).solve()
 
 
-def _solve_linear(matrix: list[list[float]], rhs: list[float]) -> list[float]:
+def solve_linear(matrix: list[list[float]], rhs: list[float]) -> list[float]:
     """Dense Gaussian elimination with partial pivoting.
 
     Thirty lines rather than a dependency: the V1 train is a handful of

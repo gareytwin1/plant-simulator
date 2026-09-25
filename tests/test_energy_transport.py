@@ -335,20 +335,75 @@ def test_a_recirculation_loop_with_fresh_feed_settles_on_the_steady_mix():
     assert transport.temperatures["N-2"] == pytest.approx(118.0)
 
 
-def test_a_heated_loop_with_no_feed_has_no_steady_temperature():
-    feed = Node("FEED", is_boundary=True)
+class Compressing(Line):
+    """Scales absolute temperature, as a polytropic rise does."""
+
+    def __init__(self, tag="K-1", resistance=0.01, factor=1.0):
+        super().__init__(tag, resistance)
+
+        self.factor = factor
+
+    def leaving_temperature(self, arriving, inlet_pressure, outlet_pressure):
+        return (arriving.temperature + 459.67) * self.factor - 459.67
+
+
+def recycle_loop(recycle_device, feed=1.0, recycle=100.0):
+    """FEED -> N-1 -> N-2 -> OUT, with N-2 recycled to N-1 through a device."""
+    source = Node("FEED", is_boundary=True)
+    out = Node("OUT", is_boundary=True)
     first, second = Node("N-1"), Node("N-2")
-    transport = manual(
+
+    return manual(
         [
-            (Branch("B-1", feed, first, Line("L-1")), 0.0),
-            (Branch("B-2", first, second, Line("L-2")), 10.0),
-            (Branch("B-3", second, first, Heater(temperature_rise=5.0)), 10.0),
+            (Branch("B-1", source, first, Line("L-1")), feed),
+            (Branch("B-2", first, second, Line("L-2")), feed + recycle),
+            (Branch("B-3", second, first, recycle_device), recycle),
+            (Branch("B-4", second, out, Line("L-3")), feed),
         ],
-        [feed, first, second],
+        [source, out, first, second],
+        FEED=100.0,
     )
 
-    with pytest.raises(ValueError, match="did not settle"):
-        transport.propagate()
+
+def test_a_loop_recycling_a_hundred_times_its_feed_settles_exactly():
+    transport = recycle_loop(Heater(temperature_rise=0.5))
+    transport.propagate()
+
+    # N-1 * 1 = 100 * 1 + 100 * 0.5
+    assert transport.settled
+    assert transport.temperatures["N-1"] == pytest.approx(150.0, rel=1e-12)
+
+
+def test_a_loop_returning_more_heat_than_its_feed_removes_holds_and_reports():
+    transport = recycle_loop(Compressing(factor=1.1))
+    transport.propagate()
+
+    assert not transport.settled
+    assert "no steady temperature" in transport.failure
+    assert transport.temperatures["N-1"] == STANDARD_TEMPERATURE
+
+
+def test_a_heated_loop_no_feed_reaches_keeps_its_temperature():
+    transport = recycle_loop(Heater(temperature_rise=5.0), feed=0.0, recycle=10.0)
+    transport.propagate()
+    transport.propagate()
+
+    assert transport.settled
+    assert transport.temperatures["N-1"] == STANDARD_TEMPERATURE
+    assert transport.temperatures["N-2"] == STANDARD_TEMPERATURE
+
+
+def test_a_line_that_stops_keeps_the_temperature_it_last_carried():
+    west = Node("WEST", is_boundary=True)
+    east = Node("EAST", is_boundary=True)
+    line = Branch("B-1", west, east, Line("L-1"))
+    transport = manual([(line, -5.0)], [west, east], WEST=200.0, EAST=90.0)
+    transport.propagate()
+
+    line.set_flow(0.0)
+    transport.propagate()
+
+    assert line.stream.temperature == pytest.approx(90.0)
 
 
 def test_a_node_nothing_flows_into_keeps_its_temperature():

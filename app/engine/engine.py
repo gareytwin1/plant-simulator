@@ -48,7 +48,9 @@ recomputes every node and stream temperature upwind of the flows just
 solved - see app/engine/transport.py. It runs after the solve and before the
 snapshot, moves no mass and touches no pressure, so it cannot disturb the
 solve it reads. Boundary nodes supply at the temperatures the engine was
-built with, and at the 60 °F standard wherever none was given.
+built with, and at the 60 °F standard wherever none was given. A domain whose
+temperatures have no steady answer holds them, as a failed solve holds its
+flows, and says so on its transport rather than raising.
 
 A solve that does not converge leaves that domain exactly as it was (T4-3),
 so the step still advances time and slow state but its flow and pressure

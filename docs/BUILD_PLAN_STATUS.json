@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "25 September 2026",
-  "main_sha": "2bde2f9054403380da0580ec7f98dec0182df10a",
-  "tests_passing_on_main": 1098,
+  "main_sha": "33aa68f85ea1e1a325994987af81f40e073d8714",
+  "tests_passing_on_main": 1106,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -43,7 +43,7 @@
     },
     "MR": {
       "name": "Remediation",
-      "complete": 10,
+      "complete": 11,
       "total": 13
     },
     "M6": {
@@ -119,8 +119,8 @@
   },
   "totals": {
     "tasks": 114,
-    "complete": 51,
-    "startable_now": 22
+    "complete": 52,
+    "startable_now": 23
   },
   "tasks": [
     {
@@ -904,10 +904,9 @@
         "tests/test_scheduler.py",
         "docs/BUILD_PLAN.html"
       ],
-      "status": "Ready for Review",
-      "status_key": "review",
-      "startable": true,
-      "note": "Ready for Review as PR #72 (fix/atomic-session-admission, head 32909b2, rebased on main 2bde2f9). D6 implemented: SessionRegistry builds the Session outside a new registry _lock, then under it returns an already-admitted entry (ending the unstarted loser) or evicts the LRU session with victim.end() (close and join), inserts and touches; get, end and __len__ take the lock. Scheduler.start() is a no-op once closed; Session.end() closes both schedulers. Eviction joining under the registry lock stalls lookups for the victim's current step or command - kept per D6 and documented in the registry and scheduler docstrings. T18-1 in BUILD_PLAN.html now requires one Gunicorn worker process. 8 DEFECT REPRODUCTION tests fail on the merge-base and pass after; E2E over a threaded HTTP server at capacity 2 admitted 4-5 sessions on the merge-base vs 2 on the branch. 1106 passed, mypy clean, no golden movement. The BUILD_PLAN.html T18-1 edit still needs publishing to the live artifact at merge."
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged to main as 33aa68f (merge commit from fix/atomic-session-admission, PR #72). D6 implemented: SessionRegistry builds the Session outside a new registry _lock, then under it returns an already-admitted entry (ending the unstarted loser) or evicts the LRU session with victim.end() (close and join), inserts and touches; get, end and __len__ take the lock, eviction goes through a private _end() so the non-reentrant lock is never re-taken. get_or_create keeps its lookup-first fast path. Scheduler.start() is a no-op once closed; Session.end() closes both schedulers, so a request holding an evicted session cannot start an uncounted worker. Eviction joining under the registry lock stalls lookups for the victim's current step or command - kept per D6 and documented in the registry and scheduler docstrings. T18-1 now requires one Gunicorn worker process (BUILD_PLAN.html, published to the live artifact). 8 DEFECT REPRODUCTION tests, each confirmed to fail against the merge-base and pass after. E2E over a threaded HTTP server at capacity 2 with 48 concurrent page loads: merge-base admitted 4-5 sessions and up to 5 workers (bound 4), the branch held 2 and 2 on every run. 1106 passed post-merge (up from 1098), mypy clean over 26 source files, no golden movement. Releases the spine lock: T6-5 is next; unblocks T18-1."
     },
     {
       "id": "R8",
@@ -2122,10 +2121,7 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "R7"
-      ],
+      "startable": true,
       "note": ""
     },
     {

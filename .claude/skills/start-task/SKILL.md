@@ -30,7 +30,7 @@ if the two disagree, DEVELOPMENT.md is authoritative and this skill is stale.
    the task ID), which defaults to Opus for a `core` task and Sonnet for
    everything else. PROJECT_STATE.md's startable-tasks table repeats it for
    the tasks listed there. Sanity-check the result against
-   [CLAUDE.md's Agent model guidance](../../../CLAUDE.md#agent-model-guidance):
+   [AGENTS.md's Agent model guidance](../../../AGENTS.md#agent-model-guidance):
    Sonnet implements and executes, Opus decides. If this session isn't running
    as that model, say so plainly and let the user switch — a skill cannot
    switch its own model.

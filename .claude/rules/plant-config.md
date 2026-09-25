@@ -8,7 +8,7 @@ paths:
 
 # Typed ports and plant configuration
 
-CLAUDE.md states the invariant this file implements: port names never drive
+AGENTS.md states the invariant this file implements: port names never drive
 behaviour, and only `phase` and `direction` classify a connection. This file
 carries the mechanics.
 

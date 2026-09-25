@@ -1,7 +1,7 @@
 ---
 paths:
   - "docs/**"
-  - "CLAUDE.md"
+  - "AGENTS.md"
   - "DEVELOPMENT.md"
   - "README.md"
   - ".claude/skills/**"
@@ -9,7 +9,7 @@ paths:
 
 # Which doc owns what
 
-This repository lost hours twice to documentation drift: CLAUDE.md once
+This repository lost hours twice to documentation drift: CLAUDE.md (now AGENTS.md) once
 claimed both that snapshot `nodes`/`streams` were empty *and* that they carried
 solved numbers, and PROJECT_STATE.md grew to 1,086 lines by re-summarizing
 history that BUILD_PLAN_STATUS.json and the ADRs already held. Each fact below
@@ -18,12 +18,12 @@ that restates something another file already owns, link to it instead.
 
 | Fact | Owner | Never restated in |
 |---|---|---|
-| Architectural invariants, contracts, model guidance, status vocabulary | **CLAUDE.md** | PROJECT_STATE.md, DEVELOPMENT.md |
-| What is true *right now* — current `main`, next task, open decisions | **PROJECT_STATE.md** | CLAUDE.md |
-| Current vs. target architecture, module map, state ownership | **ARCHITECTURE.md** | CLAUDE.md, PROJECT_STATE.md |
-| Why a decision was made | **The ADR itself** | CLAUDE.md, PROJECT_STATE.md — link, do not summarize |
+| Architectural invariants, contracts, model guidance, status vocabulary | **AGENTS.md** | PROJECT_STATE.md, DEVELOPMENT.md |
+| What is true *right now* — current `main`, next task, open decisions | **PROJECT_STATE.md** | AGENTS.md |
+| Current vs. target architecture, module map, state ownership | **ARCHITECTURE.md** | AGENTS.md, PROJECT_STATE.md |
+| Why a decision was made | **The ADR itself** | AGENTS.md, PROJECT_STATE.md — link, do not summarize |
 | A task's full completion note | **BUILD_PLAN_STATUS.json** | PROJECT_STATE.md — one line only |
-| Branch / worktree / merge procedure, commit conventions and examples, file ownership table | **DEVELOPMENT.md** | CLAUDE.md — one-line summary and a link, never the full table or examples |
+| Branch / worktree / merge procedure, commit conventions and examples, file ownership table | **DEVELOPMENT.md** | AGENTS.md — one-line summary and a link, never the full table or examples |
 | Test count | **`pytest --collect-only`**, run live | Nowhere — a hand-maintained count has drifted twice already |
 
 ## PROJECT_STATE.md regrowth rule
@@ -51,11 +51,11 @@ the JSON from it, per the project's build-plan-status-regeneration memory.
 ## Before adding a new stable rule
 
 A repo-wide invariant that applies regardless of which file is open belongs in
-CLAUDE.md. A rule that only matters while editing a specific area belongs in a
+AGENTS.md. A rule that only matters while editing a specific area belongs in a
 new or existing `.claude/rules/*.md` file, scoped with `paths` frontmatter to
 where it applies.
 
-**Exception: give a scoped rule a one-line CLAUDE.md backstop when getting it
+**Exception: give a scoped rule a one-line AGENTS.md backstop when getting it
 wrong is silent and expensive.** A path-scoped rule applies when Claude works
 with files matching its configured `paths`; it is not unconditional startup
 context, so a session that never touches a matching path never sees it. Three

@@ -1,7 +1,7 @@
 # Project State
 
 What is true **right now**. This file goes stale by design; the stable rules are
-in [CLAUDE.md](../CLAUDE.md) and the architecture is in
+in [AGENTS.md](../AGENTS.md) and the architecture is in
 [ARCHITECTURE.md](ARCHITECTURE.md).
 
 **Refresh this file when a task merges, and keep it lean:** a merged task gets
@@ -101,7 +101,7 @@ goes R5 → R6. R4 also edits `app/plant/loader.py`, which R1 (merged) touched
 too, but R1 is done so R4 is simply startable now, no sequencing left. T7-3 edits `app/equipment/valve.py` and should not run
 beside another valve change. T12-1 adds a *new* isolated module under
 `app/engine/`, which is satellite work under the `app/engine/` rule in
-CLAUDE.md.
+AGENTS.md.
 
 ## Known interim behaviour — do not "fix" these in passing
 
@@ -209,7 +209,7 @@ assertion, asserting mid-ramp states, and golden-trace policy — live in
 
 | Question | Source |
 |---|---|
-| What must I never break? | [CLAUDE.md](../CLAUDE.md) |
+| What must I never break? | [AGENTS.md](../AGENTS.md) |
 | How do current and target architecture differ? What is in which module? | [ARCHITECTURE.md](ARCHITECTURE.md) |
 | Why was a decision made? | ADR [0001](ADR_0001_FLOW_DOMAIN_SEPARATION.md), ADR [0002](ADR_0002_TYPED_PORTS.md) |
 | What did task T*n* actually deliver? | [BUILD_PLAN_STATUS.json](BUILD_PLAN_STATUS.json) — search the task ID |

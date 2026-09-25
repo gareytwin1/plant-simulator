@@ -11,7 +11,7 @@ depend on frozen interface contracts.
 
 | Document | Purpose |
 |---|---|
-| [CLAUDE.md](CLAUDE.md) | Architectural invariants and agent operating rules — **read first** |
+| [AGENTS.md](AGENTS.md) | Architectural invariants and agent operating rules — **read first** |
 | [.claude/rules/](.claude/rules/) | Path-scoped rules (engine, plant config, Python style, testing, docs ownership) — they apply when Claude works with files matching their configured `paths` |
 | [docs/PROJECT_STATE.md](docs/PROJECT_STATE.md) | Current `main`, active branches, what to work on next |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Current runtime vs. target architecture; state ownership |
@@ -50,7 +50,7 @@ fixtures.
 ## Status vocabulary
 
 The five values and what each means exactly are the **Status vocabulary**
-section in [CLAUDE.md](CLAUDE.md#status-vocabulary) — authoritative there, not
+section in [AGENTS.md](AGENTS.md#status-vocabulary) — authoritative there, not
 restated here. If you find a task marked Complete whose files are not on
 `main`, correct the status — do not build on it.
 
@@ -92,7 +92,7 @@ directory against the same repo, which removes the race entirely.
 Sonnet implements and executes; Opus decides. The full table — what each one is
 for, and the rule that a Sonnet session escalates rather than inventing a
 design — is the **Agent model guidance** section in
-[CLAUDE.md](CLAUDE.md#agent-model-guidance).
+[AGENTS.md](AGENTS.md#agent-model-guidance).
 
 ### During development
 
@@ -107,7 +107,7 @@ design — is the **Agent model guidance** section in
 ### Before review
 
 **Ready for Review** is defined in
-[CLAUDE.md's Status vocabulary](CLAUDE.md#status-vocabulary), and it means all
+[AGENTS.md's Status vocabulary](AGENTS.md#status-vocabulary), and it means all
 of it, not some of it. The steps below are how you get there; the
 `ready-for-review` skill runs the same checklist.
 
@@ -241,7 +241,7 @@ Never merge `main` backwards into the spine.
 The eight interface contracts (C1–C8: Equipment, Topology, Plant config schema,
 State snapshot, HTTP API, Event record, Alarm interface, Malfunction/Scenario)
 are defined in full on the build plan. C1–C4 are implemented in code; C5–C8
-exist as specifications only — see the contract table in [CLAUDE.md](CLAUDE.md).
+exist as specifications only — see the contract table in [AGENTS.md](AGENTS.md).
 
 Contracts are load-bearing: once a satellite branch depends on one, changing it
 means updating every dependent branch. Propose contract changes as their own
@@ -250,7 +250,7 @@ task, never as a side effect of unrelated work.
 ## Determinism and observability
 
 **Time is owned, not observed** and **golden regressions protect existing
-physics** are both in [CLAUDE.md](CLAUDE.md#critical-architectural-invariants)
+physics** are both in [AGENTS.md](AGENTS.md#critical-architectural-invariants)
 — the full rules, including the golden-trace tolerance rationale, live there.
 One workflow note not covered there: log lines should carry sim time, not
 wall-clock time, so behaviour can be correlated across a run.

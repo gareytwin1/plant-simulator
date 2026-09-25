@@ -49,7 +49,7 @@ two disagree, DEVELOPMENT.md is authoritative and this skill is stale.
 
 6. **Refresh `docs/PROJECT_STATE.md` — current-state fields only.** Per
    [.claude/rules/docs.md](../../rules/docs.md), this skill never edits
-   CLAUDE.md, ARCHITECTURE.md, DEVELOPMENT.md, or the ADRs; a change to any of
+   AGENTS.md, ARCHITECTURE.md, DEVELOPMENT.md, or the ADRs; a change to any of
    those is its own reviewed task, not a side effect of a merge.
 
    - Update "Last state refresh" to the new date and merge SHA.

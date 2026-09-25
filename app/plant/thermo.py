@@ -83,7 +83,7 @@ class Component:
     Capacities are constant with temperature. Over the 50–300 °F band
     docs/UNITS_CONVENTION.md covers, that is the level of rigour the training
     goal asks for; a temperature-dependent correlation is the compositional
-    property package CLAUDE.md rules out.
+    property package AGENTS.md rules out.
     """
 
     name: str

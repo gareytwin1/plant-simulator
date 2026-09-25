@@ -149,7 +149,7 @@ python -m mypy      # static type check over app/
 
 | Document | What it covers |
 |---|---|
-| [CLAUDE.md](CLAUDE.md) | Operating context for coding agents: invariants, contracts, working rules |
+| [AGENTS.md](AGENTS.md) | Operating context for coding agents: invariants, contracts, working rules |
 | [docs/PROJECT_STATE.md](docs/PROJECT_STATE.md) | What is true right now — current `main`, test count, what to work on next |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Current runtime vs. target architecture, and state ownership |
 | [DEVELOPMENT.md](DEVELOPMENT.md) | Branching, worktrees, testing and merge procedure |

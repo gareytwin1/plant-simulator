@@ -40,12 +40,12 @@ two disagree, DEVELOPMENT.md is authoritative and this skill is stale.
 5. Set the task's status to **Complete** — **in the live build plan artifact
    first** (`https://claude.ai/artifact/DXqzpwKxeKZNzZGrC3HkQ9`), with the
    merge SHA and post-merge test count in the note. **Never hand-patch
-   `docs/BUILD_PLAN_STATUS.json` directly** — it's a derived file with three
-   separate sources (task definitions from `BUILD_PLAN.html`, status and notes
-   from the artifact's `ArtifactData`), and hand-editing it is exactly the
-   drift the build plan exists to prevent. Regenerate it from the artifact
-   afterward per the project's build-plan-status-regeneration memory, and
-   confirm the diff shows only the intended fields before committing it.
+   `docs/BUILD_PLAN_STATUS.json` directly** — it's a derived file, and
+   hand-editing it is exactly the drift the build plan exists to prevent.
+   Regenerate it with `scripts/build_plan_status.py` per
+   [DEVELOPMENT.md's "Regenerating docs/BUILD_PLAN_STATUS.json"
+   section](../../../DEVELOPMENT.md#regenerating-docsbuild_plan_statusjson),
+   and confirm the diff shows only the intended fields before committing it.
 
 6. **Refresh `.workspace/memory/project_state.md` — current-state fields only.** Per
    [.claude/rules/docs.md](../../rules/docs.md), this skill never edits

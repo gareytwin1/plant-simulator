@@ -148,7 +148,9 @@ of it, not some of it. The steps below are how you get there; the
   ```
 
 - Open a PR titled `T{TASK-ID}: Brief description`.
-- Set the task status to **Ready for Review**.
+- Set the task status to **Ready for Review** — in the live artifact first,
+  then regenerate `docs/BUILD_PLAN_STATUS.json`; see
+  [below](#regenerating-docsbuild_plan_statusjson).
 
 ### Merging
 
@@ -169,7 +171,9 @@ changes.
   ```
 
 - Set the task status to **Complete**, with the merge SHA and the post-merge test
-  count in the note.
+  count in the note — in the live artifact first, then regenerate
+  `docs/BUILD_PLAN_STATUS.json`; see
+  [below](#regenerating-docsbuild_plan_statusjson).
 - Delete the merged branch (local and remote) and remove the worktree:
 
   ```bash
@@ -180,6 +184,40 @@ changes.
 
 - Refresh [.workspace/memory/project_state.md](.workspace/memory/project_state.md) if the merge changed
   milestone progress, unblocked tasks, or the recommended next task.
+
+### Regenerating docs/BUILD_PLAN_STATUS.json
+
+`docs/BUILD_PLAN_STATUS.json` is a derived file with two independent sources —
+never hand-patch it, which is exactly the drift the build plan exists to
+prevent. Update the **live artifact first**
+(`https://claude.ai/artifact/DXqzpwKxeKZNzZGrC3HkQ9`), then rebuild the JSON
+with `scripts/build_plan_status.py`:
+
+```bash
+python scripts/build_plan_status.py \
+  --status-dir <taskStatus export dir> \
+  --main-sha <current main SHA> \
+  --tests-passing <post-merge test count> \
+  --refreshed "<today, e.g. 24 September 2026>"
+```
+
+- Task definitions (name, category, branch, dependencies, files) come from
+  `docs/BUILD_PLAN.html`'s `TASKS` array (`--html`, default
+  `docs/BUILD_PLAN.html`); the script parses it with `node`, since it's
+  JavaScript, not JSON.
+- Per-task status and notes come from `--status-dir`, a local export of the
+  artifact's `taskStatus` collection: `ArtifactData` `query` or `list` on
+  `taskStatus` with `out_dir` set saves each document as
+  `<out_dir>/taskStatus/<task-id>.json` — pass that `taskStatus` folder as
+  `--status-dir`. A task with no exported document defaults to Not Started.
+- A task's long-form note is carried forward from `--previous` (default: the
+  `--out` file, i.e. the file being replaced) whenever the artifact's own note
+  is empty — most `taskStatus` documents only set `status`.
+- `--out` defaults to `docs/BUILD_PLAN_STATUS.json`, overwriting it in place.
+  Pass `--check` instead to compare against `--out` without writing (exits 1
+  on any drift) — useful to confirm the script reproduces the current file
+  before trusting a change to it.
+- Confirm the diff shows only the intended fields before committing it.
 
 ## File ownership
 

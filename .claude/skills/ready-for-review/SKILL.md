@@ -58,11 +58,12 @@ and needs updating to match — do not follow this skill over DEVELOPMENT.md.
 7. On confirmation, open the PR. Then set the task's status to **Ready for
    Review** — **in the live build plan artifact first**
    (`https://claude.ai/artifact/DXqzpwKxeKZNzZGrC3HkQ9`), never by
-   hand-editing `docs/BUILD_PLAN_STATUS.json` directly. That file is derived
-   from the artifact; editing it by hand is exactly the drift the build plan
-   exists to prevent. Regenerate it from the artifact afterward per the
-   project's build-plan-status-regeneration memory, and confirm the diff shows
-   only the intended fields.
+   hand-editing `docs/BUILD_PLAN_STATUS.json` directly. That file is derived;
+   editing it by hand is exactly the drift the build plan exists to prevent.
+   Regenerate it with `scripts/build_plan_status.py` per
+   [DEVELOPMENT.md's "Regenerating docs/BUILD_PLAN_STATUS.json"
+   section](../../../DEVELOPMENT.md#regenerating-docsbuild_plan_statusjson),
+   and confirm the diff shows only the intended fields.
 
 8. Report: PR URL, final test count, mypy result, and confirmation that no
    golden trace moved.

@@ -1,7 +1,7 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "25 September 2026",
-  "main_sha": "33aa68f85ea1e1a325994987af81f40e073d8714",
+  "main_sha": "208c6366d4e9083c8e6f19bfd555ab179551641f",
   "tests_passing_on_main": 1106,
   "status_vocabulary": {
     "Not Started": "No work begun",
@@ -120,7 +120,7 @@
   "totals": {
     "tasks": 114,
     "complete": 52,
-    "startable_now": 23
+    "startable_now": 22
   },
   "tasks": [
     {
@@ -2136,10 +2136,10 @@
       "files": [
         ".github/workflows/ci.yml"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
+      "status": "Ready for Review",
+      "status_key": "review",
       "startable": true,
-      "note": ""
+      "note": "Ready for Review: PR #73 (chore/ci-pipeline), not yet merged. .github/workflows/ci.yml runs pytest and mypy on ubuntu-latest / Python 3.12 for every push to main and every pull request, installing from requirements.txt + requirements-dev.txt for a clean checkout. Local: 1106 passed, mypy clean over 26 source files. Both acceptance criteria verified end to end on GitHub Actions, not just locally: 'CI green from clean checkout' confirmed by run 36144731296 on PR #73 (pytest + mypy both green). 'A deliberately failing test blocks the merge' confirmed via a throwaway PR #74 (closed, unmerged) off a branch with one failing test - its CI run failed and the PR's mergeStateStatus came back BLOCKED against main's required 'test' check; branch and PR were deleted/closed after verification. Repo visibility was changed private -> public at the user's explicit direction (2026-09-25) specifically to unlock GitHub branch protection: required status checks return 403 Upgrade to GitHub Pro or make this repository public for a private repo on the free plan, confirmed via the branches/main/protection and rulesets APIs before the change. Branch protection on main now requires the 'test' check (strict, enforce_admins on)."
     },
     {
       "id": "T18-3",

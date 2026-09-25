@@ -47,6 +47,7 @@ Engine.step(dt)  ·  app/engine/engine.py
   │   ├── write boundary conditions from coupling-device slow state
   │   ├── NetworkSolver.solve() over EVERY entry in Plant.topologies
   │   ├── read solved flows back onto the coupling devices
+  │   ├── DomainTransport.propagate() on every converged domain
   │   └── build_snapshot(...) with the solved nodes and streams
   ▼
 Session.compressor_state() / pump_state()

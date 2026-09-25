@@ -4,7 +4,7 @@ Operating context for every coding agent here (Claude Code and Codex). Read
 this first. It holds what does not change: invariants, contracts and working
 discipline. `CLAUDE.md` is one line, `@AGENTS.md`, so Claude loads this file.
 
-**Read in this order:** this file → [PROJECT_STATE.md](docs/PROJECT_STATE.md)
+**Read in this order:** this file → [project_state.md](.workspace/memory/project_state.md)
 (what is true right now) → your build plan task and the contract it depends on
 ([BUILD_PLAN.html](docs/BUILD_PLAN.html), or the
 [live artifact](https://claude.ai/artifact/DXqzpwKxeKZNzZGrC3HkQ9)) →
@@ -182,7 +182,7 @@ machine-specific interpreter paths into documentation or scripts.
 | Question | Source |
 |---|---|
 | What must I never break? Which model runs this? How do I commit? | This file |
-| What is true right now? | [docs/PROJECT_STATE.md](docs/PROJECT_STATE.md) |
+| What is true right now? | [.workspace/memory/project_state.md](.workspace/memory/project_state.md) |
 | What is the task list / schedule / contract text? | [docs/BUILD_PLAN.html](docs/BUILD_PLAN.html) + [live artifact](https://claude.ai/artifact/DXqzpwKxeKZNzZGrC3HkQ9) |
 | What is each task's current status? | Live artifact; durable snapshot in [docs/BUILD_PLAN_STATUS.json](docs/BUILD_PLAN_STATUS.json) |
 | How do current and target architecture differ? | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |

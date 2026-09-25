@@ -11,7 +11,7 @@ ahead is everything the solved plant feeds — controllers, envelopes, alarms,
 trips, scenarios, scoring and the console. **None of those exist.**
 
 For current status and task-level detail see
-[PROJECT_STATE.md](PROJECT_STATE.md); for the rules that constrain changes see
+[project_state.md](../.workspace/memory/project_state.md); for the rules that constrain changes see
 [../AGENTS.md](../AGENTS.md). The two architecture decisions on file are
 [ADR 0001](ADR_0001_FLOW_DOMAIN_SEPARATION.md) (flow-domain separation) and
 [ADR 0002](ADR_0002_TYPED_PORTS.md) (typed ports and the vessel connection

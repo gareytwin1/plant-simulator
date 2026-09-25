@@ -1,6 +1,7 @@
 ---
 paths:
   - "docs/**"
+  - ".workspace/memory/**"
   - "AGENTS.md"
   - "DEVELOPMENT.md"
   - "README.md"
@@ -11,27 +12,27 @@ paths:
 
 This repository lost hours twice to documentation drift: CLAUDE.md (now AGENTS.md) once
 claimed both that snapshot `nodes`/`streams` were empty *and* that they carried
-solved numbers, and PROJECT_STATE.md grew to 1,086 lines by re-summarizing
+solved numbers, and PROJECT_STATE.md (now project_state.md) grew to 1,086 lines by re-summarizing
 history that BUILD_PLAN_STATUS.json and the ADRs already held. Each fact below
 has exactly **one** authoritative home. If you are about to write a sentence
 that restates something another file already owns, link to it instead.
 
 | Fact | Owner | Never restated in |
 |---|---|---|
-| Architectural invariants, contracts, model guidance, status vocabulary | **AGENTS.md** | PROJECT_STATE.md, DEVELOPMENT.md |
-| What is true *right now* — current `main`, next task, open decisions | **PROJECT_STATE.md** | AGENTS.md |
-| Current vs. target architecture, module map, state ownership | **ARCHITECTURE.md** | AGENTS.md, PROJECT_STATE.md |
-| Why a decision was made | **The ADR itself** | AGENTS.md, PROJECT_STATE.md — link, do not summarize |
-| A task's full completion note | **BUILD_PLAN_STATUS.json** | PROJECT_STATE.md — one line only |
+| Architectural invariants, contracts, model guidance, status vocabulary | **AGENTS.md** | project_state.md, DEVELOPMENT.md |
+| What is true *right now* — current `main`, next task, open decisions | **project_state.md** | AGENTS.md |
+| Current vs. target architecture, module map, state ownership | **ARCHITECTURE.md** | AGENTS.md, project_state.md |
+| Why a decision was made | **The ADR itself** | AGENTS.md, project_state.md — link, do not summarize |
+| A task's full completion note | **BUILD_PLAN_STATUS.json** | project_state.md — one line only |
 | Branch / worktree / merge procedure, commit conventions and examples, file ownership table | **DEVELOPMENT.md** | AGENTS.md — one-line summary and a link, never the full table or examples |
 | Test count | **`pytest --collect-only`**, run live | Nowhere — a hand-maintained count has drifted twice already |
 
-## PROJECT_STATE.md regrowth rule
+## project_state.md regrowth rule
 
-A merged task gets **one line** in PROJECT_STATE.md's recent-merges table. The
+A merged task gets **one line** in project_state.md's recent-merges table. The
 full note — files touched, numbers, what it deliberately did not do — goes in
 BUILD_PLAN_STATUS.json, where the build-plan tooling already expects it. Do not
-add a per-task handoff section to PROJECT_STATE.md; that is exactly the pattern
+add a per-task handoff section to project_state.md; that is exactly the pattern
 that grew it past 1,000 lines once.
 
 ## Skills that mirror a DEVELOPMENT.md procedure

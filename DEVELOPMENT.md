@@ -13,7 +13,7 @@ depend on frozen interface contracts.
 |---|---|
 | [AGENTS.md](AGENTS.md) | Architectural invariants and agent operating rules — **read first** |
 | [.claude/rules/](.claude/rules/) | Path-scoped rules (engine, plant config, Python style, testing, docs ownership) — they apply when Claude works with files matching their configured `paths` |
-| [docs/PROJECT_STATE.md](docs/PROJECT_STATE.md) | Current `main`, active branches, what to work on next |
+| [.workspace/memory/project_state.md](.workspace/memory/project_state.md) | Current `main`, active branches, what to work on next |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Current runtime vs. target architecture; state ownership |
 | [docs/BUILD_PLAN.html](docs/BUILD_PLAN.html) | Full master plan: tasks, milestones, contracts C1–C8, dependencies, schedule |
 | [docs/BUILD_PLAN_STATUS.json](docs/BUILD_PLAN_STATUS.json) | Durable snapshot of per-task status |
@@ -70,7 +70,7 @@ landed on another session's branch). A worktree gives each task its own working
 directory against the same repo, which removes the race entirely.
 
 1. `git fetch origin`
-2. Read [docs/PROJECT_STATE.md](docs/PROJECT_STATE.md) and the task on the build
+2. Read [.workspace/memory/project_state.md](.workspace/memory/project_state.md) and the task on the build
    plan.
 3. Confirm every dependency is **Complete** — merged to `main`, not merely
    written.
@@ -160,7 +160,7 @@ changes.
   git push origin --delete <type>/<name>
   ```
 
-- Refresh [docs/PROJECT_STATE.md](docs/PROJECT_STATE.md) if the merge changed
+- Refresh [.workspace/memory/project_state.md](.workspace/memory/project_state.md) if the merge changed
   milestone progress, unblocked tasks, or the recommended next task.
 
 ## File ownership

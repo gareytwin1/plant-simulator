@@ -62,7 +62,7 @@ STANDARD_MOLAR_VOLUME = 379.5  # scf/lbmol
 # Guards the division in a mix, and nothing else. It is float slack, not a
 # process deadband: a stopped machine's residual flow is orders of magnitude
 # above this and is weighted normally, which is the intent — see the idle-flow
-# note in docs/PROJECT_STATE.md.
+# note in .workspace/memory/project_state.md.
 WEIGHT_TOLERANCE = 1e-12
 
 # Matches topology.COMPOSITION_TOLERANCE. A composition that sums to 0.9 is a

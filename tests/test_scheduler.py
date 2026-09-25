@@ -545,6 +545,35 @@ def test_close_stops_a_running_worker():
     assert not live_workers()
 
 
+def test_start_after_close_creates_no_worker():
+    # DEFECT REPRODUCTION
+    engine = FakeEngine()
+    scheduler = Scheduler(engine, step_seconds=0.001)
+
+    scheduler.close()
+    scheduler.start()
+
+    assert not scheduler.running
+    assert not live_workers()
+    assert engine.calls == 0
+
+
+def test_close_after_start_joins_the_worker_and_stays_closed():
+    # DEFECT REPRODUCTION
+    engine = FakeEngine()
+    scheduler = Scheduler(engine, step_seconds=0.001)
+
+    scheduler.start()
+    assert engine.entered.wait(WAIT)
+    scheduler.close()
+    assert not live_workers()
+
+    scheduler.start()
+
+    assert not scheduler.running
+    assert not live_workers()
+
+
 def test_manual_step_is_allowed_after_the_worker_stops_on_an_error():
     # DEFECT REPRODUCTION
     engine = FakeEngine()

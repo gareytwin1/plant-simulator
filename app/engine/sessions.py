@@ -13,12 +13,15 @@ running on the server's own clock instead of a browser's setInterval.
 Session.__init__ constructs both and starts neither; only the route
 serving the page that displays a machine starts its scheduler, and only
 Session.end() (called directly, by SessionRegistry.end(), or by LRU
-eviction) stops them. SessionRegistry bounds how many sessions — and so how
-many worker threads — stay alive at once: past config.MAX_SESSIONS, create
-ends the least-recently-touched session first. See
-docs/T2-6_SCHEDULER_OWNERSHIP.md for the design this implements.
+eviction) stops them. It closes them, so a request still holding an ended
+session cannot start a worker the registry no longer counts.
+SessionRegistry bounds how many sessions - and so how many worker threads -
+stay alive at once: past config.MAX_SESSIONS, create ends the
+least-recently-touched session first. See docs/T2-6_SCHEDULER_OWNERSHIP.md
+for the design this implements.
 """
 
+import threading
 import time
 from collections.abc import Callable, Mapping
 from typing import Any
@@ -86,10 +89,11 @@ class Session:
         self.pump_scheduler = Scheduler(self.pump_engine)
 
     def end(self) -> None:
-        """Stop and join both scheduler workers. Safe to call on a session
-        whose schedulers were never started."""
-        self.compressor_scheduler.stop()
-        self.pump_scheduler.stop()
+        """Close both schedulers, stopping and joining any worker. Permanent:
+        a later start() is a no-op. Safe to call on a session whose
+        schedulers were never started."""
+        self.compressor_scheduler.close()
+        self.pump_scheduler.close()
 
     def compressor_state(self) -> StateRow:
         """The compressor page's row: the device's own state plus what the
@@ -176,6 +180,19 @@ class SessionRegistry:
     bounded: past max_sessions, create() ends the LRU session (stopping and
     joining its workers) before admitting a new one. This is deliberately
     not idle-age expiry — T18-5 owns reclaiming idle sessions.
+
+    Admission is atomic. create() builds its Session outside `_lock`, then
+    under it either returns the entry another thread already admitted
+    (ending the unstarted loser) or evicts, inserts and touches. Eviction
+    and end() close the victim while holding `_lock`, so once create()
+    returns the victim's workers are dead, and there are never more than
+    2 * max_sessions of them. `_lock` comes before every Scheduler lock
+    (see scheduler.py). The registry is per-process.
+
+    The cost: while a victim's worker is joined, every lookup waits, for
+    as long as the step or command that worker is waiting behind. Steps
+    and commands are short; that wait buys a victim that is dead, not
+    dying, when create() returns.
     """
 
     def __init__(
@@ -190,45 +207,60 @@ class SessionRegistry:
         self._touched: dict[str, float] = {}
         self._max_sessions = max_sessions
         self._monotonic = monotonic
+        self._lock = threading.Lock()
 
     def create(self, session_id: str) -> Session:
-        if len(self._sessions) >= self._max_sessions:
-            self._evict_least_recently_touched()
-
         session = Session()
-        self._sessions[session_id] = session
-        self._touch(session_id)
-        return session
+
+        with self._lock:
+            existing = self._sessions.get(session_id)
+
+            if existing is not None:
+                session.end()
+                self._touch(session_id)
+                return existing
+
+            if len(self._sessions) >= self._max_sessions:
+                self._evict_least_recently_touched()
+
+            self._sessions[session_id] = session
+            self._touch(session_id)
+            return session
 
     def get(self, session_id: str) -> Session | None:
-        session = self._sessions.get(session_id)
+        with self._lock:
+            session = self._sessions.get(session_id)
 
-        if session is not None:
-            self._touch(session_id)
+            if session is not None:
+                self._touch(session_id)
 
-        return session
+            return session
 
     def get_or_create(self, session_id: str) -> Session:
-        session = self._sessions.get(session_id)
-        if session is None:
-            session = self.create(session_id)
-        else:
-            self._touch(session_id)
-        return session
+        session = self.get(session_id)
+
+        return session if session is not None else self.create(session_id)
 
     def end(self, session_id: str) -> None:
+        with self._lock:
+            self._end(session_id)
+
+    def __len__(self) -> int:
+        with self._lock:
+            return len(self._sessions)
+
+    # The helpers below expect the caller to hold _lock.
+
+    def _touch(self, session_id: str) -> None:
+        self._touched[session_id] = self._monotonic()
+
+    def _end(self, session_id: str) -> None:
         session = self._sessions.pop(session_id, None)
         self._touched.pop(session_id, None)
 
         if session is not None:
             session.end()
 
-    def __len__(self) -> int:
-        return len(self._sessions)
-
-    def _touch(self, session_id: str) -> None:
-        self._touched[session_id] = self._monotonic()
-
     def _evict_least_recently_touched(self) -> None:
         lru_id = min(self._touched, key=self._touched.__getitem__)
-        self.end(lru_id)
+        self._end(lru_id)

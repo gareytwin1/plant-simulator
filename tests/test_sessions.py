@@ -1,8 +1,13 @@
 import threading
+import time
 
 import pytest
 
+from app.engine import sessions
 from app.engine.sessions import Session, SessionRegistry
+
+
+WAIT = 5.0
 
 
 def live_scheduler_workers():
@@ -184,3 +189,180 @@ def test_a_command_reaches_the_published_state_without_advancing_time():
 
     assert session.compressor_state()["running"] is True
     assert scheduler.snapshot().sim_time == before
+
+
+# Atomic admission and permanent closure (R7)
+
+
+def constructing_together(monkeypatch, parties):
+    """Make every Session construction wait until `parties` of them are
+    under way, so racing admissions all build before any is admitted."""
+    barrier = threading.Barrier(parties, timeout=WAIT)
+    built = []
+
+    class Rendezvous(Session):
+        def __init__(self):
+            super().__init__()
+            built.append(self)
+            barrier.wait()
+
+    monkeypatch.setattr(sessions, "Session", Rendezvous)
+
+    return built
+
+
+def run_together(target, args_list):
+    results = [None] * len(args_list)
+
+    def run(i, args):
+        results[i] = target(*args)
+
+    threads = [threading.Thread(target=run, args=(i, a)) for i, a in enumerate(args_list)]
+
+    for thread in threads:
+        thread.start()
+
+    for thread in threads:
+        thread.join(WAIT)
+        assert not thread.is_alive()
+
+    return results
+
+
+def closed(session):
+    return session.compressor_scheduler.closed and session.pump_scheduler.closed
+
+
+def test_concurrent_creates_at_capacity_leave_one_session_and_close_the_rest(monkeypatch):
+    # DEFECT REPRODUCTION
+    ids = [f"s{i}" for i in range(8)]
+    built = constructing_together(monkeypatch, len(ids))
+    registry = SessionRegistry(max_sessions=1)
+
+    run_together(registry.create, [(i,) for i in ids])
+
+    assert len(registry) == 1
+    (admitted,) = [registry.get(i) for i in ids if registry.get(i) is not None]
+    assert [s for s in built if not closed(s)] == [admitted]
+
+
+def test_concurrent_get_or_create_of_one_id_returns_one_object(monkeypatch):
+    # DEFECT REPRODUCTION
+    n = 8
+    built = constructing_together(monkeypatch, n)
+    registry = SessionRegistry()
+
+    results = run_together(registry.get_or_create, [("abc",)] * n)
+
+    assert all(result is results[0] for result in results)
+    assert registry.get("abc") is results[0]
+    assert len(registry) == 1
+    assert [s for s in built if not closed(s)] == [results[0]]
+
+
+def test_evicted_session_cannot_start_a_worker_once_create_returns():
+    # DEFECT REPRODUCTION: a request that resolved the victim before it was
+    # evicted must not be able to start a worker the registry no longer counts.
+    registry = SessionRegistry(max_sessions=1)
+    victim = registry.create("a")
+    victim.compressor_scheduler.start()
+    victim.pump_scheduler.start()
+
+    survivor = registry.create("b")
+
+    assert not live_scheduler_workers()
+    assert closed(victim)
+
+    victim.compressor_scheduler.start()
+    victim.pump_scheduler.start()
+
+    assert not live_scheduler_workers()
+
+    survivor.end()
+
+
+def test_session_end_then_start_creates_no_thread():
+    # DEFECT REPRODUCTION
+    session = Session()
+
+    session.end()
+    session.compressor_scheduler.start()
+    session.pump_scheduler.start()
+
+    assert not live_scheduler_workers()
+
+
+def test_session_start_then_end_joins_both_workers():
+    # DEFECT REPRODUCTION
+    session = Session()
+    session.compressor_scheduler.start()
+    session.pump_scheduler.start()
+
+    session.end()
+
+    assert not live_scheduler_workers()
+    assert closed(session)
+
+
+class ContendedLock:
+    """A step_lock stand-in that reports when a second thread waits on it."""
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self.contended = threading.Event()
+
+    def __enter__(self):
+        if not self._lock.acquire(blocking=False):
+            self.contended.set()
+            self._lock.acquire()
+
+    def __exit__(self, *exc_info):
+        self._lock.release()
+
+
+def test_eviction_while_the_victims_step_lock_is_held_completes_after_release():
+    # DEFECT REPRODUCTION: a route mid-command on the victim holds its
+    # step_lock and the victim's worker is queued behind it. Eviction must
+    # wait for both, then leave the victim closed, not deadlock.
+    registry = SessionRegistry(max_sessions=1)
+    victim = registry.create("a")
+    scheduler = victim.compressor_scheduler
+    scheduler.step_lock = ContendedLock()
+
+    holding = threading.Event()
+    release = threading.Event()
+
+    def slow_action():
+        holding.set()
+        assert release.wait(WAIT)
+
+    commander = threading.Thread(target=scheduler.command, args=(slow_action,))
+    commander.start()
+    assert holding.wait(WAIT)
+
+    # The worker's first step is due at once, so it queues on the held lock.
+    scheduler.start()
+    assert scheduler.step_lock.contended.wait(WAIT)
+
+    evictor = threading.Thread(target=registry.create, args=("b",))
+    evictor.start()
+
+    deadline = time.monotonic() + WAIT
+    while not scheduler.closed and time.monotonic() < deadline:
+        time.sleep(0.001)
+
+    assert scheduler.closed
+    evictor.join(0.05)
+    assert evictor.is_alive()
+
+    release.set()
+    commander.join(WAIT)
+    evictor.join(WAIT)
+
+    assert not commander.is_alive()
+    assert not evictor.is_alive()
+    assert registry.get("a") is None
+    assert closed(victim)
+    assert not live_scheduler_workers()
+
+    registry.end("b")

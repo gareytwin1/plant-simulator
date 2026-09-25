@@ -47,7 +47,8 @@ take an earlier lock while holding a later one. The worker and command()
 take only `step_lock`; step_once() takes `_lifecycle` then `step_lock`, so it
 cannot interleave with start(), stop() or close(). A request handler may
 hold a registry lock only while resolving its session, never around a
-command or a step.
+command or a step. The registry itself holds its lock while it closes an
+ended session, so that close waits out any step or command in progress.
 
 Failure. If engine.step() raises, the worker logs the traceback, records the
 exception on `error` and stops. It does not restart; a step that failed
@@ -57,8 +58,8 @@ an explicit decision for whoever owns it.
 Shutdown is explicit. stop() sets an event the worker waits on, so it wakes
 at once rather than sleeping out its interval, and joins the thread. The
 worker is a daemon only as a backstop against a forgotten stop(). close()
-stops the worker and marks the scheduler closed, after which a manual step
-is refused.
+stops the worker and marks the scheduler closed for good: after it, start()
+is a no-op and a manual step is refused.
 """
 
 import logging
@@ -154,9 +155,10 @@ class Scheduler:
         return self._closed
 
     def start(self) -> None:
-        """Start the worker. A no-op if one is already running."""
+        """Start the worker. A no-op if one is already running or the
+        scheduler is closed."""
         with self._lifecycle:
-            if self.running:
+            if self._closed or self.running:
                 return
 
             self.error = None
@@ -176,8 +178,9 @@ class Scheduler:
             self._stop()
 
     def close(self) -> None:
-        """Stop the worker and mark the scheduler closed. A manual step is
-        refused from then on. Waits for a manual step in progress to finish."""
+        """Stop the worker and mark the scheduler closed, permanently: start()
+        is a no-op and a manual step is refused from then on. Waits for a
+        manual step in progress to finish."""
         with self._lifecycle:
             self._closed = True
             self._stop()

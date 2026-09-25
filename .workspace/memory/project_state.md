@@ -15,9 +15,10 @@ already in BUILD_PLAN_STATUS.json and does not need a second home.
 
 ## Right now
 
-**Last state refresh:** 25 September 2026, at `1467dcc` (Merge R5: Request
-validation, PR #66) — **this is a snapshot, not a live pointer.** Run
-`git log 1467dcc..HEAD --oneline` to see what has merged since.
+**Last state refresh:** 25 September 2026, at `07e69df` (Merge R10a:
+Documentation corrections, PR #69) — **this is a snapshot, not a live
+pointer.** Run `git log 07e69df..HEAD --oneline` to see what has merged
+since.
 **Full suite as of this refresh:** **1083 passed** · `python -m mypy` clean over 26 source files · compressor golden trace moved deliberately (temperature field only, on the two boundary-asymmetric scenarios — justified in T6-2's note)
 **In flight:** nothing. **No spine lock is held** — R2 released it; R10b is
 next in the queue. The `app/main.py` lock is released too — R5 was the last
@@ -27,12 +28,12 @@ holder; R6 is next to take it. No task is Blocked.
 
 | Task | SHA | What landed |
 |---|---|---|
+| **R10a** | `07e69df` | Documentation corrections. AGENTS.md's solved-state paragraph replaced in place: inventory is device slow state, reaching the plant only as a boundary the coupling writes; the `integrate(dt)` bullet now says it never touches a solved flow or a node pressure. D9 golden-regeneration wording in AGENTS.md and `.claude/rules/testing.md` now allows an approved numeric change that is the task's own point, with a field-level old/new comparison in the PR — reconciling the written policy with the T6-2 precedent. `project_state.md` item 3 corrected to `temperature_at(suction, discharge)`, matching the actual signature. `docs/ARCHITECTURE.md` needed no change. Retargeted from stale `CLAUDE.md`/`docs/PROJECT_STATE.md` line-number references first (`61f7707`) before this task's own session started — required wording unchanged throughout |
 | **R5** | `1467dcc` | Request validation. `_number_field()` helper in `app/main.py`, used by `/api/load` and `/api/pump/speed`: requires a JSON object with a finite int/float at the named key, rejects missing/null/string/bool/array/NaN/non-JSON body with 400. 16 new defect-reproduction tests, each confirmed to fail against the merge-base before the fix. Rebased onto main after R2/R4/R11 merged — dropped its own stale `BUILD_PLAN_STATUS.json` commit first (a derived-file conflict only, not a code one). Releases the `app/main.py` lock — R6 is next |
-| **R11** | `e4357f3` | Check in the status generator. `scripts/build_plan_status.py` regenerates `docs/BUILD_PLAN_STATUS.json` from `BUILD_PLAN.html`'s `TASKS` array plus a `taskStatus` export, via `node`; validated to reproduce the current file byte-for-byte before use, and used for real for the first time on this merge and R4's. `DEVELOPMENT.md` carries the authoritative procedure now; `merge-task`/`ready-for-review` skills cite the script instead of a memory-only note. Found, not fixed: 3 Complete tasks still declare `docs/PROJECT_STATE.md`, renamed to `.workspace/memory/project_state.md` by an earlier docs commit — worth a follow-up regeneration pass |
+| **R11** | `e4357f3` | Check in the status generator. `scripts/build_plan_status.py` regenerates `docs/BUILD_PLAN_STATUS.json` from `BUILD_PLAN.html`'s `TASKS` array plus a `taskStatus` export, via `node`; validated to reproduce the current file byte-for-byte before use, and used for real for the first time on this merge and R4's. `DEVELOPMENT.md` carries the authoritative procedure now; `merge-task`/`ready-for-review` skills cite the script instead of a memory-only note |
 | **R4** | `993a25d` | Refuse structural design keys. `STRUCTURAL_ATTRIBUTES` denylist (`tag`, `ports`) plus `_`-prefixed rejection in `_apply_design`, so a plant config can't smuggle a structural or private attribute in through `design`. `app/plant/loader.py`, which R1 also touched — R1 merged first, so no sequencing was needed |
 | **R2** | `6cffddd` | Solver refuses non-finite curves. A residual that is non-finite, or overflows its tolerance scaling, on entry raises `SolverError` naming the branch or node row, with the plant restored bit-identically; `SolverResult` refuses a non-finite residual or a converged result with `residual > 1.0`; `_norm` treats a non-finite trial row as infinitely far from converged, since `max()` was skipping a NaN that wasn't the first row. 11 defect-reproduction tests, each confirmed to fail against the merge-base before the fix. Releases the global remediation spine lock — R10b is next. Unblocks T6-5 (its other three dependencies were already Complete) |
 | — | `99a2f75` | (non-task) Enabled roborev continuous review: `.roborev.toml` pins `agent = 'claude-code'` (the only review agent installed on this machine); `roborev@local` plugin enabled in `.claude/settings.json` so open reviews surface at session start; new "Continuous review (roborev)" section in `DEVELOPMENT.md` (`roborev show HEAD`, `roborev tui`, `/roborev-refine` before opening a PR). Post-commit/post-rewrite/pre-push git hooks installed locally (machine state, not in the diff — each contributor runs `roborev init` themselves). Verified end-to-end: the setup commit's own post-commit review ran and passed. Docs and config only — no `app/` code changed. PR #64 |
-| — | `b1ba496` | (non-task) Adopted the coding-agent-toolkit layout: `CLAUDE.md` content moved to `AGENTS.md` (`CLAUDE.md` is now `@AGENTS.md`); `docs/PROJECT_STATE.md` moved to `.workspace/memory/project_state.md`; added `.workspace/{memory,memory-auto,transitions,work}`, a seeded `MEMORY_INDEX.md`, and `.claude/settings.json` enabling the system/workflow/memory/development plugins; copied the three Claude auto-memories into `.workspace/memory-auto/`; adopted the toolkit author's unrelated-fixes rule (fix unrelated lint/test failures as you go, own commit each, except spine files and contracts). Docs and config only — no `app/` code changed. PR #63 |
 
 **ADRs on `main`:** ADR 0001 ([flow-domain separation](../../docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md))
 with Amendment 1, and ADR 0002 ([typed ports](../../docs/ADR_0002_TYPED_PORTS.md)) with
@@ -47,27 +48,26 @@ what made this file 1,086 lines.
 | **M0**–**M5** | **Complete.** Checkpoint A (M1) and Checkpoint B (M4) both reached |
 | **M6** Energy Balance and Temperature | 2/5 — T6-1, T6-2 Complete; T6-3, T6-4, T6-5 all startable |
 | **M7** Control Valves and Final Elements | 2/5 — T7-1, T7-2 Complete; T7-3, T7-4, T7-5 startable |
-| **MR** Remediation | 7/13 — R1, R2, R3, R4, R5, R9, R11 Complete; the rest of the no-spine set is startable, plus R10b at the head of the spine queue (R6 now startable behind it too) |
+| **MR** Remediation | 8/13 — R1, R2, R3, R4, R5, R9, R10a, R11 Complete; the rest of the no-spine set is startable, plus R10b at the head of the spine queue (R6 now startable behind it too) |
 | M8–M19 | Not started |
 
-**48 of 114 tasks Complete.** Next checkpoint is **C** (M5 + M6 + M7); M5 is
+**49 of 114 tasks Complete.** Next checkpoint is **C** (M5 + M6 + M7); M5 is
 closed, M6 has landed two tasks and M7 two. MR is scheduled to merge by
 Checkpoint C; its remaining spine work is R10b → R6 → R7.
 
 ## The next task
 
-**No single task is "the" next one.** Twenty-five tasks are startable in
+**No single task is "the" next one.** Twenty-four tasks are startable in
 parallel (table below); which to hand out next is a scheduling choice, not a
 dependency one. R6, R10b, R12, T6-5, T7-4 and T13-1 are the Opus-level tasks
 in that list.
 
-### Startable now (25 tasks)
+### Startable now (24 tasks)
 
 | Task | Name | Model | Branch |
 |---|---|---|---|
 | **R6** | Coherent commands and atomic manual step | Opus · spine lock · `app/main.py` lock | `fix/coherent-commands` |
 | **R8** | Flow unit label | Sonnet | `fix/flow-unit-label` |
-| **R10a** | Documentation corrections | Sonnet | `docs/solved-state-wording` |
 | **R10b** | C1/C4 docstring corrections | Opus · spine lock | `docs/c1-c4-docstrings` |
 | **R12** | Reconcile spine rules | Opus | `docs/spine-rules` |
 | **T6-3** | Heat exchanger model | Sonnet | `feature/heat-exchanger` |

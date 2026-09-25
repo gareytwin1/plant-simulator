@@ -127,7 +127,9 @@ policy: [.claude/rules/testing.md](.claude/rules/testing.md).
   append-only or frozen: [DEVELOPMENT.md](DEVELOPMENT.md#file-ownership).
 - **Run the full suite and the type check before review** — `python -m pytest -q`
   and `python -m mypy`, not just the tests you added.
-- **Do not modify unrelated files;** unrelated cleanup goes in its own task.
+- **Fix unrelated lint, test failures and flakiness as you find them,** each in
+  its own commit. A fix that would touch a spine file or a contract is its own
+  task instead.
 - **Preserve contracts.** If a contract seems wrong, raise it as a task rather
   than working around it silently.
 - **Commits are small and singular** — one clear change, a subject line saying

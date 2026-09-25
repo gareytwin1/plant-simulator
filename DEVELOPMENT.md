@@ -98,7 +98,9 @@ design — is the **Agent model guidance** section in
 
 - Build against the **frozen interface contract**, not against another
   satellite's in-progress code.
-- Keep commits scoped to the task; unrelated cleanup goes in its own task.
+- Fix unrelated lint, test failures and flakiness you come across, each in its
+  own commit. A fix that would touch a spine file or a contract is its own
+  task instead.
 - New and modified production code under `app/` carries type hints — full
   rules in [.claude/rules/python.md](.claude/rules/python.md).
 - If you hit a blocker (a contract seems wrong, a dependency isn't actually

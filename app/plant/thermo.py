@@ -223,15 +223,18 @@ class ThermalDevice(Protocol):
     The energy counterpart of `Equipment.characteristic`, and bound by the
     same rules: a pure query that reads slow state and mutates nothing, so
     the engine may call it as often as transport needs. A device without it
-    is adiabatic and does no work on the fluid - a valve, a pipe, a pump at
-    this level of rigour - and temperature passes through it unchanged.
+    changes the temperature of what passes through it by too little to
+    matter at this level of rigour - a valve, a pipe, a pump - and
+    temperature passes through it unchanged. The method's name is the whole
+    marker: the engine classifies a device as thermal by it, once, when the
+    plant is built.
 
     `arriving` is the stream entering the device. Its flow is signed in the
     device's own orientation, positive inlet to outlet, exactly as
     `characteristic(flow)` reads it, so a reversed flow arrives at the outlet
     port and the device knows it. Its temperature is the one at whichever end
-    the flow enters. The return value is the temperature at the end it
-    leaves.
+    the flow enters, and at exactly zero flow that is the inlet end. The
+    return value is the temperature at the end it leaves.
 
     The two pressures are the solved pressures at the nodes the inlet and
     outlet ports attach to, handed in as arguments. The device never reads a

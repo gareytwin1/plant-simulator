@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "25 September 2026",
-  "main_sha": "71e2b99250e1fbeecd8311626f483b0d80963b5a",
-  "tests_passing_on_main": 1218,
+  "main_sha": "332ca8c9389f0085d809dda30d0e9d7a5e6f7413",
+  "tests_passing_on_main": 1249,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -48,7 +48,7 @@
     },
     "M6": {
       "name": "Energy Balance and Temperature",
-      "complete": 3,
+      "complete": 4,
       "total": 5
     },
     "M7": {
@@ -119,7 +119,7 @@
   },
   "totals": {
     "tasks": 114,
-    "complete": 54,
+    "complete": 55,
     "startable_now": 18
   },
   "tasks": [
@@ -1048,10 +1048,9 @@
       "files": [
         "app/equipment/exchanger.py"
       ],
-      "status": "Ready for Review",
-      "status_key": "review",
-      "startable": true,
-      "note": "Ready for Review: PR #77 (feature/heat-exchanger), not yet merged. HeatExchanger in app/equipment/exchanger.py: UA-based duty against a fixed cold-utility temperature (cold_temperature), mediated by a metal wall (metal_temperature) with thermal inertia. metal_temperature chases the process inlet temperature via the same rate-limited _move_toward every other device's slow state uses (compressor load, valve stroke) rather than a self-referential exponential lag, chosen because _move_toward is stable for any dt while an explicit-Euler time-constant ODE is not once dt exceeds twice the constant, and SimulationClock's speed multiplier has no ceiling. duty reads only metal_temperature and cold_temperature, never the live process inlet, so it cannot jump the instant that temperature does; at full settle it reduces exactly to Q = UA * approach. outlet_temperature() closes the process-side energy balance exactly via thermo.heat_capacity_rate, not to a tolerance. Fouling ([0,1]) scales effective_ua and duty directly. Registers heat_exchanger in app/plant/loader.py's DEVICE_TYPES (mirrors T7-1's control_valve registration) and adds the module to the C1 contract-test battery in tests/test_equipment_contract.py. 9 tests in tests/test_exchanger.py covering the build plan's three acceptance criteria directly: energy balance closes exactly, fouling reduces UA and duty (including full fouling to zero), and cutting the process heat load raises downstream temperature only gradually (probe-stream test isolating the ramp from the inlet term itself). 1127 passed, mypy clean over 27 source files, no golden trace moved. Not wired to a running plant/engine yet - T6-5 (energy propagation through the network) does not depend on T6-3, so that wiring is a later task's job."
+      "status": "Complete",
+      "status_key": "done",
+      "note": "COMPLETE - merged to main as 332ca8c (Merge T6-3, PR #77), 25 Sep 2026. 1249 passed on main post-merge, mypy clean over 28 source files, no golden trace moved. HeatExchanger in app/equipment/exchanger.py implements thermo.ThermalDevice: leaving_temperature(arriving, inlet_pressure, outlet_pressure), so app/engine/transport.py's DomainTransport carries temperature through it (proven by an engine-level test building a real Engine/Topology/Branch). Duty is the fixed-coolant effectiveness formula T_out = T_cold + (T_in - T_cold) * exp(-UA_eff / |q*Cp|) - provably bounded between the coolant and arriving temperatures at every flow, in both directions (abs(heat_capacity_rate(arriving)) makes reversed flow cool identically to forward at the same magnitude). Replaces an earlier fixed-BTU/hr-duty-divided-by-flow form that undershot below the coolant at low flow (caught in review: 10 GPM gave -174.5 F against a 90 F coolant). The metal wall's thermal-inertia lag (metal_temperature chasing inlet_temperature via the same rate-limited _move_toward every other device's slow state uses) scales UA_eff through a [0,1] capability fraction rather than substituting into the T_in/T_cold pair directly - substitution was tried and rejected because it broke the zero-capability case (full fouling or an unwarmed wall must give an exact T_out = T_in pass-through). duty is now duty(arriving), derived from leaving_temperature, and dropped from get_state() (no longer parameterless, same reason compressor.get_state() carries no temperature field - nothing live reads it). 20 tests in tests/test_exchanger.py. KNOWN LIMITATION, deliberately out of scope: inlet_temperature is written by nothing in a running plant, so metal_temperature chases its constructor default (60 F), not the live arriving stream - the capability fraction is disconnected from reality until a follow-up wires the engine's arriving temperature into a device's own slow state (an engine/transport design change). Taken as separate follow-up work by the T6-5 session."
     },
     {
       "id": "T6-4",

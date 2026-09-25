@@ -9,7 +9,7 @@ primary checkout. If `git worktree list` doesn't show the current directory as
 a worktree, stop and say so rather than proceeding.
 
 **Ready for Review** means all of the following are true, not some of them —
-see [CLAUDE.md's Status vocabulary](../../../CLAUDE.md#status-vocabulary). The
+see [AGENTS.md's Status vocabulary](../../../AGENTS.md#status-vocabulary). The
 steps below mirror
 [DEVELOPMENT.md's "Before review" section](../../../DEVELOPMENT.md#before-review);
 if the two disagree, DEVELOPMENT.md is authoritative and this skill is stale
@@ -32,7 +32,7 @@ and needs updating to match — do not follow this skill over DEVELOPMENT.md.
 
 3. **Check for golden-trace movement**: `git diff origin/main -- tests/fixtures/golden/`.
    If anything changed, **stop**. Per
-   [CLAUDE.md's golden-regression policy](../../../CLAUDE.md#critical-architectural-invariants),
+   [AGENTS.md's golden-regression policy](../../../AGENTS.md#critical-architectural-invariants),
    a moved trace means behaviour changed and needs explicit justification from
    the user before this skill continues — never regenerate a trace to make a
    test pass and keep going silently.

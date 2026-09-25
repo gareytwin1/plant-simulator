@@ -99,7 +99,7 @@ machine between two fixed battery limits with no valve between them, which is a
 known interim state, not a bug.
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how current and target
-architecture differ, and [docs/PROJECT_STATE.md](docs/PROJECT_STATE.md) for
+architecture differ, and [.workspace/memory/project_state.md](.workspace/memory/project_state.md) for
 what is true right now.
 
 ## Project structure
@@ -149,8 +149,8 @@ python -m mypy      # static type check over app/
 
 | Document | What it covers |
 |---|---|
-| [CLAUDE.md](CLAUDE.md) | Operating context for coding agents: invariants, contracts, working rules |
-| [docs/PROJECT_STATE.md](docs/PROJECT_STATE.md) | What is true right now — current `main`, test count, what to work on next |
+| [AGENTS.md](AGENTS.md) | Operating context for coding agents: invariants, contracts, working rules |
+| [.workspace/memory/project_state.md](.workspace/memory/project_state.md) | What is true right now — current `main`, test count, what to work on next |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Current runtime vs. target architecture, and state ownership |
 | [DEVELOPMENT.md](DEVELOPMENT.md) | Branching, worktrees, testing and merge procedure |
 | [docs/BUILD_PLAN.html](docs/BUILD_PLAN.html) | Full master build plan: 101 tasks, 20 milestones, contracts C1–C8, schedule |

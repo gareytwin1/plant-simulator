@@ -11,9 +11,9 @@ depend on frozen interface contracts.
 
 | Document | Purpose |
 |---|---|
-| [CLAUDE.md](CLAUDE.md) | Architectural invariants and agent operating rules — **read first** |
+| [AGENTS.md](AGENTS.md) | Architectural invariants and agent operating rules — **read first** |
 | [.claude/rules/](.claude/rules/) | Path-scoped rules (engine, plant config, Python style, testing, docs ownership) — they apply when Claude works with files matching their configured `paths` |
-| [docs/PROJECT_STATE.md](docs/PROJECT_STATE.md) | Current `main`, active branches, what to work on next |
+| [.workspace/memory/project_state.md](.workspace/memory/project_state.md) | Current `main`, active branches, what to work on next |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Current runtime vs. target architecture; state ownership |
 | [docs/BUILD_PLAN.html](docs/BUILD_PLAN.html) | Full master plan: tasks, milestones, contracts C1–C8, dependencies, schedule |
 | [docs/BUILD_PLAN_STATUS.json](docs/BUILD_PLAN_STATUS.json) | Durable snapshot of per-task status |
@@ -50,7 +50,7 @@ fixtures.
 ## Status vocabulary
 
 The five values and what each means exactly are the **Status vocabulary**
-section in [CLAUDE.md](CLAUDE.md#status-vocabulary) — authoritative there, not
+section in [AGENTS.md](AGENTS.md#status-vocabulary) — authoritative there, not
 restated here. If you find a task marked Complete whose files are not on
 `main`, correct the status — do not build on it.
 
@@ -70,7 +70,7 @@ landed on another session's branch). A worktree gives each task its own working
 directory against the same repo, which removes the race entirely.
 
 1. `git fetch origin`
-2. Read [docs/PROJECT_STATE.md](docs/PROJECT_STATE.md) and the task on the build
+2. Read [.workspace/memory/project_state.md](.workspace/memory/project_state.md) and the task on the build
    plan.
 3. Confirm every dependency is **Complete** — merged to `main`, not merely
    written.
@@ -92,13 +92,15 @@ directory against the same repo, which removes the race entirely.
 Sonnet implements and executes; Opus decides. The full table — what each one is
 for, and the rule that a Sonnet session escalates rather than inventing a
 design — is the **Agent model guidance** section in
-[CLAUDE.md](CLAUDE.md#agent-model-guidance).
+[AGENTS.md](AGENTS.md#agent-model-guidance).
 
 ### During development
 
 - Build against the **frozen interface contract**, not against another
   satellite's in-progress code.
-- Keep commits scoped to the task; unrelated cleanup goes in its own task.
+- Fix unrelated lint, test failures and flakiness you come across, each in its
+  own commit. A fix that would touch a spine file or a contract is its own
+  task instead.
 - New and modified production code under `app/` carries type hints — full
   rules in [.claude/rules/python.md](.claude/rules/python.md).
 - If you hit a blocker (a contract seems wrong, a dependency isn't actually
@@ -107,7 +109,7 @@ design — is the **Agent model guidance** section in
 ### Before review
 
 **Ready for Review** is defined in
-[CLAUDE.md's Status vocabulary](CLAUDE.md#status-vocabulary), and it means all
+[AGENTS.md's Status vocabulary](AGENTS.md#status-vocabulary), and it means all
 of it, not some of it. The steps below are how you get there; the
 `ready-for-review` skill runs the same checklist.
 
@@ -160,7 +162,7 @@ changes.
   git push origin --delete <type>/<name>
   ```
 
-- Refresh [docs/PROJECT_STATE.md](docs/PROJECT_STATE.md) if the merge changed
+- Refresh [.workspace/memory/project_state.md](.workspace/memory/project_state.md) if the merge changed
   milestone progress, unblocked tasks, or the recommended next task.
 
 ## File ownership
@@ -241,7 +243,7 @@ Never merge `main` backwards into the spine.
 The eight interface contracts (C1–C8: Equipment, Topology, Plant config schema,
 State snapshot, HTTP API, Event record, Alarm interface, Malfunction/Scenario)
 are defined in full on the build plan. C1–C4 are implemented in code; C5–C8
-exist as specifications only — see the contract table in [CLAUDE.md](CLAUDE.md).
+exist as specifications only — see the contract table in [AGENTS.md](AGENTS.md).
 
 Contracts are load-bearing: once a satellite branch depends on one, changing it
 means updating every dependent branch. Propose contract changes as their own
@@ -250,7 +252,7 @@ task, never as a side effect of unrelated work.
 ## Determinism and observability
 
 **Time is owned, not observed** and **golden regressions protect existing
-physics** are both in [CLAUDE.md](CLAUDE.md#critical-architectural-invariants)
+physics** are both in [AGENTS.md](AGENTS.md#critical-architectural-invariants)
 — the full rules, including the golden-trace tolerance rationale, live there.
 One workflow note not covered there: log lines should carry sim time, not
 wall-clock time, so behaviour can be correlated across a run.

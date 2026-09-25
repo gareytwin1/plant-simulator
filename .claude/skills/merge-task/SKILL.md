@@ -1,6 +1,6 @@
 ---
 name: merge-task
-description: Merge an approved PR, verify main, refresh PROJECT_STATE.md's current-state fields, and clean up the task's own worktree and branch. Invoke explicitly with a PR number (e.g. "/merge-task 52"); never auto-triggered, and always pauses before the merge itself.
+description: Merge an approved PR, verify main, refresh project_state.md's current-state fields, and clean up the task's own worktree and branch. Invoke explicitly with a PR number (e.g. "/merge-task 52"); never auto-triggered, and always pauses before the merge itself.
 disable-model-invocation: true
 argument-hint: [pr-number]
 ---
@@ -47,9 +47,9 @@ two disagree, DEVELOPMENT.md is authoritative and this skill is stale.
    afterward per the project's build-plan-status-regeneration memory, and
    confirm the diff shows only the intended fields before committing it.
 
-6. **Refresh `docs/PROJECT_STATE.md` — current-state fields only.** Per
+6. **Refresh `.workspace/memory/project_state.md` — current-state fields only.** Per
    [.claude/rules/docs.md](../../rules/docs.md), this skill never edits
-   CLAUDE.md, ARCHITECTURE.md, DEVELOPMENT.md, or the ADRs; a change to any of
+   AGENTS.md, ARCHITECTURE.md, DEVELOPMENT.md, or the ADRs; a change to any of
    those is its own reviewed task, not a side effect of a merge.
 
    - Update "Last state refresh" to the new date and merge SHA.

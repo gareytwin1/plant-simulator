@@ -1,0 +1,3 @@
+# Runtime signal sidecar - not a source of truth (Relay memory index).
+.index_state.json
+.index_state.lock

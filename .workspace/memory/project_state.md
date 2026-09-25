@@ -1,12 +1,12 @@
 # Project State
 
 What is true **right now**. This file goes stale by design; the stable rules are
-in [CLAUDE.md](../CLAUDE.md) and the architecture is in
-[ARCHITECTURE.md](ARCHITECTURE.md).
+in [AGENTS.md](../../AGENTS.md) and the architecture is in
+[ARCHITECTURE.md](../../docs/ARCHITECTURE.md).
 
 **Refresh this file when a task merges, and keep it lean:** a merged task gets
 its **one-line** entry here, and its full completion note goes in
-[BUILD_PLAN_STATUS.json](BUILD_PLAN_STATUS.json). Per-task handoff sections do
+[BUILD_PLAN_STATUS.json](../../docs/BUILD_PLAN_STATUS.json). Per-task handoff sections do
 not accumulate here — that is what grew this file to 1,086 lines once already.
 When the recent-merges table below passes ~6 rows, drop the oldest — it is
 already in BUILD_PLAN_STATUS.json and does not need a second home.
@@ -21,7 +21,7 @@ already in BUILD_PLAN_STATUS.json and does not need a second home.
 **Full suite as of this refresh:** **1025 passed** · `python -m mypy` clean over 26 source files · compressor golden trace moved deliberately (temperature field only, on the two boundary-asymmetric scenarios — justified in T6-2's note)
 **In flight:** nothing. **No spine lock is held.** No task is Blocked.
 
-**Recent merges** (full notes in [BUILD_PLAN_STATUS.json](BUILD_PLAN_STATUS.json)):
+**Recent merges** (full notes in [BUILD_PLAN_STATUS.json](../../docs/BUILD_PLAN_STATUS.json)):
 
 | Task | SHA | What landed |
 |---|---|---|
@@ -32,8 +32,8 @@ already in BUILD_PLAN_STATUS.json and does not need a second home.
 | **T6-2** | `20a504a` | Polytropic compression temperature. `GasCompressor.temperature_at` replaces the piecewise table with `T2 = T1·(P2/P1)^((k-1)/(k·η))`; `isentropic_exponent`/`polytropic_efficiency` are named design attributes. Takes the actual solved suction/discharge pressures via `Session.compressor_state()`, not a fixed design target — an initial revision used the design target to avoid touching the `app/engine/` spine and was caught in review as physically wrong |
 | T7-2 | `537f206` | Extract valve logic from the compressor. `GasCompressor` loses `discharge_valve_position`/`target`/`rate`; `FV-201` (`ControlValve`) now sits on K-101's discharge in `olefins_lite.yaml`, over a new internal node N-204. Resistance re-split 0.04 machine + 0.01 valve so every T5-5 design value is unmoved. Dead `/api/valve` endpoint and page slider removed |
 
-**ADRs on `main`:** ADR 0001 ([flow-domain separation](ADR_0001_FLOW_DOMAIN_SEPARATION.md))
-with Amendment 1, and ADR 0002 ([typed ports](ADR_0002_TYPED_PORTS.md)) with
+**ADRs on `main`:** ADR 0001 ([flow-domain separation](../../docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md))
+with Amendment 1, and ADR 0002 ([typed ports](../../docs/ADR_0002_TYPED_PORTS.md)) with
 Amendments 1–3 (the last now implemented by T5-7 and consumed by T5-5, closing
 its sequencing chain). **Read the ADRs themselves** — summarising them here is
 what made this file 1,086 lines.
@@ -101,7 +101,7 @@ goes R5 → R6. R4 also edits `app/plant/loader.py`, which R1 (merged) touched
 too, but R1 is done so R4 is simply startable now, no sequencing left. T7-3 edits `app/equipment/valve.py` and should not run
 beside another valve change. T12-1 adds a *new* isolated module under
 `app/engine/`, which is satellite work under the `app/engine/` rule in
-CLAUDE.md.
+AGENTS.md.
 
 ## Known interim behaviour — do not "fix" these in passing
 
@@ -145,7 +145,7 @@ scope, and item 1 in particular reads like a bug and is not.
   behaviour, not a leak to plug.
 - **The `Equipment.characteristic` docstring overstates the Jacobian** —
   `base.py` is frozen, so this hasn't been corrected in place. Full explanation
-  in [.claude/rules/engine.md](../.claude/rules/engine.md).
+  in [.claude/rules/engine.md](../../.claude/rules/engine.md).
 - **A resistance-only valve cannot stop reverse flow, and it absorbs most of the
   drop.** Against 50 → 180 psia a cold plant backflows through a wide-open valve
   (−1000 GPM at Cv 100), and closing it trims that only by the square root of
@@ -203,17 +203,17 @@ they are sized for cold.
 
 Test-writing traps that apply repo-wide — backflow hiding inside a "flow rises"
 assertion, asserting mid-ramp states, and golden-trace policy — live in
-[.claude/rules/testing.md](../.claude/rules/testing.md).
+[.claude/rules/testing.md](../../.claude/rules/testing.md).
 
 ## Where the rest lives
 
 | Question | Source |
 |---|---|
-| What must I never break? | [CLAUDE.md](../CLAUDE.md) |
-| How do current and target architecture differ? What is in which module? | [ARCHITECTURE.md](ARCHITECTURE.md) |
-| Why was a decision made? | ADR [0001](ADR_0001_FLOW_DOMAIN_SEPARATION.md), ADR [0002](ADR_0002_TYPED_PORTS.md) |
-| What did task T*n* actually deliver? | [BUILD_PLAN_STATUS.json](BUILD_PLAN_STATUS.json) — search the task ID |
-| What is the task list and schedule? | [BUILD_PLAN.html](BUILD_PLAN.html) — search your task ID, never read it whole |
-| How do I branch, test and merge? | [DEVELOPMENT.md](../DEVELOPMENT.md) |
-| What units does a number carry? | [UNITS_CONVENTION.md](UNITS_CONVENTION.md) |
+| What must I never break? | [AGENTS.md](../../AGENTS.md) |
+| How do current and target architecture differ? What is in which module? | [ARCHITECTURE.md](../../docs/ARCHITECTURE.md) |
+| Why was a decision made? | ADR [0001](../../docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md), ADR [0002](../../docs/ADR_0002_TYPED_PORTS.md) |
+| What did task T*n* actually deliver? | [BUILD_PLAN_STATUS.json](../../docs/BUILD_PLAN_STATUS.json) — search the task ID |
+| What is the task list and schedule? | [BUILD_PLAN.html](../../docs/BUILD_PLAN.html) — search your task ID, never read it whole |
+| How do I branch, test and merge? | [DEVELOPMENT.md](../../DEVELOPMENT.md) |
+| What units does a number carry? | [UNITS_CONVENTION.md](../../docs/UNITS_CONVENTION.md) |
 | How many tests, and where? | `python -m pytest --collect-only -q` — never a table in a doc |

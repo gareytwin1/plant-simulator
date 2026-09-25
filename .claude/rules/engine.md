@@ -62,7 +62,7 @@ flow — for a valve, a pipe and a machine alike. The curve's real guarantee is
 monotone non-increasing with exactly one root, nothing stronger. `base.py` is
 frozen, so this has not been corrected in place; do not restate the stronger
 claim as fact, and see *A stopped machine keeps a small residual flow* in
-[PROJECT_STATE.md](../../docs/PROJECT_STATE.md) for the double-root behaviour
+[project_state.md](../../.workspace/memory/project_state.md) for the double-root behaviour
 this causes.
 
 ## `SolverResult` and failure policy

@@ -1,0 +1,9 @@
+{
+  "enabledPlugins": {
+    "system@local": true,
+    "workflow@local": true,
+    "memory@local": true,
+    "development@local": true
+  },
+  "autoMemoryDirectory": "./.workspace/memory-auto"
+}

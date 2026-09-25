@@ -15,7 +15,7 @@ if the two disagree, DEVELOPMENT.md is authoritative and this skill is stale.
 
 1. `git fetch origin`.
 
-2. Read [docs/PROJECT_STATE.md](../../../docs/PROJECT_STATE.md) for the
+2. Read [.workspace/memory/project_state.md](../../../.workspace/memory/project_state.md) for the
    current milestone/startable-tasks picture, then find `$0` in
    `docs/BUILD_PLAN_STATUS.json` (search the task ID; do not read
    `docs/BUILD_PLAN.html` in full). Pull: its dependencies, its branch name,
@@ -28,9 +28,9 @@ if the two disagree, DEVELOPMENT.md is authoritative and this skill is stale.
 4. **Check the model assignment.** `BUILD_PLAN_STATUS.json` does not carry one
    — the assignment lives in the `AGENT` map in `docs/BUILD_PLAN.html` (grep
    the task ID), which defaults to Opus for a `core` task and Sonnet for
-   everything else. PROJECT_STATE.md's startable-tasks table repeats it for
+   everything else. project_state.md's startable-tasks table repeats it for
    the tasks listed there. Sanity-check the result against
-   [CLAUDE.md's Agent model guidance](../../../CLAUDE.md#agent-model-guidance):
+   [AGENTS.md's Agent model guidance](../../../AGENTS.md#agent-model-guidance):
    Sonnet implements and executes, Opus decides. If this session isn't running
    as that model, say so plainly and let the user switch — a skill cannot
    switch its own model.
@@ -38,7 +38,7 @@ if the two disagree, DEVELOPMENT.md is authoritative and this skill is stale.
 5. **Check for lock conflicts.** If `$0` touches a file in
    [DEVELOPMENT.md's file-ownership table](../../../DEVELOPMENT.md#file-ownership)
    marked Spine or Highest-conflict, check `BUILD_PLAN_STATUS.json` and
-   PROJECT_STATE.md's "In flight" line for another branch already touching it.
+   project_state.md's "In flight" line for another branch already touching it.
    A new isolated module under `app/engine/` is satellite work even if the
    directory is listed as spine — see
    [.claude/rules/engine.md](../../rules/engine.md).

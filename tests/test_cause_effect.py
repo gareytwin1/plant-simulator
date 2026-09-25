@@ -173,7 +173,7 @@ def idle_bound(resistance):
     machine's residual does reach vessel level. That is the decided behaviour
     rather than an oversight; the residual itself stays recorded as technical
     debt. See "A stopped machine keeps a small residual flow" in
-    docs/PROJECT_STATE.md.
+    .workspace/memory/project_state.md.
     """
     return math.sqrt(DEFAULT_PRESSURE_TOLERANCE / resistance)
 

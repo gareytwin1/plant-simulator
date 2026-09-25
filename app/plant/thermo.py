@@ -62,7 +62,7 @@ STANDARD_MOLAR_VOLUME = 379.5  # scf/lbmol
 # Guards the division in a mix, and nothing else. It is float slack, not a
 # process deadband: a stopped machine's residual flow is orders of magnitude
 # above this and is weighted normally, which is the intent — see the idle-flow
-# note in docs/PROJECT_STATE.md.
+# note in .workspace/memory/project_state.md.
 WEIGHT_TOLERANCE = 1e-12
 
 # Matches topology.COMPOSITION_TOLERANCE. A composition that sums to 0.9 is a
@@ -83,7 +83,7 @@ class Component:
     Capacities are constant with temperature. Over the 50–300 °F band
     docs/UNITS_CONVENTION.md covers, that is the level of rigour the training
     goal asks for; a temperature-dependent correlation is the compositional
-    property package CLAUDE.md rules out.
+    property package AGENTS.md rules out.
     """
 
     name: str

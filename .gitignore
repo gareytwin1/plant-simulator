@@ -2,6 +2,11 @@
 CLAUDE.local.md
 .claude/settings.local.json
 
+# Agent workspace: local session state (coding-agent-toolkit convention)
+.workspace/transitions/
+.workspace/work/current/*/state.json
+ACTIVE_WORK
+
 # Python
 __pycache__/
 *.py[cod]

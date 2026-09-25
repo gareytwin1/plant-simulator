@@ -34,6 +34,7 @@ CHARACTERISTIC_SWEEP = (
 
 DEVICE_MODULES = (
     "app.equipment.compressor",
+    "app.equipment.exchanger",
     "app.equipment.pump",
     "app.equipment.valve",
 )

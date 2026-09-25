@@ -91,12 +91,6 @@ class Session:
         self.compressor_scheduler.stop()
         self.pump_scheduler.stop()
 
-    def step_compressor(self) -> None:
-        self.compressor_engine.step(config.SIMULATION_STEP_SECONDS)
-
-    def step_pump(self) -> None:
-        self.pump_engine.step(config.SIMULATION_STEP_SECONDS)
-
     def compressor_state(self) -> StateRow:
         """The compressor page's row: the device's own state plus what the
         solver put on its branch and nodes.

@@ -30,9 +30,24 @@ Concurrency. The Engine has no locking and a snapshot read walks live
 devices, so nothing may read or mutate it while a step runs. `step_lock` is
 held for the duration of engine.step() and nothing else — never across
 logging or waiting. Consumers read `snapshot()`, which returns the last
-Snapshot the worker published: immutable (C4) and built inside the lock, so
-it can never be a half-finished step. Anything else that mutates the engine
-while the worker runs, such as an operator action, takes `step_lock` first.
+published Snapshot: immutable (C4) and built inside the lock, so it can never
+be a half-finished step.
+
+Everything that touches the engine goes through one of three paths, and each
+publishes what it leaves behind. The worker steps and publishes. command()
+applies an operator action and republishes without advancing time, so a
+response read straight after it sees the action. step_once() is the manual
+step: it is refused (returns None) while the worker runs or once the
+scheduler is closed, and otherwise steps and publishes. A worker stopped by
+an error does not count as running, so a manual step is still allowed.
+
+Lock order: `_lifecycle`, then `step_lock`, and a session-registry lock,
+where one guards the sessions that own schedulers, comes before both. Never
+take an earlier lock while holding a later one. The worker and command()
+take only `step_lock`; step_once() takes `_lifecycle` then `step_lock`, so it
+cannot interleave with start(), stop() or close(). A request handler may
+hold a registry lock only while resolving its session, never around a
+command or a step.
 
 Failure. If engine.step() raises, the worker logs the traceback, records the
 exception on `error` and stops. It does not restart; a step that failed
@@ -41,7 +56,9 @@ an explicit decision for whoever owns it.
 
 Shutdown is explicit. stop() sets an event the worker waits on, so it wakes
 at once rather than sleeping out its interval, and joins the thread. The
-worker is a daemon only as a backstop against a forgotten stop().
+worker is a daemon only as a backstop against a forgotten stop(). close()
+stops the worker and marks the scheduler closed, after which a manual step
+is refused.
 """
 
 import logging
@@ -124,12 +141,17 @@ class Scheduler:
         self._stopping = threading.Event()
         self._thread: threading.Thread | None = None
         self._latest: Snapshot | None = None
+        self._closed = False
 
     @property
     def running(self) -> bool:
         thread = self._thread
 
         return thread is not None and thread.is_alive()
+
+    @property
+    def closed(self) -> bool:
+        return self._closed
 
     def start(self) -> None:
         """Start the worker. A no-op if one is already running."""
@@ -151,17 +173,50 @@ class Scheduler:
         """Stop the worker and join it. Safe to call again, or when never
         started."""
         with self._lifecycle:
-            thread = self._thread
+            self._stop()
 
-            if thread is None:
-                return
+    def close(self) -> None:
+        """Stop the worker and mark the scheduler closed. A manual step is
+        refused from then on. Waits for a manual step in progress to finish."""
+        with self._lifecycle:
+            self._closed = True
+            self._stop()
 
-            if thread is threading.current_thread():
-                raise RuntimeError("the scheduler cannot be stopped from its own worker")
+    def command(self, action: Callable[[], object]) -> Snapshot:
+        """Apply an operator action and publish the result without advancing
+        time. Returns the snapshot it published."""
+        with self.step_lock:
+            action()
+            self._latest = self.engine.snapshot()
 
-            self._stopping.set()
-            thread.join()
-            self._thread = None
+            return self._latest
+
+    def step_once(self) -> Snapshot | None:
+        """Step the engine once by hand and publish the result. Refused, and
+        returns None without stepping, while the worker runs or once the
+        scheduler is closed."""
+        with self._lifecycle:
+            if self._closed or self.running:
+                return None
+
+            with self.step_lock:
+                self._latest = self.engine.step(self.step_seconds)
+
+                return self._latest
+
+    def _stop(self) -> None:
+        # The caller holds _lifecycle.
+        thread = self._thread
+
+        if thread is None:
+            return
+
+        if thread is threading.current_thread():
+            raise RuntimeError("the scheduler cannot be stopped from its own worker")
+
+        self._stopping.set()
+        thread.join()
+        self._thread = None
 
     def snapshot(self) -> Snapshot:
         """The last published snapshot, or a fresh one if nothing has been

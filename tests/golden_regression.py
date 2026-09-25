@@ -190,12 +190,12 @@ class Rig:
         if kind == "compressor":
             session = Session(compressor_plant=plant)
             self.device = session.compressor
-            self.step = session.step_compressor
+            self.step = session.compressor_scheduler.step_once
             self.get_state = session.compressor_state
         else:
             session = Session(pump_plant=plant)
             self.device = session.pump
-            self.step = session.step_pump
+            self.step = session.pump_scheduler.step_once
             self.get_state = session.pump_state
 
 

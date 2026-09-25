@@ -120,7 +120,7 @@
   "totals": {
     "tasks": 114,
     "complete": 52,
-    "startable_now": 22
+    "startable_now": 21
   },
   "tasks": [
     {
@@ -1156,10 +1156,10 @@
       "files": [
         "app/controls/arbitration.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
+      "status": "Ready for Review",
+      "status_key": "review",
       "startable": true,
-      "note": ""
+      "note": "Ready for Review: PR #75 (feature/command-arbitration), not yet merged. CommandArbiter in app/controls/arbitration.py: standing demands per bound output keyed by (source, requester), resolved by fixed precedence interlock > operator > controller, independent of arrival order. A demand holds until its requester releases it; several requesters of one source may hold an output and releasing one keeps the other; disagreeing requesters raise ConflictingDemand (values within 1e-9 agree). apply() is the only caller of a bound actuator, writes every output even if one raises, then raises an ExceptionGroup; an undemanded output is left alone. 50 tests in tests/test_command_arbitration.py including all 24 arrival orderings and a real ControlValve stroked to fail position and back. 1160 passed, mypy clean over 28 source files, no golden trace moved. SCOPE (agreed with user before implementation): not wired to anything yet. The existing operator routes in app/main.py still call device setters directly (roborev finding on the first commit); they must be rewired through the arbiter before M11 interlocks go live, otherwise an operator command could undo a trip. T8-4 and T11-2 bind to it. Start/stop is not arbitrated, only numeric targets - T11-2 decides how 'stop the machine' is expressed."
     },
     {
       "id": "T7-5",

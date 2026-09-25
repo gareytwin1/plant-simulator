@@ -47,7 +47,8 @@ take an earlier lock while holding a later one. The worker and command()
 take only `step_lock`; step_once() takes `_lifecycle` then `step_lock`, so it
 cannot interleave with start(), stop() or close(). A request handler may
 hold a registry lock only while resolving its session, never around a
-command or a step.
+command or a step. The registry itself holds its lock while it closes an
+ended session, so that close waits out any step or command in progress.
 
 Failure. If engine.step() raises, the worker logs the traceback, records the
 exception on `error` and stops. It does not restart; a step that failed

@@ -14,10 +14,11 @@ Session.__init__ constructs both and starts neither; only the route
 serving the page that displays a machine starts its scheduler, and only
 Session.end() (called directly, by SessionRegistry.end(), or by LRU
 eviction) stops them. It closes them, so a request still holding an ended
-session cannot start a worker the registry no longer counts. SessionRegistry bounds how many sessions — and so how
-many worker threads — stay alive at once: past config.MAX_SESSIONS, create
-ends the least-recently-touched session first. See
-docs/T2-6_SCHEDULER_OWNERSHIP.md for the design this implements.
+session cannot start a worker the registry no longer counts.
+SessionRegistry bounds how many sessions — and so how many worker threads —
+stay alive at once: past config.MAX_SESSIONS, create ends the
+least-recently-touched session first. See docs/T2-6_SCHEDULER_OWNERSHIP.md
+for the design this implements.
 """
 
 import threading
@@ -187,6 +188,11 @@ class SessionRegistry:
     returns the victim's workers are dead, and there are never more than
     2 * max_sessions of them. `_lock` comes before every Scheduler lock
     (see scheduler.py). The registry is per-process.
+
+    The cost: while a victim's worker is joined, every lookup waits, for
+    as long as the step or command that worker is waiting behind. Steps
+    and commands are short; that wait buys a victim that is dead, not
+    dying, when create() returns.
     """
 
     def __init__(

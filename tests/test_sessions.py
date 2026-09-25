@@ -1,4 +1,5 @@
 import threading
+import time
 
 import pytest
 
@@ -303,12 +304,30 @@ def test_session_start_then_end_joins_both_workers():
     assert closed(session)
 
 
+class ContendedLock:
+    """A step_lock stand-in that reports when a second thread waits on it."""
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self.contended = threading.Event()
+
+    def __enter__(self):
+        if not self._lock.acquire(blocking=False):
+            self.contended.set()
+            self._lock.acquire()
+
+    def __exit__(self, *exc_info):
+        self._lock.release()
+
+
 def test_eviction_while_the_victims_step_lock_is_held_completes_after_release():
     # DEFECT REPRODUCTION: a route mid-command on the victim holds its
-    # step_lock; eviction must neither deadlock nor leave the victim open.
+    # step_lock and the victim's worker is queued behind it. Eviction must
+    # wait for both, then leave the victim closed, not deadlock.
     registry = SessionRegistry(max_sessions=1)
     victim = registry.create("a")
-    victim.compressor_scheduler.start()
+    scheduler = victim.compressor_scheduler
+    scheduler.step_lock = ContendedLock()
 
     holding = threading.Event()
     release = threading.Event()
@@ -317,12 +336,24 @@ def test_eviction_while_the_victims_step_lock_is_held_completes_after_release():
         holding.set()
         assert release.wait(WAIT)
 
-    commander = threading.Thread(target=victim.compressor_scheduler.command, args=(slow_action,))
+    commander = threading.Thread(target=scheduler.command, args=(slow_action,))
     commander.start()
     assert holding.wait(WAIT)
 
+    # The worker's first step is due at once, so it queues on the held lock.
+    scheduler.start()
+    assert scheduler.step_lock.contended.wait(WAIT)
+
     evictor = threading.Thread(target=registry.create, args=("b",))
     evictor.start()
+
+    deadline = time.monotonic() + WAIT
+    while not scheduler.closed and time.monotonic() < deadline:
+        time.sleep(0.001)
+
+    assert scheduler.closed
+    evictor.join(0.05)
+    assert evictor.is_alive()
 
     release.set()
     commander.join(WAIT)

@@ -23,13 +23,17 @@ Several requesters of one source may hold the same output at once, e.g. two
 trips that both close one valve. Releasing one leaves the other in force. They
 must agree, though: a second requester posting a different value from the same
 source is a configuration fault, and it raises rather than letting arrival
-order pick between them.
+order pick between them. Values that differ only by float rounding, within
+`AGREEMENT`, count as agreeing.
 
 An output is bound once, to the setter that moves its device's slow-state
 target (`ControlValve.set_position_target`, for instance). `apply()` is the
 only thing that calls it. The device keeps its own travel limits and stroke
 rate; the arbiter decides *which* value it is sent, never how the device gets
 there. An output nobody is demanding is left alone, holding its last target.
+Every output is written even if another's actuator raises, so one faulty
+device cannot stop a trip reaching the rest; the failures are raised together
+afterwards.
 
 Nothing here reads the plant or knows about time: arbitration is a pure
 decision over the demands posted, and `apply()` is idempotent.
@@ -52,6 +56,8 @@ PRECEDENCE = (
     Source.OPERATOR,
     Source.CONTROLLER,
 )
+
+AGREEMENT = 1e-9
 
 Actuator = Callable[[float], None]
 
@@ -102,7 +108,8 @@ class CommandArbiter:
         disagreeing = sorted(
             other
             for other, other_value in held.items()
-            if other != requester and other_value != value
+            if other != requester
+            and not math.isclose(other_value, value, abs_tol=AGREEMENT)
         )
 
         if disagreeing:
@@ -142,11 +149,21 @@ class CommandArbiter:
         return None
 
     def apply(self) -> None:
-        for output, actuator in self._actuators.items():
-            resolution = self.resolve(output)
+        resolved = [
+            (self._actuators[output], resolution.value)
+            for output in self._actuators
+            if (resolution := self.resolve(output)) is not None
+        ]
+        failures: list[Exception] = []
 
-            if resolution is not None:
-                actuator(resolution.value)
+        for actuator, value in resolved:
+            try:
+                actuator(value)
+            except Exception as failure:
+                failures.append(failure)
+
+        if failures:
+            raise ExceptionGroup("actuator writes failed", failures)
 
     def _held(self, output: str, source: Source) -> dict[str, float]:
         if output not in self._demands:

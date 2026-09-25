@@ -267,3 +267,34 @@ def test_the_arbitrated_value_strokes_a_real_valve():
     valve.integrate(2.0)
 
     assert valve.position == pytest.approx(0.8)
+
+
+def test_requesters_agreeing_up_to_float_rounding_are_not_a_conflict():
+    arbiter, _ = recording_arbiter()
+
+    arbiter.demand(OUTPUT, Source.INTERLOCK, "I-101", 0.1)
+    arbiter.demand(OUTPUT, Source.INTERLOCK, "I-102", 1.0 - 0.9)
+
+    resolution = arbiter.resolve(OUTPUT)
+    assert resolution is not None
+    assert resolution.requesters == ("I-101", "I-102")
+    assert resolution.value == pytest.approx(0.1)
+
+
+def test_a_failing_actuator_does_not_stop_the_other_outputs():
+    arbiter = CommandArbiter()
+    written: list[float] = []
+
+    def faulty(value: float) -> None:
+        raise RuntimeError("actuator fault")
+
+    arbiter.bind("FV-101.position", faulty)
+    arbiter.bind("FV-102.position", written.append)
+    arbiter.demand("FV-101.position", Source.INTERLOCK, "I-101", 0.1)
+    arbiter.demand("FV-102.position", Source.INTERLOCK, "I-101", 0.1)
+
+    with pytest.raises(ExceptionGroup) as raised:
+        arbiter.apply()
+
+    assert raised.group_contains(RuntimeError, match="actuator fault")
+    assert written == [pytest.approx(0.1)]

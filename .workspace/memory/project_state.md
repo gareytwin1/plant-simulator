@@ -15,11 +15,11 @@ already in BUILD_PLAN_STATUS.json and does not need a second home.
 
 ## Right now
 
-**Last state refresh:** 26 September 2026, at `3cb05dc` (Merge T10-1: Alarm
-state machine, PR #87) - **this is a snapshot, not a live
-pointer.** Run `git log 3cb05dc..HEAD --oneline` to see what has merged since.
-**Full suite as of this refresh:** **1499 passed** · `python -m mypy` clean over 39 source files · compressor golden trace moved deliberately (temperature field only, on the two boundary-asymmetric scenarios - justified in T6-2's note)
-**In flight:** T14-1 (PR #88), Ready for Review; not spine.
+**Last state refresh:** 26 September 2026, at `f1a48ef` (Merge T14-1: Scenario
+file schema, PR #88) - **this is a snapshot, not a live
+pointer.** Run `git log f1a48ef..HEAD --oneline` to see what has merged since.
+**Full suite as of this refresh:** **1525 passed** · `python -m mypy` clean over 39 source files · compressor golden trace moved deliberately (temperature field only, on the two boundary-asymmetric scenarios - justified in T6-2's note)
+**In flight:** nothing.
 **No spine lock is held.** No task is Blocked. CI runs on every PR, and `main` requires its
 `test` check before a merge.
 
@@ -27,12 +27,12 @@ pointer.** Run `git log 3cb05dc..HEAD --oneline` to see what has merged since.
 
 | Task | SHA | What landed |
 |---|---|---|
+| **T14-1** | `f1a48ef` | Scenario file schema (C8). `config/schema/scenario.schema.json` covers `Scenario(initial_condition, malfunctions[], triggers[], objectives[], time_limit_s, difficulty, seed)`. Malfunction entries mirror `app/disturbances/malfunction.py`'s constructor; `profile`, `start_condition` and per-type trigger fields are left as tagged objects (`type` enforced, type-specific fields not), the same move `plant.schema.json` makes for typed ports - exact per-type shape is T13-3's and T14-2's job. Reuses the existing generic `app/plant/validate.py:validate()` against the new schema. Unblocks T14-2, T18-5 |
 | **T10-1** | `3cb05dc` | Alarm state machine (C7). Pure ISA-style lifecycle in `app/alarms/state.py`: `NORMAL`/`UNACK`/`ACKED`/`RTN_UNACK`, with clear-before-acknowledge handled explicitly - a condition that clears before acknowledgement holds in `RTN_UNACK` rather than returning to `NORMAL`, and a re-alarm from there returns to `UNACK` on the same `Alarm` instance rather than duplicating it. No plant dependency. T10-2 binds to it |
 | **T9-1** | `89ed2fc` | Envelope evaluator. `Evaluator`/`Limits`/`Severity` in `app/envelope/evaluator.py`: boundary-inclusive classification against six optional ordered thresholds (normal/warning/alarm/trip), deadband gating de-escalation only, on-delay gating escalation only. Roborev caught two real edge cases pre-merge: a same-severity side flip (`warning_lo` held, `warning_hi` reached) silently bypassing both guards, and the on-delay pending timer not resetting when an uncommitted escalation flips side - both fixed and locked in with tests. No plant dependency. Unblocks T9-2, T9-3, T11-1 |
 | **T13-2** | `462b313` | True and indicated values. `Instrument(tag, section, source, variable, bias)` in `app/engine/instruments.py`; `Snapshot.equipment/nodes/streams` are now the indicated view and `Snapshot.truth` the physics, excluded from `as_dict()` and guarded by `tests/test_truth_isolation.py` (allowlist empty). `Engine(instruments=...)`; `Instrument.bias` is malfunction-writable, so instrument drift is a ramped bias. Releases the spine lock |
 | **T13-1** | `e009883` | Malfunction model and registry (C8). `Malfunction(target_tag, parameter, value, profile, start_condition)` in `app/disturbances/malfunction.py`; `WRITABLE` allowlists design parameters per exact device class, so solver outputs and slow state raise `NotWritable`. `MalfunctionRegistry.update(snapshot)` latches onset and captures the original; `revert` restores it exactly. `Step`/`AtTime` minimal, T13-3 extends. Open for T13-4: trips are commands, not parameters (needs an Opus decision); `stroke_rate` is unvalidated so not allowlisted (T7-3) |
 | **T8-2** | `6e68db0` | Control modes and bumpless transfer. `Loop`/`Mode` in `app/controls/modes.py`: MANUAL/AUTO/CASCADE wrapping a `PID`, bumpless in both directions via a new `PID.track()` (back-calculation preload, `app/controls/pid.py`). Roborev caught two real bugs pre-merge: `track()` baking a transient derivative into the preloaded integral that the next call's guaranteed-zero derivative couldn't reproduce (bump on any `kd != 0` loop with a drifting measurement), and engaging `CASCADE` with the master already in `AUTO` skipping the preload entirely (a full setpoint step on the single most common "engage cascade" action). Both fixed with regression tests. T8-3 binds to it |
-| **R12** | `3e75af7` | Spine rules reconciled. One global spine lock over `base.py`, `topology.py` and every `app/engine/` module on `main` (U1 made standing), held by whichever task is In Progress or Ready for Review on a spine file; `app/main.py` keeps its own lock. Rule lives in DEVELOPMENT.md's File ownership; `engine.md` and the start-task skill link to it. `rng.py` is now spine |
 
 **ADRs on `main`:** ADR 0001 ([flow-domain separation](../../docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md))
 with Amendment 1, and ADR 0002 ([typed ports](../../docs/ADR_0002_TYPED_PORTS.md)) with
@@ -51,20 +51,21 @@ what made this file 1,086 lines.
 | **M9** Operating Envelopes | 1/4 - T9-1 Complete; T9-2, T9-3 startable |
 | **M10** Alarms | 1/5 - T10-1 Complete; T10-2 startable |
 | **M13** Malfunctions | 2/5 - T13-1, T13-2 Complete; T13-3, T13-5 startable; T13-4 waits on T7-3 |
+| **M14** Scenario Engine | 1/6 - T14-1 Complete; T14-2 startable; T14-3 waits on T9-3 |
 | **MR** Remediation | 12/13 - R1-R7, R9, R10a, R10b, R11, R12 Complete; R8 remains, no-spine and startable |
 | **M18** Deployment and Operations | 1/5 - T18-2 Complete |
-| M11, M12, M14–M17, M19 | None Complete; T14-1 is Ready for Review |
+| M11, M12, M15–M17, M19 | None Complete |
 
-**63 of 114 tasks Complete.** Next checkpoint is **C** (M5 + M6 + M7); M5 is
+**64 of 114 tasks Complete.** Next checkpoint is **C** (M5 + M6 + M7); M5 is
 closed, M6 has landed four of its five tasks and M7 three. MR is scheduled to
 merge by Checkpoint C; its spine work is done.
 
 ## The next task
 
-**No single task is "the" next one.** Nineteen tasks are startable, all Sonnet.
+**No single task is "the" next one.** Twenty-one tasks are startable, all Sonnet.
 Which to hand out next is a scheduling choice, not a dependency one.
 
-### Startable now (19)
+### Startable now (21)
 
 | Task | Name | Model | Branch |
 |---|---|---|---|
@@ -80,6 +81,7 @@ Which to hand out next is a scheduling choice, not a dependency one.
 | **T12-1** | Plant snapshot save and restore | Sonnet | `feature/state-persistence` |
 | **T13-3** | Injection profiles | Sonnet | `feature/malfunction-profiles` |
 | **T13-5** | Physics isolation guard | Sonnet | `test/import-direction-guard` |
+| **T14-2** | Trigger evaluator | Sonnet | `feature/scenario-triggers` |
 | **T15-1** | Operator action log | Sonnet | `feature/action-log` |
 | **T15-4** | Score persistence | Sonnet | `feature/score-store` |
 | **T16-1** | Console design system | Sonnet | `design/console-system` |
@@ -87,8 +89,9 @@ Which to hand out next is a scheduling choice, not a dependency one.
 | **T17-1** | Ring-buffer historian | Sonnet | `feature/historian` |
 | **T18-1** | Container and WSGI serving | Sonnet · one worker process | `chore/container-and-ci` |
 | **T18-4** | Structured logging and health | Sonnet | `feature/observability` |
+| **T18-5** | Session lifecycle and config versioning | Sonnet | `feature/lifecycle-versioning` |
 
-**Still waiting:** T9-4 - on T9-2 and T9-3. T13-4 waits on T7-3.
+**Still waiting:** T9-4 - on T9-2 and T9-3. T13-4 waits on T7-3. T14-3 waits on T9-3.
 
 **Scheduling notes.** The spine lock is **one global lock**, now the standing
 rule (R12, [DEVELOPMENT.md](../../DEVELOPMENT.md#file-ownership)); the spine

@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "26 September 2026",
-  "main_sha": "3cb05dcbf5ec6a629f04dba136e50af727b1cc69",
-  "tests_passing_on_main": 1499,
+  "main_sha": "f1a48efe9e8c063ad709949d48b1dcb9e59c3d10",
+  "tests_passing_on_main": 1525,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -88,7 +88,7 @@
     },
     "M14": {
       "name": "Scenario Engine",
-      "complete": 0,
+      "complete": 1,
       "total": 6
     },
     "M15": {
@@ -119,8 +119,8 @@
   },
   "totals": {
     "tasks": 114,
-    "complete": 63,
-    "startable_now": 19
+    "complete": 64,
+    "startable_now": 21
   },
   "tasks": [
     {
@@ -1694,10 +1694,9 @@
       "files": [
         "config/schema/scenario.schema.json"
       ],
-      "status": "Ready for Review",
-      "status_key": "review",
-      "startable": true,
-      "note": "PR #88 open, feature/scenario-schema at 702e346. Full suite 1394 passed, mypy clean, roborev branch review passed."
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged f1a48ef (PR #88). Full suite 1525 passed on main, mypy clean."
     },
     {
       "id": "T14-2",
@@ -1714,10 +1713,7 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "T14-1"
-      ],
+      "startable": true,
       "note": ""
     },
     {
@@ -1737,7 +1733,6 @@
       "status_key": "todo",
       "startable": false,
       "blocked_by": [
-        "T14-1",
         "T9-3"
       ],
       "note": ""
@@ -2156,10 +2151,7 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "T14-1"
-      ],
+      "startable": true,
       "note": ""
     },
     {

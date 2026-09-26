@@ -48,7 +48,7 @@ function updatePlantDisplay(state) {
 
     setText(
         "flow",
-        `${state.flow.toFixed(1)} MMcfd`
+        `${state.flow.toFixed(1)} SCFM`
     );
 
     setText(

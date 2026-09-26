@@ -219,6 +219,12 @@ class Equipment:
     — is device slow state; it reaches the plant only as a boundary the
     coupling writes.
 
+    A device reports the truth and nothing else. Its row is what the physics
+    says; what an operator or a controller reads is that row as the plant's
+    instruments indicate it, derived at the snapshot (T13-2,
+    app/engine/instruments.py). A device never knows it is being measured, so
+    an instrument fault can never change what it does.
+
     Slow state is captured at the end of construction, so `reset()` restores
     every device exactly without each one reimplementing it. Port wiring is
     not process state and survives a reset — the topology owns it.
@@ -322,7 +328,11 @@ class Equipment:
         raise NotImplementedError
 
     def get_state(self) -> StateRow:
-        """Flat, JSON-safe primitives — the device's row in the snapshot."""
+        """Flat, JSON-safe primitives — the device's true row in the snapshot.
+
+        True, never indicated: the snapshot publishes it as `truth` and runs it
+        through the plant's instruments for the reading every consumer sees.
+        """
         raise NotImplementedError
 
     def reset(self) -> None:

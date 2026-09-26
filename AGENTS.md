@@ -125,7 +125,7 @@ Tolerances, rationale and the full policy:
 - **One git worktree per task.** Never let parallel agents share one checkout —
   this repo has already lost a commit to a branch race. Procedure:
   [DEVELOPMENT.md](DEVELOPMENT.md).
-- **Spine files take one branch at a time.** Satellites build against frozen
+- **The spine takes one branch at a time.** Satellites build against frozen
   contracts, merge independently, and rebase onto `main` after every spine
   merge; never merge `main` backwards into the spine. Which files are spine,
   append-only or frozen: [DEVELOPMENT.md](DEVELOPMENT.md#file-ownership).

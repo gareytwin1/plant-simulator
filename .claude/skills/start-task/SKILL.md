@@ -35,13 +35,15 @@ if the two disagree, DEVELOPMENT.md is authoritative and this skill is stale.
    as that model, say so plainly and let the user switch — a skill cannot
    switch its own model.
 
-5. **Check for lock conflicts.** If `$0` touches a file in
+5. **Check for lock conflicts.** If `$0` edits a file in
    [DEVELOPMENT.md's file-ownership table](../../../DEVELOPMENT.md#file-ownership)
-   marked Spine or Highest-conflict, check `BUILD_PLAN_STATUS.json` and
-   project_state.md's "In flight" line for another branch already touching it.
-   A new isolated module under `app/engine/` is satellite work even if the
-   directory is listed as spine — see
-   [.claude/rules/engine.md](../../rules/engine.md).
+   marked Spine, confirm no other task holds the spine lock: none is In
+   Progress or Ready for Review in the live artifact with a spine file in its
+   build-plan file list. It is **one lock over the whole spine**, not one per
+   file. `BUILD_PLAN_STATUS.json` lags the artifact between merges, so it
+   cannot answer this. A new isolated module under `app/engine/` is satellite
+   work; that section says when. For a Highest-conflict file (`app/main.py`),
+   check the same way for another task on that file.
 
 6. **Create the worktree** — never do this task's work in the primary
    checkout:

@@ -32,6 +32,30 @@ flow against an adverse pressure gradient (only a check valve can).
 `stroke_rate` (fraction of travel per second). While `signal_ok` is False the
 target is the fail position — `min_position` for fail-closed, 1.0 for
 fail-open — whatever was commanded.
+
+T7-3 adds the failure modes M13 will reach for rather than inventing its own
+mechanism, each expressed as a device property so a malfunction moves exactly
+what an engineer could touch:
+
+    stuck             `integrate` is a no-op: the valve holds wherever it
+                       already sits, ignoring both the command and a lost
+                       signal.
+    slow              `stroke_rate` is now a validated property — a
+                       malfunction lowering it models a slow actuator with
+                       the existing stroke limit, no new mechanism needed.
+    reversed          `action_reversed` mirrors the commanded target about
+                       the travel range before stroking toward it, so
+                       "open more" closes the valve instead. It leaves the
+                       explicit fail position alone — the spring end of a
+                       fail-safe actuator does not care which way the
+                       positioner is wired.
+    passing-through   already the shape of `min_position`: raising it moves
+                       the leak floor higher, so the valve settles further
+                       open than commanded and never actually shuts.
+
+None of the four writes a flow or a pressure; they only change what
+`characteristic` computes from, which is exactly the boundary C1 allows a
+malfunction to cross.
 """
 
 from app import config
@@ -68,15 +92,17 @@ class ControlValve(Equipment):
 
         self.position = 1.0
         self.position_target = 1.0
-        self.stroke_rate = config.VALVE_STROKE_RATE_PER_SECOND
 
         self.signal_ok = True
+        self.stuck = False
+        self.action_reversed = False
 
         self._capacity = 100.0
         self._rangeability = 50.0
         self._min_position = 0.10
         self._flow_characteristic = LINEAR
         self._fail_action = FAIL_CLOSED
+        self.stroke_rate = config.VALVE_STROKE_RATE_PER_SECOND
 
     @property
     def capacity(self) -> float:
@@ -113,6 +139,17 @@ class ControlValve(Equipment):
             )
 
         self._min_position = float(value)
+
+    @property
+    def stroke_rate(self) -> float:
+        return self._stroke_rate
+
+    @stroke_rate.setter
+    def stroke_rate(self, value: float) -> None:
+        if not value > 0.0:
+            raise ValueError(f"stroke_rate must be positive, got {value}")
+
+        self._stroke_rate = float(value)
 
     @property
     def flow_characteristic(self) -> str:
@@ -164,11 +201,16 @@ class ControlValve(Equipment):
         self.signal_ok = True
 
     def integrate(self, dt: float) -> None:
-        target = (
-            self._bounded(self.position_target)
-            if self.signal_ok
-            else self.fail_position
-        )
+        if self.stuck:
+            return
+
+        if self.signal_ok:
+            target = self._bounded(self.position_target)
+
+            if self.action_reversed:
+                target = self._mirrored(target)
+        else:
+            target = self.fail_position
 
         self.position = self._move_toward(
             self.position,
@@ -186,6 +228,8 @@ class ControlValve(Equipment):
             "position_target": self.position_target,
             "signal_ok": self.signal_ok,
             "effective_capacity": self.effective_capacity,
+            "stuck": self.stuck,
+            "action_reversed": self.action_reversed,
         }
 
     def _bounded(self, position: float) -> float:
@@ -193,3 +237,7 @@ class ControlValve(Equipment):
             self.min_position,
             min(position, 1.0),
         )
+
+    def _mirrored(self, target: float) -> float:
+        """Reflect a bounded target about the travel range [min_position, 1.0]."""
+        return self.min_position + (1.0 - target)

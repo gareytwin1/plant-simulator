@@ -59,6 +59,7 @@ from app.engine.snapshot import Snapshot
 from app.equipment.base import Equipment
 from app.equipment.compressor import GasCompressor
 from app.equipment.exchanger import HeatExchanger
+from app.equipment.furnace import Furnace
 from app.equipment.pump import CentrifugalPump
 from app.equipment.registry import EquipmentRegistry
 from app.equipment.valve import ControlValve
@@ -76,6 +77,11 @@ WRITABLE: dict[type[Target], frozenset[str]] = {
         "fouling",
         "cold_temperature",
         "exchanger_resistance",
+    }),
+    Furnace: frozenset({
+        "max_duty",
+        "firing_ramp_rate",
+        "furnace_resistance",
     }),
     CentrifugalPump: frozenset({
         "shutoff_pressure_rise",

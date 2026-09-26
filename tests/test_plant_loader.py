@@ -288,10 +288,14 @@ def test_equipment_between_a_node_and_itself_is_rejected():
 
 
 def test_a_type_with_no_device_model_is_rejected():
+    # The C3 schema enum is free to name a type ahead of its device model
+    # (furnace did, until T6-4); exercise that gap directly through a
+    # restricted `device_types` table rather than depending on one actually
+    # being unimplemented.
     config = valid_config()
     config["equipment"][0]["type"] = "furnace"
 
-    errors = rejected(config)
+    errors = rejected(config, device_types={"compressor": GasCompressor})
 
     assert any("$.equipment[0].type" in error and "furnace" in error for error in errors)
 

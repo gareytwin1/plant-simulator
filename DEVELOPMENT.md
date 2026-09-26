@@ -80,12 +80,11 @@ directory against the same repo, which removes the race entirely.
    git worktree add ../plant-simulator-<task> -b <type>/<name> origin/main
    ```
 
-5. If the task is Core/spine (edits an existing module among `app/equipment/base.py`,
-   `app/engine/` or `app/plant/topology.py` — a new isolated module under
-   `app/engine/` does not count; see
-   [.claude/rules/engine.md](.claude/rules/engine.md)), check the build plan
-   for any other in-progress branch touching the same file before starting.
-   Spine files take one branch at a time.
+5. If the task edits a spine file, confirm nobody holds the **spine lock**:
+   no other task in the live artifact is In Progress or Ready for Review with
+   a spine file in its build-plan file list. The lock is one lock over the
+   whole spine, not one per file. What counts as spine, and when a new
+   `app/engine/` module does not, is [File ownership](#file-ownership).
 
 ### Picking a model
 
@@ -230,15 +229,39 @@ Check this before starting step 5 above.
 
 | Path | Rule |
 |---|---|
-| `app/equipment/base.py` | **Spine** — one branch at a time, no satellite edits |
-| `app/engine/` | **Spine** for its existing modules — one branch at a time. A new isolated module here can be satellite work; see [.claude/rules/engine.md](.claude/rules/engine.md). |
-| `app/plant/topology.py` | **Spine** — one branch at a time |
+| `app/equipment/base.py` | **Spine** - under the spine lock, no satellite edits |
+| `app/engine/` | **Spine**, every module already on `main` - under the spine lock. A new module can be satellite work; see below. |
+| `app/plant/topology.py` | **Spine** - under the spine lock |
 | `app/main.py` | **Highest-conflict file.** Exactly one branch at a time until the C5 single action endpoint lands. Release it immediately after merging. |
 | `app/config.py` | **Append-only** — add a clearly-headed section, never reorder |
 | `config/schema/plant.schema.json` | Shared — each top-level key has one owner |
 | `config/plants/*.yaml` | Shared — each top-level key has one owner |
 | `tests/fixtures/golden/*.json` | Regenerate only with explicit justification |
 | `static/compressor.js`, `static/pump.js` | **Frozen** — replaced wholesale at M16. Do not invest in them. |
+
+**The spine** is the three rows marked Spine above. In `app/engine/` that
+means every module on `main` - `ls app/engine/` is the list, deliberately not
+restated here, where it would go stale as modules land.
+
+**One spine lock covers the whole spine.** A task that edits any spine file
+holds it from its start until its merge, and while it does no other spine task
+starts. Nothing records the lock separately: it is held by whichever task the
+live artifact shows In Progress or Ready for Review with a spine file in its
+build-plan file list. It is global rather than per file because the spine is
+one design - `engine.py` drives the solver, coupling, transport and snapshot,
+and `sessions.py` drives `scheduler.py` - so two branches on "different" spine
+files routinely meet in the same step, and a per-file lock would call that
+safe. `app/main.py` has its own lock, independent of this one.
+
+**A new module under `app/engine/` is satellite work** when its task creates
+that file and edits no existing spine file - how `rng.py` (T2-2), `network.py`
+(T4-2) and `scheduler.py` (T2-5) landed. A task whose new module needs an
+existing spine module changed to wire it in is a spine task from the start:
+`coupling.py` (T5-2) and `transport.py` (T6-5). Either way the module joins
+the spine once it merges. **A satellite that discovers it must edit a spine
+file stops and escalates or takes the spine lock** - it does not expand scope
+silently. T4-3 (`snapshot.py`) and T4-4 (`engine.py`) were spine tasks for
+exactly this reason.
 
 ## Naming conventions
 
@@ -287,7 +310,7 @@ change and its test plan.
 
 ## Parallel development
 
-Spine files are edited one branch at a time because they are the shared
+The spine is edited by one branch at a time because it is the shared
 foundation everything else builds on. Satellites rebase onto `main` after any
 spine merge lands:
 

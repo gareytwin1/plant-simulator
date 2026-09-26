@@ -19,20 +19,13 @@ save/restore, which T12-1 and T14-5 will need.
 
 ## Spine vs. satellite in `app/engine/`
 
-The existing spine modules are `clock.py`, `engine.py`, `snapshot.py` and
-`sessions.py` — one branch at a time, no satellite edits. `coupling.py` (T5-2)
-and `transport.py` (T6-5) are spine modules too, despite being new when they
-landed: each Engine change and its module were one design, not two.
-
-A **new isolated module** may be developed as a satellite when the build-plan
-task explicitly owns that new file and does not modify an existing spine
-module or interface. That is how `rng.py` (T2-2), `network.py` (T4-2) and
-`scheduler.py` (T2-5) landed.
+Every module already on `main` in `app/engine/` is spine, and one global spine
+lock covers the whole spine, not each file. A new isolated module can be
+satellite work until it merges. The full rule, including how the lock is held,
+is [DEVELOPMENT.md's File ownership](../../DEVELOPMENT.md#file-ownership).
 
 **If a satellite task discovers it must modify a spine module, it stops and
-escalates or acquires the spine lock — it does not expand scope silently.**
-T4-3 (`snapshot.py`) and T4-4 (`engine.py`) were spine tasks for exactly this
-reason.
+escalates or takes the spine lock - it does not expand scope silently.**
 
 ## Branch characteristic convention (T4-1)
 

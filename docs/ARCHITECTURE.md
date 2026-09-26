@@ -217,7 +217,8 @@ worth stating plainly:
 - **A consumer reads what the instruments indicate, never the truth.** The
   snapshot's `equipment`, `nodes` and `streams` are the indicated view; what
   the physics says is `Snapshot.truth`, excluded from `as_dict()`, and only a
-  consumer entitled to know what really happened (scoring, a debrief) reads it.
+  consumer deliberately listed as entitled to know what really happened reads
+  it - none in `app/` today.
   `tests/test_truth_isolation.py` fails the build on any other reader in
   `app/`. Without that, an instrument fault could not be a hidden cause.
 - **Writing is narrower still.** A controller may only move a final element —

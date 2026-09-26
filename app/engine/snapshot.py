@@ -21,11 +21,11 @@ from it.
 
 **True and indicated (T13-2).** equipment, nodes and streams — the measured
 sections — are what the plant's instruments *indicate*, not what the physics
-says. That is the reading every consumer takes without asking: a controller
-closes its loop on it, an alarm fires on it, the console draws it. What the
-physics says is `Snapshot.truth`, the same three sections at the same shape,
-and only a consumer entitled to know what really happened — scoring, a
-debrief, a test — reads it, by name. `tests/test_truth_isolation.py` fails the
+says. That is the reading every consumer takes without asking - today the
+operator pages; the loops, alarms and console the build plan adds later are
+meant to read the same. What the physics says is `Snapshot.truth`, the same
+three sections at the same shape, and only a consumer deliberately entitled
+to know what really happened - a test today - reads it, by name. `tests/test_truth_isolation.py` fails the
 build if anything else in app/ does. Truth never leaves through as_dict(), so
 it cannot reach the console over the wire either; `Truth.as_dict()` is the
 deliberate way out.

@@ -220,7 +220,7 @@ class Equipment:
     coupling writes.
 
     A device reports the truth and nothing else. Its row is what the physics
-    says; what an operator or a controller reads is that row as the plant's
+    says; what a consumer of the snapshot reads is that row as the plant's
     instruments indicate it, derived at the snapshot (T13-2,
     app/engine/instruments.py). A device never knows it is being measured, so
     an instrument fault can never change what it does.

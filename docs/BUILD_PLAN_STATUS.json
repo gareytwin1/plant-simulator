@@ -1,7 +1,7 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "26 September 2026",
-  "main_sha": "f1a48efe9e8c063ad709949d48b1dcb9e59c3d10",
+  "main_sha": "3ed567ab5bc454721e1cfb0f987a802a7c00f8c5",
   "tests_passing_on_main": 1525,
   "status_vocabulary": {
     "Not Started": "No work begun",
@@ -43,7 +43,7 @@
     },
     "MR": {
       "name": "Remediation",
-      "complete": 12,
+      "complete": 13,
       "total": 13
     },
     "M6": {
@@ -119,8 +119,8 @@
   },
   "totals": {
     "tasks": 114,
-    "complete": 64,
-    "startable_now": 21
+    "complete": 65,
+    "startable_now": 20
   },
   "tasks": [
     {
@@ -919,10 +919,9 @@
         "templates/compressor.html",
         "static/compressor.js"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true,
-      "note": ""
+      "status": "Complete",
+      "status_key": "done",
+      "note": "COMPLETE - merged to main as 3ed567a (Merge R8: Flow unit label, PR #91), 26 Sep 2026. 1525 passed on main, mypy clean over 39 source files, no golden trace moved. D8: static/compressor.js:51 and templates/compressor.html:130 changed from MMcfd to SCFM, one token each - the freeze on compressor.js was waived for this fix only, nothing else in that file touched. DEFECT REPRODUCTION: rendered /compressor page confirmed to show MMcfd before the fix and SCFM after. roborev-refine passed clean on first review, no findings."
     },
     {
       "id": "R9",

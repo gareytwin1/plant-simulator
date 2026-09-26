@@ -12,6 +12,12 @@ Three ways in are guarded: the attribute (`snapshot.truth`), its name as a
 string (`getattr(snapshot, "truth")`), and `dataclasses.asdict`/`astuple`,
 which would carry truth out with everything else. `Snapshot.as_dict()` is the
 sanctioned serialisation and carries the indicated view only.
+
+The guard is lexical, and deliberately errs toward false positives: any
+string literal that is exactly "truth" trips it, whatever it is for. It is
+not exhaustive either - walking a snapshot's `__dict__` or `vars()` without
+naming the field gets past it. It exists to stop the accident, not a
+determined workaround; review catches the rest.
 """
 
 import ast
@@ -43,6 +49,9 @@ def truth_reads(path):
             if name in ("asdict", "astuple"):
                 reads.append(f"line {node.lineno}: {name}")
 
+        if isinstance(node, ast.alias) and node.name in ("asdict", "astuple"):
+            reads.append(f"line {getattr(node, 'lineno', '?')}: import {node.name}")
+
     return reads
 
 
@@ -73,6 +82,7 @@ def test_the_guard_catches_each_way_of_reading_the_truth(tmp_path):
         "getattr(snapshot, 'truth')",
         "vars(snapshot)['truth']",
         "from dataclasses import asdict\nasdict(snapshot)",
+        "from dataclasses import asdict as to_dict\nto_dict(snapshot)",
         "import dataclasses\ndataclasses.astuple(snapshot)",
     ):
         module = tmp_path / "m.py"

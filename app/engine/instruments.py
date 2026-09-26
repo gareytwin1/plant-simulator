@@ -99,8 +99,8 @@ def indicate(
 ) -> dict[str, dict[str, dict[str, JSONValue]]]:
     """The indicated view of `truth`: a deep copy with every instrument applied.
 
-    Raises if an instrument reads a point `truth` does not have, or one that
-    is not a number.
+    Raises ValueError if an instrument reads a point `truth` does not have,
+    or one that is not a number.
     """
     indicated = {
         name: {tag: dict(copy.deepcopy(row)) for tag, row in truth[name].items()}
@@ -108,23 +108,30 @@ def indicate(
     }
 
     for instrument in instruments:
-        section, source, variable = instrument.point
-        row = indicated[section].get(source)
-
-        if row is None or variable not in row:
-            raise KeyError(
-                f"instrument {instrument.tag} reads {section}.{source}.{variable}, "
-                f"which the plant does not publish",
-            )
-
-        value = row[variable]
-
-        if isinstance(value, bool) or not isinstance(value, (int, float)):
-            raise ValueError(
-                f"instrument {instrument.tag} reads {section}.{source}.{variable}, "
-                f"which is {value!r}, not a number",
-            )
-
-        row[variable] = instrument.indicate(value)
+        _, source, variable = instrument.point
+        row = indicated[instrument.section][source]
+        row[variable] = instrument.indicate(true_reading(instrument, truth))
 
     return indicated
+
+
+def true_reading(instrument: Instrument, truth: Mapping[str, SectionInput]) -> float:
+    """The true value `instrument` reads in `truth`, or ValueError if it can read none."""
+    section, source, variable = instrument.point
+    row = truth[section].get(source)
+
+    if row is None or variable not in row:
+        raise ValueError(
+            f"instrument {instrument.tag} reads {section}.{source}.{variable}, "
+            f"which the plant does not publish",
+        )
+
+    value = row[variable]
+
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(
+            f"instrument {instrument.tag} reads {section}.{source}.{variable}, "
+            f"which is {value!r}, not a number",
+        )
+
+    return value

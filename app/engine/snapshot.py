@@ -22,7 +22,7 @@ from it.
 **True and indicated (T13-2).** equipment, nodes and streams — the measured
 sections — are what the plant's instruments *indicate*, not what the physics
 says. That is the reading every consumer takes without asking - today the
-operator pages; the loops, alarms and console the build plan adds later are
+per-equipment browser pages; the loops, alarms and console the build plan adds later are
 meant to read the same. What the physics says is `Snapshot.truth`, the same
 three sections at the same shape, and only a consumer deliberately entitled
 to know what really happened - a test today - reads it, by name. `tests/test_truth_isolation.py` fails the

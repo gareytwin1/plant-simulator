@@ -281,6 +281,12 @@ class MalfunctionRegistry:
 
     def _resolve(self, tag: str) -> Target:
         if tag in self._instruments:
+            # Checked here as well as at construction: the equipment registry
+            # is shared, and a device registered into it later could otherwise
+            # be shadowed by an instrument without anyone being told.
+            if _registered(self._equipment, tag):
+                raise ValueError(f"tag {tag!r} names both a device and an instrument")
+
             return self._instruments[tag]
 
         return self._equipment.resolve(tag)

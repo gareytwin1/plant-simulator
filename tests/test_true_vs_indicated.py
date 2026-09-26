@@ -232,6 +232,20 @@ def test_an_instrument_tag_may_not_shadow_a_device():
         MalfunctionRegistry(equipment, [Instrument("FV-101", *FLOW)])
 
 
+def test_a_device_registered_after_an_instrument_cannot_be_shadowed_by_it():
+    engine = engine_with(transmitter())
+    equipment = EquipmentRegistry()
+    malfunctions = MalfunctionRegistry(equipment, engine.instruments.values())
+    malfunctions.add(Malfunction("FT-101", "bias", 5.0))
+
+    shadowed = engine.equipment["FV-101"]
+    shadowed.tag = "FT-101"
+    equipment.register(shadowed)
+
+    with pytest.raises(ValueError, match="both a device and an instrument"):
+        malfunctions.update(engine.snapshot())
+
+
 # ---- the wire carries the indicated view only -----------------------------
 
 
@@ -256,10 +270,10 @@ def test_truth_is_immutable():
 
 
 def test_an_instrument_on_a_point_the_plant_does_not_publish_is_refused():
-    with pytest.raises(KeyError, match="does not publish"):
+    with pytest.raises(ValueError, match="does not publish"):
         engine_with(Instrument("PT-101", "nodes", "N-999", "pressure"))
 
-    with pytest.raises(KeyError, match="does not publish"):
+    with pytest.raises(ValueError, match="does not publish"):
         engine_with(Instrument("PT-101", "nodes", "N-103", "presure"))
 
 

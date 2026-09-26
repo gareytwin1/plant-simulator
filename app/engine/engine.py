@@ -86,7 +86,7 @@ from collections.abc import Iterable, Mapping
 
 from app.engine.clock import SimulationClock
 from app.engine.coupling import VesselCoupling, build_couplings
-from app.engine.instruments import Instrument, indicate
+from app.engine.instruments import Instrument, indicate, true_reading
 from app.engine.network import NetworkSolver, SolverResult
 from app.engine.snapshot import DEFAULT_SOLVER_STATUS, JSONValue, Snapshot, build_snapshot
 from app.engine.transport import ABSOLUTE_ZERO, DomainTransport
@@ -226,7 +226,7 @@ class Engine:
                     f"which {other.tag} already reads",
                 )
 
-        indicate(self._truth(), (instrument,))
+        true_reading(instrument, self._truth())
 
         self.instruments[instrument.tag] = instrument
 

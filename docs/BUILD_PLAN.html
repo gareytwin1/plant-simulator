@@ -814,7 +814,7 @@ states: NORM -> UNACK_ACTIVE -> ACK_ACTIVE -> NORM
       <p>The structural guarantee that the game layer cannot bend the physics.</p>
 <pre>Malfunction(target_tag, parameter, value, profile, start_condition)
 Scenario(initial_condition, malfunctions[], triggers[],
-         objectives[], time_limit, difficulty, seed)</pre>
+         objectives[], time_limit_s, difficulty, seed)</pre>
       <p><strong>A malfunction may only write parameters an engineer could change</strong> &mdash; a valve position limit, a heat transfer coefficient, a line resistance, an instrument bias. It may never write a solver output. A stuck valve sets a position limit; it does not set flow. Task <span class="path">T13-5</span> enforces this with a test.</p>
     </div>
   </details>

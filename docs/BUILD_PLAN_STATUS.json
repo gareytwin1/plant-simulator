@@ -1,7 +1,7 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
-  "refreshed": "25 September 2026",
-  "main_sha": "df1f91fdd19b8c4ad033611882470f6652baa450",
+  "refreshed": "26 September 2026",
+  "main_sha": "3e75af779bd0d440755e1a2b9de03681c7b0b92d",
   "tests_passing_on_main": 1313,
   "status_vocabulary": {
     "Not Started": "No work begun",
@@ -43,7 +43,7 @@
     },
     "MR": {
       "name": "Remediation",
-      "complete": 11,
+      "complete": 12,
       "total": 13
     },
     "M6": {
@@ -119,8 +119,8 @@
   },
   "totals": {
     "tasks": 114,
-    "complete": 57,
-    "startable_now": 19
+    "complete": 58,
+    "startable_now": 16
   },
   "tasks": [
     {
@@ -999,10 +999,9 @@
         "DEVELOPMENT.md",
         ".claude/rules/engine.md"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true,
-      "note": ""
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged to main as 3e75af7 (merge commit from docs/spine-rules, PR #84). Standing rule: one global spine lock over app/equipment/base.py, app/plant/topology.py and every app/engine module on main (ls app/engine/ is the list, not restated); held by whichever task the live artifact shows In Progress or Ready for Review with a spine file in its file list; app/main.py keeps its own lock. A new app/engine module is satellite work only when its task edits no existing spine file, and joins the spine on merge. Rule lives in DEVELOPMENT.md File ownership; step 5 and .claude/rules/engine.md link to it. Also aligned AGENTS.md (1 line) and start-task step 5. Consequence: rng.py is spine, so a T12-1/T14-5 edit adding RNG state save/restore takes the spine lock. 1313 passed post-merge, mypy clean, no golden trace moved."
     },
     {
       "id": "T6-1",
@@ -1201,10 +1200,10 @@
       "files": [
         "app/controls/modes.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
+      "status": "Ready for Review",
+      "status_key": "review",
       "startable": true,
-      "note": ""
+      "note": "PR #86: https://github.com/gareytwin1/plant-simulator/pull/86 \u2014 full suite 1323 passed, mypy clean, no golden trace movement. Also extends app/controls/pid.py with PID.track() (new method, needed for bumpless transfer)."
     },
     {
       "id": "T8-3",
@@ -1628,10 +1627,10 @@
       "files": [
         "app/disturbances/malfunction.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
+      "status": "Ready for Review",
+      "status_key": "review",
       "startable": true,
-      "note": ""
+      "note": "PR #85 (feature/malfunction-model @ f345583). C8 Malfunction + per-class WRITABLE allowlist + MalfunctionRegistry; Step/AtTime minimal, T13-3 extends. 1356 passed, mypy clean, no golden moved. Open: trips are commands not parameters (Opus decision before T13-4); stroke_rate unvalidated so not allowlisted (T7-3)."
     },
     {
       "id": "T13-2",

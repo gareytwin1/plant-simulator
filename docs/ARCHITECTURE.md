@@ -214,6 +214,13 @@ worth stating plainly:
 
 - **A subsystem that needs a number the snapshot does not carry widens C4** as
   its own deliberate task. It does not open a side channel.
+- **A consumer reads what the instruments indicate, never the truth.** The
+  snapshot's `equipment`, `nodes` and `streams` are the indicated view; what
+  the physics says is `Snapshot.truth`, excluded from `as_dict()`, and only a
+  consumer deliberately listed as entitled to know what really happened reads
+  it - none in `app/` today.
+  `tests/test_truth_isolation.py` fails the build on any other reader in
+  `app/`. Without that, an instrument fault could not be a hidden cause.
 - **Writing is narrower still.** A controller may only move a final element —
   `ControlValve.set_position_target()` — never assign a pressure or a flow.
   Nothing outside `app/engine/coupling.py` writes a node pressure, and the
@@ -237,6 +244,7 @@ ownership violation.
 | **Simulated time** | **`SimulationClock`** | Never `time.time()`. Time enters a model only through injected `dt`. |
 | **Integration cadence** | **`Engine`**, driven by **`Scheduler`** | Engine consults the clock's speed only. No device has a speed of its own. |
 | **Snapshot publication** | **`Engine`** → `Snapshot` | Immutable; the only thing downstream consumers read. |
+| **Indicated values** | **`Instrument`** (`app/engine/instruments.py`), held by `Engine.instruments` | Derived from the truth at publication; a device never knows it is measured. `bias` is the only parameter a malfunction may write. An uninstrumented point indicates its true value exactly. |
 | **Plant structure** | `Topology` built by the **plant loader** from validated config (C3) | Adding equipment must stop requiring a code change. |
 
 ## 5. The C1 equipment contract in one page
@@ -318,7 +326,8 @@ app/
   engine/                                                        [SPINE]
     clock.py              SimulationClock
     engine.py             Engine: integrate cadence, coupling, solve, snapshot
-    snapshot.py           C4: immutable Snapshot
+    snapshot.py           C4: immutable Snapshot, indicated view + truth
+    instruments.py        Instrument: true value → indicated value
     sessions.py           Session / SessionRegistry
     coupling.py           Vessel inventory ↔ boundary conditions
     transport.py          Energy transport: node and stream temperatures

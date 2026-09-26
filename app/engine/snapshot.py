@@ -18,6 +18,23 @@ alarms is a tuple of the same, so a consumer holding a reference cannot
 corrupt what another consumer already read, and mutating the caller's
 original input after the fact cannot leak into a Snapshot already built
 from it.
+
+**True and indicated (T13-2).** equipment, nodes and streams — the measured
+sections — are what the plant's instruments *indicate*, not what the physics
+says. That is the reading every consumer takes without asking - today the
+per-equipment browser pages; the loops, alarms and console the build plan adds later are
+meant to read the same. What the physics says is `Snapshot.truth`, the same
+three sections at the same shape, and only a consumer deliberately entitled
+to know what really happened - a test today - reads it, by name. `tests/test_truth_isolation.py` fails the
+build if anything else in app/ does. Truth never leaves through as_dict(), so
+it cannot reach the console over the wire either; `Truth.as_dict()` is the
+deliberate way out.
+
+With every instrument healthy the two views are equal, which is why a
+Snapshot built without a `truth` is its own truth: nothing has been
+mis-measured. The split is what makes a hidden cause possible — an instrument
+fault moves the indicated value while the plant underneath does not, and the
+operator has to work out which one they are looking at.
 """
 
 import copy
@@ -30,6 +47,17 @@ from app.statetypes import JSONValue
 
 
 Section = MappingProxyType[str, Mapping[str, JSONValue]]
+
+SectionInput = Mapping[str, Mapping[str, JSONValue]]
+
+# The sections an instrument can read, and therefore the ones with a true and
+# an indicated view. controllers, envelope and alarms are derived from the
+# indicated view, so they have only the one.
+MEASURED_SECTIONS = (
+    "equipment",
+    "nodes",
+    "streams",
+)
 
 # C4's solver section, in full. A solve reports more than this — which of the
 # pressure and flow residuals was the worst, and why a failed solve stopped —
@@ -89,6 +117,22 @@ def solver_status(result: SolverDiagnostics) -> dict[str, JSONValue]:
 
 
 @dataclass(frozen=True)
+class Truth:
+    """What the physics says, where the measured sections say what was read."""
+
+    equipment: Section
+    nodes: Section
+    streams: Section
+
+    def as_dict(self) -> dict[str, JSONValue]:
+        return {
+            "equipment": _thawed(self.equipment),
+            "nodes": _thawed(self.nodes),
+            "streams": _thawed(self.streams),
+        }
+
+
+@dataclass(frozen=True)
 class Snapshot:
     sim_time: float
     speed: float
@@ -100,9 +144,10 @@ class Snapshot:
     envelope: Section
     alarms: tuple[Mapping[str, JSONValue], ...]
     solver: MappingProxyType[str, JSONValue]
+    truth: Truth
 
     def as_dict(self) -> dict[str, JSONValue]:
-        """Flat, JSON-safe dict matching C4 exactly."""
+        """Flat, JSON-safe dict matching C4 exactly: the indicated view only."""
         return {
             "sim_time": self.sim_time,
             "speed": self.speed,
@@ -121,13 +166,14 @@ def build_snapshot(
     sim_time: float,
     speed: float,
     running: bool,
-    equipment: Mapping[str, Mapping[str, JSONValue]],
-    nodes: Mapping[str, Mapping[str, JSONValue]] | None = None,
-    streams: Mapping[str, Mapping[str, JSONValue]] | None = None,
-    controllers: Mapping[str, Mapping[str, JSONValue]] | None = None,
-    envelope: Mapping[str, Mapping[str, JSONValue]] | None = None,
+    equipment: SectionInput,
+    nodes: SectionInput | None = None,
+    streams: SectionInput | None = None,
+    controllers: SectionInput | None = None,
+    envelope: SectionInput | None = None,
     alarms: Iterable[Mapping[str, JSONValue]] | None = None,
     solver: Mapping[str, JSONValue] | None = None,
+    truth: Mapping[str, SectionInput] | None = None,
 ) -> Snapshot:
     """Assemble an immutable Snapshot from plain mutable inputs.
 
@@ -139,18 +185,29 @@ def build_snapshot(
     or `{}` for "no solve to report" — or C4's three keys in full. See
     `_validated_solver` for why half a solver section is refused rather than
     passed through.
+
+    equipment, nodes and streams are the indicated view. `truth` is the same
+    three sections as the physics has them, keyed by section name, and must
+    match the indicated view tag for tag and field for field — an instrument
+    changes a reading, never which readings exist. Omitted, the indicated
+    view is the truth.
     """
     sections = {"nodes": nodes, "streams": streams, "controllers": controllers, "envelope": envelope}
     frozen_sections = {
         name: _frozen(value or {})
         for name, value in sections.items()
     }
+    indicated = {
+        "equipment": _frozen(equipment),
+        "nodes": frozen_sections["nodes"],
+        "streams": frozen_sections["streams"],
+    }
 
     return Snapshot(
         sim_time=sim_time,
         speed=speed,
         running=running,
-        equipment=_frozen(equipment),
+        equipment=indicated["equipment"],
         alarms=tuple(
             MappingProxyType(copy.deepcopy(alarm))
             for alarm in (alarms or ())
@@ -162,8 +219,38 @@ def build_snapshot(
                 else _validated_solver(solver)
             )
         ),
+        truth=Truth(**_validated_truth(indicated, truth)),
         **frozen_sections,
     )
+
+
+def _validated_truth(
+    indicated: Mapping[str, Section],
+    truth: Mapping[str, SectionInput] | None,
+) -> dict[str, Section]:
+    if truth is None:
+        return dict(indicated)
+
+    if set(truth) != set(MEASURED_SECTIONS):
+        raise ValueError(
+            f"a snapshot's truth is exactly the measured sections "
+            f"{list(MEASURED_SECTIONS)}, got {sorted(truth)}",
+        )
+
+    frozen = {name: _frozen(truth[name]) for name in MEASURED_SECTIONS}
+
+    for name in MEASURED_SECTIONS:
+        shown = {tag: sorted(row) for tag, row in indicated[name].items()}
+        actual = {tag: sorted(row) for tag, row in frozen[name].items()}
+
+        if shown != actual:
+            raise ValueError(
+                f"the true and indicated {name} sections differ in shape - an "
+                f"instrument changes a reading, never which readings exist: "
+                f"indicated {shown}, true {actual}",
+            )
+
+    return frozen
 
 
 def _validated_solver(
@@ -197,7 +284,7 @@ def _validated_solver(
     return solver
 
 
-def _frozen(mapping: Mapping[str, Mapping[str, JSONValue]]) -> Section:
+def _frozen(mapping: SectionInput) -> Section:
     return MappingProxyType(
         {
             tag: MappingProxyType(copy.deepcopy(state))
@@ -206,7 +293,7 @@ def _frozen(mapping: Mapping[str, Mapping[str, JSONValue]]) -> Section:
     )
 
 
-def _thawed(mapping: Mapping[str, Mapping[str, JSONValue]]) -> dict[str, JSONValue]:
+def _thawed(mapping: SectionInput) -> dict[str, JSONValue]:
     return {
         tag: dict(state)
         for tag, state in mapping.items()

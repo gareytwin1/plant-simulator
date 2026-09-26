@@ -39,7 +39,8 @@ STANDARD_PRESSURE = 14.696  # psia
 #
 # ISA-style equipment codes: a tag is PREFIX-NNN. This is the reference
 # table for what each prefix means; app.equipment.registry is where a tag
-# resolves to the device that owns it.
+# resolves to the device that owns it. The transmitter prefixes name
+# instruments (T13-2), which `Engine.instruments` holds by tag instead.
 
 TAG_PREFIXES = {
     "K": "compressor",
@@ -47,6 +48,11 @@ TAG_PREFIXES = {
     "E": "heat exchanger",
     "V": "vessel",
     "FV": "control valve",
+    "PT": "pressure transmitter",
+    "FT": "flow transmitter",
+    "TT": "temperature transmitter",
+    "LT": "level transmitter",
+    "ZT": "position transmitter",
 }
 
 

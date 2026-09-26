@@ -30,6 +30,12 @@ could only fail at onset, mid-scenario, is refused up front instead.
 Lookup is by the device's exact class, never `isinstance`: a subclass does
 not inherit its parent's writable surface silently, it has to be listed.
 
+An instrument is a target too (T13-2). Its `bias` is the one thing a
+malfunction may move, and moving it changes what the plant indicates while
+the plant itself carries on exactly as before - which is what makes an
+instrument fault a hidden cause. The registry resolves a tag against the
+plant's devices and its instruments alike, and a tag may name only one.
+
 `MalfunctionRegistry` holds a plant's malfunctions and owns their lifecycle.
 Each `update(snapshot)` - run between engine steps, never inside one - checks
 pending malfunctions' start conditions against the published snapshot, and
@@ -44,9 +50,11 @@ condition-triggered onset are T13-3's, and fit the same two protocols.
 
 import copy
 import math
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Protocol
 
+from app.engine.instruments import Instrument
 from app.engine.snapshot import Snapshot
 from app.equipment.base import Equipment
 from app.equipment.compressor import GasCompressor
@@ -57,7 +65,9 @@ from app.equipment.valve import ControlValve
 from app.equipment.vessel import Vessel
 
 
-WRITABLE: dict[type[Equipment], frozenset[str]] = {
+Target = Equipment | Instrument
+
+WRITABLE: dict[type[Target], frozenset[str]] = {
     ControlValve: frozenset({
         "capacity",
         "min_position",
@@ -79,6 +89,9 @@ WRITABLE: dict[type[Equipment], frozenset[str]] = {
     # Everything a vessel carries is geometry or inventory. Listed empty so the
     # absence is a decision rather than an oversight.
     Vessel: frozenset(),
+    Instrument: frozenset({
+        "bias",
+    }),
 }
 
 
@@ -146,7 +159,7 @@ class Malfunction:
         return (self.target_tag, self.parameter)
 
 
-def writable(device: Equipment) -> frozenset[str]:
+def writable(device: Target) -> frozenset[str]:
     device_type = type(device)
 
     if device_type not in WRITABLE:
@@ -158,7 +171,7 @@ def writable(device: Equipment) -> frozenset[str]:
     return WRITABLE[device_type]
 
 
-def check_writable(device: Equipment, parameter: str) -> None:
+def check_writable(device: Target, parameter: str) -> None:
     allowed = writable(device)
 
     if parameter not in allowed:
@@ -175,8 +188,20 @@ class _Onset:
 
 
 class MalfunctionRegistry:
-    def __init__(self, equipment: EquipmentRegistry) -> None:
+    def __init__(
+        self,
+        equipment: EquipmentRegistry,
+        instruments: Iterable[Instrument] = (),
+    ) -> None:
         self._equipment = equipment
+        self._instruments: dict[str, Instrument] = {}
+
+        for instrument in instruments:
+            if instrument.tag in self._instruments or _registered(equipment, instrument.tag):
+                raise ValueError(f"tag {instrument.tag!r} is already in use")
+
+            self._instruments[instrument.tag] = instrument
+
         self._malfunctions: dict[tuple[str, str], Malfunction] = {}
         self._onsets: dict[tuple[str, str], _Onset] = {}
 
@@ -197,7 +222,7 @@ class MalfunctionRegistry:
         )
 
     def add(self, malfunction: Malfunction) -> None:
-        device = self._equipment.resolve(malfunction.target_tag)
+        device = self._resolve(malfunction.target_tag)
         check_writable(device, malfunction.parameter)
 
         if malfunction.key in self._malfunctions:
@@ -212,7 +237,7 @@ class MalfunctionRegistry:
 
     def update(self, snapshot: Snapshot) -> None:
         for key, malfunction in self._malfunctions.items():
-            device = self._equipment.resolve(malfunction.target_tag)
+            device = self._resolve(malfunction.target_tag)
 
             if key not in self._onsets:
                 if not malfunction.start_condition.is_met(snapshot):
@@ -247,12 +272,33 @@ class MalfunctionRegistry:
         onset = self._onsets.pop(malfunction.key, None)
 
         if onset is not None:
-            device = self._equipment.resolve(malfunction.target_tag)
+            device = self._resolve(malfunction.target_tag)
             _write(device, malfunction.parameter, onset.original)
 
     def revert_all(self) -> None:
         for malfunction in list(self._malfunctions.values()):
             self.revert(malfunction)
+
+    def _resolve(self, tag: str) -> Target:
+        if tag in self._instruments:
+            # Checked here as well as at construction: the equipment registry
+            # is shared, and a device registered into it later could otherwise
+            # be shadowed by an instrument without anyone being told.
+            if _registered(self._equipment, tag):
+                raise ValueError(f"tag {tag!r} names both a device and an instrument")
+
+            return self._instruments[tag]
+
+        return self._equipment.resolve(tag)
+
+
+def _registered(equipment: EquipmentRegistry, tag: str) -> bool:
+    try:
+        equipment.resolve(tag)
+    except KeyError:
+        return False
+
+    return True
 
 
 def _between(original: float, value: float, fraction: float) -> float:
@@ -268,6 +314,6 @@ def _between(original: float, value: float, fraction: float) -> float:
     return original + (value - original) * fraction
 
 
-def _write(device: Equipment, parameter: str, value: float) -> None:
+def _write(device: Target, parameter: str, value: float) -> None:
     check_writable(device, parameter)
     setattr(device, parameter, value)

@@ -60,6 +60,14 @@ of a domain that failed, and no transport does either: its temperatures hold
 with its flows. A network that cannot be solved as posed raises
 SolverError.
 
+What the snapshot's measured sections carry is what the plant's instruments
+indicate (T13-2). The engine reads every device, node and stream as the
+physics has it, publishes that as `Snapshot.truth`, and runs it through its
+instruments (app/engine/instruments.py) for the view every consumer reads.
+Instruments sit outside the physics entirely: nothing in a step reads an
+indicated value, so a biased transmitter changes what is published and
+nothing that is solved.
+
 start()/stop() and the snapshot's running field delegate entirely to the
 clock's pause/resume. There is deliberately no second "is it running"
 flag to keep in sync with the clock's own — a stopped engine is exactly
@@ -78,6 +86,7 @@ from collections.abc import Iterable, Mapping
 
 from app.engine.clock import SimulationClock
 from app.engine.coupling import VesselCoupling, build_couplings
+from app.engine.instruments import Instrument, indicate, true_reading
 from app.engine.network import NetworkSolver, SolverResult
 from app.engine.snapshot import DEFAULT_SOLVER_STATUS, JSONValue, Snapshot, build_snapshot
 from app.engine.transport import ABSOLUTE_ZERO, DomainTransport
@@ -94,6 +103,7 @@ class Engine:
         topologies: Mapping[str, Topology] | None = None,
         couplings: Iterable[VesselCoupling] = (),
         boundary_temperatures: Mapping[str, float] | None = None,
+        instruments: Iterable[Instrument] = (),
     ) -> None:
         if topology is not None and topologies is not None:
             raise ValueError(
@@ -113,6 +123,7 @@ class Engine:
         }
         self.solver_results: dict[str, SolverResult] = {}
         self.couplings: list[VesselCoupling] = list(couplings)
+        self.instruments: dict[str, Instrument] = {}
 
         _check_boundary_temperatures(
             boundary_temperatures or {},
@@ -129,17 +140,22 @@ class Engine:
 
         self._couple()
 
+        for instrument in instruments:
+            self.add_instrument(instrument)
+
     @classmethod
     def from_plant(
         cls,
         plant: Plant,
         boundary_temperatures: Mapping[str, float] | None = None,
+        instruments: Iterable[Instrument] = (),
     ) -> "Engine":
         return cls(
             plant.devices.values(),
             topologies=plant.topologies,
             couplings=build_couplings(plant.devices.values(), plant.topologies),
             boundary_temperatures=boundary_temperatures,
+            instruments=instruments,
         )
 
     @property
@@ -191,6 +207,29 @@ class Engine:
         """
         self.equipment[device.tag] = device
 
+    def add_instrument(self, instrument: Instrument) -> None:
+        """Register an instrument, keyed by its own tag.
+
+        Refused unless the point it reads is published and numeric now, its
+        tag is free among devices and instruments alike, and no other
+        instrument already reads that point - a snapshot has one indicated
+        value per point, so a second instrument there would have nowhere to
+        show.
+        """
+        if instrument.tag in self.equipment or instrument.tag in self.instruments:
+            raise ValueError(f"tag {instrument.tag!r} is already in use")
+
+        for other in self.instruments.values():
+            if other.point == instrument.point:
+                raise ValueError(
+                    f"{instrument.tag} reads {'.'.join(instrument.point)}, "
+                    f"which {other.tag} already reads",
+                )
+
+        true_reading(instrument, self._truth())
+
+        self.instruments[instrument.tag] = instrument
+
     def start(self) -> None:
         self.clock.resume()
 
@@ -219,13 +258,26 @@ class Engine:
         return self.snapshot()
 
     def snapshot(self) -> Snapshot:
-        equipment_state = {
+        truth = self._truth()
+        indicated = indicate(truth, self.instruments.values())
+        clock_state = self.clock.get_state()
+
+        return build_snapshot(
+            sim_time=clock_state["sim_time"],
+            speed=clock_state["speed"],
+            running=not clock_state["paused"],
+            equipment=indicated["equipment"],
+            nodes=indicated["nodes"],
+            streams=indicated["streams"],
+            solver=self._solver_section(),
+            truth=truth,
+        )
+
+    def _truth(self) -> dict[str, dict[str, dict[str, JSONValue]]]:
+        equipment: dict[str, dict[str, JSONValue]] = {
             tag: device.get_state()
             for tag, device in self.equipment.items()
         }
-
-        clock_state = self.clock.get_state()
-
         nodes: dict[str, dict[str, JSONValue]] = {}
         streams: dict[str, dict[str, JSONValue]] = {}
 
@@ -239,15 +291,7 @@ class Engine:
             )
             streams.update(state["streams"])
 
-        return build_snapshot(
-            sim_time=clock_state["sim_time"],
-            speed=clock_state["speed"],
-            running=not clock_state["paused"],
-            equipment=equipment_state,
-            nodes=nodes,
-            streams=streams,
-            solver=self._solver_section(),
-        )
+        return {"equipment": equipment, "nodes": nodes, "streams": streams}
 
     def _couple(self) -> None:
         """Boundaries down, solve, exchange back up — one pass, no iteration.

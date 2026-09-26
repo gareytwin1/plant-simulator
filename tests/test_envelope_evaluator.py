@@ -111,6 +111,16 @@ def test_on_delay_resets_when_the_transient_moves_to_a_different_band():
     assert evaluator.evaluate(5.0, dt=4.0) is Severity.ALARM
 
 
+def test_on_delay_resets_when_a_pending_escalation_flips_side():
+    evaluator = Evaluator(_limits(), on_delay=5.0)
+
+    assert evaluator.evaluate(20.0, dt=3.0) is Severity.NORMAL
+    # Same severity (WARNING) but the opposite side: a stale timer would
+    # already total 6.0 >= on_delay here and wrongly commit.
+    assert evaluator.evaluate(80.0, dt=3.0) is Severity.NORMAL
+    assert evaluator.evaluate(80.0, dt=3.0) is Severity.WARNING
+
+
 def test_on_delay_does_not_hold_back_de_escalation():
     evaluator = Evaluator(_limits(), on_delay=5.0)
 

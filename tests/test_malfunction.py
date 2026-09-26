@@ -23,6 +23,7 @@ from app.disturbances.malfunction import (
     writable,
 )
 from app.engine.engine import Engine
+from app.engine.instruments import Instrument
 from app.engine.snapshot import build_snapshot
 from app.equipment.base import Equipment
 from app.equipment.compressor import GasCompressor
@@ -304,9 +305,16 @@ def test_every_production_device_class_has_an_allowlist():
     assert missing == []
 
 
+def sample(cls):
+    if cls is Instrument:
+        return Instrument("PT-101", "nodes", "N-101", "pressure")
+
+    return cls()
+
+
 @pytest.mark.parametrize("cls", list(WRITABLE), ids=lambda cls: cls.__name__)
 def test_every_allowlisted_parameter_is_a_validating_numeric_property(cls):
-    device = cls()
+    device = sample(cls)
 
     assert writable(device) == WRITABLE[cls]
 

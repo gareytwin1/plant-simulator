@@ -117,6 +117,7 @@ from collections.abc import Iterable, Mapping
 from app.equipment.base import INLET, LIQUID, OUTLET, VAPOR, Equipment, Port
 from app.equipment.compressor import GasCompressor
 from app.equipment.pump import CentrifugalPump
+from app.equipment.relief import ReliefValve
 from app.equipment.valve import ControlValve
 from app.equipment.vessel import Vessel
 from app.plant.topology import Node, Topology
@@ -139,6 +140,7 @@ FLOW_UNITS: dict[type[Equipment], str] = {
     CentrifugalPump: GPM,
     GasCompressor: SCFM,
     ControlValve: UNIT_NEUTRAL,
+    ReliefValve: UNIT_NEUTRAL,
 }
 
 # Declared phase is the primary classification (ADR 0002, Amendment 1 A.1).
@@ -346,11 +348,16 @@ class VesselCoupling:
         and lands on every gas node. Both are written per node rather than
         per port, so a second nozzle on a node cannot add a head twice or
         write a pressure that contradicts the first.
+
+        A gas node also senses any relief valve whose inlet faces it
+        (`_sense_relief_valves`) — the one other place this coupling writes a
+        plain attribute on a device that is not the vessel itself.
         """
         for exchange in self.exchanges:
             if exchange.unit == SCFM:
                 self.vessel.activate_gas()
                 exchange.node.set_boundary_pressure(self.vessel.pressure)
+                _sense_relief_valves(exchange, self.vessel.pressure)
 
                 continue
 
@@ -624,6 +631,23 @@ def flow_unit(device: Equipment) -> str | None:
             return FLOW_UNITS[kind]
 
     return None
+
+
+def _sense_relief_valves(exchange: "NodeExchange", pressure: float) -> None:
+    """Write the vessel's gas pressure onto a relief valve whose inlet faces
+    this node, the same plain-attribute bargain `inlet_flow` already makes.
+
+    `ReliefValve.characteristic` never reads a node (C1); `inlet_pressure` is
+    a caller-written attribute exactly like `Vessel.inlet_flow`, and this is
+    that caller. Scoped to the vessel's own gas exchanges, not a general
+    "any device senses its branch" mechanism - the only relief valve this
+    plant has is the one beside a vessel's vapor node (ADR 0002 §6, §8.1),
+    and a second sensing device would be its own task, not a reason to widen
+    this one now.
+    """
+    for branch in exchange.topology.branches_from(exchange.node.id):
+        if isinstance(branch.device, ReliefValve):
+            branch.device.inlet_pressure = pressure
 
 
 def _described(attachment: Attachment) -> str:

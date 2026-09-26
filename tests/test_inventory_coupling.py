@@ -35,6 +35,7 @@ from app.engine.network import NetworkSolver
 from app.equipment.base import INLET, OUTLET, Equipment, signed_square
 from app.equipment.compressor import GasCompressor
 from app.equipment.pump import CentrifugalPump
+from app.equipment.relief import ReliefValve
 from app.equipment.valve import ControlValve
 from app.equipment.vessel import Vessel
 from app.plant.loader import load_plant
@@ -775,5 +776,11 @@ def test_the_flow_unit_table_covers_every_device_a_branch_can_hold():
     assert FLOW_UNITS[CentrifugalPump] == GPM
     assert FLOW_UNITS[GasCompressor] == SCFM
     assert FLOW_UNITS[ControlValve] == UNIT_NEUTRAL
+    assert FLOW_UNITS[ReliefValve] == UNIT_NEUTRAL
 
-    assert set(FLOW_UNITS) == {CentrifugalPump, GasCompressor, ControlValve}
+    assert set(FLOW_UNITS) == {
+        CentrifugalPump,
+        GasCompressor,
+        ControlValve,
+        ReliefValve,
+    }

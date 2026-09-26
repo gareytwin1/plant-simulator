@@ -62,6 +62,7 @@ from app.equipment.exchanger import HeatExchanger
 from app.equipment.furnace import Furnace
 from app.equipment.pump import CentrifugalPump
 from app.equipment.registry import EquipmentRegistry
+from app.equipment.relief import ReliefValve
 from app.equipment.valve import ControlValve
 from app.equipment.vessel import Vessel
 
@@ -91,6 +92,11 @@ WRITABLE: dict[type[Target], frozenset[str]] = {
         "shutoff_pressure_rise",
         "compressor_resistance",
         "polytropic_efficiency",
+    }),
+    ReliefValve: frozenset({
+        "set_pressure",
+        "blowdown",
+        "capacity",
     }),
     # Everything a vessel carries is geometry or inventory. Listed empty so the
     # absence is a decision rather than an oversight.

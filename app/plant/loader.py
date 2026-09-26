@@ -86,6 +86,7 @@ from app.equipment.compressor import GasCompressor
 from app.equipment.exchanger import HeatExchanger
 from app.equipment.furnace import Furnace
 from app.equipment.pump import CentrifugalPump
+from app.equipment.relief import ReliefValve
 from app.equipment.valve import ControlValve
 from app.equipment.vessel import Vessel
 from app.plant.topology import Branch, Node, Topology
@@ -114,6 +115,7 @@ DEVICE_TYPES: dict[str, type[Equipment]] = {
     "vessel": Vessel,
     "heat_exchanger": HeatExchanger,
     "furnace": Furnace,
+    "relief_valve": ReliefValve,
 }
 
 

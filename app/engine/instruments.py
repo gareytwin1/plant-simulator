@@ -108,9 +108,9 @@ def indicate(
     }
 
     for instrument in instruments:
-        _, source, variable = instrument.point
-        row = indicated[instrument.section][source]
-        row[variable] = instrument.indicate(true_reading(instrument, truth))
+        value = instrument.indicate(true_reading(instrument, truth))
+        section, source, variable = instrument.point
+        indicated[section][source][variable] = value
 
     return indicated
 

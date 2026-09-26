@@ -315,6 +315,21 @@ def test_indicate_leaves_the_truth_it_was_given_alone():
     assert truth["nodes"]["N-1"]["pressure"] == 50.0
 
 
+@pytest.mark.parametrize(
+    "instrument",
+    [
+        Instrument("PT-1", "nodes", "N-2", "pressure"),
+        Instrument("PT-1", "nodes", "N-1", "presure"),
+    ],
+    ids=["missing row", "missing field"],
+)
+def test_indicate_refuses_a_point_truth_does_not_have(instrument):
+    truth = {"equipment": {}, "nodes": {"N-1": {"pressure": 50.0}}, "streams": {}}
+
+    with pytest.raises(ValueError, match="does not publish"):
+        indicate(truth, [instrument])
+
+
 # ---- build_snapshot -------------------------------------------------------
 
 

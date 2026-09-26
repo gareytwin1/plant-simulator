@@ -127,8 +127,10 @@ def test_same_severity_side_flip_reclassifies_immediately():
     assert evaluator.evaluate(80.0, dt=0.0) is Severity.WARNING
     assert evaluator.severity is Severity.WARNING
 
-    # De-escalating from the new (hi) side should now use its own threshold,
-    # not the stale lo-side one from before the flip.
+    # 76.0 is nowhere near the old lo-side clear point (20 + 5 = 25), so this
+    # only stays WARNING if the flip switched to the new hi-side threshold
+    # (80 - 5 = 75) rather than leaving the stale lo-side one in place.
+    assert evaluator.evaluate(76.0, dt=0.0) is Severity.WARNING
     assert evaluator.evaluate(74.0, dt=0.0) is Severity.NORMAL
 
 

@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "26 September 2026",
-  "main_sha": "59d0b65a0002e8000eb06ac67dfdcc148ca7ef2e",
-  "tests_passing_on_main": 1535,
+  "main_sha": "8552445141a30e546179bb644e5dbbcc4a7273ca",
+  "tests_passing_on_main": 1566,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -48,7 +48,7 @@
     },
     "M6": {
       "name": "Energy Balance and Temperature",
-      "complete": 4,
+      "complete": 5,
       "total": 5
     },
     "M7": {
@@ -119,7 +119,7 @@
   },
   "totals": {
     "tasks": 114,
-    "complete": 66,
+    "complete": 67,
     "startable_now": 19
   },
   "tasks": [
@@ -1062,10 +1062,9 @@
       "files": [
         "app/equipment/furnace.py"
       ],
-      "status": "Ready for Review",
-      "status_key": "review",
-      "startable": true,
-      "note": "PR #93 open \u2014 feature/furnace, rebased on main, 1556 passed, mypy clean, roborev clean"
+      "status": "Complete",
+      "status_key": "done",
+      "note": "COMPLETE \u2014 merged to main as 8552445 (Merge T6-4: Add furnace model, PR #93), 26 Sep 2026. 1566 passed on main post-merge, mypy clean over 40 source files, no golden trace moved."
     },
     {
       "id": "T6-5",

@@ -120,6 +120,18 @@ def test_on_delay_does_not_hold_back_de_escalation():
     assert evaluator.evaluate(50.0, dt=0.0) is Severity.NORMAL
 
 
+def test_same_severity_side_flip_reclassifies_immediately():
+    evaluator = Evaluator(_limits(), deadband=5.0)
+
+    assert evaluator.evaluate(20.0, dt=1.0) is Severity.WARNING
+    assert evaluator.evaluate(80.0, dt=0.0) is Severity.WARNING
+    assert evaluator.severity is Severity.WARNING
+
+    # De-escalating from the new (hi) side should now use its own threshold,
+    # not the stale lo-side one from before the flip.
+    assert evaluator.evaluate(74.0, dt=0.0) is Severity.NORMAL
+
+
 def test_severity_property_matches_the_last_evaluate_call():
     evaluator = Evaluator(_limits())
 

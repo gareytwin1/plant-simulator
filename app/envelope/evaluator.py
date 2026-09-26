@@ -24,6 +24,14 @@ severity has to persist - the same band, accumulated across possibly many
 transient shorter than that never registers. De-escalation is immediate once
 deadband clears: nothing here is meant to hold back a real recovery.
 
+**A same-severity side flip reclassifies immediately, exempt from both
+guards.** A value that satisfies the opposite side's limit at the same
+severity - `warning_lo` held, then a call lands on `warning_hi` - has
+already cleared the entire normal band it would otherwise need a deadband to
+clear, and is not escalating to a worse severity that on-delay would need to
+confirm. Gating this on either mechanism would only delay reporting a side
+the value has plainly already reached.
+
 Like `PID.compute()` (T8-1), `evaluate()` is a deterministic function of its
 arguments and the state left by the previous call - no wall clock, no plant,
 no randomness - so a caller supplies elapsed time as `dt` the same way the

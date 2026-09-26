@@ -37,6 +37,7 @@ DEVICE_MODULES = (
     "app.equipment.exchanger",
     "app.equipment.furnace",
     "app.equipment.pump",
+    "app.equipment.relief",
     "app.equipment.valve",
 )
 

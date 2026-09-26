@@ -31,7 +31,7 @@
           "tag": {"type": "string", "minLength": 1},
           "type": {
             "type": "string",
-            "enum": ["pump", "compressor", "control_valve", "vessel", "heat_exchanger", "furnace"]
+            "enum": ["pump", "compressor", "control_valve", "vessel", "heat_exchanger", "furnace", "relief_valve"]
           },
           "node_in": {"type": "string", "minLength": 1},
           "node_out": {"type": "string", "minLength": 1},

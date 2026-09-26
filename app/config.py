@@ -54,6 +54,7 @@ TAG_PREFIXES = {
     "H": "furnace",
     "V": "vessel",
     "FV": "control valve",
+    "PSV": "relief valve",
     "PT": "pressure transmitter",
     "FT": "flow transmitter",
     "TT": "temperature transmitter",

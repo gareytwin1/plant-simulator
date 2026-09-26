@@ -113,6 +113,32 @@ def test_cascade_requires_a_master():
         loop.compute(0.0, 1.0)
 
 
+def test_engaging_cascade_with_master_already_in_auto_produces_no_output_step():
+    # The most common real "engage cascade" action: the master is already
+    # running in AUTO, and the operator switches the slave straight into
+    # CASCADE. The new setpoint (the master's output) has never been tracked
+    # against, so without entry seeding this would be a full setpoint step
+    # against a stale integral on the very first call.
+    slave_pid = PID(kp=1.0, ki=0.5, kd=0.0, output_min=-100.0, output_max=100.0, setpoint=5.0)
+    slave = Loop(slave_pid, mode=Mode.AUTO)
+    slave.output = 20.0
+
+    master_pid = PID(kp=1.0, ki=0.0, kd=0.0, output_min=-100.0, output_max=100.0)
+    master = Loop(master_pid, mode=Mode.AUTO)
+    master.output = 60.0  # distinct from the slave's own prior setpoint/output
+
+    dt = 1.0
+    measurement = 8.0
+
+    slave.mode = Mode.CASCADE
+    output_on_engage = slave.compute(measurement, dt, master=master)
+    assert output_on_engage == pytest.approx(20.0)
+
+    # Cascade control resumes normally the very next call, same measurement.
+    output_next = slave.compute(measurement, dt, master=master)
+    assert output_next == pytest.approx(20.0)
+
+
 def test_cascade_active_follows_the_master_setpoint():
     process = FakeFirstOrderProcess(gain=1.0, time_constant=4.0, initial=0.0)
     slave_pid = PID(kp=1.0, ki=0.5, kd=0.0, output_min=-100.0, output_max=100.0)

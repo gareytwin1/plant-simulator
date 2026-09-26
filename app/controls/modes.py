@@ -21,9 +21,14 @@ would make manual intervention worse than doing nothing. A `Loop` wraps a
 
 Switching *into* `MANUAL` seeds `manual_output` from the loop's last output,
 so the transfer is bumpless by default; the operator moves it deliberately
-from there. The equivalent entry seeding for `CASCADE` is not needed: its
-tracking branch already targets `self.output`, so the first call after a
-switch behaves identically whether or not a step just happened.
+from there. `CASCADE` needs an equivalent seed for one specific case: if the
+master already happens to be in `AUTO` at the moment the switch is made, the
+new setpoint has never been tracked against, so the first `compute()` call
+would jump straight to it against a stale integral. `mode`'s setter can't do
+this seeding itself - it has no `measurement`/`dt` to call `PID.track()`
+with - so it only flags the transition, and `compute()` treats that first
+call after any switch into `CASCADE` as one more tracking step before
+control resumes, exactly as if the master were still off `AUTO`.
 """
 
 from __future__ import annotations
@@ -45,6 +50,7 @@ class Loop:
         self.output = min(max(0.0, pid.output_min), pid.output_max)
         self.manual_output = self.output
         self._mode = mode
+        self._entering = False
 
     @property
     def mode(self) -> Mode:
@@ -54,9 +60,12 @@ class Loop:
     def mode(self, value: Mode) -> None:
         if value is Mode.MANUAL:
             self.manual_output = self.output
+        self._entering = value is not self._mode
         self._mode = value
 
     def compute(self, measurement: float, dt: float, master: Loop | None = None) -> float:
+        entering, self._entering = self._entering, False
+
         if self.mode is Mode.MANUAL:
             self.pid.track(measurement, dt, self.manual_output)
             self.output = self.manual_output
@@ -68,7 +77,7 @@ class Loop:
 
             self.pid.setpoint = master.output
 
-            if master.mode is not Mode.AUTO:
+            if entering or master.mode is not Mode.AUTO:
                 self.pid.track(measurement, dt, self.output)
                 return self.output
 

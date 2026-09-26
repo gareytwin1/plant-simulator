@@ -92,10 +92,14 @@ class PID:
         target = min(max(output, self.output_min), self.output_max)
         error = self.setpoint - measurement
 
-        if self._prev_measurement is None:
-            derivative = 0.0
-        else:
-            derivative = -self.kd * (measurement - self._prev_measurement) / dt
+        # track() always leaves _prev_measurement equal to this call's
+        # measurement, so a follow-up call reusing it - the bumpless case
+        # this exists for - is guaranteed derivative = 0. The preload has to
+        # assume that same zero, not whatever derivative this call's own
+        # (now-discarded) measurement history would have produced: baking in
+        # a transient nonzero value here would size the integral for a
+        # derivative term the next call can never actually see, producing a
+        # bump equal to exactly that discarded term.
         self._prev_measurement = measurement
 
         # ki == 0 has no integral to preload through - a proportional-only
@@ -106,4 +110,4 @@ class PID:
         # that increment out - otherwise the very next compute() call would
         # already have moved past the target by ki * error * dt.
         if self.ki != 0.0:
-            self._integral = (target - self.kp * error - derivative) / self.ki - error * dt
+            self._integral = (target - self.kp * error) / self.ki - error * dt

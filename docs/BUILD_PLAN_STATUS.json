@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "26 September 2026",
-  "main_sha": "462b313fb60609bc4268d8f9b58a57097268f21e",
-  "tests_passing_on_main": 1443,
+  "main_sha": "89ed2fc498023d36a049490b75d6fdfe8995f6df",
+  "tests_passing_on_main": 1477,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -63,7 +63,7 @@
     },
     "M9": {
       "name": "Operating Envelopes",
-      "complete": 0,
+      "complete": 1,
       "total": 4
     },
     "M10": {
@@ -119,8 +119,8 @@
   },
   "totals": {
     "tasks": 114,
-    "complete": 61,
-    "startable_now": 15
+    "complete": 62,
+    "startable_now": 18
   },
   "tasks": [
     {
@@ -1276,10 +1276,9 @@
       "files": [
         "app/envelope/evaluator.py"
       ],
-      "status": "Ready for Review",
-      "status_key": "review",
-      "startable": true,
-      "note": "PR #89 open (github.com/gareytwin1/plant-simulator/pull/89) - full suite green, mypy clean, roborev-refine passed, rebased on main."
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged 89ed2fc (PR #89). Post-merge full suite: 1477 passed, mypy clean."
     },
     {
       "id": "T9-2",
@@ -1298,10 +1297,7 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "T9-1"
-      ],
+      "startable": true,
       "note": "T5-5 merged as 37fbc36 (PR #49) 22 Sep 2026 - only T9-1 blocks this now. Depends on T5-5, which creates config/plants/olefins_lite.yaml; explicit because milestone ordering alone is too implicit for agents (docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md)."
     },
     {
@@ -1318,10 +1314,7 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "T9-1"
-      ],
+      "startable": true,
       "note": ""
     },
     {
@@ -1379,7 +1372,6 @@
       "status_key": "todo",
       "startable": false,
       "blocked_by": [
-        "T9-1",
         "T10-1"
       ],
       "note": ""
@@ -1463,10 +1455,7 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "T9-1"
-      ],
+      "startable": true,
       "note": "T5-5 merged as 37fbc36 (PR #49) 22 Sep 2026 - only T9-1 blocks this now. Depends on T5-5, which creates config/plants/olefins_lite.yaml; explicit because milestone ordering alone is too implicit for agents (docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md)."
     },
     {

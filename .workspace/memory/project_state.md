@@ -15,24 +15,24 @@ already in BUILD_PLAN_STATUS.json and does not need a second home.
 
 ## Right now
 
-**Last state refresh:** 26 September 2026, at `462b313` (Merge T13-2: Split true
-and indicated values, PR #90) - **this is a snapshot, not a live
-pointer.** Run `git log 462b313..HEAD --oneline` to see what has merged since.
-**Full suite as of this refresh:** **1443 passed** · `python -m mypy` clean over 35 source files · compressor golden trace moved deliberately (temperature field only, on the two boundary-asymmetric scenarios - justified in T6-2's note)
-**In flight:** T9-1 (PR #89), T10-1 (PR #87) and T14-1 (PR #88), all Ready for Review; none is spine.
-**No spine lock is held** - T13-2 released it on merge. No task is Blocked. CI runs on every PR, and `main` requires its
+**Last state refresh:** 26 September 2026, at `89ed2fc` (Merge T9-1: Add
+envelope evaluator, PR #89) - **this is a snapshot, not a live
+pointer.** Run `git log 89ed2fc..HEAD --oneline` to see what has merged since.
+**Full suite as of this refresh:** **1477 passed** · `python -m mypy` clean over 37 source files · compressor golden trace moved deliberately (temperature field only, on the two boundary-asymmetric scenarios - justified in T6-2's note)
+**In flight:** T10-1 (PR #87) and T14-1 (PR #88), both Ready for Review; neither is spine.
+**No spine lock is held.** No task is Blocked. CI runs on every PR, and `main` requires its
 `test` check before a merge.
 
 **Recent merges** (full notes in [BUILD_PLAN_STATUS.json](../../docs/BUILD_PLAN_STATUS.json)):
 
 | Task | SHA | What landed |
 |---|---|---|
+| **T9-1** | `89ed2fc` | Envelope evaluator. `Evaluator`/`Limits`/`Severity` in `app/envelope/evaluator.py`: boundary-inclusive classification against six optional ordered thresholds (normal/warning/alarm/trip), deadband gating de-escalation only, on-delay gating escalation only. Roborev caught two real edge cases pre-merge: a same-severity side flip (`warning_lo` held, `warning_hi` reached) silently bypassing both guards, and the on-delay pending timer not resetting when an uncommitted escalation flips side - both fixed and locked in with tests. No plant dependency. Unblocks T9-2, T9-3, T11-1 |
 | **T13-2** | `462b313` | True and indicated values. `Instrument(tag, section, source, variable, bias)` in `app/engine/instruments.py`; `Snapshot.equipment/nodes/streams` are now the indicated view and `Snapshot.truth` the physics, excluded from `as_dict()` and guarded by `tests/test_truth_isolation.py` (allowlist empty). `Engine(instruments=...)`; `Instrument.bias` is malfunction-writable, so instrument drift is a ramped bias. Releases the spine lock |
 | **T13-1** | `e009883` | Malfunction model and registry (C8). `Malfunction(target_tag, parameter, value, profile, start_condition)` in `app/disturbances/malfunction.py`; `WRITABLE` allowlists design parameters per exact device class, so solver outputs and slow state raise `NotWritable`. `MalfunctionRegistry.update(snapshot)` latches onset and captures the original; `revert` restores it exactly. `Step`/`AtTime` minimal, T13-3 extends. Open for T13-4: trips are commands, not parameters (needs an Opus decision); `stroke_rate` is unvalidated so not allowlisted (T7-3) |
 | **T8-2** | `6e68db0` | Control modes and bumpless transfer. `Loop`/`Mode` in `app/controls/modes.py`: MANUAL/AUTO/CASCADE wrapping a `PID`, bumpless in both directions via a new `PID.track()` (back-calculation preload, `app/controls/pid.py`). Roborev caught two real bugs pre-merge: `track()` baking a transient derivative into the preloaded integral that the next call's guaranteed-zero derivative couldn't reproduce (bump on any `kd != 0` loop with a drifting measurement), and engaging `CASCADE` with the master already in `AUTO` skipping the preload entirely (a full setpoint step on the single most common "engage cascade" action). Both fixed with regression tests. T8-3 binds to it |
 | **R12** | `3e75af7` | Spine rules reconciled. One global spine lock over `base.py`, `topology.py` and every `app/engine/` module on `main` (U1 made standing), held by whichever task is In Progress or Ready for Review on a spine file; `app/main.py` keeps its own lock. Rule lives in DEVELOPMENT.md's File ownership; `engine.md` and the start-task skill link to it. `rng.py` is now spine |
 | **T8-1** | `df1f91f` | PID block. `PID` in `app/controls/pid.py`: conditional-integration anti-windup that freezes the integral only when the current error pushes further into whichever bound is saturated (not merely because the output happens to be clamped, which could latch it there forever - roborev caught this after the first commit), output clamping, derivative on measurement. Constructor rejects `output_min > output_max` and `ki < 0` (a negative `ki` would flip the saturation-direction inference). Standalone, no plant dependency. T8-2 binds to it |
-| **T7-4** | `96f888e` | Command arbitration. `CommandArbiter` in `app/controls/arbitration.py`: standing demands per bound output keyed by `(source, requester)`, resolved by fixed precedence interlock > operator > controller, independent of arrival order. `apply()` writes every output even if one raises, then raises an `ExceptionGroup`. Not wired to anything yet - `app/main.py`'s operator routes still call device setters directly and must be rewired through the arbiter before M11 interlocks go live. T8-4 and T11-2 bind to it |
 
 **ADRs on `main`:** ADR 0001 ([flow-domain separation](../../docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md))
 with Amendment 1, and ADR 0002 ([typed ports](../../docs/ADR_0002_TYPED_PORTS.md)) with
@@ -48,21 +48,22 @@ what made this file 1,086 lines.
 | **M6** Energy Balance and Temperature | 4/5 - T6-1, T6-2, T6-3, T6-5 Complete; T6-4 startable |
 | **M7** Control Valves and Final Elements | 3/5 - T7-1, T7-2, T7-4 Complete; T7-3, T7-5 startable |
 | **M8** PID Controllers and Modes | 2/5 - T8-1, T8-2 Complete; T8-3 startable |
+| **M9** Operating Envelopes | 1/4 - T9-1 Complete; T9-2, T9-3 startable |
 | **M13** Malfunctions | 2/5 - T13-1, T13-2 Complete; T13-3, T13-5 startable; T13-4 waits on T7-3 |
 | **MR** Remediation | 12/13 - R1-R7, R9, R10a, R10b, R11, R12 Complete; R8 remains, no-spine and startable |
 | **M18** Deployment and Operations | 1/5 - T18-2 Complete |
-| M9–M12, M14–M17, M19 | None Complete; T9-1, T10-1 and T14-1 are Ready for Review |
+| M10–M12, M14–M17, M19 | None Complete; T10-1 and T14-1 are Ready for Review |
 
-**61 of 114 tasks Complete.** Next checkpoint is **C** (M5 + M6 + M7); M5 is
+**62 of 114 tasks Complete.** Next checkpoint is **C** (M5 + M6 + M7); M5 is
 closed, M6 has landed four of its five tasks and M7 three. MR is scheduled to
 merge by Checkpoint C; its spine work is done.
 
 ## The next task
 
-**No single task is "the" next one.** Fifteen tasks are startable, all Sonnet.
+**No single task is "the" next one.** Eighteen tasks are startable, all Sonnet.
 Which to hand out next is a scheduling choice, not a dependency one.
 
-### Startable now (15)
+### Startable now (18)
 
 | Task | Name | Model | Branch |
 |---|---|---|---|
@@ -71,6 +72,9 @@ Which to hand out next is a scheduling choice, not a dependency one.
 | **T7-3** | Valve fault modes | Sonnet | `feature/valve-faults` |
 | **T7-5** | Relief device | Sonnet | `feature/relief-valve` |
 | **T8-3** | Loop configuration and tag wiring | Sonnet | `feature/loop-config` |
+| **T9-2** | Limit definitions in plant config | Sonnet | `feature/envelope-limits` |
+| **T9-3** | Time-in-band and excursion tracking | Sonnet | `feature/excursion-tracking` |
+| **T11-1** | Interlock definitions and evaluator | Sonnet | `feature/interlock-evaluator` |
 | **T12-1** | Plant snapshot save and restore | Sonnet | `feature/state-persistence` |
 | **T13-3** | Injection profiles | Sonnet | `feature/malfunction-profiles` |
 | **T13-5** | Physics isolation guard | Sonnet | `test/import-direction-guard` |
@@ -82,7 +86,7 @@ Which to hand out next is a scheduling choice, not a dependency one.
 | **T18-1** | Container and WSGI serving | Sonnet · one worker process | `chore/container-and-ci` |
 | **T18-4** | Structured logging and health | Sonnet | `feature/observability` |
 
-**Still waiting:** T9-2 - on T9-1. T11-1 still waits on T9-1 too. T13-4 waits on T7-3.
+**Still waiting:** T9-4 - on T9-2 and T9-3. T13-4 waits on T7-3.
 
 **Scheduling notes.** The spine lock is **one global lock**, now the standing
 rule (R12, [DEVELOPMENT.md](../../DEVELOPMENT.md#file-ownership)); the spine

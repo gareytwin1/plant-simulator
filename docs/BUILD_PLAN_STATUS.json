@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "26 September 2026",
-  "main_sha": "3ed567ab5bc454721e1cfb0f987a802a7c00f8c5",
-  "tests_passing_on_main": 1525,
+  "main_sha": "59d0b65a0002e8000eb06ac67dfdcc148ca7ef2e",
+  "tests_passing_on_main": 1535,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -53,7 +53,7 @@
     },
     "M7": {
       "name": "Control Valves and Final Elements",
-      "complete": 3,
+      "complete": 4,
       "total": 5
     },
     "M8": {
@@ -119,8 +119,8 @@
   },
   "totals": {
     "tasks": 114,
-    "complete": 65,
-    "startable_now": 20
+    "complete": 66,
+    "startable_now": 19
   },
   "tasks": [
     {
@@ -1062,10 +1062,10 @@
       "files": [
         "app/equipment/furnace.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
+      "status": "Ready for Review",
+      "status_key": "review",
       "startable": true,
-      "note": ""
+      "note": "PR #93 open \u2014 feature/furnace, rebased on main, 1556 passed, mypy clean, roborev clean"
     },
     {
       "id": "T6-5",
@@ -1135,10 +1135,9 @@
       "files": [
         "app/equipment/valve.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true,
-      "note": ""
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged 59d0b65 (PR #92). Full suite 1535 passed on main, mypy clean."
     },
     {
       "id": "T7-4",
@@ -1662,10 +1661,7 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "T7-3"
-      ],
+      "startable": true,
       "note": ""
     },
     {

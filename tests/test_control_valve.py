@@ -39,6 +39,7 @@ from pathlib import Path
 
 import pytest
 
+from app import config
 from app.engine.coupling import (
     FLOW_UNITS,
     GPM,
@@ -372,6 +373,134 @@ def test_a_minimum_position_that_would_divide_by_zero_is_refused(floor):
         valve_with(min_position=floor)
 
 
+# --------------------------------------------------------------------------
+# 5. Fault modes (T7-3) — stuck, slow, reversed, passing-through
+#
+# Each is expressed as a parameter change on the device itself, the way a
+# malfunction (C8) is required to touch it: no fault here ever writes a flow
+# or a pressure, only what `characteristic` and `integrate` compute from.
+# --------------------------------------------------------------------------
+
+
+def test_a_stuck_valve_ignores_a_new_command():
+    valve = valve_with(position=0.6, position_target=0.6, stuck=True)
+
+    valve.set_position_target(0.1)
+    stroke(valve, 100.0)
+
+    assert valve.position == pytest.approx(0.6)
+
+
+def test_a_stuck_valve_ignores_a_lost_signal():
+    valve = valve_with(
+        position=0.6,
+        position_target=0.6,
+        fail_action=FAIL_CLOSED,
+        stuck=True,
+    )
+
+    valve.lose_signal()
+    stroke(valve, 100.0)
+
+    assert valve.position == pytest.approx(0.6)
+
+
+def test_unsticking_a_valve_lets_it_resume_stroking_toward_its_command():
+    valve = valve_with(position=0.6, stuck=True)
+    valve.set_position_target(0.1)
+
+    stroke(valve, 100.0)
+    assert valve.position == pytest.approx(0.6)
+
+    valve.stuck = False
+    stroke(valve, 100.0)
+
+    assert valve.position == pytest.approx(0.1)
+
+
+def test_a_slow_valve_strokes_at_its_own_reduced_rate():
+    """The fault is nothing but a lower `stroke_rate` — the existing rate
+    limit in `integrate` does the rest, exactly as it does for a healthy
+    valve.
+    """
+    healthy = valve_with(stroke_rate=0.05, position=1.0)
+    slow = valve_with(stroke_rate=0.01, position=1.0)
+
+    for valve in (healthy, slow):
+        valve.set_position_target(0.0)
+
+    stroke(healthy, 4.0)
+    stroke(slow, 4.0)
+
+    assert healthy.position == pytest.approx(1.0 - 0.05 * 4.0)
+    assert slow.position == pytest.approx(1.0 - 0.01 * 4.0)
+    assert slow.position > healthy.position
+
+
+@pytest.mark.parametrize("rate", [0.0, -0.05])
+def test_a_stroke_rate_that_would_never_move_or_move_backwards_is_refused(rate):
+    with pytest.raises(ValueError, match="stroke_rate"):
+        valve_with(stroke_rate=rate)
+
+
+def test_a_reversed_valve_closes_when_commanded_open():
+    valve = valve_with(min_position=0.1, position=0.5, action_reversed=True)
+
+    valve.set_position_target(1.0)
+    stroke(valve, 100.0)
+
+    assert valve.position == pytest.approx(0.1)
+
+
+def test_a_reversed_valve_opens_when_commanded_closed():
+    valve = valve_with(min_position=0.1, position=0.5, action_reversed=True)
+
+    valve.set_position_target(0.0)
+    stroke(valve, 100.0)
+
+    assert valve.position == pytest.approx(1.0)
+
+
+def test_reversed_action_leaves_the_explicit_fail_position_alone():
+    """The mirroring only applies to a live command. A lost signal still
+    drives to the fail position exactly as an unreversed valve would — a
+    spring return does not care which way the positioner was wired.
+    """
+    valve = valve_with(
+        fail_action=FAIL_CLOSED,
+        min_position=0.1,
+        position=0.9,
+        action_reversed=True,
+    )
+    valve.set_position_target(0.9)
+
+    valve.lose_signal()
+    stroke(valve, 100.0)
+
+    assert valve.position == pytest.approx(0.1)
+
+
+def test_a_higher_leak_floor_passes_more_flow_when_commanded_fully_shut():
+    """A passing valve is already the shape `min_position` has: a seat that
+    cannot reach zero. Raising the floor — exactly what a malfunction does,
+    since `min_position` is malfunction-writable — settles the valve further
+    open than commanded and passes more flow at the same command.
+    """
+    healthy = valve_with(min_position=0.1)
+    passing = valve_with(min_position=0.4)
+
+    for valve in (healthy, passing):
+        valve.set_position_target(0.0)
+        stroke(valve, 100.0)
+
+    assert passing.position > healthy.position
+    assert passing.effective_capacity > healthy.effective_capacity
+
+    # A wider-open, higher-capacity seat resists a given flow less — the
+    # same command now passes more of it for less drop.
+    assert abs(passing.characteristic(100.0)) < abs(healthy.characteristic(100.0))
+
+
 def test_the_loader_reports_a_bad_valve_design_with_its_config_path():
     config = valve_train_config()
     config["equipment"][2]["design"]["min_position"] = 0.0
@@ -392,6 +521,9 @@ def test_reset_restores_construction_state_and_keeps_the_ports():
 
     valve.capacity = 12.0
     valve.flow_characteristic = EQUAL_PERCENTAGE
+    valve.stroke_rate = 0.01
+    valve.stuck = True
+    valve.action_reversed = True
     valve.set_position_target(0.2)
     valve.lose_signal()
     stroke(valve, 10.0)
@@ -400,6 +532,9 @@ def test_reset_restores_construction_state_and_keeps_the_ports():
 
     assert valve.capacity == 100.0
     assert valve.flow_characteristic == LINEAR
+    assert valve.stroke_rate == pytest.approx(config.VALVE_STROKE_RATE_PER_SECOND)
+    assert valve.stuck is False
+    assert valve.action_reversed is False
     assert valve.position == 1.0
     assert valve.position_target == 1.0
     assert valve.signal_ok is True

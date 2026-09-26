@@ -1,6 +1,6 @@
 ---
 name: ready-for-review
-description: Run the pre-review checklist on the current task branch - full suite, mypy, rebase, golden-trace and scope checks, then open the PR. Invoke explicitly when a task's implementation is done; never auto-triggered.
+description: Run the pre-review checklist on the current task branch - full suite, mypy, rebase, golden-trace and scope checks, roborev-refine, then open the PR. Invoke explicitly when a task's implementation is done; never auto-triggered.
 disable-model-invocation: true
 ---
 
@@ -51,11 +51,17 @@ and needs updating to match — do not follow this skill over DEVELOPMENT.md.
 
    If the rebase moves anything from steps 1-4, redo them.
 
-6. **Pause and confirm with the user before opening the PR** — show the
+6. Run `/roborev-refine` to address open roborev findings on every commit on
+   the branch, per
+   [DEVELOPMENT.md's "Continuous review (roborev)" section](../../../DEVELOPMENT.md#continuous-review-roborev).
+   It applies fixes and re-reviews until clean; this runs alongside
+   `pytest`/`mypy`, not instead of them. If it commits fixes, redo steps 1-4.
+
+7. **Pause and confirm with the user before opening the PR** — show the
    proposed title (`T{TASK-ID}: Brief description`) and a one-line summary.
    Opening a PR is visible to others; don't do it without a checkpoint.
 
-7. On confirmation, open the PR. Then set the task's status to **Ready for
+8. On confirmation, open the PR. Then set the task's status to **Ready for
    Review** **in the live build plan artifact only**
    (`https://claude.ai/artifact/DXqzpwKxeKZNzZGrC3HkQ9`). **Do not touch
    `docs/BUILD_PLAN_STATUS.json`** - not on this branch, not on `main`.
@@ -63,5 +69,6 @@ and needs updating to match — do not follow this skill over DEVELOPMENT.md.
    next task's, and a `main` commit puts every open PR behind. `merge-task`
    regenerates it after the next merge, which picks this status up.
 
-8. Report: PR URL, final test count, mypy result, and confirmation that no
-   golden trace moved.
+9. Report: PR URL, final test count, mypy result, roborev-refine result
+   (clean or findings addressed), and confirmation that no golden trace
+   moved.

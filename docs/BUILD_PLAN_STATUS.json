@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "26 September 2026",
-  "main_sha": "e0098838f17b12f99d06ac8a865ae4d119005d00",
-  "tests_passing_on_main": 1368,
+  "main_sha": "462b313fb60609bc4268d8f9b58a57097268f21e",
+  "tests_passing_on_main": 1443,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -83,7 +83,7 @@
     },
     "M13": {
       "name": "Disturbance and Malfunction Layer",
-      "complete": 1,
+      "complete": 2,
       "total": 5
     },
     "M14": {
@@ -119,8 +119,8 @@
   },
   "totals": {
     "tasks": 114,
-    "complete": 60,
-    "startable_now": 19
+    "complete": 61,
+    "startable_now": 15
   },
   "tasks": [
     {
@@ -1276,10 +1276,10 @@
       "files": [
         "app/envelope/evaluator.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
+      "status": "Ready for Review",
+      "status_key": "review",
       "startable": true,
-      "note": ""
+      "note": "PR #89 open (github.com/gareytwin1/plant-simulator/pull/89) - full suite green, mypy clean, roborev-refine passed, rebased on main."
     },
     {
       "id": "T9-2",
@@ -1357,10 +1357,10 @@
       "files": [
         "app/alarms/state.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
+      "status": "Ready for Review",
+      "status_key": "review",
       "startable": true,
-      "note": ""
+      "note": "PR #87 (feature/alarm-state-machine -> main). Contract C7: pure ISA-style alarm lifecycle (NORMAL/UNACK/ACKED/RTN_UNACK) in app/alarms/state.py. Clear-before-acknowledge handled via RTN_UNACK, held until acknowledged; re-alarm before acknowledgement returns to UNACK on the same Alarm instance rather than duplicating it. No plant dependency; consumed by T10-2's alarm manager. 1388 passed (1368 baseline + 16 new + 4 from the port-name/random-import guard tests sweeping the 2 new files), mypy clean over 36 source files, no golden trace moved."
     },
     {
       "id": "T10-2",
@@ -1641,10 +1641,9 @@
         "app/equipment/base.py",
         "app/engine/snapshot.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true,
-      "note": ""
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged 462b313 (PR #90); 1443 passed post-merge, mypy clean over 35 files, no golden moved. Releases the spine lock. Instrument(tag, section, source, variable, bias) in app/engine/instruments.py turns truth into indicated at the snapshot; Snapshot.equipment/nodes/streams are the indicated view, Snapshot.truth the physics (same shape, validated; excluded from as_dict); tests/test_truth_isolation.py fails the build on any app/ reader of truth (allowlist empty). Engine(instruments=...) refuses unpublished/non-numeric points, tag clashes and two instruments on one point. Instrument.bias is malfunction-writable (MalfunctionRegistry(equipment, instruments)), so instrument drift is a ramped bias. Open: instruments not in C3 config (no owner); no stuck/range-clamped transmitter; BUILD_PLAN C4 text does not mention truth."
     },
     {
       "id": "T13-3",
@@ -1681,7 +1680,6 @@
       "status_key": "todo",
       "startable": false,
       "blocked_by": [
-        "T13-2",
         "T7-3"
       ],
       "note": ""
@@ -1711,10 +1709,10 @@
       "files": [
         "config/schema/scenario.schema.json"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
+      "status": "Ready for Review",
+      "status_key": "review",
       "startable": true,
-      "note": ""
+      "note": "PR #88 open, feature/scenario-schema at 702e346. Full suite 1394 passed, mypy clean, roborev branch review passed."
     },
     {
       "id": "T14-2",

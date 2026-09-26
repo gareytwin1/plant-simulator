@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "26 September 2026",
-  "main_sha": "89ed2fc498023d36a049490b75d6fdfe8995f6df",
-  "tests_passing_on_main": 1477,
+  "main_sha": "3cb05dcbf5ec6a629f04dba136e50af727b1cc69",
+  "tests_passing_on_main": 1499,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -68,7 +68,7 @@
     },
     "M10": {
       "name": "Alarm System",
-      "complete": 0,
+      "complete": 1,
       "total": 5
     },
     "M11": {
@@ -119,8 +119,8 @@
   },
   "totals": {
     "tasks": 114,
-    "complete": 62,
-    "startable_now": 18
+    "complete": 63,
+    "startable_now": 19
   },
   "tasks": [
     {
@@ -1350,10 +1350,9 @@
       "files": [
         "app/alarms/state.py"
       ],
-      "status": "Ready for Review",
-      "status_key": "review",
-      "startable": true,
-      "note": "PR #87 (feature/alarm-state-machine -> main). Contract C7: pure ISA-style alarm lifecycle (NORMAL/UNACK/ACKED/RTN_UNACK) in app/alarms/state.py. Clear-before-acknowledge handled via RTN_UNACK, held until acknowledged; re-alarm before acknowledgement returns to UNACK on the same Alarm instance rather than duplicating it. No plant dependency; consumed by T10-2's alarm manager. 1388 passed (1368 baseline + 16 new + 4 from the port-name/random-import guard tests sweeping the 2 new files), mypy clean over 36 source files, no golden trace moved."
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged to main as 3cb05dc (merge commit from feature/alarm-state-machine, PR #87). Contract C7: pure ISA-style alarm lifecycle (NORMAL/UNACK/ACKED/RTN_UNACK) in app/alarms/state.py. Clear-before-acknowledge handled via RTN_UNACK, held until acknowledged; re-alarm before acknowledgement returns to UNACK on the same Alarm instance rather than duplicating it. No plant dependency; consumed by T10-2's alarm manager. 1499 passed post-merge, mypy clean over 39 source files, no golden trace moved."
     },
     {
       "id": "T10-2",
@@ -1370,10 +1369,7 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "T10-1"
-      ],
+      "startable": true,
       "note": ""
     },
     {

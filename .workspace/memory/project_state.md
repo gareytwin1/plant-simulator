@@ -15,11 +15,11 @@ already in BUILD_PLAN_STATUS.json and does not need a second home.
 
 ## Right now
 
-**Last state refresh:** 26 September 2026, at `89ed2fc` (Merge T9-1: Add
-envelope evaluator, PR #89) - **this is a snapshot, not a live
-pointer.** Run `git log 89ed2fc..HEAD --oneline` to see what has merged since.
-**Full suite as of this refresh:** **1477 passed** · `python -m mypy` clean over 37 source files · compressor golden trace moved deliberately (temperature field only, on the two boundary-asymmetric scenarios - justified in T6-2's note)
-**In flight:** T10-1 (PR #87) and T14-1 (PR #88), both Ready for Review; neither is spine.
+**Last state refresh:** 26 September 2026, at `3cb05dc` (Merge T10-1: Alarm
+state machine, PR #87) - **this is a snapshot, not a live
+pointer.** Run `git log 3cb05dc..HEAD --oneline` to see what has merged since.
+**Full suite as of this refresh:** **1499 passed** · `python -m mypy` clean over 39 source files · compressor golden trace moved deliberately (temperature field only, on the two boundary-asymmetric scenarios - justified in T6-2's note)
+**In flight:** T14-1 (PR #88), Ready for Review; not spine.
 **No spine lock is held.** No task is Blocked. CI runs on every PR, and `main` requires its
 `test` check before a merge.
 
@@ -27,12 +27,12 @@ pointer.** Run `git log 89ed2fc..HEAD --oneline` to see what has merged since.
 
 | Task | SHA | What landed |
 |---|---|---|
+| **T10-1** | `3cb05dc` | Alarm state machine (C7). Pure ISA-style lifecycle in `app/alarms/state.py`: `NORMAL`/`UNACK`/`ACKED`/`RTN_UNACK`, with clear-before-acknowledge handled explicitly - a condition that clears before acknowledgement holds in `RTN_UNACK` rather than returning to `NORMAL`, and a re-alarm from there returns to `UNACK` on the same `Alarm` instance rather than duplicating it. No plant dependency. T10-2 binds to it |
 | **T9-1** | `89ed2fc` | Envelope evaluator. `Evaluator`/`Limits`/`Severity` in `app/envelope/evaluator.py`: boundary-inclusive classification against six optional ordered thresholds (normal/warning/alarm/trip), deadband gating de-escalation only, on-delay gating escalation only. Roborev caught two real edge cases pre-merge: a same-severity side flip (`warning_lo` held, `warning_hi` reached) silently bypassing both guards, and the on-delay pending timer not resetting when an uncommitted escalation flips side - both fixed and locked in with tests. No plant dependency. Unblocks T9-2, T9-3, T11-1 |
 | **T13-2** | `462b313` | True and indicated values. `Instrument(tag, section, source, variable, bias)` in `app/engine/instruments.py`; `Snapshot.equipment/nodes/streams` are now the indicated view and `Snapshot.truth` the physics, excluded from `as_dict()` and guarded by `tests/test_truth_isolation.py` (allowlist empty). `Engine(instruments=...)`; `Instrument.bias` is malfunction-writable, so instrument drift is a ramped bias. Releases the spine lock |
 | **T13-1** | `e009883` | Malfunction model and registry (C8). `Malfunction(target_tag, parameter, value, profile, start_condition)` in `app/disturbances/malfunction.py`; `WRITABLE` allowlists design parameters per exact device class, so solver outputs and slow state raise `NotWritable`. `MalfunctionRegistry.update(snapshot)` latches onset and captures the original; `revert` restores it exactly. `Step`/`AtTime` minimal, T13-3 extends. Open for T13-4: trips are commands, not parameters (needs an Opus decision); `stroke_rate` is unvalidated so not allowlisted (T7-3) |
 | **T8-2** | `6e68db0` | Control modes and bumpless transfer. `Loop`/`Mode` in `app/controls/modes.py`: MANUAL/AUTO/CASCADE wrapping a `PID`, bumpless in both directions via a new `PID.track()` (back-calculation preload, `app/controls/pid.py`). Roborev caught two real bugs pre-merge: `track()` baking a transient derivative into the preloaded integral that the next call's guaranteed-zero derivative couldn't reproduce (bump on any `kd != 0` loop with a drifting measurement), and engaging `CASCADE` with the master already in `AUTO` skipping the preload entirely (a full setpoint step on the single most common "engage cascade" action). Both fixed with regression tests. T8-3 binds to it |
 | **R12** | `3e75af7` | Spine rules reconciled. One global spine lock over `base.py`, `topology.py` and every `app/engine/` module on `main` (U1 made standing), held by whichever task is In Progress or Ready for Review on a spine file; `app/main.py` keeps its own lock. Rule lives in DEVELOPMENT.md's File ownership; `engine.md` and the start-task skill link to it. `rng.py` is now spine |
-| **T8-1** | `df1f91f` | PID block. `PID` in `app/controls/pid.py`: conditional-integration anti-windup that freezes the integral only when the current error pushes further into whichever bound is saturated (not merely because the output happens to be clamped, which could latch it there forever - roborev caught this after the first commit), output clamping, derivative on measurement. Constructor rejects `output_min > output_max` and `ki < 0` (a negative `ki` would flip the saturation-direction inference). Standalone, no plant dependency. T8-2 binds to it |
 
 **ADRs on `main`:** ADR 0001 ([flow-domain separation](../../docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md))
 with Amendment 1, and ADR 0002 ([typed ports](../../docs/ADR_0002_TYPED_PORTS.md)) with
@@ -49,21 +49,22 @@ what made this file 1,086 lines.
 | **M7** Control Valves and Final Elements | 3/5 - T7-1, T7-2, T7-4 Complete; T7-3, T7-5 startable |
 | **M8** PID Controllers and Modes | 2/5 - T8-1, T8-2 Complete; T8-3 startable |
 | **M9** Operating Envelopes | 1/4 - T9-1 Complete; T9-2, T9-3 startable |
+| **M10** Alarms | 1/5 - T10-1 Complete; T10-2 startable |
 | **M13** Malfunctions | 2/5 - T13-1, T13-2 Complete; T13-3, T13-5 startable; T13-4 waits on T7-3 |
 | **MR** Remediation | 12/13 - R1-R7, R9, R10a, R10b, R11, R12 Complete; R8 remains, no-spine and startable |
 | **M18** Deployment and Operations | 1/5 - T18-2 Complete |
-| M10–M12, M14–M17, M19 | None Complete; T10-1 and T14-1 are Ready for Review |
+| M11, M12, M14–M17, M19 | None Complete; T14-1 is Ready for Review |
 
-**62 of 114 tasks Complete.** Next checkpoint is **C** (M5 + M6 + M7); M5 is
+**63 of 114 tasks Complete.** Next checkpoint is **C** (M5 + M6 + M7); M5 is
 closed, M6 has landed four of its five tasks and M7 three. MR is scheduled to
 merge by Checkpoint C; its spine work is done.
 
 ## The next task
 
-**No single task is "the" next one.** Eighteen tasks are startable, all Sonnet.
+**No single task is "the" next one.** Nineteen tasks are startable, all Sonnet.
 Which to hand out next is a scheduling choice, not a dependency one.
 
-### Startable now (18)
+### Startable now (19)
 
 | Task | Name | Model | Branch |
 |---|---|---|---|
@@ -74,6 +75,7 @@ Which to hand out next is a scheduling choice, not a dependency one.
 | **T8-3** | Loop configuration and tag wiring | Sonnet | `feature/loop-config` |
 | **T9-2** | Limit definitions in plant config | Sonnet | `feature/envelope-limits` |
 | **T9-3** | Time-in-band and excursion tracking | Sonnet | `feature/excursion-tracking` |
+| **T10-2** | Alarm manager over envelope events | Sonnet | `feature/alarm-manager` |
 | **T11-1** | Interlock definitions and evaluator | Sonnet | `feature/interlock-evaluator` |
 | **T12-1** | Plant snapshot save and restore | Sonnet | `feature/state-persistence` |
 | **T13-3** | Injection profiles | Sonnet | `feature/malfunction-profiles` |

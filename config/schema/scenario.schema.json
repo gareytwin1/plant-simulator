@@ -3,7 +3,7 @@
   "$id": "https://plant-simulator/config/schema/scenario.schema.json",
   "title": "Scenario file (contract C8)",
   "type": "object",
-  "required": ["id", "plant", "initial_condition", "time_limit", "difficulty", "seed"],
+  "required": ["id", "plant", "initial_condition", "time_limit_s", "difficulty", "seed"],
   "additionalProperties": false,
   "properties": {
     "id": {"type": "string", "minLength": 1},
@@ -63,7 +63,8 @@
       "items": {
         "type": "object",
         "required": ["id", "type"],
-        "description": "Tagged union on 'type': 'time' carries sim_time, 'condition' carries condition, 'operator_action' carries action. Enforced by app/scenarios/triggers.py, not this schema.",
+        "additionalProperties": false,
+        "description": "'type' selects which of the fields below applies: 'time' carries sim_time, 'condition' carries condition, 'operator_action' carries action. Every field any trigger type uses is enumerated here, so unlike malfunctions' profile/start_condition this can be additionalProperties: false.",
         "properties": {
           "id": {"type": "string", "minLength": 1},
           "type": {"type": "string", "enum": ["time", "condition", "operator_action"]},
@@ -102,7 +103,7 @@
         }
       }
     },
-    "time_limit": {"type": "number", "minimum": 0},
+    "time_limit_s": {"type": "number", "minimum": 0},
     "difficulty": {"type": "string", "enum": ["easy", "medium", "hard"]},
     "seed": {"type": "integer"}
   }

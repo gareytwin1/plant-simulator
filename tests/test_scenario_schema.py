@@ -42,7 +42,7 @@ def valid_scenario():
                 "failure": {"condition": "K-101.tripped"},
             },
         ],
-        "time_limit": 1800.0,
+        "time_limit_s": 1800.0,
         "difficulty": "medium",
         "seed": 42,
     }
@@ -144,6 +144,15 @@ def test_trigger_missing_id_fails():
     assert errors == ["$.triggers[0]: missing required property 'id'"]
 
 
+def test_trigger_unknown_property_rejected():
+    scenario = valid_scenario()
+    scenario["triggers"][0]["actoin"] = "K-101.stop"
+
+    errors = validate(scenario, SCHEMA)
+
+    assert errors == ["$.triggers[0]: unexpected property 'actoin'"]
+
+
 def test_objective_missing_success_fails():
     scenario = valid_scenario()
     del scenario["objectives"][0]["success"]
@@ -182,11 +191,11 @@ def test_negative_hold_duration_rejected():
 
 def test_negative_time_limit_rejected():
     scenario = valid_scenario()
-    scenario["time_limit"] = -1.0
+    scenario["time_limit_s"] = -1.0
 
     errors = validate(scenario, SCHEMA)
 
-    assert errors == ["$.time_limit: -1.0 is below the minimum of 0"]
+    assert errors == ["$.time_limit_s: -1.0 is below the minimum of 0"]
 
 
 def test_unknown_difficulty_rejected():
@@ -220,11 +229,11 @@ def test_multiple_errors_all_reported():
 @pytest.mark.parametrize("value", NON_FINITE)
 def test_non_finite_time_limit_rejected(value):
     scenario = valid_scenario()
-    scenario["time_limit"] = value
+    scenario["time_limit_s"] = value
 
     errors = validate(scenario, SCHEMA)
 
-    assert any("$.time_limit" in e for e in errors)
+    assert any("$.time_limit_s" in e for e in errors)
 
 
 @pytest.mark.parametrize("value", NON_FINITE)

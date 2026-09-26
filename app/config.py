@@ -24,6 +24,11 @@ VALVE_STROKE_RATE_PER_SECOND = 0.05
 EXCHANGER_METAL_RESPONSE_RATE_PER_SECOND = 2.0  # °F/s
 
 
+# Furnace timing
+
+FURNACE_FIRING_RAMP_RATE_PER_SECOND = 1_000_000.0  # BTU/hr per second
+
+
 # Gas inventory
 #
 # Standard conditions for SCFM, from docs/UNITS_CONVENTION.md: 60 F and 1 atm.
@@ -46,6 +51,7 @@ TAG_PREFIXES = {
     "K": "compressor",
     "P": "pump",
     "E": "heat exchanger",
+    "H": "furnace",
     "V": "vessel",
     "FV": "control valve",
     "PT": "pressure transmitter",

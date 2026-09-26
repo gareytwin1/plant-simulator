@@ -4,6 +4,8 @@ import json
 import pytest
 import yaml
 
+from app.equipment.compressor import GasCompressor
+from app.equipment.pump import CentrifugalPump
 from app.plant.loader import PlantConfigError, load_plant, load_plant_file
 
 
@@ -44,9 +46,9 @@ def write(tmp_path, name, config):
     return path
 
 
-def rejected_file(path):
+def rejected_file(path, **kwargs):
     with pytest.raises(PlantConfigError) as excinfo:
-        load_plant_file(path)
+        load_plant_file(path, **kwargs)
 
     return excinfo.value.errors
 
@@ -177,7 +179,9 @@ def test_yaml_cannot_smuggle_python_objects(tmp_path):
 
 # C3's `type` enum names more kinds than exist. A type with no model must be
 # refused rather than loaded with a stand-in. The vessel gained its model at
-# T5-2, so the furnace carries this now.
+# T5-2, the furnace at T6-4 - closing the schema's last such gap - so this
+# test manufactures the gap directly through a restricted `device_types`
+# table rather than naming a real one.
 
 
 def test_a_type_with_no_model_is_refused_rather_than_stood_in_for(tmp_path):
@@ -192,6 +196,9 @@ def test_a_type_with_no_model_is_refused_rather_than_stood_in_for(tmp_path):
         },
     )
 
-    errors = rejected_file(write(tmp_path, "plant.yaml", config))
+    errors = rejected_file(
+        write(tmp_path, "plant.yaml", config),
+        device_types={"pump": CentrifugalPump, "compressor": GasCompressor},
+    )
 
     assert any("'furnace' has no device model yet" in error for error in errors)

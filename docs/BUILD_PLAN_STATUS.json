@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "26 September 2026",
-  "main_sha": "6e68db0af39f52d4cd5387a33b4bb2b04a0ce9ff",
-  "tests_passing_on_main": 1325,
+  "main_sha": "e0098838f17b12f99d06ac8a865ae4d119005d00",
+  "tests_passing_on_main": 1368,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -83,7 +83,7 @@
     },
     "M13": {
       "name": "Disturbance and Malfunction Layer",
-      "complete": 0,
+      "complete": 1,
       "total": 5
     },
     "M14": {
@@ -119,8 +119,8 @@
   },
   "totals": {
     "tasks": 114,
-    "complete": 59,
-    "startable_now": 17
+    "complete": 60,
+    "startable_now": 19
   },
   "tasks": [
     {
@@ -1623,10 +1623,9 @@
       "files": [
         "app/disturbances/malfunction.py"
       ],
-      "status": "Ready for Review",
-      "status_key": "review",
-      "startable": true,
-      "note": "PR #85 (feature/malfunction-model @ f345583). C8 Malfunction + per-class WRITABLE allowlist + MalfunctionRegistry; Step/AtTime minimal, T13-3 extends. 1356 passed, mypy clean, no golden moved. Open: trips are commands not parameters (Opus decision before T13-4); stroke_rate unvalidated so not allowlisted (T7-3)."
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged e009883 (PR #85); 1368 passed post-merge, mypy clean. C8 Malfunction(target_tag, parameter, value, profile, start_condition) in app/disturbances/malfunction.py: WRITABLE allowlist per exact device class (solver outputs and slow state absent, NotWritable on either), MalfunctionRegistry.add pre-validates value on a shallow copy, update(snapshot) latches onset and captures the original, revert restores it exactly. Step/AtTime minimal; T13-3 extends. Open: trips are commands not parameters (Opus decision before T13-4); stroke_rate unvalidated so not allowlisted (T7-3); signal loss is boolean; instrument bias waits on T13-2."
     },
     {
       "id": "T13-2",
@@ -1644,10 +1643,7 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "T13-1"
-      ],
+      "startable": true,
       "note": ""
     },
     {
@@ -1664,10 +1660,7 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "T13-1"
-      ],
+      "startable": true,
       "note": ""
     },
     {
@@ -1688,7 +1681,6 @@
       "status_key": "todo",
       "startable": false,
       "blocked_by": [
-        "T13-1",
         "T13-2",
         "T7-3"
       ],
@@ -2225,8 +2217,7 @@
       "status_key": "todo",
       "startable": false,
       "blocked_by": [
-        "T16-2",
-        "T13-1"
+        "T16-2"
       ],
       "note": ""
     },

@@ -15,11 +15,11 @@ already in BUILD_PLAN_STATUS.json and does not need a second home.
 
 ## Right now
 
-**Last state refresh:** 26 September 2026, at `6e68db0` (Merge T8-2: Control
-modes and bumpless transfer, PR #86) - **this is a snapshot, not a live
-pointer.** Run `git log 6e68db0..HEAD --oneline` to see what has merged since.
-**Full suite as of this refresh:** **1325 passed** · `python -m mypy` clean over 32 source files · compressor golden trace moved deliberately (temperature field only, on the two boundary-asymmetric scenarios - justified in T6-2's note)
-**In flight:** T13-1 (PR #85), Ready for Review and not on a spine file.
+**Last state refresh:** 26 September 2026, at `e009883` (Merge T13-1: Malfunction
+model and registry, PR #85) - **this is a snapshot, not a live
+pointer.** Run `git log e009883..HEAD --oneline` to see what has merged since.
+**Full suite as of this refresh:** **1368 passed** · `python -m mypy` clean over 34 source files · compressor golden trace moved deliberately (temperature field only, on the two boundary-asymmetric scenarios - justified in T6-2's note)
+**In flight:** nothing.
 **No spine lock is held.** No task is Blocked. CI runs on every PR, and `main` requires its
 `test` check before a merge.
 
@@ -27,12 +27,12 @@ pointer.** Run `git log 6e68db0..HEAD --oneline` to see what has merged since.
 
 | Task | SHA | What landed |
 |---|---|---|
+| **T13-1** | `e009883` | Malfunction model and registry (C8). `Malfunction(target_tag, parameter, value, profile, start_condition)` in `app/disturbances/malfunction.py`; `WRITABLE` allowlists design parameters per exact device class, so solver outputs and slow state raise `NotWritable`. `MalfunctionRegistry.update(snapshot)` latches onset and captures the original; `revert` restores it exactly. `Step`/`AtTime` minimal, T13-3 extends. Open for T13-4: trips are commands, not parameters (needs an Opus decision); `stroke_rate` is unvalidated so not allowlisted (T7-3) |
 | **T8-2** | `6e68db0` | Control modes and bumpless transfer. `Loop`/`Mode` in `app/controls/modes.py`: MANUAL/AUTO/CASCADE wrapping a `PID`, bumpless in both directions via a new `PID.track()` (back-calculation preload, `app/controls/pid.py`). Roborev caught two real bugs pre-merge: `track()` baking a transient derivative into the preloaded integral that the next call's guaranteed-zero derivative couldn't reproduce (bump on any `kd != 0` loop with a drifting measurement), and engaging `CASCADE` with the master already in `AUTO` skipping the preload entirely (a full setpoint step on the single most common "engage cascade" action). Both fixed with regression tests. T8-3 binds to it |
 | **R12** | `3e75af7` | Spine rules reconciled. One global spine lock over `base.py`, `topology.py` and every `app/engine/` module on `main` (U1 made standing), held by whichever task is In Progress or Ready for Review on a spine file; `app/main.py` keeps its own lock. Rule lives in DEVELOPMENT.md's File ownership; `engine.md` and the start-task skill link to it. `rng.py` is now spine |
 | **T8-1** | `df1f91f` | PID block. `PID` in `app/controls/pid.py`: conditional-integration anti-windup that freezes the integral only when the current error pushes further into whichever bound is saturated (not merely because the output happens to be clamped, which could latch it there forever - roborev caught this after the first commit), output clamping, derivative on measurement. Constructor rejects `output_min > output_max` and `ki < 0` (a negative `ki` would flip the saturation-direction inference). Standalone, no plant dependency. T8-2 binds to it |
 | **T7-4** | `96f888e` | Command arbitration. `CommandArbiter` in `app/controls/arbitration.py`: standing demands per bound output keyed by `(source, requester)`, resolved by fixed precedence interlock > operator > controller, independent of arrival order. `apply()` writes every output even if one raises, then raises an `ExceptionGroup`. Not wired to anything yet - `app/main.py`'s operator routes still call device setters directly and must be rewired through the arbiter before M11 interlocks go live. T8-4 and T11-2 bind to it |
 | **T6-5** | `71e2b99` | Energy propagation. New spine module `app/engine/transport.py` writes node and stream temperatures upwind of each converged domain's flows; boundaries supply at `Engine(boundary_temperatures=...)`, default 60 °F. Devices change temperature through `thermo.ThermalDevice.leaving_temperature`, which `GasCompressor` implements. A domain with no steady temperature holds and reports on `transport.settled`/`failure` rather than raising. Snapshot node rows carry `temperature`. Releases the spine lock |
-| **T6-3** | `332ca8c` | Heat exchanger model. `HeatExchanger` implements `thermo.ThermalDevice.leaving_temperature` via the fixed-coolant effectiveness formula `T_out = T_cold + (T_in - T_cold) * exp(-UA_eff / |q*Cp|)`, provably bounded between the coolant and arriving temperatures at every flow, in either direction. The metal wall's lag (`_move_toward`, C1) scales `UA_eff` through a `[0,1]` capability fraction rather than substituting into the `T_in`/`T_cold` pair - that broke the zero-capability case. `duty` is now `duty(arriving)`, derived from `leaving_temperature`. Known limitation: `inlet_temperature` is written by nothing in a running plant, so the metal chases a constructor default rather than the live arriving stream, until a follow-up wires the engine's arriving temperature into a device's slow state |
 
 **ADRs on `main`:** ADR 0001 ([flow-domain separation](../../docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md))
 with Amendment 1, and ADR 0002 ([typed ports](../../docs/ADR_0002_TYPED_PORTS.md)) with
@@ -48,21 +48,22 @@ what made this file 1,086 lines.
 | **M6** Energy Balance and Temperature | 4/5 - T6-1, T6-2, T6-3, T6-5 Complete; T6-4 startable |
 | **M7** Control Valves and Final Elements | 3/5 - T7-1, T7-2, T7-4 Complete; T7-3, T7-5 startable |
 | **M8** PID Controllers and Modes | 2/5 - T8-1, T8-2 Complete; T8-3 startable |
+| **M13** Malfunctions | 1/5 - T13-1 Complete; T13-2, T13-3, T13-5 startable |
 | **MR** Remediation | 12/13 - R1-R7, R9, R10a, R10b, R11, R12 Complete; R8 remains, no-spine and startable |
 | **M18** Deployment and Operations | 1/5 - T18-2 Complete |
-| M9–M17, M19 | Not started |
+| M9–M12, M14–M17, M19 | Not started |
 
-**59 of 114 tasks Complete.** Next checkpoint is **C** (M5 + M6 + M7); M5 is
+**60 of 114 tasks Complete.** Next checkpoint is **C** (M5 + M6 + M7); M5 is
 closed, M6 has landed four of its five tasks and M7 three. MR is scheduled to
 merge by Checkpoint C; its spine work is done.
 
 ## The next task
 
-**No single task is "the" next one.** Seventeen tasks are startable. Which to
-hand out next is a scheduling choice, not a dependency one. All are Sonnet
-tasks; T13-1, the remaining Opus task, is in review.
+**No single task is "the" next one.** Nineteen tasks are startable. Which to
+hand out next is a scheduling choice, not a dependency one. T13-2 is the only
+Opus task among them, and it is a spine change (`base.py`, `snapshot.py`).
 
-### Startable now (17)
+### Startable now (19)
 
 | Task | Name | Model | Branch |
 |---|---|---|---|
@@ -74,6 +75,8 @@ tasks; T13-1, the remaining Opus task, is in review.
 | **T9-1** | Envelope evaluator | Sonnet | `feature/envelope-evaluator` |
 | **T10-1** | Alarm state machine | Sonnet | `feature/alarm-state-machine` |
 | **T12-1** | Plant snapshot save and restore | Sonnet | `feature/state-persistence` |
+| **T13-2** | Split true and indicated values | Opus · spine | `refactor/true-vs-indicated` |
+| **T13-3** | Injection profiles | Sonnet | `feature/malfunction-profiles` |
 | **T13-5** | Physics isolation guard | Sonnet | `test/import-direction-guard` |
 | **T14-1** | Scenario file schema | Sonnet | `feature/scenario-schema` |
 | **T15-1** | Operator action log | Sonnet | `feature/action-log` |
@@ -84,7 +87,7 @@ tasks; T13-1, the remaining Opus task, is in review.
 | **T18-1** | Container and WSGI serving | Sonnet · one worker process | `chore/container-and-ci` |
 | **T18-4** | Structured logging and health | Sonnet | `feature/observability` |
 
-**Still waiting:** T9-2 - on T9-1. T11-1 still waits on T9-1 too.
+**Still waiting:** T9-2 - on T9-1. T11-1 still waits on T9-1 too. T13-4 waits on T13-2 and T7-3.
 
 **Scheduling notes.** The spine lock is **one global lock**, now the standing
 rule (R12, [DEVELOPMENT.md](../../DEVELOPMENT.md#file-ownership)); the spine

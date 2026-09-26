@@ -115,6 +115,24 @@ def test_setpoint_change_produces_no_derivative_kick():
     assert output_on_measurement_step == pytest.approx(pid.kp * 39.0 - pid.kd * 1.0 / dt)
 
 
+def test_track_rejects_non_positive_dt():
+    pid = PID(kp=1.0, ki=1.0, kd=1.0, output_min=-10.0, output_max=10.0)
+
+    with pytest.raises(ValueError):
+        pid.track(0.0, 0.0, 5.0)
+
+
+def test_track_clamps_the_preloaded_target_to_the_output_bounds():
+    # A caller passing an out-of-range hold target (e.g. a loop's output was
+    # left outside a since-narrowed range) should not preload an integral
+    # aimed past output_max - the next compute() lands on the bound instead.
+    pid = PID(kp=0.0, ki=1.0, kd=0.0, output_min=-10.0, output_max=10.0)
+
+    pid.track(0.0, 1.0, 1000.0)
+
+    assert pid.compute(0.0, 1.0) == pytest.approx(pid.output_max)
+
+
 def test_deliberately_bad_tuning_oscillates_as_expected():
     process = FakeFirstOrderProcess(gain=1.0, time_constant=1.0)
     pid = PID(kp=5.0, ki=80.0, kd=0.0, output_min=-1e9, output_max=1e9)

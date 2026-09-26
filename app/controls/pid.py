@@ -21,6 +21,15 @@ the output from the sign of the error alone, which only holds for ki >= 0;
 a negative ki would flip that inference and reopen the latch. Direct-acting
 loops only, until a reverse-acting mode exists to flip the error's sign
 instead.
+
+`track()` (T8-2) is the other side of the same equation compute() solves:
+instead of deriving output from the integral, it derives the integral that
+would have produced a given output, so that a later compute() call - same
+setpoint, same measurement - reproduces it exactly with no step. That is what
+"preloaded" state, called continuously, has to mean: a caller holding this
+block on its own (an operator in manual, a cascade slave whose master is
+off auto) tracks every step, not just once at the moment of transfer, so the
+handoff is bumpless whenever it happens.
 """
 
 from __future__ import annotations
@@ -75,3 +84,26 @@ class PID:
             self._integral = candidate_integral
 
         return output
+
+    def track(self, measurement: float, dt: float, output: float) -> None:
+        if dt <= 0.0:
+            raise ValueError(f"dt must be positive, got {dt}")
+
+        target = min(max(output, self.output_min), self.output_max)
+        error = self.setpoint - measurement
+
+        if self._prev_measurement is None:
+            derivative = 0.0
+        else:
+            derivative = -self.kd * (measurement - self._prev_measurement) / dt
+        self._prev_measurement = measurement
+
+        # ki == 0 has no integral to preload through - a proportional-only
+        # block cannot be made to land on an arbitrary target this way.
+        #
+        # compute() adds one more error * dt increment on top of _integral
+        # before using it (candidate_integral), so the preload has to net
+        # that increment out - otherwise the very next compute() call would
+        # already have moved past the target by ki * error * dt.
+        if self.ki != 0.0:
+            self._integral = (target - self.kp * error - derivative) / self.ki - error * dt

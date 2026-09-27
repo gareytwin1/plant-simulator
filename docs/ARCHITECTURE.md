@@ -337,9 +337,9 @@ app/
     pump.py               CentrifugalPump (P-101)
     valve.py              ControlValve (FV-101)
     vessel.py             Vessel (V-101) — coupling device, liquid + gas
-    exchanger.py          HeatExchanger — foulable, utility side
-    furnace.py            Furnace — duty, firing ramp
-    relief.py             ReliefValve — set pressure
+    exchanger.py          HeatExchanger - foulable, utility side
+    furnace.py            Furnace - duty, firing ramp
+    relief.py             ReliefValve - set pressure
     ranges.py             checked(): validated design-parameter ranges
     registry.py           EquipmentRegistry: tag → device
   engine/                                                        [SPINE]
@@ -379,8 +379,8 @@ app/
   scoring/
     actionlog.py          T15-1: operator action log (C6 action events)
   safety/
-    interlocks.py         T11-1: Interlock — condition, delay, latch, reset
-    actions.py            T11-2: TripSystem — trip actions as interlock
+    interlocks.py         T11-1: Interlock - condition, delay, latch, reset
+    actions.py            T11-2: TripSystem - trip actions as interlock
                           demands on the arbiter, run before each step
   plant/
     topology.py           C2: Node / Branch / Stream / Topology  [SPINE]
@@ -428,7 +428,7 @@ and they have repeatedly been conflated:
 | **Present in a reference config** | `liquid_transfer.yaml` and `gas_compression.yaml` (single-domain, T3-4), `liquid_valve_train.yaml` (T7-1), and `olefins_lite.yaml` (T5-5) — the two-domain train coupled through V-101 inventory. It is not yet the full seven-device V1 train: `E-101` is absent, and PV-101/LV-101 are manual. |
 | **Controllers** | The PID block, modes, loop config, loop execution and controller action (T8-1 to T8-4, T8-6) all exist. PIC-101 is configured direct-acting and executes every step, and holds its setpoint in AUTO, but the fixture configures it MANUAL (see its `controllers` comment). LIC-101 is not configured at all - a `controllers.pv` can only name a node's pressure until instruments are in C3. |
 | **Envelopes** | The evaluator, limit config and excursion tracker (T9-1 to T9-3) all exist, and Engine classifies every resolved limit each step (T9-4). Only `V-101.level` resolves - `K-101.discharge_pressure` and `P-101.flow` are configured but unresolvable today, the same tag-to-point gap `LIC-101` above hits, generalised past pressure. |
-| **Not built at all** | Nothing on the diagram's device list: the `E-101` model (`HeatExchanger`) exists, but no reference config wires it in yet. |
+| **Not built at all** | Nothing on the diagram's device list - every V1 device has a model. |
 
 ### What ADR 0002 settles about the separator
 

@@ -12,10 +12,9 @@
 #
 # PV-101 and LV-101 are MANUAL valves at a fixed position (ADR 0002 section
 # 3.7 — M8 owns closed-loop control). PIC-101 (T8-3) is the one loop this
-# fixture wires: it resolves and binds at load, exactly like every other
-# reference here, but is itself configured MANUAL — nothing yet reads the
-# `controllers` key at engine-step time (that is T8-4's job), so an AUTO mode
-# here would be silently inert rather than actually controlling anything.
+# fixture wires, and the engine executes it every step (T8-4) — configured
+# MANUAL, so it holds PV-101 at the travel below; see the controllers key for
+# why it cannot run in AUTO yet.
 #
 # Design values, closed-form (both pumps' and the compressor's own resistance
 # are sized for this plant, not left at the class default, precisely so a
@@ -159,6 +158,12 @@ controllers:
   # (T8-3) resolves a controllers.pv entry against a node id for exactly this
   # reason (no instruments key exists in C3 yet — see
   # .workspace/memory/project_state.md's "Known technical debt"). sp matches
-  # N-201's own design steady state (this file's header derivation), so a
-  # future switch to AUTO starts with no error to correct.
+  # N-201's own design steady state (this file's header derivation).
+  #
+  # MANUAL, and it must stay MANUAL for now: the PID block is direct-acting
+  # only (error = sp - pv, app/controls/pid.py), so a pressure below setpoint
+  # opens the valve. On a vent that is the wrong way round — opening PV-101
+  # lowers N-201 further — and in AUTO the loop drives PV-101 to its floor and
+  # N-201 away from setpoint. It needs a reverse-acting option, which is a
+  # change to the PID block and to C3's controllers entry, not a tuning.
   - {tag: PIC-101, pv: N-201, sp: 200.0, out: PV-101, mode: MANUAL, kp: 0.01, ki: 0.005, kd: 0.0}

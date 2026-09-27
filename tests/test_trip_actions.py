@@ -107,6 +107,10 @@ def output_of(machine):
     return machine.speed if isinstance(machine, CentrifugalPump) else machine.load
 
 
+def target_of(machine):
+    return machine.speed_target if isinstance(machine, CentrifugalPump) else machine.load_target
+
+
 # Each trip action leaves the configured state
 
 
@@ -235,24 +239,33 @@ def test_a_standing_run_demand_restarts_the_machine_when_the_trip_releases(machi
     assert trips.interlocks["XS-1"].reset()
     run(engine, trips, 10.0)
 
-    target = machine.speed_target if machine_type is CentrifugalPump else machine.load_target
-
     assert machine.running
-    assert target == pytest.approx(0.0)
+    assert target_of(machine) == pytest.approx(0.0)
     assert output_of(machine) == pytest.approx(0.0)
 
 
-def test_a_condition_that_stops_reading_a_number_fails_safe(monkeypatch):
+def without_position(trigger):
+    state = ControlValve.get_state(trigger)
+    del state["position"]
+
+    return state
+
+
+@pytest.mark.parametrize(
+    "lost_reading",
+    [
+        lambda trigger: {**ControlValve.get_state(trigger), "position": None},
+        without_position,
+    ],
+    ids=["not-a-number", "not-published"],
+)
+def test_a_condition_that_loses_its_reading_fails_safe(monkeypatch, lost_reading):
     pump = running_machine(CentrifugalPump)
     engine, trips, trigger = build([pump], interlock("XS-1", ["M-1.stop"], delay_s=3.0))
     run(engine, trips, 5.0)
     assert trips.tripped == ()
 
-    monkeypatch.setattr(
-        trigger,
-        "get_state",
-        lambda: {**ControlValve.get_state(trigger), "position": None},
-    )
+    monkeypatch.setattr(trigger, "get_state", lambda: lost_reading(trigger))
     run(engine, trips, 2.0)
     assert trips.interlocks["XS-1"].state is InterlockState.PENDING
 

@@ -70,8 +70,8 @@ equipment section. One that names a solved node or branch quantity
 never evaluated - the same tag-to-point resolver gap `app/engine/engine.py`'s
 module docstring documents. Its actions are still validated and bound, so it
 starts working the moment that resolver lands. A condition that resolves
-must read a number at construction; one that stops being a number mid-run is
-evaluated as NaN, which T11-1's `Condition` fails safe on - a lost reading
+must read a number at construction; one that stops being a number mid-run,
+or stops being published at all, is evaluated as NaN, which T11-1's `Condition` fails safe on - a lost reading
 drives the trip timer rather than reading as healthy.
 
 Elapsed time is the snapshot's `sim_time` since the previous update, so a
@@ -275,7 +275,8 @@ class TripSystem:
         for tag in self.evaluated:
             interlock = self.interlocks[tag]
             condition = interlock.definition.condition
-            value = _number(snapshot.equipment[condition.tag][condition.variable])
+            row = snapshot.equipment.get(condition.tag, {})
+            value = _number(row.get(condition.variable))
             interlock.evaluate(math.nan if value is None else value, dt)
 
         for tag, interlock in self.interlocks.items():

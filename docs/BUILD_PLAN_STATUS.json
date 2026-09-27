@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
-  "refreshed": "26 September 2026",
-  "main_sha": "17ae66d517ac9faa4ce0d8051d0ddd28c3f93f89",
-  "tests_passing_on_main": 1605,
+  "refreshed": "27 September 2026",
+  "main_sha": "d8d59c3",
+  "tests_passing_on_main": 1632,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -68,7 +68,7 @@
     },
     "M10": {
       "name": "Alarm System",
-      "complete": 1,
+      "complete": 2,
       "total": 5
     },
     "M11": {
@@ -119,8 +119,8 @@
   },
   "totals": {
     "tasks": 114,
-    "complete": 68,
-    "startable_now": 18
+    "complete": 69,
+    "startable_now": 17
   },
   "tasks": [
     {
@@ -1216,10 +1216,10 @@
         "app/controls/loader.py",
         "config/plants/olefins_lite.yaml"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
+      "status": "Ready for Review",
+      "status_key": "review",
       "startable": true,
-      "note": "T5-5 merged as 37fbc36 (PR #49) 22 Sep 2026 - only T8-2 blocks this now. Depends on T5-5, which creates config/plants/olefins_lite.yaml; explicit because milestone ordering alone is too implicit for agents (docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md)."
+      "note": "PR #96 (feature/loop-config), 26 Sep 2026 - app/controls/loader.py resolves controllers entries into Loop/PID bindings: pv against a node id, out against an explicit per-class allowlist of settable devices (ControlValve.set_position_target only). Wires PIC-101 (N-201 -> PV-101, MANUAL) into config/plants/olefins_lite.yaml. Full suite 1622 passed, mypy clean over 42 files, golden traces unmoved, roborev-refine clean after 2 code fixes."
     },
     {
       "id": "T8-4",
@@ -1291,10 +1291,10 @@
         "config/plants/olefins_lite.yaml",
         "app/envelope/loader.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
+      "status": "Ready for Review",
+      "status_key": "review",
       "startable": true,
-      "note": "T5-5 merged as 37fbc36 (PR #49) 22 Sep 2026 - only T9-1 blocks this now. Depends on T5-5, which creates config/plants/olefins_lite.yaml; explicit because milestone ordering alone is too implicit for agents (docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md)."
+      "note": "PR #95 open (feature/envelope-limits -> main). app/envelope/loader.py binds C3's limits key to T9-1's Evaluator; lo/hi -> warning_lo/warning_hi, lo_lo/hi_hi -> trip_lo/trip_hi when trip is true else alarm_lo/alarm_hi. Repeated (tag,variable) entries rejected. olefins_lite.yaml gains its limits key (V-101.level, K-101.discharge_pressure, P-101.flow) at the plant's design point. 1620 passed, mypy clean over 42 files, no golden trace moved, roborev clean."
     },
     {
       "id": "T9-3",
@@ -1363,10 +1363,9 @@
       "files": [
         "app/alarms/manager.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true,
-      "note": ""
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged d8d59c3 (PR #97). Full suite 1632 passed on main."
     },
     {
       "id": "T10-3",
@@ -1383,10 +1382,7 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "T10-2"
-      ],
+      "startable": true,
       "note": ""
     },
     {
@@ -1403,10 +1399,7 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "T10-2"
-      ],
+      "startable": true,
       "note": ""
     },
     {

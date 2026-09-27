@@ -120,6 +120,41 @@ def test_escalation_while_already_active_emits_an_updated_event():
     assert len(manager.active()) == 1
 
 
+def test_same_severity_side_flip_still_reports_a_band_change():
+    manager = AlarmManager()
+    lo = EnvelopeEvent(tag="K-101", pv="discharge pressure", severity=Severity.WARNING, side="lo")
+    hi = EnvelopeEvent(tag="K-101", pv="discharge pressure", severity=Severity.WARNING, side="hi")
+
+    manager.evaluate([lo], sim_time=0.0)
+    events = manager.evaluate([hi], sim_time=1.0)
+
+    assert len(events) == 1
+    assert events[0].message.endswith(" HI")
+    assert len(manager.active()) == 1
+
+
+def test_de_escalation_between_two_active_severities_emits_an_updated_event():
+    manager = AlarmManager()
+    trip = EnvelopeEvent(tag="K-101", pv="discharge pressure", severity=Severity.TRIP, side="hi")
+    alarm = EnvelopeEvent(tag="K-101", pv="discharge pressure", severity=Severity.ALARM, side="hi")
+
+    manager.evaluate([trip], sim_time=0.0)
+    events = manager.evaluate([alarm], sim_time=1.0)
+
+    assert len(events) == 1
+    assert events[0].priority is Priority.HIGH
+    assert events[0].message.endswith("HIHI")
+    [active_alarm] = manager.active()
+    assert active_alarm.active
+
+
+def test_acknowledge_with_an_unknown_alarm_id_raises_a_clear_error():
+    manager = AlarmManager()
+
+    with pytest.raises(KeyError, match="unknown alarm_id"):
+        manager.acknowledge("no-such-alarm", sim_time=0.0)
+
+
 def test_two_points_on_the_same_tag_alarm_independently():
     manager = AlarmManager()
 

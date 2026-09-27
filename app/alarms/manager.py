@@ -7,12 +7,16 @@ A pure function of envelope events and time, same as `Evaluator.evaluate()`
 keyed by `tag:pv`, so a compressor with two watched variables gets two
 independent alarms rather than one that conflates them.
 
-**Every severity change is a band change**, not just the first activation -
-WARNING escalating to ALARM while already unacknowledged still produces a
-new, re-prioritised event, because the operator needs to know it got worse.
-A change that settles at NORMAL clears the alarm (T10-1's own `clear()`
-semantics decide whether that makes it immediately available again) but is
-not itself reported as an alarm event.
+**Every band change is reportable**, keyed on `(severity, side)` together -
+not just the first activation, and not severity alone. WARNING escalating to
+ALARM while already unacknowledged still produces a new, re-prioritised
+event, because the operator needs to know it got worse; so does a same-
+severity side flip (WARNING/lo straight to WARNING/hi), which `Evaluator`
+(T9-1) treats as immediate and exempt from its own deadband - tracking
+severity alone would silently swallow that transition. A change that settles
+at NORMAL clears the alarm (T10-1's own `clear()` semantics decide whether
+that makes it immediately available again) but is not itself reported as an
+alarm event.
 
 **Messages name symptoms, never causes (C6).** A message is built only from
 the tag, the point's own description and an ISA-style HI/LO suffix repeated
@@ -96,20 +100,19 @@ class AlarmManager:
 
         self._priorities = resolved
         self._alarms: dict[str, Alarm] = {}
-        self._severity: dict[str, Severity] = {}
+        self._band: dict[str, tuple[Severity, Side | None]] = {}
 
     def evaluate(self, envelope_events: Iterable[EnvelopeEvent], sim_time: float) -> list[Event]:
         emitted: list[Event] = []
         for envelope_event in envelope_events:
             alarm_id = f"{envelope_event.tag}:{envelope_event.pv}"
             alarm = self._alarms.setdefault(alarm_id, Alarm())
-            previous = self._severity.get(alarm_id, Severity.NORMAL)
-            severity = envelope_event.severity
-            if severity == previous:
+            band = (envelope_event.severity, envelope_event.side)
+            if band == self._band.get(alarm_id, (Severity.NORMAL, None)):
                 continue
-            self._severity[alarm_id] = severity
+            self._band[alarm_id] = band
 
-            if severity is Severity.NORMAL:
+            if envelope_event.severity is Severity.NORMAL:
                 alarm.clear()
                 continue
 
@@ -120,7 +123,11 @@ class AlarmManager:
 
     def acknowledge(self, alarm_id: str, sim_time: float) -> None:
         # sim_time is part of C7's frozen signature; T10-3 records it in history.
-        self._alarms[alarm_id].acknowledge()
+        try:
+            alarm = self._alarms[alarm_id]
+        except KeyError:
+            raise KeyError(f"unknown alarm_id: {alarm_id!r}") from None
+        alarm.acknowledge()
 
     def active(self) -> list[Alarm]:
         return [alarm for alarm in self._alarms.values() if alarm.active]

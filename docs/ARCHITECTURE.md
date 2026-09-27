@@ -355,12 +355,16 @@ app/
     loader.py             load_loops(): C3 controllers → LoopBinding
     arbitration.py        CommandArbiter: interlock > operator > controller
                           per final element; Engine routes every loop
-                          output through it, no operator or interlock
-                          route posts to it yet
+                          output through it, TripSystem every trip
+                          action; no operator route posts to it yet
   envelope/
     evaluator.py          T9-1: Evaluator/Limits → Severity, deadband + on-delay
     loader.py             load_limits(): C3 limits → Evaluator per (tag, variable)
     tracker.py            T9-3: ExcursionTracker — time-in-band + peak
+  safety/
+    interlocks.py         T11-1: Interlock — condition, delay, latch, reset
+    actions.py            T11-2: TripSystem — trip actions as interlock
+                          demands on the arbiter, run before each step
   plant/
     topology.py           C2: Node / Branch / Stream / Topology  [SPINE]
     thermo.py             Heat capacity, stream mixing, ThermalDevice hook

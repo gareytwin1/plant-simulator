@@ -15,11 +15,11 @@ already in BUILD_PLAN_STATUS.json and does not need a second home.
 
 ## Right now
 
-**Last state refresh:** 27 September 2026, at `994b30e` (Merge T11-1: Add
-interlock definitions and evaluator, PR #105) - **this is a snapshot,
-not a live pointer.** Run `git log 994b30e..HEAD --oneline` to see what has
+**Last state refresh:** 27 September 2026, at `eb195c0` (Merge T14-2: Trigger
+evaluator, PR #106) - **this is a snapshot,
+not a live pointer.** Run `git log eb195c0..HEAD --oneline` to see what has
 merged since.
-**Full suite as of this refresh:** **1963 passed** · `python -m mypy` clean over 53 source files · no golden trace movement
+**Full suite as of this refresh:** **2050 passed** · `python -m mypy` clean over 55 source files · no golden trace movement
 **In flight:** nothing.
 **No spine lock is held.** No task is Blocked. CI runs on every PR, and `main` requires its
 `test` check before a merge.
@@ -28,12 +28,12 @@ merged since.
 
 | Task | SHA | What landed |
 |---|---|---|
+| **T14-2** | `eb195c0` | Trigger evaluator (M14, 2/6). `app/scenarios/triggers.py`: `TimeTrigger`/`ConditionTrigger`/`OperatorActionTrigger` as a closed `TriggerKind` union, `Trigger` (id/kind/one_shot with strict `from_config` key validation per type - deliberately stricter than the schema, which can't discriminate `sim_time`/`condition`/`action` keys per type), `TriggerEvaluator` (validate/evaluate, one-shot bookkeeping, atomic commit so a mid-loop exception can't half-spend a one-shot's only chance to fire). Operator-action triggers cursor the `ActionLog` with `itertools.islice` - real skip of the tag/action comparison and full-log copy, but still walks past already-seen entries one by one, not an index-jump; a true O(new) cursor needs an `ActionLog` accessor, out of scope (T15-1's file). Went through several `/roborev-refine` iterations (atomicity bug, `Protocol`→closed union, config-key gap, test-quality fixes). Unblocks nothing new directly (T14-4 still waits on T14-3 + T12-2) |
 | **T11-1** | `994b30e` | Interlock definitions and evaluator (opens M11, 1/4). `app/safety/interlocks.py`: `Condition` parses C3's `"tag.variable op threshold"` string and fails safe on a non-finite value (treats NaN/inf as met, regardless of operator, rather than reading a lost transmitter as healthy). `Interlock` is the delay/latch/reset state machine - a condition must hold continuously for `delay_s` before latching TRIPPED, resetting to zero the instant it clears; `reset: "manual"` refuses `reset()` while the condition is still met, `"auto"` clears itself in `evaluate()`. `load_interlocks()`/`get_interlock()` mirror T9-2's limit loader. Three interlocks added to `olefins_lite.yaml` (`LSHH-101`, `LSLL-101`, `PSHH-101`); a fourth (P-101's backflow trip) deliberately left out - see "No check valve" below. `actions` are opaque strings; T11-2 gives them meaning. Went through 4 `/roborev-refine` iterations. Unblocks T11-2 |
 | **T17-1** | `b36af0d` | Ring-buffer historian. `Historian` (`app/historian/buffer.py`) holds fixed-capacity, oldest-evicted per-tag history via `collections.deque(maxlen=capacity)`, throttled to a configurable `sample_period` so memory stays bounded over an arbitrarily long run regardless of call frequency. No wall clock - timestamps are caller-supplied simulated time, validated non-decreasing per tag independent of throttling (a roborev finding: the check originally used the last *recorded* sample as its baseline, so a call dropped by throttling could hide a real backwards-time bug). `record()`/`history()` share one lock; `history()` returns a snapshot copy under it. Pure data structure, no plant dependency. Unblocks T17-2 |
 | **T13-5** | `65458ee` | Physics/disturbance layer isolation guard (C8's structural half). `tests/test_layer_isolation.py` enforces two things structurally: no physics module imports `app.disturbances` or `app.scoring` (absolute or relative), and no device's `WRITABLE` malfunction-allowlisted parameter overlaps what its own `integrate()` actually writes, derived from source via AST rather than hand-listed. `PHYSICS_MODULES` excludes the two forbidden layers' own internals plus the orchestration layer above them - `app/api` and `app/main.py` - since T15-1 (merged while this branch was out for review) made `app/api/action.py`'s import of `app.scoring.actionlog` a real, legitimate case, not a hypothetical one; the rebase caught it as a false positive and the guard's scope was corrected before merge. Went through 5 `/roborev-refine` iterations. Unblocks nothing (no task depends on T13-5) |
 | **T15-1** | `6cafbd2` | Operator action log (C6 event) and the C5 `/api/action` endpoint. `ActionLog` (`app/scoring/actionlog.py`) records every operator input as an append-only, sim-timed `ActionEvent` (always `Priority.LOW`, reusing `app.alarms.manager.Priority`). `apply_action` (`app/api/action.py`) validates target/action against an explicit per-device-class allowlist (`ACTIONS`, mirroring `WRITABLE`/`OUTPUTS`) before calling the device and logging - a JSON int value is normalized to float once, before both the call and the log, so the two never disagree on type. `create_action_blueprint` takes its `Engine`/`ActionLog` as injected callables rather than `flask.g`; wiring into `app/main.py`'s session lifecycle is left unowned. Unblocks T18-3 |
 | **T8-6** | `3733819` | Controller action (C3 contract change). A `controllers` entry takes an optional `action`, `DIRECT` or `REVERSE`, by the ISA convention (direct: output rises as the measurement rises). It flips only the error's sign, so anti-windup, `track()` and bumpless transfer hold in both; omitted means `REVERSE`, bit-identical to before. PIC-101 is configured `DIRECT` and holds a changed setpoint in AUTO, but the fixture still configures it **MANUAL** - its other tests pin open-loop response - and its kp 0.01 / ki 0.005 tuning is slow (~7800 s to settle). Unblocks nothing directly |
-| **T9-4** | `73ff965` | Envelope status in the snapshot (closes M9, 4/4). `Engine` classifies every configured limit against equipment state each step, via T9-1's `Evaluator` and T9-3's `ExcursionTracker`, and publishes a sparse ISA-labeled envelope map in the snapshot (`{"V-101.level": {"band": "hi", "since": 12.0}}`) - `NORMAL` points are simply absent. `since` is seeded at construction against the design point; instruments are wired before limits resolve, so a pre-biased transmitter seeds correctly (a roborev-caught construction-order bug, now a regression test). A limit that doesn't resolve against the equipment section (`K-101.discharge_pressure`, `P-101.flow` - both solved node/branch values) warns once at construction and is skipped rather than crashing - the same "instruments are not in C3" gap below, now also hit from the `limits` side. Frees the spine lock (`app/engine/snapshot.py`); unblocks nothing directly (no task depends on T9-4) |
 
 **ADRs on `main`:** ADR 0001 ([flow-domain separation](../../docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md))
 with Amendment 1, and ADR 0002 ([typed ports](../../docs/ADR_0002_TYPED_PORTS.md)) with
@@ -53,14 +53,14 @@ what made this file 1,086 lines.
 | **M10** Alarms | 2/5 - T10-1, T10-2 Complete; T10-3 startable |
 | **M11** Interlocks, Trips and Shutdown | 1/4 - T11-1 Complete; T11-2 startable (`core`, Opus) |
 | **M13** Malfunctions | 3/5 - T13-1, T13-2, T13-5 Complete; T13-3, T13-4 startable |
-| **M14** Scenario Engine | 1/6 - T14-1 Complete; T14-2, T14-3 startable |
+| **M14** Scenario Engine | 2/6 - T14-1, T14-2 Complete; T14-3 startable |
 | **MR** Remediation | 13/13 - **Complete.** R1-R12, R8 all merged |
 | **M15** Action Log and Scoring | 1/4 - T15-1 Complete; T15-4 startable |
 | **M17** Historian and Trends | 1/4 - T17-1 Complete; T17-2 startable (V1.1-deferred) |
 | **M18** Deployment and Operations | 1/5 - T18-2 Complete |
 | M12, M16, M19 | None Complete |
 
-**79 of 115 tasks Complete.** Checkpoint **C** (M5 + M6 + M7) is now reached -
+**80 of 115 tasks Complete.** Checkpoint **C** (M5 + M6 + M7) is now reached -
 all three closed. M9 (Operating Envelopes) is now also fully closed. Next
 checkpoint is **D** (M8), which has landed five of its six tasks (T8-5 is
 V1.1-deferred). Its "loops reject an injected disturbance" gate on the
@@ -79,7 +79,7 @@ either, despite the `core` category. T12-1 and T18-5 each add a *new* isolated
 module under `app/engine/` (satellite work). Which Sonnet task to hand out
 alongside T11-2 is a scheduling choice, not a dependency one.
 
-### Startable now (17)
+### Startable now (16)
 
 | Task | Name | Model | Branch |
 |---|---|---|---|
@@ -90,7 +90,6 @@ alongside T11-2 is a scheduling choice, not a dependency one.
 | **T12-1** | Plant snapshot save and restore | Sonnet | `feature/state-persistence` |
 | **T13-3** | Injection profiles | Sonnet | `feature/malfunction-profiles` |
 | **T13-4** | Malfunction catalogue | Sonnet | `feature/malfunction-catalogue` |
-| **T14-2** | Trigger evaluator | Sonnet | `feature/scenario-triggers` |
 | **T14-3** | Objective evaluator | Sonnet | `feature/scenario-objectives` |
 | **T15-4** | Score persistence | Sonnet | `feature/score-store` |
 | **T16-1** | Console design system | Sonnet | `design/console-system` |

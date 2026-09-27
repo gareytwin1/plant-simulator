@@ -11,14 +11,19 @@ What is still open is the *direction* of the dependency. Nothing stops a
 physics module from importing the disturbance layer back - reaching into a
 `MalfunctionRegistry` or calling something the allowlist was built to guard
 against from the other side. The rule is "physics never imports disturbances
-(or scoring)", and it is easy to violate by accident once a device or the
+or scoring", and it is easy to violate by accident once a device or the
 engine wants to know whether it is currently faulted. Two checks enforce it:
 
-1. **Import direction** - no module outside `app/disturbances` imports
-   `app.disturbances` or `app.scoring`, absolute or relative. `scoring` does
-   not exist yet (M15+), but the same rule applies the moment it does, so it
-   is excluded from the guarded set pre-emptively - the same way
-   `app/disturbances` is - rather than left to be remembered later.
+1. **Import direction** - no *physics* module imports `app.disturbances` or
+   `app.scoring`, absolute or relative. "Physics" excludes not just those two
+   layers themselves but also the orchestration layer above them -
+   `app/api` (T15-1's C5 action endpoint legitimately imports
+   `app.scoring.actionlog` to log what an operator did, and will eventually
+   dispatch into `app.disturbances`/`app.scenarios` per C8's route list too;
+   that is coordination, not physics reaching backwards) and `app/main.py`,
+   the composition root. Equipment, the engine, the plant graph, controllers,
+   the envelope evaluator and alarms have no legitimate reason to know either
+   layer exists, and that is what stays guarded.
 2. **Allowlist vs. slow state** - derived structurally rather than
    hand-listed: for every device class in `WRITABLE`, none of its allowlisted
    parameters are among the attributes that class's own `integrate()` writes.
@@ -44,19 +49,30 @@ from app.equipment.base import Equipment
 
 APP = Path(__file__).resolve().parent.parent / "app"
 
-# Excluded from PHYSICS_MODULES the same way DISTURBANCE_LAYER is: once
-# app/scoring exists, its own internal imports would otherwise mention
-# "scoring" and trip the guard on themselves.
 DISTURBANCE_LAYER = APP / "disturbances"
 SCORING_LAYER = APP / "scoring"
+API_LAYER = APP / "api"
+MAIN_MODULE = APP / "main.py"
 
 FORBIDDEN_LAYERS = frozenset({"disturbances", "scoring"})
+
+# PHYSICS_MODULES is everything guarded against FORBIDDEN_LAYERS - which is
+# not "all of app/". Excluded: the two forbidden layers' own internals (their
+# own imports of each other, or of themselves, are not the violation this
+# guards against), and the orchestration layer above them - app/api (T15-1's
+# C5 action endpoint legitimately imports app.scoring.actionlog, and will
+# eventually dispatch into app.disturbances/app.scenarios too) and
+# app/main.py, the Flask composition root. Neither is physics; both exist to
+# coordinate between layers, which is a different direction than physics
+# reaching backwards into disturbances or scoring.
+ORCHESTRATION_LAYERS = (DISTURBANCE_LAYER, SCORING_LAYER, API_LAYER)
 
 APP_MODULES = sorted(APP.rglob("*.py"))
 PHYSICS_MODULES = [
     path
     for path in APP_MODULES
-    if DISTURBANCE_LAYER not in path.parents and SCORING_LAYER not in path.parents
+    if path != MAIN_MODULE
+    and not any(layer in path.parents for layer in ORCHESTRATION_LAYERS)
 ]
 
 
@@ -140,6 +156,15 @@ def test_the_guard_sees_the_modules_it_is_guarding():
     assert len(PHYSICS_MODULES) > 10
 
 
+def test_the_guard_excludes_the_orchestration_layer_it_does_not_guard():
+    # app/api coordinates between physics and scoring/disturbances - that is
+    # its job, not the violation this guard exists to catch. Same for the
+    # Flask composition root.
+    assert (API_LAYER / "action.py").exists()
+    assert (API_LAYER / "action.py") not in PHYSICS_MODULES
+    assert MAIN_MODULE not in PHYSICS_MODULES
+
+
 def test_the_disturbance_layer_is_the_one_that_imports_physics():
     # The dependency runs one way: malfunction.py reaches into equipment and
     # the engine snapshot to do its job. That is the allowed direction, and
@@ -215,11 +240,14 @@ def test_a_relative_import_that_stays_inside_its_own_package_is_not_flagged():
     assert not source_imports_forbidden_layer(source, ["app", "equipment"])
 
 
-def test_the_physics_filter_would_exclude_a_future_scoring_module():
-    # Guards the fix itself: once app/scoring exists, its own internal
-    # imports must not trip the guard on themselves, the same way
-    # app/disturbances's already do not. `Path.parents` needs no file to
-    # exist, so this is checkable before app/scoring is ever written.
+def test_the_physics_filter_excludes_scorings_own_internals():
+    # app/scoring's own internal imports must not trip the guard on
+    # themselves, the same way app/disturbances's already do not.
+    assert (SCORING_LAYER / "actionlog.py") in APP_MODULES
+    assert (SCORING_LAYER / "actionlog.py") not in PHYSICS_MODULES
+
+    # `Path.parents` needs no file to exist, so a future scoring submodule is
+    # covered too, not just the one that happens to exist today.
     hypothetical = SCORING_LAYER / "report.py"
 
     assert SCORING_LAYER in hypothetical.parents

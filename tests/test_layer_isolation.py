@@ -15,9 +15,10 @@ against from the other side. The rule is "physics never imports disturbances
 engine wants to know whether it is currently faulted. Two checks enforce it:
 
 1. **Import direction** - no module outside `app/disturbances` imports
-   `app.disturbances` or `app.scoring`. `scoring` does not exist yet (M15+),
-   but the same rule applies the moment it does, so it is guarded
-   pre-emptively rather than left to be remembered later.
+   `app.disturbances` or `app.scoring`, absolute or relative. `scoring` does
+   not exist yet (M15+), but the same rule applies the moment it does, so it
+   is excluded from the guarded set pre-emptively - the same way
+   `app/disturbances` is - rather than left to be remembered later.
 2. **Allowlist vs. slow state** - derived structurally rather than
    hand-listed: for every device class in `WRITABLE`, none of its allowlisted
    parameters are among the attributes that class's own `integrate()` writes.
@@ -43,31 +44,84 @@ from app.equipment.base import Equipment
 
 APP = Path(__file__).resolve().parent.parent / "app"
 
+# Excluded from PHYSICS_MODULES the same way DISTURBANCE_LAYER is: once
+# app/scoring exists, its own internal imports would otherwise mention
+# "scoring" and trip the guard on themselves.
 DISTURBANCE_LAYER = APP / "disturbances"
+SCORING_LAYER = APP / "scoring"
 
 FORBIDDEN_LAYERS = frozenset({"disturbances", "scoring"})
 
 APP_MODULES = sorted(APP.rglob("*.py"))
-PHYSICS_MODULES = [path for path in APP_MODULES if DISTURBANCE_LAYER not in path.parents]
+PHYSICS_MODULES = [
+    path
+    for path in APP_MODULES
+    if DISTURBANCE_LAYER not in path.parents and SCORING_LAYER not in path.parents
+]
 
 
-def imports_forbidden_layer(path):
-    for node in ast.walk(ast.parse(path.read_text())):
+def enclosing_package(path):
+    """The dotted package a relative import in `path` resolves against.
+
+    Mirrors Python's own `__package__` rule: drop the file's own component
+    (the module name, or `__init__` for a package). Both a regular module and
+    its package's `__init__.py` land on the same directory either way, which
+    is exactly right - a package's `__package__` equals its own dotted name,
+    not its parent's.
+    """
+    parts = list(path.relative_to(APP.parent).with_suffix("").parts)
+
+    return parts[:-1]
+
+
+def source_imports_forbidden_layer(source, package_parts):
+    """Does `source` (the text of a module in package `package_parts`) reach a
+    forbidden layer - by an absolute import, or a relative one resolved
+    against its own package?
+    """
+    for node in ast.walk(ast.parse(source)):
         if isinstance(node, ast.Import):
             for alias in node.names:
                 if FORBIDDEN_LAYERS & set(alias.name.split(".")):
                     return True
 
-        elif isinstance(node, ast.ImportFrom) and node.level == 0:
-            module = node.module or ""
+        elif isinstance(node, ast.ImportFrom):
+            if node.level == 0:
+                base = []
+            else:
+                # `from . import x` (level 1) resolves against this module's
+                # own package; each extra level climbs one package further up.
+                climb = node.level - 1
+                base = (
+                    package_parts[: len(package_parts) - climb]
+                    if climb <= len(package_parts)
+                    else []
+                )
 
-            if FORBIDDEN_LAYERS & set(module.split(".")):
+            module = (node.module or "").split(".") if node.module else []
+            target = [*base, *module]
+
+            if FORBIDDEN_LAYERS & set(target):
                 return True
 
-            if any(alias.name in FORBIDDEN_LAYERS for alias in node.names):
+            if any(FORBIDDEN_LAYERS & set([*base, alias.name]) for alias in node.names):
                 return True
 
     return False
+
+
+def imports_forbidden_layer(path):
+    source = path.read_text()
+    has_relative_import = any(
+        isinstance(node, ast.ImportFrom) and node.level > 0
+        for node in ast.walk(ast.parse(source))
+    )
+    # Only resolved when actually needed: a synthetic module built for a test
+    # (outside app/, all-absolute imports) has no package of its own to climb
+    # from, and none of these guarded modules use a relative import today.
+    package_parts = enclosing_package(path) if has_relative_import else []
+
+    return source_imports_forbidden_layer(source, package_parts)
 
 
 def test_the_guard_sees_the_modules_it_is_guarding():
@@ -121,6 +175,46 @@ def test_the_guard_catches_each_way_of_importing_the_forbidden_layer(tmp_path):
     )
 
     assert not imports_forbidden_layer(module)
+
+
+@pytest.mark.parametrize(
+    ("source", "package_parts"),
+    [
+        # from app/equipment/base.py: climbs one level to app, into disturbances.
+        ("from ..disturbances import malfunction", ["app", "equipment"]),
+        ("from ..disturbances.malfunction import Malfunction", ["app", "equipment"]),
+        ("from .. import disturbances", ["app", "equipment"]),
+        # from app/disturbances/malfunction.py reaching a sibling scoring package.
+        ("from ..scoring import board", ["app", "disturbances"]),
+    ],
+    ids=[
+        "relative-from-module",
+        "relative-from-submodule",
+        "relative-bare-import",
+        "relative-sibling-package",
+    ],
+)
+def test_the_guard_catches_a_relative_import_of_the_forbidden_layer(source, package_parts):
+    assert source_imports_forbidden_layer(source, package_parts), source
+
+
+def test_a_relative_import_that_stays_inside_its_own_package_is_not_flagged():
+    # from app/equipment/base.py: `from .valve import ControlValve` - a
+    # perfectly ordinary same-package relative import.
+    source = "from .valve import ControlValve"
+
+    assert not source_imports_forbidden_layer(source, ["app", "equipment"])
+
+
+def test_the_physics_filter_would_exclude_a_future_scoring_module():
+    # Guards the fix itself: once app/scoring exists, its own internal
+    # imports must not trip the guard on themselves, the same way
+    # app/disturbances's already do not. `Path.parents` needs no file to
+    # exist, so this is checkable before app/scoring is ever written.
+    hypothetical = SCORING_LAYER / "report.py"
+
+    assert SCORING_LAYER in hypothetical.parents
+    assert DISTURBANCE_LAYER not in hypothetical.parents
 
 
 # ---- the allowlist never doubles as a way to move slow state --------------

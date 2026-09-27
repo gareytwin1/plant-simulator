@@ -301,13 +301,7 @@ class Engine:
         if tag in self.equipment or tag in self.instruments or tag in self.loops:
             raise ValueError(f"tag {tag!r} is already in use")
 
-        section, source, variable = binding.pv_point
-
-        if variable not in self._indicated()[section].get(source, {}):
-            raise ValueError(
-                f"loop {tag} measures {section}.{source}.{variable}, which "
-                f"the plant does not publish",
-            )
+        _reading(self._indicated(), binding.pv_point, reader=f"loop {tag}")
 
         if binding.out_tag not in self.equipment:
             raise ValueError(
@@ -471,11 +465,27 @@ class Engine:
 def _reading(
     view: Mapping[str, Mapping[str, Mapping[str, JSONValue]]],
     point: Point,
+    reader: str = "a loop",
 ) -> float:
+    """The number `view` publishes at `point`, or ValueError naming `reader`
+    if it publishes none - the same refusal `true_reading` gives an
+    instrument."""
     section, source, variable = point
-    value = view[section][source][variable]
+    row = view[section].get(source)
 
-    assert isinstance(value, (int, float)) and not isinstance(value, bool)
+    if row is None or variable not in row:
+        raise ValueError(
+            f"{reader} measures {section}.{source}.{variable}, which the "
+            f"plant does not publish",
+        )
+
+    value = row[variable]
+
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(
+            f"{reader} measures {section}.{source}.{variable}, which is "
+            f"{value!r}, not a number",
+        )
 
     return float(value)
 

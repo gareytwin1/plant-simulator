@@ -195,6 +195,22 @@ def test_tag_and_pv_containing_a_colon_do_not_collide():
     assert len(manager.active()) == 2
 
 
+def test_de_escalating_an_acknowledged_alarm_returns_it_to_unacknowledged():
+    manager = AlarmManager()
+    alarm_severity = EnvelopeEvent(tag="K-101", pv="discharge pressure", severity=Severity.ALARM, side="hi")
+    warning = EnvelopeEvent(tag="K-101", pv="discharge pressure", severity=Severity.WARNING, side="hi")
+
+    events = manager.evaluate([alarm_severity], sim_time=0.0)
+    manager.acknowledge(events[0].id, sim_time=0.5)
+    assert manager.active()[0].acknowledged
+
+    events = manager.evaluate([warning], sim_time=1.0)
+
+    assert len(events) == 1
+    assert events[0].priority is Priority.LOW
+    assert not manager.active()[0].acknowledged
+
+
 def test_acknowledge_with_an_unknown_alarm_id_raises_a_clear_error():
     manager = AlarmManager()
 

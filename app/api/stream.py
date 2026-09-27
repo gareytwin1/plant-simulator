@@ -180,14 +180,9 @@ def create_stream_blueprint(
         if _is_dead(source):
             return Response(status=204)
 
-        # Only the environ lookup needs the real request context; captured
-        # here and left untouched until generate() actually runs. Flask
-        # auto-registers HEAD for a GET route, and Werkzeug never iterates
-        # a HEAD response's body iterator at all - so both the set and the
-        # restore below live inside generate() together, in the same
-        # generator frame, rather than split with the set eager in this
-        # view body: a HEAD request must touch this socket's timeout not
-        # at all, not touch it once and skip only the restore.
+        # Only the lookup needs the real request context; set and restored
+        # together inside generate(), so a response that is never iterated
+        # (HEAD, for one) never touches the socket.
         sock = _socket_of(request.environ)
 
         def generate() -> Iterator[str]:

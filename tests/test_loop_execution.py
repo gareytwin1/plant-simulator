@@ -433,11 +433,10 @@ def test_a_loop_measuring_an_unpublished_point_is_refused():
         engine.add_loop(binding)
 
 
-
 def test_a_measurement_that_is_not_a_number_is_refused_by_name():
     """The same refusal add_instrument gives, raised as a ValueError rather
     than an assert that python -O would strip."""
     view = {"equipment": {"PV-101": {"signal_ok": True}}}
 
     with pytest.raises(ValueError, match="loop PIC-101 .* not a number"):
-        _reading(view, ("equipment", "PV-101", "signal_ok"), reader="loop PIC-101")
+        _reading(view, ("equipment", "PV-101", "signal_ok"), "loop PIC-101")

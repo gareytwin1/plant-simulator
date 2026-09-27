@@ -301,7 +301,7 @@ class Engine:
         if tag in self.equipment or tag in self.instruments or tag in self.loops:
             raise ValueError(f"tag {tag!r} is already in use")
 
-        _reading(self._indicated(), binding.pv_point, reader=f"loop {tag}")
+        _reading(self._indicated(), binding.pv_point, f"loop {tag}")
 
         if binding.out_tag not in self.equipment:
             raise ValueError(
@@ -349,7 +349,7 @@ class Engine:
         clock_state = self.clock.get_state()
         controllers: dict[str, dict[str, JSONValue]] = {
             tag: {
-                "pv": _reading(indicated, binding.pv_point),
+                "pv": _reading(indicated, binding.pv_point, f"loop {tag}"),
                 "sp": binding.loop.pid.setpoint,
                 "out": binding.loop.output,
                 "mode": binding.loop.mode.name,
@@ -378,7 +378,7 @@ class Engine:
 
         for tag, binding in self.loops.items():
             loop = binding.loop
-            measurement = _reading(indicated, binding.pv_point)
+            measurement = _reading(indicated, binding.pv_point, f"loop {tag}")
 
             if tag not in self._primed:
                 loop.pid.track(measurement, dt, loop.output)
@@ -465,7 +465,7 @@ class Engine:
 def _reading(
     view: Mapping[str, Mapping[str, Mapping[str, JSONValue]]],
     point: Point,
-    reader: str = "a loop",
+    reader: str,
 ) -> float:
     """The number `view` publishes at `point`, or ValueError naming `reader`
     if it publishes none - the same refusal `true_reading` gives an

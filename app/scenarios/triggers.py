@@ -25,13 +25,18 @@ un-happen), and `TriggerEvaluator` latches that rather than re-scanning.
 
 A condition string is compiled once, at construction, into a `Condition`:
 evaluating it each step is a handful of dict lookups and one comparison, not
-a re-parse. An operator-action trigger gets the same treatment a different
-way - on a step where nothing new has been recorded since it last looked,
-`TriggerEvaluator` skips the log entirely; on a step where it has grown, the
-trigger inspects only the entries added since its own last look
-(`itertools.islice` over the log's `__iter__`, never a copy of the whole
-thing), never re-scanning ones it has already ruled out - which is what
-keeps trigger evaluation from adding measurable per-step cost.
+a re-parse. An operator-action trigger gets a smaller version of the same
+saving: on a step where nothing new has been recorded since it last looked,
+`TriggerEvaluator` skips the log entirely, and on a step where it has grown,
+`itertools.islice` over the log's `__iter__` means only the entries added
+since its own last look are ever *compared* against - it never repeats the
+tag/action check on one it has already ruled out, and never copies the
+whole log to do it. `islice` still has to step past the old entries one by
+one to reach that point (`ActionLog` exposes no way to jump straight to an
+index), so a rescan's cost is not independent of total log length, just
+cheaper per old entry than a full re-comparison would be. Making it truly
+independent of log length needs `ActionLog` itself to expose a real slice,
+which belongs to T15-1, not this task.
 """
 
 from __future__ import annotations
@@ -259,6 +264,8 @@ class Trigger:
 
     @classmethod
     def from_config(cls, config: Mapping[str, Any]) -> Trigger:
+        # Any: decoded scenario JSON, a shape nothing knows yet - every
+        # field is validated below before it reaches a typed attribute.
         if "id" not in config:
             raise ValueError(f"a trigger config is missing 'id': {config!r}")
 
@@ -468,9 +475,11 @@ class TriggerEvaluator:
             # Nothing new since the last look means nothing new to match.
             return False
 
-        # Only the entries added since this trigger's own last look - never
-        # a copy of the whole log, and never a re-scan of one it has
-        # already ruled out.
+        # is_met only ever compares the entries added since this trigger's
+        # own last look, never a copy of the whole log and never a repeat
+        # comparison of one it has already ruled out. islice still has to
+        # step past the earlier entries to reach them - see the module
+        # docstring for why that's a smaller saving than a real cursor.
         new_entries = itertools.islice(actions, seen, None)
         met = trigger.kind.is_met(snapshot, new_entries)
         self._action_seen_length[trigger.id] = total

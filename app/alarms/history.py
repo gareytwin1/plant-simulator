@@ -8,9 +8,13 @@ survives an alarm scrolling off `AlarmManager.active()` - the debrief needs
 to see a TRIP that fired at t=200 and was acknowledged at t=210, even if the
 plant is back at NORMAL by t=300 and `active()` no longer shows it. It is the
 `AlarmManager` counterpart to `Historian` (T17-1): also a bounded ring
-buffer, but keyed by run rather than by tag, since a debrief wants
-"everything that happened this scenario" in the order it happened, not one
-series per point.
+buffer, but one instance covers one scenario run in its entirety rather than
+one series per tag, since a debrief wants "everything that happened this
+scenario" in the order it happened. `AlarmHistory` carries no run
+identifier of its own and cannot reset itself - starting a new run means the
+owner replaces this instance and its `AlarmManager` together; reusing one
+against a fresh instance of the other is exactly the drift `record_acknowledge`'s
+caller is expected to check for (see `tag_of` below).
 
 An acknowledgement is its own `AcknowledgeRecord`, not folded into the
 `Event` that first raised the alarm - the operator's response is a distinct
@@ -72,7 +76,17 @@ class AlarmHistory:
     acknowledgements, in the order they were recorded.
 
     `capacity` bounds the total number of retained entries; once full, the
-    oldest is dropped first - same discipline as `Historian` (T17-1).
+    oldest is dropped first - same discipline as `Historian` (T17-1). Events
+    and acknowledgements share that one bound, so an `AcknowledgeRecord` can
+    outlive the `Event` that raised it.
+
+    `Event.id` names a monitored point for its whole life (T10-2), not one
+    occurrence, so `entries()` can hold several `Event`s and
+    `AcknowledgeRecord`s with the same id - an escalation past an existing
+    ACKED alarm, or a re-activation after RTN_UNACK, each add another
+    `Event` with the id it already had. A consumer pairing an ack with the
+    occurrence it closed wants the most recent preceding `Event` sharing its
+    id, tolerating one that capacity has already evicted.
     """
 
     def __init__(self, capacity: int) -> None:

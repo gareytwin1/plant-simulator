@@ -16,6 +16,7 @@ from pathlib import Path
 import pytest
 
 from app.engine.engine import Engine
+from app.engine.instruments import Instrument
 from app.envelope.evaluator import Evaluator, Limits, Severity, isa_band
 from app.envelope.loader import load_limits
 from app.equipment.vessel import Vessel
@@ -142,6 +143,29 @@ def test_since_is_seeded_at_construction_for_a_design_point_already_out_of_band(
         "band": "hi",
         "since": pytest.approx(0.0),
     }
+
+
+def test_a_pre_biased_instrument_seeds_the_envelope_from_the_indicated_value():
+    """Regression: instruments must be wired before limits are resolved and
+    seeded at construction, or the design-point band would be classified
+    from the true value instead of the indicated one - then jump on the
+    very first step once the already-registered bias started being read,
+    even though nothing in the plant actually changed."""
+    vessel = Vessel()
+    vessel.level = 0.3  # true 0.3; a +0.5 bias indicates 0.8, at the hi limit
+    transmitter = Instrument("LT-101", "equipment", "V-101", "level", bias=0.5)
+
+    engine = Engine([vessel], limits=load_limits(LIMITS), instruments=[transmitter])
+
+    assert engine.snapshot().envelope["V-101.level"] == {
+        "band": "hi",
+        "since": pytest.approx(0.0),
+    }
+
+    # Nothing physically changes on the next step - the band must not move.
+    snapshot = engine.step(1.0)
+
+    assert snapshot.envelope["V-101.level"]["since"] == pytest.approx(0.0)
 
 
 # --------------------------------------------------------------------------

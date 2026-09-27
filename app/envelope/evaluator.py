@@ -182,9 +182,6 @@ class Evaluator:
         self._pending_elapsed = 0.0
 
 
-_ISA_LETTERS: dict[Side, str] = {"lo": "lo", "hi": "hi"}
-
-
 def isa_band(severity: Severity, side: Side) -> str:
     """The ISA-style band label for a severity/side pair: the side repeated
     once per step above NORMAL - "lo"/"hi" at WARNING, "lolo"/"hihi" at
@@ -193,4 +190,4 @@ def isa_band(severity: Severity, side: Side) -> str:
     passed here - a caller filters it out before asking for a label, the same
     way `app.alarms.manager` builds its own HI/HIHI/HIHIHI suffix from a
     `Severity` and a side."""
-    return _ISA_LETTERS[side] * severity.value
+    return side * severity.value

@@ -216,6 +216,9 @@ class Engine:
 
         self._couple()
 
+        for instrument in instruments:
+            self.add_instrument(instrument)
+
         self.limits: dict[LimitKey, Evaluator] = self._resolve_limits(limits or {})
         self.trackers: dict[LimitKey, ExcursionTracker] = {
             key: ExcursionTracker(evaluator.limits)
@@ -224,9 +227,6 @@ class Engine:
         self._envelope_band: dict[LimitKey, tuple[Severity, Side | None]] = {}
         self._envelope_since: dict[LimitKey, float] = {}
         self._update_envelope(0.0)
-
-        for instrument in instruments:
-            self.add_instrument(instrument)
 
         for binding in loops:
             self.add_loop(binding)

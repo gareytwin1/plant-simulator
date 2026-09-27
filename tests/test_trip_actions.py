@@ -386,6 +386,20 @@ def test_a_paused_engine_advances_no_trip_delay():
     assert pump.running
 
 
+def test_the_first_update_counts_time_since_construction():
+    pump = running_machine(CentrifugalPump)
+    engine, trips, trigger = build([pump], interlock("XS-1", ["M-1.stop"], delay_s=30.0))
+    trigger.set_position_target(0.0)
+
+    for _ in range(12):
+        engine.step(STEP)
+
+    trips.update(engine.snapshot())
+
+    assert trips.interlocks["XS-1"].state is InterlockState.PENDING
+    assert trips.interlocks["XS-1"].pending_elapsed == pytest.approx(12.0)
+
+
 def test_an_older_snapshot_is_refused_before_any_interlock_moves():
     pump = running_machine(CentrifugalPump)
     engine, trips, trigger = build([pump], interlock("XS-1", ["M-1.stop"], delay_s=5.0))

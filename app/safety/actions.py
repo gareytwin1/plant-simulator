@@ -83,8 +83,9 @@ or stops being published at all, is evaluated as NaN, which T11-1's
 `Condition` fails safe on - a lost reading drives the trip timer rather than
 reading as healthy.
 
-Elapsed time is the snapshot's `sim_time` since the previous update, so a
-paused engine advances no delay.
+Elapsed time is the snapshot's `sim_time` since the previous update - or,
+for the first, since the snapshot the system was built on - so a paused
+engine advances no delay.
 """
 
 from __future__ import annotations
@@ -247,7 +248,7 @@ class TripSystem:
         errors.extend(self._conflicts())
         unresolved: list[str] = []
         self.evaluated = self._resolve_conditions(snapshot, equipment, errors, unresolved)
-        self._last_time: float | None = None
+        self._last_time = snapshot.sim_time
 
         if errors:
             raise ValueError(
@@ -288,12 +289,12 @@ class TripSystem:
         """Evaluate every resolvable interlock on `snapshot`, hold or release
         each one's demands, and apply the arbiter. Call it immediately before
         `Engine.step`, on the latest snapshot - see the module docstring."""
-        dt = 0.0 if self._last_time is None else snapshot.sim_time - self._last_time
+        dt = snapshot.sim_time - self._last_time
 
         if dt < 0.0:
             raise ValueError(
                 f"snapshot at sim_time {snapshot.sim_time} is older than the "
-                f"last one this trip system evaluated, at {self._last_time}",
+                f"last one this trip system saw, at {self._last_time}",
             )
 
         self._last_time = snapshot.sim_time

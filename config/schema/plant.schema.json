@@ -88,6 +88,7 @@
           "sp": {"type": "number"},
           "out": {"type": "string", "minLength": 1},
           "mode": {"type": "string", "enum": ["AUTO", "MANUAL"]},
+          "action": {"type": "string", "enum": ["DIRECT", "REVERSE"]},
           "kp": {"type": "number"},
           "ki": {"type": "number"},
           "kd": {"type": "number"}

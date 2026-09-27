@@ -1,6 +1,6 @@
 import pytest
 
-from app.envelope.evaluator import Evaluator, Limits, Severity
+from app.envelope.evaluator import Evaluator, Limits, Severity, isa_band
 
 
 def _limits():
@@ -167,3 +167,47 @@ def test_negative_deadband_is_rejected():
 def test_negative_on_delay_is_rejected():
     with pytest.raises(ValueError):
         Evaluator(_limits(), on_delay=-1.0)
+
+
+def test_side_is_none_at_normal():
+    evaluator = Evaluator(_limits())
+
+    evaluator.evaluate(50.0, dt=1.0)
+
+    assert evaluator.side is None
+
+
+@pytest.mark.parametrize(
+    "value, expected_side",
+    [(20.0, "lo"), (80.0, "hi"), (0.0, "lo"), (100.0, "hi")],
+)
+def test_side_matches_the_held_band(value, expected_side):
+    evaluator = Evaluator(_limits())
+
+    evaluator.evaluate(value, dt=1.0)
+
+    assert evaluator.side == expected_side
+
+
+def test_side_holds_through_a_deadband_the_same_way_severity_does():
+    evaluator = Evaluator(_limits(), deadband=5.0)
+
+    evaluator.evaluate(20.0, dt=1.0)
+    evaluator.evaluate(22.0, dt=0.0)  # inside the deadband, not yet cleared
+
+    assert evaluator.side == "lo"
+
+
+@pytest.mark.parametrize(
+    "severity, side, expected",
+    [
+        (Severity.WARNING, "lo", "lo"),
+        (Severity.WARNING, "hi", "hi"),
+        (Severity.ALARM, "lo", "lolo"),
+        (Severity.ALARM, "hi", "hihi"),
+        (Severity.TRIP, "lo", "lololo"),
+        (Severity.TRIP, "hi", "hihihi"),
+    ],
+)
+def test_isa_band_repeats_the_side_once_per_severity_step(severity, side, expected):
+    assert isa_band(severity, side) == expected

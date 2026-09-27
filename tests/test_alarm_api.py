@@ -1,0 +1,122 @@
+import pytest
+from flask import Flask
+
+from app.alarms.history import AlarmHistory
+from app.alarms.manager import AlarmManager, EnvelopeEvent
+from app.api.alarms import create_alarm_blueprint
+from app.envelope.evaluator import Severity
+
+
+def build_app():
+    manager = AlarmManager()
+    history = AlarmHistory(capacity=100)
+    sim_time = {"value": 0.0}
+
+    app = Flask(__name__)
+    app.register_blueprint(
+        create_alarm_blueprint(lambda: manager, lambda: history, lambda: sim_time["value"])
+    )
+
+    return app, manager, history, sim_time
+
+
+def raise_alarm(manager, history, sim_time):
+    point = EnvelopeEvent(tag="K-101", pv="discharge pressure", severity=Severity.ALARM, side="hi")
+    events = manager.evaluate([point], sim_time=sim_time)
+    history.record_events(events)
+    return events[0].id
+
+
+def test_get_history_returns_recorded_events():
+    app, manager, history, sim_time = build_app()
+    client = app.test_client()
+    raise_alarm(manager, history, sim_time["value"])
+
+    response = client.get("/api/alarms/history")
+
+    assert response.status_code == 200
+    body = response.get_json()
+    assert len(body) == 1
+    assert body[0]["tag"] == "K-101"
+    assert body[0]["type"] == "alarm"
+    assert body[0]["priority"] == "high"
+
+
+def test_get_history_is_empty_before_anything_is_recorded():
+    app, _manager, _history, _sim_time = build_app()
+    client = app.test_client()
+
+    response = client.get("/api/alarms/history")
+
+    assert response.status_code == 200
+    assert response.get_json() == []
+
+
+def test_post_acknowledge_transitions_state_and_is_recorded():
+    app, manager, history, sim_time = build_app()
+    client = app.test_client()
+    alarm_id = raise_alarm(manager, history, sim_time["value"])
+    sim_time["value"] = 5.0
+
+    response = client.post("/api/alarms/acknowledge", json={"alarm_id": alarm_id})
+
+    assert response.status_code == 200
+    assert response.get_json() == {"ok": True}
+    [alarm] = manager.active()
+    assert alarm.acknowledged
+
+    entries = history.entries()
+    assert len(entries) == 2
+    ack = entries[-1]
+    assert ack.alarm_id == alarm_id
+    assert ack.sim_time == pytest.approx(5.0)
+
+
+def test_post_acknowledge_uses_sim_time_not_wall_time():
+    app, manager, history, sim_time = build_app()
+    client = app.test_client()
+    alarm_id = raise_alarm(manager, history, sim_time["value"])
+    sim_time["value"] = 123.0
+
+    client.post("/api/alarms/acknowledge", json={"alarm_id": alarm_id})
+
+    assert history.entries()[-1].sim_time == pytest.approx(123.0)
+
+
+def test_post_acknowledge_unknown_alarm_id_is_a_400_not_a_500():
+    app, _manager, history, _sim_time = build_app()
+    client = app.test_client()
+
+    response = client.post("/api/alarms/acknowledge", json={"alarm_id": "no-such-alarm"})
+
+    assert response.status_code == 400
+    assert "error" in response.get_json()
+    assert len(history) == 0
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        pytest.param({}, id="missing-alarm-id"),
+        pytest.param({"alarm_id": 1}, id="non-string-alarm-id"),
+    ],
+)
+def test_post_acknowledge_rejects_malformed_bodies(body):
+    app, _manager, history, _sim_time = build_app()
+    client = app.test_client()
+
+    response = client.post("/api/alarms/acknowledge", json=body)
+
+    assert response.status_code == 400
+    assert "error" in response.get_json()
+    assert len(history) == 0
+
+
+def test_post_acknowledge_non_json_body_is_rejected():
+    app, _manager, _history, _sim_time = build_app()
+    client = app.test_client()
+
+    response = client.post("/api/alarms/acknowledge", data="not json", content_type="text/plain")
+
+    assert response.status_code == 400
+    assert "error" in response.get_json()

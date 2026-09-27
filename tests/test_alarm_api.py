@@ -42,6 +42,23 @@ def test_get_history_returns_recorded_events():
     assert body[0]["priority"] == "high"
 
 
+def test_get_history_serializes_an_acknowledge_entry_with_tag_and_a_consistent_id_key():
+    app, manager, history, sim_time = build_app()
+    client = app.test_client()
+    alarm_id = raise_alarm(manager, history, sim_time["value"])
+
+    client.post("/api/alarms/acknowledge", json={"alarm_id": alarm_id})
+    response = client.get("/api/alarms/history")
+
+    ack = response.get_json()[-1]
+    assert ack == {
+        "type": "acknowledge",
+        "id": alarm_id,
+        "tag": "K-101",
+        "sim_time": pytest.approx(0.0),
+    }
+
+
 def test_get_history_is_empty_before_anything_is_recorded():
     app, _manager, _history, _sim_time = build_app()
     client = app.test_client()
@@ -61,7 +78,7 @@ def test_post_acknowledge_transitions_state_and_is_recorded():
     response = client.post("/api/alarms/acknowledge", json={"alarm_id": alarm_id})
 
     assert response.status_code == 200
-    assert response.get_json() == {"ok": True}
+    assert response.get_json() == {"ok": True, "recorded": True}
     [alarm] = manager.active()
     assert alarm.acknowledged
 
@@ -69,7 +86,21 @@ def test_post_acknowledge_transitions_state_and_is_recorded():
     assert len(entries) == 2
     ack = entries[-1]
     assert ack.alarm_id == alarm_id
+    assert ack.tag == "K-101"
     assert ack.sim_time == pytest.approx(5.0)
+
+
+def test_post_acknowledge_twice_records_exactly_once():
+    app, manager, history, sim_time = build_app()
+    client = app.test_client()
+    alarm_id = raise_alarm(manager, history, sim_time["value"])
+
+    first = client.post("/api/alarms/acknowledge", json={"alarm_id": alarm_id})
+    second = client.post("/api/alarms/acknowledge", json={"alarm_id": alarm_id})
+
+    assert first.get_json() == {"ok": True, "recorded": True}
+    assert second.get_json() == {"ok": True, "recorded": False}
+    assert len(history) == 2
 
 
 def test_post_acknowledge_uses_sim_time_not_wall_time():

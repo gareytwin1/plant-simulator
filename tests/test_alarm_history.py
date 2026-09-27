@@ -74,7 +74,32 @@ def test_acknowledge_is_recorded_as_its_own_entry():
     ack = entries[-1]
     assert isinstance(ack, AcknowledgeRecord)
     assert ack.alarm_id == events[0].id
+    assert ack.tag == "K-101"
     assert ack.sim_time == pytest.approx(2.5)
+
+
+def test_is_acknowledged_is_false_for_an_id_never_recorded():
+    history = AlarmHistory(capacity=10)
+
+    assert history.is_acknowledged("no-such-alarm") is False
+
+
+def test_is_acknowledged_reflects_the_last_recorded_action():
+    history = AlarmHistory(capacity=10)
+    manager = AlarmManager()
+    point = EnvelopeEvent(tag="K-101", pv="discharge pressure", severity=Severity.ALARM, side="hi")
+
+    events = manager.evaluate([point], sim_time=0.0)
+    history.record_events(events)
+    assert history.is_acknowledged(events[0].id) is False
+
+    history.record_acknowledge(events[0].id, sim_time=1.0)
+    assert history.is_acknowledged(events[0].id) is True
+
+    escalation = EnvelopeEvent(tag="K-101", pv="discharge pressure", severity=Severity.TRIP, side="hi")
+    reescalated = manager.evaluate([escalation], sim_time=2.0)
+    history.record_events(reescalated)
+    assert history.is_acknowledged(events[0].id) is False
 
 
 def test_acknowledge_entries_count_toward_the_bound():

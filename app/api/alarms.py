@@ -13,7 +13,11 @@ Acknowledging here does two things in sequence, both against the same
 `sim_time`: `AlarmManager.acknowledge()` transitions the alarm's own state
 machine, and `AlarmHistory.record_acknowledge()` records that it happened -
 matching how `AlarmManager.acknowledge`'s docstring already flags `sim_time`
-as "part of C7's frozen signature; T10-3 records it in history".
+as "part of C7's frozen signature; T10-3 records it in history". A request
+for an alarm `AlarmHistory` already has as acknowledged is a no-op reporting
+`recorded: false`, not a second `AcknowledgeRecord` - a retried request or a
+double click must not read as two separate operator acknowledgements in the
+debrief.
 """
 
 from __future__ import annotations
@@ -31,7 +35,8 @@ def _serialize(entry: HistoryEntry) -> dict[str, object]:
     if isinstance(entry, AcknowledgeRecord):
         return {
             "type": "acknowledge",
-            "alarm_id": entry.alarm_id,
+            "id": entry.alarm_id,
+            "tag": entry.tag,
             "sim_time": entry.sim_time,
         }
 
@@ -75,15 +80,20 @@ def create_alarm_blueprint(
         if not isinstance(alarm_id, str):
             return jsonify({"error": "alarm_id must be a string"}), 400
 
+        history = get_history()
+
+        if history.is_acknowledged(alarm_id):
+            return jsonify({"ok": True, "recorded": False}), 200
+
         sim_time = get_sim_time()
 
         try:
             get_manager().acknowledge(alarm_id, sim_time)
         except KeyError as error:
-            return jsonify({"error": str(error)}), 400
+            return jsonify({"error": error.args[0]}), 400
 
-        get_history().record_acknowledge(alarm_id, sim_time)
+        history.record_acknowledge(alarm_id, sim_time)
 
-        return jsonify({"ok": True}), 200
+        return jsonify({"ok": True, "recorded": True}), 200
 
     return blueprint

@@ -221,22 +221,25 @@ def test_the_run_output_switches_at_its_midpoint_and_never_raises(
     assert machine.running is ends_running
 
 
-def test_a_standing_run_demand_restarts_the_machine_when_the_trip_releases():
-    pump = running_machine(CentrifugalPump)
-    engine, trips, trigger = build([pump], interlock("XS-1", ["M-1.stop"], reset="manual"))
+@pytest.mark.parametrize("machine_type", [CentrifugalPump, GasCompressor])
+def test_a_standing_run_demand_restarts_the_machine_when_the_trip_releases(machine_type):
+    machine = running_machine(machine_type)
+    engine, trips, trigger = build([machine], interlock("XS-1", ["M-1.stop"], reset="manual"))
     engine.arbiter.demand("M-1.run", Source.OPERATOR, "console", 1.0)
     run(engine, trips, 5.0)
 
     trip(engine, trips, trigger)
     clear(engine, trips, trigger)
-    assert not pump.running
+    assert not machine.running
 
     assert trips.interlocks["XS-1"].reset()
     run(engine, trips, 10.0)
 
-    assert pump.running
-    assert pump.speed_target == pytest.approx(0.0)
-    assert pump.speed == pytest.approx(0.0)
+    target = machine.speed_target if machine_type is CentrifugalPump else machine.load_target
+
+    assert machine.running
+    assert target == pytest.approx(0.0)
+    assert output_of(machine) == pytest.approx(0.0)
 
 
 def test_a_condition_that_stops_reading_a_number_fails_safe(monkeypatch):

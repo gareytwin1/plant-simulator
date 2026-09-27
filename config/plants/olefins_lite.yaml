@@ -136,3 +136,14 @@ equipment:
       level: 0.5
       gas_volume: 400.0
       initial_pressure: 200.0
+# Limits (T9-2, app/envelope/loader.py): illustrative envelopes, not a claim
+# that this plant ever excursions on its own — the design point (V-101 at
+# level 0.5, K-101 discharging into N-204 at 304.0 psia, P-101 forward at
+# 50.0 GPM) sits on the safe side of every bound below, so a freshly loaded
+# plant reads NORMAL on all three. `trip: true` sends both lo_lo and hi_hi
+# to Evaluator's TRIP severity rather than ALARM (app/envelope/loader.py);
+# P-101's lo_lo is a backflow trip and needs no companion hi_hi.
+limits:
+  - {tag: V-101, variable: level, lo_lo: 0.1, lo: 0.2, hi: 0.8, hi_hi: 0.9, trip: true, deadband: 0.02}
+  - {tag: K-101, variable: discharge_pressure, hi: 320.0, hi_hi: 350.0, trip: true}
+  - {tag: P-101, variable: flow, lo_lo: -20.0, trip: true}

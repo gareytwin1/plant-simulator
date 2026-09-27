@@ -39,6 +39,18 @@ def test_lo_lo_above_lo_is_rejected():
         load_limits(config)
 
 
+def test_a_repeated_tag_and_variable_is_rejected_rather_than_silently_overwritten():
+    config = {
+        "limits": [
+            {"tag": "V-101", "variable": "level", "lo": 0.2},
+            {"tag": "V-101", "variable": "level", "lo": 0.3},
+        ],
+    }
+
+    with pytest.raises(ValueError, match="V-101.level"):
+        load_limits(config)
+
+
 def test_hi_above_hi_hi_is_rejected():
     config = {
         "limits": [

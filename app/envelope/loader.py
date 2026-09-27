@@ -20,6 +20,11 @@ Ordering violations - `lo_lo` above `lo`, for instance - are caught by
 `Limits.__post_init__` itself; this module only adds the offending tag and
 variable to the message, since a plant config can define many entries and a
 bare "X must not exceed Y" does not say which one failed.
+
+A `(tag, variable)` pair repeated across two entries is rejected rather than
+letting the later one silently win: nothing else about the `limits` section
+enforces uniqueness, so a copy-pasted entry left with the old tag would
+otherwise discard a real bound without any signal that it happened.
 """
 
 from __future__ import annotations
@@ -45,6 +50,10 @@ def load_limits(config: Mapping[str, Any]) -> dict[LimitKey, Evaluator]:
     for entry in config.get("limits", []):
         tag = entry["tag"]
         variable = entry["variable"]
+
+        if (tag, variable) in evaluators:
+            raise ValueError(f"limits entry {tag}.{variable} is defined more than once")
+
         trip = entry.get("trip", False)
         lo_lo = entry.get("lo_lo")
         hi_hi = entry.get("hi_hi")

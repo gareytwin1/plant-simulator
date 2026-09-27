@@ -24,8 +24,8 @@ def build_app():
     return app, manager, history, sim_time
 
 
-def raise_alarm(manager, history, sim_time):
-    point = EnvelopeEvent(tag="K-101", pv="discharge pressure", severity=Severity.ALARM, side="hi")
+def raise_alarm(manager, history, sim_time, tag="K-101", pv="discharge pressure"):
+    point = EnvelopeEvent(tag=tag, pv=pv, severity=Severity.ALARM, side="hi")
     events = manager.evaluate([point], sim_time=sim_time)
     history.record_events(events)
     return events[0].id
@@ -169,15 +169,13 @@ def test_post_acknowledge_after_the_raising_event_has_been_evicted_still_works()
     app.register_blueprint(create_alarm_blueprint(lambda: manager, lambda: history, lambda: 0.0))
     client = app.test_client()
 
-    def raise_point(pv: str) -> str:
-        point = EnvelopeEvent(tag="K-101", pv=pv, severity=Severity.ALARM, side="hi")
-        events = manager.evaluate([point], sim_time=0.0)
-        history.record_events(events)
-        return events[0].id
-
-    alarm_id = raise_point("discharge pressure")
-    raise_point("suction pressure")
-    raise_point("temperature")
+    # Distinct tags on the evicted alarm vs. the two that push it out of the
+    # buffer: identical tags would let ack.tag == "K-101" pass even if
+    # tag_of returned whichever Event was recorded last, rather than the
+    # evicted alarm's own.
+    alarm_id = raise_alarm(manager, history, 0.0, tag="K-101", pv="discharge pressure")
+    raise_alarm(manager, history, 0.0, tag="P-101", pv="speed")
+    raise_alarm(manager, history, 0.0, tag="FV-101", pv="position")
 
     assert all(getattr(entry, "id", None) != alarm_id for entry in history.entries())
 

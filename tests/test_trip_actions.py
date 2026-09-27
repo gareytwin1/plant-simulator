@@ -441,6 +441,20 @@ def test_an_action_that_does_not_resolve_is_refused(action, message):
     assert message in str(raised.value)
 
 
+def test_a_condition_on_an_unknown_device_is_refused_not_skipped():
+    entry = {**interlock("XS-1", ["M-1.stop"]), "condition": "HV-999.position <= 0.5"}
+
+    with pytest.raises(ValueError, match="condition names unknown device 'HV-999'"):
+        build([CentrifugalPump("M-1")], entry)
+
+
+def test_a_condition_on_a_field_that_is_not_a_number_is_refused():
+    entry = {**interlock("XS-1", ["M-1.stop"]), "condition": "M-1.running >= 1"}
+
+    with pytest.raises(ValueError, match="M-1.running is True, not a number"):
+        build([running_machine(CentrifugalPump)], entry)
+
+
 def test_two_interlocks_that_contradict_on_one_output_are_refused():
     with pytest.raises(ValueError, match="XV-1.open contradicts interlock XS-1's XV-1.close"):
         build(

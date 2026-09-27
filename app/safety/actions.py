@@ -75,7 +75,9 @@ equipment section. One that names a solved node or branch quantity
 (`K-101.discharge_pressure`) is warned about once, at construction, and then
 never evaluated - the same tag-to-point resolver gap `app/engine/engine.py`'s
 module docstring documents. Its actions are still validated and bound, so it
-starts working the moment that resolver lands. A condition that resolves
+starts working the moment that resolver lands. A condition naming a device
+the plant does not have is refused outright, like an unknown action: a
+typo must not leave a trip silently inert. A condition that resolves
 must read a number at construction; one that stops being a number mid-run,
 or stops being published at all, is evaluated as NaN, which T11-1's
 `Condition` fails safe on - a lost reading drives the trip timer rather than
@@ -243,15 +245,14 @@ class TripSystem:
                 errors.append(f"interlock {tag}: {error}")
 
         errors.extend(self._conflicts())
+        self.evaluated = self._resolve_conditions(snapshot, equipment, errors)
+        self._last_time: float | None = None
 
         if errors:
             raise ValueError(
-                f"trip actions rejected, {len(errors)} problem(s):\n"
+                f"interlocks rejected, {len(errors)} problem(s):\n"
                 + "\n".join(f"  {error}" for error in errors),
             )
-
-        self.evaluated = self._resolve_conditions(snapshot)
-        self._last_time: float | None = None
 
         for actions in self.actions.values():
             for action in actions:
@@ -329,27 +330,47 @@ class TripSystem:
 
         return errors
 
-    def _resolve_conditions(self, snapshot: Snapshot) -> tuple[str, ...]:
+    def _resolve_conditions(
+        self,
+        snapshot: Snapshot,
+        equipment: Mapping[str, Equipment],
+        errors: list[str],
+    ) -> tuple[str, ...]:
+        """The interlocks whose condition reads a published number. A
+        condition naming no device of this plant, or a published field that
+        is not a number, is a configuration fault and joins `errors`; only an
+        existing device's unpublished variable - the resolver gap - is
+        warned about and skipped."""
         evaluated: list[str] = []
 
         for tag, interlock in self.interlocks.items():
             condition = interlock.definition.condition
-            row = snapshot.equipment.get(condition.tag)
+            point = f"{condition.tag}.{condition.variable}"
 
-            if row is None or condition.variable not in row:
+            if condition.tag not in equipment:
+                errors.append(
+                    f"interlock {tag}: condition names unknown device "
+                    f"{condition.tag!r}, only {sorted(equipment)}",
+                )
+                continue
+
+            row = snapshot.equipment.get(condition.tag, {})
+
+            if condition.variable not in row:
                 warnings.warn(
-                    f"interlock {tag} condition {condition.tag}.{condition.variable} "
-                    f"does not resolve against the equipment section the snapshot "
-                    f"publishes and will not be evaluated",
+                    f"interlock {tag} condition {point} does not resolve "
+                    f"against the equipment section the snapshot publishes "
+                    f"and will not be evaluated",
                     stacklevel=_outside_this_module(),
                 )
                 continue
 
             if _number(row[condition.variable]) is None:
-                raise ValueError(
-                    f"interlock {tag} condition {condition.tag}.{condition.variable} "
-                    f"is {row[condition.variable]!r}, not a number",
+                errors.append(
+                    f"interlock {tag}: condition {point} is "
+                    f"{row[condition.variable]!r}, not a number",
                 )
+                continue
 
             evaluated.append(tag)
 

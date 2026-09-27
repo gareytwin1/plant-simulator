@@ -47,28 +47,51 @@ class PaddedFakeSource:
 
 
 class FakeClock:
-    """A monotonic() that plays back a sequence of times, one per call, so
-    a test can dictate exactly how long each yield's write appeared to
-    take without a real socket or a real sleep. `times` may be an infinite
-    iterator (e.g. itertools.count) - only ever pulled from lazily."""
+    """A monotonic() the test drives explicitly: time moves only when
+    something calls `advance()`, and every read in between returns exactly
+    what it last was. `stream_events` calls `monotonic()` several times
+    per cycle now (Cadence's own bookkeeping, plus the write-duration
+    check), so a hand-counted list of return values is fragile; a clock
+    the test steps by hand is not."""
 
-    def __init__(self, times):
-        self._times = iter(times)
+    def __init__(self, start=0.0):
+        self.now = start
 
     def __call__(self):
-        return next(self._times)
+        return self.now
+
+    def advance(self, seconds):
+        self.now += seconds
+        return self.now
 
 
 class RecordingSleep:
-    def __init__(self):
+    """A sleep() paired with a FakeClock: recording what it was asked to
+    wait for and advancing the shared clock by exactly that much, so real
+    elapsed time (as the fake clock tells it) and "time spent sleeping"
+    never disagree."""
+
+    def __init__(self, clock):
+        self.clock = clock
         self.calls = []
 
     def __call__(self, seconds):
         self.calls.append(seconds)
+        self.clock.advance(seconds)
+
+
+def _clocked(start=0.0):
+    """A matched (clock, sleep) pair for stream_events - the common case;
+    a test that needs the clock alone still constructs FakeClock directly."""
+    clock = FakeClock(start)
+    return clock, RecordingSleep(clock)
 
 
 def _payload(event):
-    return json.loads(event[len("data: "):-2])
+    """The JSON off one SSE event's `data:` line, ignoring an optional
+    leading `retry:` line (present only on a stream's first event)."""
+    data_line = next(line for line in event.split("\n") if line.startswith("data: "))
+    return json.loads(data_line[len("data: "):])
 
 
 # ---- format_event ----
@@ -84,13 +107,44 @@ def test_format_event_is_one_sse_data_frame_carrying_c4_json():
     assert _payload(event) == snapshot.as_dict()
 
 
+def test_format_event_puts_a_retry_line_before_data_only_when_given_one():
+    snapshot = build_snapshot(sim_time=0.0, speed=1.0, running=True, equipment={})
+
+    assert format_event(snapshot, retry_ms=250) == f"retry: 250\ndata: {json.dumps(snapshot.as_dict())}\n\n"
+    assert format_event(snapshot) == f"data: {json.dumps(snapshot.as_dict())}\n\n"
+
+
+def test_format_event_maps_a_non_finite_reading_to_null_instead_of_invalid_json():
+    # json.dumps's default allow_nan=True would write a bare NaN/Infinity
+    # token - valid Python, not valid JSON, and rejected by a browser's
+    # JSON.parse. C4 does not forbid a non-finite reading anywhere.
+    snapshot = build_snapshot(
+        sim_time=0.0,
+        speed=1.0,
+        running=True,
+        equipment={"K-101": {"nan_reading": float("nan"), "inf_reading": float("inf")}},
+    )
+
+    event = format_event(snapshot)
+
+    # json.loads would itself accept a bare NaN token (Python's decoder is
+    # as permissive as its encoder), so parsing alone would not catch a
+    # regression back to allow_nan=True - check the raw text has no such
+    # token before trusting the parsed value.
+    assert "NaN" not in event
+    assert "Infinity" not in event
+
+    reading = _payload(event)["equipment"]["K-101"]
+    assert reading["nan_reading"] is None
+    assert reading["inf_reading"] is None
+
+
 # ---- stream_events: the pure core, no Flask involved ----
 
 
-def test_stream_events_yields_the_first_event_immediately_then_sleeps_between_later_ones():
+def test_stream_events_yields_the_first_event_immediately_then_paces_later_ones():
     source = FakeSource()
-    sleep = RecordingSleep()
-    clock = FakeClock([0.0, 0.1, 0.1, 0.2, 0.2, 0.3])
+    clock, sleep = _clocked()
 
     events = list(itertools.islice(
         stream_events(source, interval_seconds=1.0, sleep=sleep, monotonic=clock),
@@ -98,15 +152,46 @@ def test_stream_events_yields_the_first_event_immediately_then_sleeps_between_la
     ))
 
     assert len(events) == 3
-    # Three events need only two gaps between them - a fresh connection is
-    # not kept blank for a whole interval before its first event.
-    assert sleep.calls == [1.0, 1.0]
+    # Cadence's deadline starts at "now", so the very first delay computes
+    # to ~0 - a fresh connection is not kept blank for a whole interval
+    # before its first event.
+    assert sleep.calls[0] == pytest.approx(0.0)
+    assert sleep.calls[1:] == [pytest.approx(1.0), pytest.approx(1.0)]
+
+
+def test_stream_events_paces_against_a_deadline_grid_not_a_fixed_sleep_every_cycle():
+    source = FakeSource()
+    clock, sleep = _clocked()
+
+    gen = stream_events(source, interval_seconds=1.0, sleep=sleep, monotonic=clock)
+
+    next(gen)
+    clock.advance(0.4)  # building and writing that event took 0.4s
+    next(gen)
+
+    # A plain sleep(interval_seconds) every cycle would wait a full 1.0s
+    # here regardless of what the first cycle already spent; pacing off a
+    # deadline grid waits only what is left of the interval.
+    assert sleep.calls[1] == pytest.approx(0.6)
+
+
+def test_stream_events_sets_a_retry_line_on_the_first_event_only():
+    source = FakeSource()
+    clock, sleep = _clocked()
+
+    events = list(itertools.islice(
+        stream_events(source, interval_seconds=0.25, sleep=sleep, monotonic=clock),
+        3,
+    ))
+
+    assert events[0].startswith("retry: 250\n")
+    assert not events[1].startswith("retry:")
+    assert not events[2].startswith("retry:")
 
 
 def test_stream_events_reflects_the_current_snapshot_not_a_queued_backlog():
     source = FakeSource()
-    sleep = RecordingSleep()
-    clock = FakeClock(itertools.count(0.0, 0.1))
+    clock, sleep = _clocked()
 
     gen = stream_events(source, interval_seconds=1.0, sleep=sleep, monotonic=clock)
 
@@ -119,42 +204,41 @@ def test_stream_events_reflects_the_current_snapshot_not_a_queued_backlog():
     assert second["sim_time"] == pytest.approx(99.0)
 
 
-def test_stream_events_continues_when_the_write_lands_within_budget():
+def test_stream_events_continues_when_every_write_lands_within_budget():
     source = FakeSource()
-    sleep = RecordingSleep()
-    # Every write appears to take 2s against a 5s dropout budget
-    # (interval_seconds=1.0 * dropout_intervals=5.0) - well inside it.
-    clock = FakeClock([0.0, 2.0, 2.0, 4.0, 4.0, 6.0, 6.0, 8.0])
+    clock, sleep = _clocked()
 
-    events = list(itertools.islice(
-        stream_events(source, interval_seconds=1.0, sleep=sleep, monotonic=clock, dropout_intervals=5.0),
-        4,
-    ))
+    gen = stream_events(source, interval_seconds=1.0, sleep=sleep, monotonic=clock, dropout_intervals=5.0)
+
+    events = []
+    for _ in range(4):
+        events.append(next(gen))
+        clock.advance(2.0)  # each write "takes" 2s, well inside the 5s budget
 
     assert len(events) == 4
 
 
 def test_stream_events_ends_when_a_write_alone_exceeds_the_dropout_budget():
     source = FakeSource()
-    sleep = RecordingSleep()
-    # First write (the immediate one, no sleep before it) takes 1s, fine;
-    # the second takes 9s against a 5s budget - a wedged client, not a
-    # briefly slow one.
-    clock = FakeClock([0.0, 1.0, 1.0, 10.0])
+    clock, sleep = _clocked()
 
-    events = list(stream_events(source, interval_seconds=1.0, sleep=sleep, monotonic=clock, dropout_intervals=5.0))
+    gen = stream_events(source, interval_seconds=1.0, sleep=sleep, monotonic=clock, dropout_intervals=5.0)
 
-    assert len(events) == 2
-    assert sleep.calls == [1.0]
+    next(gen)  # first write: instant, fine
+    next(gen)  # second event delivered; its own write is the slow one
+    clock.advance(9.0)  # ...9s against a 5s budget - wedged, not briefly slow
+
+    with pytest.raises(StopIteration):
+        next(gen)
 
 
 def test_stream_events_dropout_ignores_time_spent_sleeping():
     source = FakeSource()
-    sleep = RecordingSleep()
-    # The gap the dropout check measures starts *after* sleep() returns, so
-    # a long interval_seconds must never by itself count as a slow write.
-    clock = FakeClock([0.0, 0.05, 0.05, 0.1])
+    clock, sleep = _clocked()
 
+    # A 100s interval means a 100s sleep between events - the dropout
+    # check must not mistake that wait for a slow write against its 500s
+    # budget (5 * 100s): `started` is captured only after sleep() returns.
     events = list(itertools.islice(
         stream_events(source, interval_seconds=100.0, sleep=sleep, monotonic=clock, dropout_intervals=5.0),
         2,
@@ -165,8 +249,7 @@ def test_stream_events_dropout_ignores_time_spent_sleeping():
 
 def test_stream_events_ends_once_the_source_reports_itself_closed():
     source = FakeSource()
-    sleep = RecordingSleep()
-    clock = FakeClock(itertools.count(0.0, 0.1))
+    clock, sleep = _clocked()
 
     gen = stream_events(source, interval_seconds=1.0, sleep=sleep, monotonic=clock)
     next(gen)
@@ -179,8 +262,7 @@ def test_stream_events_ends_once_the_source_reports_itself_closed():
 
 def test_stream_events_ends_once_the_source_reports_a_worker_error():
     source = FakeSource()
-    sleep = RecordingSleep()
-    clock = FakeClock(itertools.count(0.0, 0.1))
+    clock, sleep = _clocked()
 
     gen = stream_events(source, interval_seconds=1.0, sleep=sleep, monotonic=clock)
     next(gen)
@@ -299,15 +381,20 @@ def test_a_client_that_never_reads_is_dropped_by_the_transport_backstop(monkeypa
     # drives the real Werkzeug development server over a real socket and
     # never reads from it at all, to prove create_stream_blueprint's
     # socket-timeout backstop (not stream_events itself) is what bounds
-    # that case. Detection is via an Event set in generate()'s own finally
-    # (wrapped around the real stream_events here) rather than by racing a
-    # fixed sleep against however long this host's real TCP buffers take
-    # to fill: a client that drains anything to check for closure would
-    # itself relieve the backpressure under test.
+    # that case. dropout_intervals is forced absurdly high on the real
+    # stream_events so its own write-duration check cannot be what ends
+    # this stream either - only the socket timeout may. Detection is via
+    # an Event set in generate()'s own finally (wrapped around the real
+    # stream_events here) rather than by racing a fixed sleep against
+    # however long this host's real TCP buffers take to fill: a client
+    # that drains anything to check for closure would itself relieve the
+    # backpressure under test.
     closed = threading.Event()
     real_stream_events = stream_module.stream_events
 
     def instrumented(*args, **kwargs):
+        kwargs["dropout_intervals"] = 1_000_000.0
+
         try:
             yield from real_stream_events(*args, **kwargs)
         finally:
@@ -340,6 +427,9 @@ def test_a_client_that_never_reads_is_dropped_by_the_transport_backstop(monkeypa
         thread.join(timeout=5.0)
 
 
+# ---- liveness at connect: closed is permanent, a bare error is not ----
+
+
 def test_dead_at_connect_gets_a_204_so_eventsource_stops_retrying():
     source = FakeSource()
     source.closed = True
@@ -351,6 +441,26 @@ def test_dead_at_connect_gets_a_204_so_eventsource_stops_retrying():
     response = client.get("/api/stream")
 
     assert response.status_code == 204
+
+
+def test_a_transient_error_at_connect_ends_the_stream_without_a_204():
+    # error alone (Scheduler.start() clears it on a restart) must never
+    # tell EventSource to give up for good the way closed does - a 204
+    # here would strand a client that connected during exactly the window
+    # a restart was about to recover from.
+    source = FakeSource()
+    source.error = RuntimeError("boom")
+
+    app = Flask(__name__)
+    app.register_blueprint(create_stream_blueprint(lambda: source, interval_seconds=0.01))
+    client = app.test_client()
+
+    response = client.get("/api/stream")
+    try:
+        assert response.status_code == 200
+        assert list(response.response) == []
+    finally:
+        response.close()
 
 
 # ---- the socket timeout is set and restored together, in generate() ----

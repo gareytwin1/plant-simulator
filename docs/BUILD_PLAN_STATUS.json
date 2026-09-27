@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "27 September 2026",
-  "main_sha": "dee5cd82acad26ba1b86a0296ae1b179f1dd95fb",
-  "tests_passing_on_main": 1647,
+  "main_sha": "619af4ea87193e3d45bd04539ea03b09cb95c62f",
+  "tests_passing_on_main": 1664,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -58,7 +58,7 @@
     },
     "M8": {
       "name": "PID Controllers and Modes",
-      "complete": 2,
+      "complete": 3,
       "total": 5
     },
     "M9": {
@@ -119,8 +119,8 @@
   },
   "totals": {
     "tasks": 114,
-    "complete": 70,
-    "startable_now": 17
+    "complete": 71,
+    "startable_now": 18
   },
   "tasks": [
     {
@@ -1216,10 +1216,9 @@
         "app/controls/loader.py",
         "config/plants/olefins_lite.yaml"
       ],
-      "status": "Ready for Review",
-      "status_key": "review",
-      "startable": true,
-      "note": "PR #96 (feature/loop-config), 26 Sep 2026 - app/controls/loader.py resolves controllers entries into Loop/PID bindings: pv against a node id, out against an explicit per-class allowlist of settable devices (ControlValve.set_position_target only). Wires PIC-101 (N-201 -> PV-101, MANUAL) into config/plants/olefins_lite.yaml. Full suite 1622 passed, mypy clean over 42 files, golden traces unmoved, roborev-refine clean after 2 code fixes."
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged to main as 619af4ea87193e3d45bd04539ea03b09cb95c62f (Merge T8-3: Add loop configuration and tag wiring, PR #96), 27 Sep 2026 - rebased onto main after T9-2 and T10-2 both merged ahead of it (trivial conflict on config/plants/olefins_lite.yaml, both new top-level keys kept). app/controls/loader.py resolves controllers entries into Loop/PID bindings: pv against a node id, out against an explicit per-class allowlist of settable devices (ControlValve.set_position_target only). Wires PIC-101 (N-201 -> PV-101, MANUAL) into config/plants/olefins_lite.yaml. Full suite 1664 passed on main post-merge, mypy clean, golden traces unmoved, roborev-refine clean after 2 code fixes."
     },
     {
       "id": "T8-4",
@@ -1236,10 +1235,7 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "T8-3"
-      ],
+      "startable": true,
       "note": ""
     },
     {

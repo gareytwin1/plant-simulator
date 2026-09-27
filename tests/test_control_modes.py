@@ -1,7 +1,7 @@
 import pytest
 
 from app.controls.modes import Loop, Mode
-from app.controls.pid import PID
+from app.controls.pid import PID, Action
 
 
 class FakeFirstOrderProcess:
@@ -63,6 +63,40 @@ def test_auto_to_manual_to_auto_produces_no_output_step():
     loop.mode = Mode.AUTO
     output_on_return_to_auto = loop.compute(measurement, dt)
     assert output_on_return_to_auto == pytest.approx(output_before_return)
+
+
+def test_a_direct_acting_loop_transfers_auto_to_manual_to_auto_with_no_output_step():
+    # A vent on a pressure: output up, measurement down.
+    process = FakeFirstOrderProcess(gain=-2.0, time_constant=5.0, initial=-5.0)
+    pid = PID(
+        kp=0.8, ki=0.4, kd=0.05, output_min=-100.0, output_max=100.0,
+        setpoint=-10.0, action=Action.DIRECT,
+    )
+    loop = Loop(pid, mode=Mode.AUTO)
+
+    dt = 0.1
+    measurement = process.value
+    for _ in range(300):
+        output = loop.compute(measurement, dt)
+        measurement = process.step(output, dt)
+
+    assert measurement == pytest.approx(-10.0, abs=0.1)
+    output_before_switch = loop.output
+
+    loop.mode = Mode.MANUAL
+    assert loop.compute(measurement, dt) == pytest.approx(output_before_switch)
+
+    # The operator moves the valve, so the process is still moving when the
+    # loop returns to AUTO: the transfer must reproduce the held output at
+    # the measurement last tracked.
+    loop.manual_output = output_before_switch + 3.0
+    for _ in range(20):
+        last_measurement = measurement
+        loop.compute(measurement, dt)
+        measurement = process.step(loop.output, dt)
+
+    loop.mode = Mode.AUTO
+    assert loop.compute(last_measurement, dt) == pytest.approx(output_before_switch + 3.0)
 
 
 def test_integral_preloaded_correctly_on_transfer():

@@ -45,6 +45,7 @@ import pytest
 
 from app.controls.loader import load_loops
 from app.controls.modes import Mode
+from app.controls.pid import Action
 from app.engine.engine import Engine
 from app.plant.loader import load_plant, load_plant_file
 
@@ -224,8 +225,8 @@ def test_lv_101_is_manual_with_no_controller():
 
 def test_pic_101_loads_and_binds_to_n_201_and_pv_101():
     """T8-3: the one loop this fixture wires. It resolves and binds at load
-    exactly like every other reference here, and is configured MANUAL - see
-    the controllers comment in the fixture for why it cannot run in AUTO."""
+    exactly like every other reference here, configured MANUAL and
+    direct-acting - see the controllers comment in the fixture."""
     plant = load()
 
     binding = load_loops(plant)["PIC-101"]
@@ -233,6 +234,32 @@ def test_pic_101_loads_and_binds_to_n_201_and_pv_101():
     assert binding.pv_node is plant.nodes["N-201"]
     assert binding.out_tag == "PV-101"
     assert binding.loop.mode is Mode.MANUAL
+    assert binding.loop.pid.action is Action.DIRECT
+
+
+# PV-101 spans N-201 from about 204.8 psia (at its 0.1 floor) down to below
+# 197, so a 3 psi move either way is reachable without saturating it. The
+# vessel headspace is slow - PIC-101's configured tuning settles within
+# 0.05 psi in under 8000 s of simulated time.
+@pytest.mark.parametrize("setpoint", [DESIGN_PRESSURE - 3.0, DESIGN_PRESSURE + 3.0])
+def test_pic_101_in_auto_returns_v_101_to_a_changed_setpoint(setpoint):
+    plant = load()
+    engine = Engine.from_plant(plant)
+    start(plant)
+    run(engine, 6000)
+
+    loop = engine.loops["PIC-101"].loop
+    loop.mode = Mode.AUTO
+    loop.pid.setpoint = setpoint
+    snapshot = run(engine, 10000)
+
+    assert snapshot.nodes["N-201"]["pressure"] == pytest.approx(setpoint, abs=0.05)
+    assert plant.devices["V-101"].pressure == pytest.approx(setpoint, abs=0.05)
+    # Lower pressure is held by venting more: the loop settled inside its
+    # range, on the side of design travel its direction of change demands.
+    position = plant.devices["PV-101"].position
+    assert 0.1 < position < 1.0
+    assert (position > 0.5) == (setpoint < DESIGN_PRESSURE)
 
 
 def test_pic_101_holds_pv_101_where_the_fixture_puts_it():

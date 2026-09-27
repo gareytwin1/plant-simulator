@@ -2,7 +2,7 @@
 Loop configuration and tag wiring (T8-3): plant config `controllers` -> real `Loop`s.
 
 The C3 schema (already frozen by T3-1) shapes a `controllers` entry as
-`{tag, pv, sp, out, mode, kp, ki, kd}` — one string tag for the measurement,
+`{tag, pv, sp, out, mode, kp, ki, kd}`, plus an optional `action` (T8-6) — one string tag for the measurement,
 one for the output, no separate "variable" field on either. That shape is
 this module's whole design constraint, and it resolves cleanly against what
 C3 already has, with no new key:
@@ -59,7 +59,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from app.controls.modes import Loop, Mode
-from app.controls.pid import PID
+from app.controls.pid import PID, Action
 from app.equipment.base import Equipment
 from app.equipment.valve import ControlValve
 from app.plant.loader import Plant
@@ -69,6 +69,14 @@ from app.plant.topology import Node
 MODES: dict[str, Mode] = {
     "AUTO": Mode.AUTO,
     "MANUAL": Mode.MANUAL,
+}
+
+# ISA action: DIRECT means output rises as the measurement rises. An entry
+# with no `action` is REVERSE, which is what every loop computed before the
+# key existed (T8-6), so every earlier config loads unchanged.
+ACTIONS: dict[str, Action] = {
+    "DIRECT": Action.DIRECT,
+    "REVERSE": Action.REVERSE,
 }
 
 # A loop's output is always this normalized range — see the module docstring.
@@ -201,6 +209,7 @@ def load_loops(plant: Plant) -> dict[str, LoopBinding]:
                 output_min=OUTPUT_MIN,
                 output_max=OUTPUT_MAX,
                 setpoint=entry["sp"],
+                action=ACTIONS[entry.get("action", "REVERSE")],
             )
         except ValueError as error:
             errors.append(f"{path}: {error}")

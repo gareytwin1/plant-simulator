@@ -1,6 +1,15 @@
 """
 PID block (T8-1) - standalone, no plant dependency.
 
+Action (T8-6) follows the ISA convention: a *direct*-acting block's output
+rises as its measurement rises, a *reverse*-acting one's falls. The two differ
+only in the sign of the error - `sp - pv` for reverse, `pv - sp` for direct -
+and every term below is written against that signed error, so anti-windup,
+`track()` and derivative on measurement hold unchanged in both. Reverse is the
+default because it is what `error = sp - pv` always computed: a heater or a
+supply valve, where opening raises the measurement. A vent or a cooling valve,
+where opening lowers it, needs direct.
+
 Anti-windup is conditional integration: a step freezes the integral only when
 the unclamped output is saturated *and* the current error would push it
 further into that same saturation - never merely because the output happens
@@ -18,9 +27,9 @@ so it produces no derivative kick.
 
 The saturation-direction check above infers which way the integral would push
 the output from the sign of the error alone, which only holds for ki >= 0;
-a negative ki would flip that inference and reopen the latch. Direct-acting
-loops only, until a reverse-acting mode exists to flip the error's sign
-instead.
+a negative ki would flip that inference and reopen the latch. That is why a
+loop that needs its output to move the other way takes `Action.DIRECT`, which
+flips the error's sign, rather than negative gains.
 
 `track()` (T8-2) is the other side of the same equation compute() solves:
 instead of deriving output from the integral, it derives the integral that
@@ -34,6 +43,13 @@ handoff is bumpless whenever it happens.
 
 from __future__ import annotations
 
+from enum import StrEnum
+
+
+class Action(StrEnum):
+    DIRECT = "direct"
+    REVERSE = "reverse"
+
 
 class PID:
     def __init__(
@@ -44,6 +60,7 @@ class PID:
         output_min: float,
         output_max: float,
         setpoint: float = 0.0,
+        action: Action = Action.REVERSE,
     ) -> None:
         if output_min > output_max:
             raise ValueError(
@@ -58,6 +75,7 @@ class PID:
         self.output_min = output_min
         self.output_max = output_max
         self.setpoint = setpoint
+        self.action = action
         self._integral = 0.0
         self._prev_measurement: float | None = None
 
@@ -65,12 +83,14 @@ class PID:
         if dt <= 0.0:
             raise ValueError(f"dt must be positive, got {dt}")
 
-        error = self.setpoint - measurement
+        error = self._error(measurement)
 
+        # Derivative on measurement is -d(error)/dt with the setpoint held
+        # still, so it carries the error's sign: the same action flip.
         if self._prev_measurement is None:
             derivative = 0.0
         else:
-            derivative = -self.kd * (measurement - self._prev_measurement) / dt
+            derivative = -self._sign * self.kd * (measurement - self._prev_measurement) / dt
         self._prev_measurement = measurement
 
         candidate_integral = self._integral + error * dt
@@ -90,7 +110,7 @@ class PID:
             raise ValueError(f"dt must be positive, got {dt}")
 
         target = min(max(output, self.output_min), self.output_max)
-        error = self.setpoint - measurement
+        error = self._error(measurement)
 
         # track() always leaves _prev_measurement equal to this call's
         # measurement, so a follow-up call reusing it - the bumpless case
@@ -111,3 +131,10 @@ class PID:
         # already have moved past the target by ki * error * dt.
         if self.ki != 0.0:
             self._integral = (target - self.kp * error) / self.ki - error * dt
+
+    @property
+    def _sign(self) -> float:
+        return 1.0 if self.action is Action.REVERSE else -1.0
+
+    def _error(self, measurement: float) -> float:
+        return self._sign * (self.setpoint - measurement)

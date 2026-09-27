@@ -119,6 +119,23 @@ def test_unknown_equipment_type_rejected():
     assert any("$.equipment[0].type" in e for e in errors)
 
 
+def test_unknown_controller_action_rejected():
+    config = valid_config()
+    config["controllers"][0]["action"] = "direct"
+
+    errors = validate(config)
+
+    assert any("$.controllers[0].action" in e for e in errors)
+
+
+@pytest.mark.parametrize("action", ["DIRECT", "REVERSE"])
+def test_controller_action_accepts_direct_and_reverse(action):
+    config = valid_config()
+    config["controllers"][0]["action"] = action
+
+    assert validate(config) == []
+
+
 def test_unknown_controller_mode_rejected():
     config = valid_config()
     config["controllers"][0]["mode"] = "CASCADE"

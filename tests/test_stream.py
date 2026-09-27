@@ -351,3 +351,61 @@ def test_dead_at_connect_gets_a_204_so_eventsource_stops_retrying():
     response = client.get("/api/stream")
 
     assert response.status_code == 204
+
+
+# ---- the socket timeout is set and restored together, in generate() ----
+
+
+class FakeSocket:
+    """A werkzeug.socket stand-in that only records what was asked of it -
+    real enough for `_socket_of`'s two calls, nothing more."""
+
+    def __init__(self, initial_timeout):
+        self._timeout = initial_timeout
+        self.calls = []
+
+    def gettimeout(self):
+        return self._timeout
+
+    def settimeout(self, value):
+        self.calls.append(value)
+        self._timeout = value
+
+
+def test_the_sockets_previous_timeout_is_set_then_restored_once_the_stream_ends():
+    source = FakeSource()
+    fake_socket = FakeSocket(initial_timeout=30.0)
+
+    app = Flask(__name__)
+    app.register_blueprint(create_stream_blueprint(lambda: source, interval_seconds=0.1))
+    client = app.test_client()
+
+    response = client.get("/api/stream", environ_overrides={"werkzeug.socket": fake_socket})
+    try:
+        events = iter(response.response)
+        next(events)
+
+        source.closed = True
+        assert list(events) == []  # drains stream_events to its own end
+    finally:
+        response.close()
+
+    assert fake_socket.calls == [0.1 * stream_module.DROPOUT_INTERVALS, 30.0]
+
+
+def test_a_head_request_never_touches_the_sockets_timeout():
+    # Flask auto-registers HEAD for a GET route, and Werkzeug never
+    # iterates a HEAD response's body iterator at all - generate() must
+    # therefore never run, so the socket this fake stands in for is left
+    # exactly as it was found, not set once and left unrestored.
+    source = FakeSource()
+    fake_socket = FakeSocket(initial_timeout=30.0)
+
+    app = Flask(__name__)
+    app.register_blueprint(create_stream_blueprint(lambda: source, interval_seconds=0.1))
+    client = app.test_client()
+
+    response = client.head("/api/stream", environ_overrides={"werkzeug.socket": fake_socket})
+    response.close()
+
+    assert fake_socket.calls == []

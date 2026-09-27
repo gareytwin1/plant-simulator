@@ -174,35 +174,45 @@ def create_stream_blueprint(
         # flask.request itself, so it needs no stream_with_context. A dead
         # source gets a 204: EventSource treats that as "stop reconnecting",
         # rather than retrying forever against a plant that no longer
-        # advances (see the module docstring's `_is_dead` note).
+        # advances (see _is_dead and the SnapshotSource docstrings).
         source = get_source()
 
         if _is_dead(source):
             return Response(status=204)
 
+        # Only the environ lookup needs the real request context; captured
+        # here and left untouched until generate() actually runs. Flask
+        # auto-registers HEAD for a GET route, and Werkzeug never iterates
+        # a HEAD response's body iterator at all - so both the set and the
+        # restore below live inside generate() together, in the same
+        # generator frame, rather than split with the set eager in this
+        # view body: a HEAD request must touch this socket's timeout not
+        # at all, not touch it once and skip only the restore.
         sock = _socket_of(request.environ)
-        previous_timeout = sock.gettimeout() if sock is not None else None
-
-        if sock is not None:
-            # Best-effort transport-level backstop for a write that never
-            # completes at all: `stream_events`'s own dropout check only
-            # runs once a write returns control to it, so a client whose
-            # socket is simply never drained parks this thread on that
-            # write forever otherwise; nothing in a generator can
-            # interrupt a blocking call it does not itself make. A socket
-            # timeout bounds *any* blocking operation on it, including the
-            # write this module never sees.
-            sock.settimeout(interval_seconds * DROPOUT_INTERVALS)
 
         def generate() -> Iterator[str]:
-            # This connection may be kept alive past this stream (HTTP/1.1
-            # keep-alive) and reused for something else entirely - restore
-            # what was there before so a later request or idle read on the
-            # same socket does not inherit a push-rate-scaled timeout that
-            # has nothing to do with it.
+            previous_timeout = sock.gettimeout() if sock is not None else None
+
+            if sock is not None:
+                # Best-effort transport-level backstop for a write that
+                # never completes at all: `stream_events`'s own dropout
+                # check only runs once a write returns control to it, so a
+                # client whose socket is simply never drained parks this
+                # thread on that write forever otherwise; nothing in a
+                # generator can interrupt a blocking call it does not
+                # itself make. A socket timeout bounds *any* blocking
+                # operation on it, including the write this module never
+                # sees.
+                sock.settimeout(interval_seconds * DROPOUT_INTERVALS)
+
             try:
                 yield from stream_events(source, interval_seconds)
             finally:
+                # This connection may be kept alive past this stream
+                # (HTTP/1.1 keep-alive) and reused for something else
+                # entirely - restore what was there before so a later
+                # request or idle read on the same socket does not inherit
+                # a push-rate-scaled timeout that has nothing to do with it.
                 if sock is not None:
                     sock.settimeout(previous_timeout)
 

@@ -266,10 +266,10 @@ class Trigger:
             kind = TimeTrigger(sim_time=_required_number(config, "sim_time", trigger_id))
         elif trigger_type == "condition":
             kind = ConditionTrigger(
-                condition=Condition.parse(_required(config, "condition", trigger_id)),
+                condition=Condition.parse(_required_string(config, "condition", trigger_id)),
             )
         elif trigger_type == "operator_action":
-            tag, action = _split_action(_required(config, "action", trigger_id))
+            tag, action = _split_action(_required_string(config, "action", trigger_id))
             kind = OperatorActionTrigger(tag=tag, action=action)
         else:
             raise ValueError(
@@ -301,10 +301,26 @@ def _required_number(config: Mapping[str, Any], key: str, trigger_id: str) -> fl
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ValueError(f"trigger {trigger_id!r} has {key}={value!r}, which is not a number")
 
-    if not math.isfinite(value):
+    try:
+        number = float(value)
+    except OverflowError:
+        # An int too large for a float (e.g. a 400-digit sim_time) - still a
+        # malformed config, not a crash.
+        raise ValueError(f"trigger {trigger_id!r} has {key}={value!r}, which is too large") from None
+
+    if not math.isfinite(number):
         raise ValueError(f"trigger {trigger_id!r} has {key}={value!r}, which is not finite")
 
-    return float(value)
+    return number
+
+
+def _required_string(config: Mapping[str, Any], key: str, trigger_id: str) -> str:
+    value = _required(config, key, trigger_id)
+
+    if not isinstance(value, str):
+        raise ValueError(f"trigger {trigger_id!r} has {key}={value!r}, which is not a string")
+
+    return value
 
 
 class TriggerEvaluator:

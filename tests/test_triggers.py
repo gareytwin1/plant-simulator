@@ -336,6 +336,25 @@ def test_from_config_rejects_a_malformed_sim_time(bad_sim_time):
         Trigger.from_config({"id": "t1", "type": "time", "sim_time": bad_sim_time})
 
 
+def test_from_config_rejects_a_sim_time_too_large_for_a_float():
+    with pytest.raises(ValueError, match="t1"):
+        Trigger.from_config({"id": "t1", "type": "time", "sim_time": 10**400})
+
+
+@pytest.mark.parametrize(
+    ("trigger_type", "field", "bad_value"),
+    [
+        ("condition", "condition", 5),
+        ("condition", "condition", None),
+        ("operator_action", "action", None),
+        ("operator_action", "action", 5),
+    ],
+)
+def test_from_config_rejects_a_non_string_condition_or_action(trigger_type, field, bad_value):
+    with pytest.raises(ValueError, match="t1"):
+        Trigger.from_config({"id": "t1", "type": trigger_type, field: bad_value})
+
+
 def test_duplicate_trigger_ids_rejected():
     triggers = [
         Trigger(id="dup", kind=TimeTrigger(sim_time=1.0)),

@@ -150,21 +150,29 @@ def test_malformed_condition_expression_rejected_at_parse(expression):
 
 
 @pytest.mark.parametrize(
-    ("expression", "value", "expected"),
+    ("expression", "parsed_value"),
     [
-        ("K-101.discharge_pressure > 9e2", 901.0, True),
-        ("K-101.discharge_pressure > +900.0", 901.0, True),
-        ("K-101.discharge_pressure > .5", 1.0, True),
-        ("K-101.discharge_pressure > 5.", 6.0, True),
+        ("K-101.discharge_pressure > 9e2", 900.0),
+        ("K-101.discharge_pressure > +900.0", 900.0),
+        ("K-101.discharge_pressure > .5", 0.5),
+        ("K-101.discharge_pressure > 5.", 5.0),
     ],
 )
-def test_condition_value_accepts_common_numeric_literal_forms(expression, value, expected):
+def test_condition_value_accepts_common_numeric_literal_forms(expression, parsed_value):
     # A scenario author writing an absolute pressure is exactly where
     # scientific notation shows up ("9e5"); the grammar shouldn't reject a
     # spelling of a number just because it isn't plain decimal digits.
+    # Asserting the parsed float itself - not just is_met() either side of
+    # some arbitrary snapshot value - is what actually pins "9e2 means 900",
+    # not merely "9e2 means some positive number".
     condition = Condition.parse(expression)
 
-    assert condition.is_met(compressor_snapshot(0.0, discharge_pressure=value)) is expected
+    assert condition.value == pytest.approx(parsed_value)
+
+    just_below = parsed_value - 1.0
+    just_above = parsed_value + 1.0
+    assert condition.is_met(compressor_snapshot(0.0, discharge_pressure=just_below)) is False
+    assert condition.is_met(compressor_snapshot(0.0, discharge_pressure=just_above)) is True
 
 
 @pytest.mark.parametrize(

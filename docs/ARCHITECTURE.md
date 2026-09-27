@@ -423,12 +423,12 @@ and they have repeatedly been conflated:
 
 | | Status |
 |---|---|
-| **Models that exist** | `CentrifugalPump`, `GasCompressor`, `ControlValve` and `Vessel` are all implemented and registered in the loader's `DEVICE_TYPES`. |
+| **Models that exist** | `CentrifugalPump`, `GasCompressor`, `ControlValve`, `Vessel`, `HeatExchanger`, `Furnace` and `ReliefValve` are all implemented and registered in the loader's `DEVICE_TYPES`. |
 | **Wired into the browser pages** | Only K-101 and P-101, each alone on a single-device plant between two fixed boundaries. |
 | **Present in a reference config** | `liquid_transfer.yaml` and `gas_compression.yaml` (single-domain, T3-4), `liquid_valve_train.yaml` (T7-1), and `olefins_lite.yaml` (T5-5) — the two-domain train coupled through V-101 inventory. It is not yet the full seven-device V1 train: `E-101` is absent, and PV-101/LV-101 are manual. |
 | **Controllers** | The PID block, modes, loop config, loop execution and controller action (T8-1 to T8-4, T8-6) all exist. PIC-101 is configured direct-acting and executes every step, and holds its setpoint in AUTO, but the fixture configures it MANUAL (see its `controllers` comment). LIC-101 is not configured at all - a `controllers.pv` can only name a node's pressure until instruments are in C3. |
 | **Envelopes** | The evaluator, limit config and excursion tracker (T9-1 to T9-3) all exist, and Engine classifies every resolved limit each step (T9-4). Only `V-101.level` resolves - `K-101.discharge_pressure` and `P-101.flow` are configured but unresolvable today, the same tag-to-point gap `LIC-101` above hits, generalised past pressure. |
-| **Not built at all** | `E-101`, the heat exchanger. |
+| **Not built at all** | Nothing on the diagram's device list: the `E-101` model (`HeatExchanger`) exists, but no reference config wires it in yet. |
 
 ### What ADR 0002 settles about the separator
 

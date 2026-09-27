@@ -1,6 +1,6 @@
 import pytest
 
-from app.envelope.evaluator import Limits, Severity
+from app.envelope.evaluator import Evaluator, Limits, Severity
 from app.envelope.tracker import ExcursionTracker
 
 
@@ -87,6 +87,28 @@ def test_counters_reset_correctly_on_scenario_reset():
     assert tracker.time_in(Severity.WARNING) == pytest.approx(2.0)
     assert tracker.peak is not None
     assert tracker.peak.timestamp == pytest.approx(2.0)
+
+
+def test_deadband_held_recovery_reads_zero_magnitude_without_corrupting_peak():
+    limits = _limits()
+    evaluator = Evaluator(limits, deadband=5.0)
+    tracker = ExcursionTracker(limits)
+
+    severity = evaluator.evaluate(5.0, dt=1.0)  # past alarm_lo (10), magnitude 5
+    tracker.update(5.0, severity, dt=1.0)
+    assert severity is Severity.ALARM
+    assert tracker.peak is not None
+    assert tracker.peak.magnitude == pytest.approx(5.0)
+
+    # 12 has recovered past alarm_lo (10) but not past the deadband clear
+    # point (10 + 5 = 15), so Evaluator still holds ALARM even though 12 is
+    # on neither side of alarm_lo/alarm_hi - the real peak must survive this.
+    severity = evaluator.evaluate(12.0, dt=1.0)
+    tracker.update(12.0, severity, dt=1.0)
+
+    assert severity is Severity.ALARM
+    assert tracker.time_in(Severity.ALARM) == pytest.approx(2.0)
+    assert tracker.peak.magnitude == pytest.approx(5.0)
 
 
 def test_negative_dt_is_rejected():

@@ -15,6 +15,17 @@ the severity's own limits: WARNING with a value under `warning_lo` reports
 how far under `warning_lo` it fell, and correspondingly for the other two
 severities and the hi side - so a tracker and its `Evaluator` are handed the
 same `Limits`.
+
+**A held severity and a raw threshold miss can disagree, deliberately.**
+`Evaluator`'s deadband holds a severity after the raw value has already
+recovered past its own threshold (the value is inside the band, just not by
+more than `deadband`). `update()` still receives that held severity and
+correctly keeps accumulating its time-in-band, but `_magnitude()` finds the
+value on neither side of the threshold and reports `0.0` for that call. This
+never corrupts `peak`, which only keeps the largest magnitude seen and was
+already set to the real one while the value was genuinely beyond the
+threshold - it just means a magnitude of `0.0` does not, on its own, imply
+the value was in NORMAL.
 """
 
 from __future__ import annotations

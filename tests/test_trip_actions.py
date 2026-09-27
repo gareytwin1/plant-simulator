@@ -13,8 +13,10 @@ Every run advances the way `TripSystem`'s module docstring requires: update
 on the latest snapshot, immediately before each step.
 """
 
+import dataclasses
 import warnings
 from pathlib import Path
+from types import MappingProxyType
 
 import pytest
 
@@ -244,28 +246,47 @@ def test_a_standing_run_demand_restarts_the_machine_when_the_trip_releases(machi
     assert output_of(machine) == pytest.approx(0.0)
 
 
-def without_position(trigger):
-    state = ControlValve.get_state(trigger)
-    del state["position"]
+def position_not_a_number(monkeypatch, engine, trigger):
+    monkeypatch.setattr(
+        trigger,
+        "get_state",
+        lambda: {**ControlValve.get_state(trigger), "position": None},
+    )
 
-    return state
+
+def position_not_published(monkeypatch, engine, trigger):
+    def state():
+        row = ControlValve.get_state(trigger)
+        del row["position"]
+
+        return row
+
+    monkeypatch.setattr(trigger, "get_state", state)
+
+
+def row_not_published(monkeypatch, engine, trigger):
+    published = engine.snapshot
+
+    def snapshot():
+        full = published()
+        equipment = {tag: row for tag, row in full.equipment.items() if tag != TRIGGER}
+
+        return dataclasses.replace(full, equipment=MappingProxyType(equipment))
+
+    monkeypatch.setattr(engine, "snapshot", snapshot)
 
 
 @pytest.mark.parametrize(
-    "lost_reading",
-    [
-        lambda trigger: {**ControlValve.get_state(trigger), "position": None},
-        without_position,
-    ],
-    ids=["not-a-number", "not-published"],
+    "lose_reading",
+    [position_not_a_number, position_not_published, row_not_published],
 )
-def test_a_condition_that_loses_its_reading_fails_safe(monkeypatch, lost_reading):
+def test_a_condition_that_loses_its_reading_fails_safe(monkeypatch, lose_reading):
     pump = running_machine(CentrifugalPump)
     engine, trips, trigger = build([pump], interlock("XS-1", ["M-1.stop"], delay_s=3.0))
     run(engine, trips, 5.0)
     assert trips.tripped == ()
 
-    monkeypatch.setattr(trigger, "get_state", lambda: lost_reading(trigger))
+    lose_reading(monkeypatch, engine, trigger)
     run(engine, trips, 2.0)
     assert trips.interlocks["XS-1"].state is InterlockState.PENDING
 

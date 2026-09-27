@@ -75,6 +75,7 @@ MODES: dict[str, Mode] = {
 OUTPUT_MIN = 0.0
 OUTPUT_MAX = 1.0
 
+
 @dataclass(frozen=True)
 class Output:
     """How a loop drives one class of device: the method that takes its

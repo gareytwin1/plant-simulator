@@ -389,48 +389,40 @@ def test_evaluate_returns_only_the_ids_that_fired_this_step():
     assert fired == ("early",)
 
 
-def test_a_later_triggers_exception_does_not_spend_an_earlier_one_shot():
+def _one_shot_time_trigger_and_log():
+    return Trigger(id="ack", kind=TimeTrigger(sim_time=0.0), one_shot=True), ActionLog()
+
+
+def _one_shot_operator_action_trigger_and_log():
+    log = ActionLog()
+    log.record(tag="K-101", action="stop", value=None, sim_time=0.0)
+    trigger = Trigger(id="ack", kind=OperatorActionTrigger(tag="K-101", action="stop"), one_shot=True)
+
+    return trigger, log
+
+
+@pytest.mark.parametrize(
+    "make_trigger_and_log",
+    [_one_shot_time_trigger_and_log, _one_shot_operator_action_trigger_and_log],
+    ids=["time", "operator_action"],
+)
+def test_a_later_triggers_exception_does_not_spend_an_earlier_one_shot(make_trigger_and_log):
     # A one-shot trigger earlier in the list must not be recorded as fired
     # for a step whose result the caller never received - here, a later
     # condition trigger raises because K-101 isn't in this snapshot at all.
-    one_shot = Trigger(id="ack", kind=TimeTrigger(sim_time=0.0), one_shot=True)
+    # The operator_action case exercises evaluate()'s separate
+    # newly_matched/newly_seen_length buffering as a side effect, but not
+    # independently: matched-and-latched is idempotent, so only one_shot's
+    # generic _fired commit is what actually makes a leak observable here.
+    one_shot, log = make_trigger_and_log()
     condition = Trigger(
         id="pressure",
         kind=ConditionTrigger(Condition.parse("K-101.discharge_pressure > 900.0")),
     )
     evaluator = TriggerEvaluator([one_shot, condition])
-    log = ActionLog()
 
     with pytest.raises(ConditionEvaluationError):
         evaluator.evaluate(snapshot_at(0.0), log)
-
-    fired = evaluator.evaluate(compressor_snapshot(1.0, discharge_pressure=0.0), log)
-
-    assert fired == ("ack",)  # not silently already-spent by the failed step
-
-
-def test_a_later_triggers_exception_does_not_spend_a_one_shot_operator_action_trigger():
-    # A plain (non-one-shot) operator_action trigger can't distinguish a
-    # leaked commit from a correct one here - matched-and-latched is
-    # idempotent, so it reports the same either way. One-shot is what makes
-    # a leak observable: if the earlier scan's commit had escaped the
-    # failed step, "ack" would already be in self._fired by the next call
-    # and would never fire at all, rather than firing exactly once.
-    action_trigger = Trigger(
-        id="ack",
-        kind=OperatorActionTrigger(tag="K-101", action="stop"),
-        one_shot=True,
-    )
-    condition = Trigger(
-        id="pressure",
-        kind=ConditionTrigger(Condition.parse("K-101.discharge_pressure > 900.0")),
-    )
-    evaluator = TriggerEvaluator([action_trigger, condition])
-    log = ActionLog()
-    log.record(tag="K-101", action="stop", value=None, sim_time=0.0)
-
-    with pytest.raises(ConditionEvaluationError):
-        evaluator.evaluate(snapshot_at(0.0), log)  # K-101 missing - condition raises after the scan
 
     first = evaluator.evaluate(compressor_snapshot(1.0, discharge_pressure=0.0), log)
     second = evaluator.evaluate(compressor_snapshot(2.0, discharge_pressure=0.0), log)

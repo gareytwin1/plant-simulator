@@ -83,6 +83,24 @@ def test_output_setter_is_bound_to_the_real_device():
     assert plant.devices["FV-101"].position_target == 0.7
 
 
+@pytest.mark.parametrize("mode", ["MANUAL", "AUTO"])
+def test_a_loop_starts_at_the_command_its_output_already_holds(mode):
+    config = valid_config()
+    config["controllers"][0]["mode"] = mode
+    config["equipment"][1]["design"] = {"position": 0.4, "position_target": 0.4}
+
+    loop = load_loops(load_plant(config))["PIC-101"].loop
+
+    assert loop.output == pytest.approx(0.4)
+    assert loop.manual_output == pytest.approx(0.4)
+
+
+def test_the_pv_point_is_the_pv_node_pressure():
+    binding = load_loops(load_plant(valid_config()))["PIC-101"]
+
+    assert binding.pv_point == ("nodes", "N-02", "pressure")
+
+
 def test_no_controllers_key_binds_nothing():
     config = valid_config()
     del config["controllers"]

@@ -18,12 +18,14 @@ engine wants to know whether it is currently faulted. Two checks enforce it:
    `app.scoring`, absolute or relative. "Physics" excludes not just those two
    layers themselves but also the orchestration layer above them -
    `app/api` (T15-1's C5 action endpoint legitimately imports
-   `app.scoring.actionlog` to log what an operator did, and will eventually
-   dispatch into `app.disturbances`/`app.scenarios` per C8's route list too;
-   that is coordination, not physics reaching backwards) and `app/main.py`,
-   the composition root. Equipment, the engine, the plant graph, controllers,
-   the envelope evaluator and alarms have no legitimate reason to know either
-   layer exists, and that is what stays guarded.
+   `app.scoring.actionlog` to log what an operator did), `app/scenarios`
+   (T14-2's trigger evaluator reads the same action log to fire an
+   `operator_action` trigger, and a later task's objective evaluator and
+   runner will dispatch into `app.disturbances` too; that is coordination,
+   not physics reaching backwards) and `app/main.py`, the composition root.
+   Equipment, the engine, the plant graph, controllers, the envelope
+   evaluator and alarms have no legitimate reason to know either layer
+   exists, and that is what stays guarded.
 2. **Allowlist vs. slow state** - derived structurally rather than
    hand-listed: for every device class in `WRITABLE`, none of its allowlisted
    parameters are among the attributes that class's own `integrate()` writes.
@@ -52,6 +54,7 @@ APP = Path(__file__).resolve().parent.parent / "app"
 DISTURBANCE_LAYER = APP / "disturbances"
 SCORING_LAYER = APP / "scoring"
 API_LAYER = APP / "api"
+SCENARIOS_LAYER = APP / "scenarios"
 MAIN_MODULE = APP / "main.py"
 
 FORBIDDEN_LAYERS = frozenset({"disturbances", "scoring"})
@@ -60,12 +63,13 @@ FORBIDDEN_LAYERS = frozenset({"disturbances", "scoring"})
 # not "all of app/". Excluded: the two forbidden layers' own internals (their
 # own imports of each other, or of themselves, are not the violation this
 # guards against), and the orchestration layer above them - app/api (T15-1's
-# C5 action endpoint legitimately imports app.scoring.actionlog, and will
-# eventually dispatch into app.disturbances/app.scenarios too) and
-# app/main.py, the Flask composition root. Neither is physics; both exist to
-# coordinate between layers, which is a different direction than physics
-# reaching backwards into disturbances or scoring.
-ORCHESTRATION_LAYERS = (DISTURBANCE_LAYER, SCORING_LAYER, API_LAYER)
+# C5 action endpoint legitimately imports app.scoring.actionlog), app/scenarios
+# (T14-2's trigger evaluator does the same, and will dispatch into
+# app.disturbances too) and app/main.py, the Flask composition root. None of
+# these is physics; each exists to coordinate between layers, which is a
+# different direction than physics reaching backwards into disturbances or
+# scoring.
+ORCHESTRATION_LAYERS = (DISTURBANCE_LAYER, SCORING_LAYER, API_LAYER, SCENARIOS_LAYER)
 
 APP_MODULES = sorted(APP.rglob("*.py"))
 PHYSICS_MODULES = [
@@ -157,11 +161,13 @@ def test_the_guard_sees_the_modules_it_is_guarding():
 
 
 def test_the_guard_excludes_the_orchestration_layer_it_does_not_guard():
-    # app/api coordinates between physics and scoring/disturbances - that is
-    # its job, not the violation this guard exists to catch. Same for the
-    # Flask composition root.
+    # app/api and app/scenarios coordinate between physics and
+    # scoring/disturbances - that is their job, not the violation this guard
+    # exists to catch. Same for the Flask composition root.
     assert (API_LAYER / "action.py").exists()
     assert (API_LAYER / "action.py") not in PHYSICS_MODULES
+    assert (SCENARIOS_LAYER / "triggers.py").exists()
+    assert (SCENARIOS_LAYER / "triggers.py") not in PHYSICS_MODULES
     assert MAIN_MODULE not in PHYSICS_MODULES
 
 

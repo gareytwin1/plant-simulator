@@ -468,3 +468,35 @@ def test_two_loads_give_independent_plants():
 
     assert first.topology.device("P-101") is not second.topology.device("P-101")
     assert first.topology.node("N-02") is not second.topology.node("N-02")
+
+
+def test_a_passthrough_section_reads_back_as_a_copy_of_the_config():
+    config = valid_config()
+    config["limits"] = [{"tag": "P-101", "variable": "flow", "lo": 1.0}]
+    plant = load_plant(config)
+
+    section = plant.passthrough("limits")
+    section[0]["lo"] = 99.0
+
+    assert plant.passthrough("limits") == config["limits"]
+
+
+def test_an_absent_passthrough_section_reads_back_empty():
+    config = valid_config()
+    del config["controllers"]
+
+    assert load_plant(config).passthrough("controllers") == []
+
+
+def test_a_passthrough_section_does_not_need_the_devices_serialised():
+    """Reading one needs nothing from the devices, so a device the config
+    never described cannot break it the way it breaks to_config()."""
+    plant = load_plant(valid_config())
+    plant.devices["P-999"] = CentrifugalPump("P-999")
+
+    assert plant.passthrough("interlocks") == []
+
+
+def test_a_section_the_loader_interprets_is_not_a_passthrough():
+    with pytest.raises(ValueError, match="not a passthrough section"):
+        load_plant(valid_config()).passthrough("equipment")

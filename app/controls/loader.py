@@ -123,7 +123,7 @@ class LoopBinding:
 
 
 def load_loops(plant: Plant) -> dict[str, LoopBinding]:
-    entries = plant.to_config().get("controllers", [])
+    entries = plant.passthrough("controllers")
 
     errors: list[str] = []
     tag_paths: dict[str, str] = {}

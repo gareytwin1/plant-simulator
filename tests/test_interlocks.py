@@ -431,15 +431,41 @@ def test_the_reference_plant_config_defines_loadable_interlocks():
 
     interlocks = load_interlocks(config)
 
-    assert {"LSHH-101", "PSHH-101", "FSLL-101"} <= set(interlocks)
+    assert {"LSHH-101", "PSHH-101"} <= set(interlocks)
 
     # This only exercises config loading and Condition.is_met() against the
     # design-point values by hand, the same way test_envelope_loader.py's own
-    # reference-plant test does for the identical two tags - it is not a
-    # claim that PSHH-101 or FSLL-101 resolve against a live snapshot today
-    # (see the module comment above `interlocks:` in olefins_lite.yaml).
+    # reference-plant test does for the identical tag - it is not a claim
+    # that PSHH-101 resolves against a live snapshot today (see the module
+    # comment above `interlocks:` in olefins_lite.yaml).
     # The design point sits on the safe side of every trip threshold (T5-5),
     # so every configured interlock reads NORMAL against it.
     assert interlocks["LSHH-101"].evaluate(0.5, dt=1.0) is InterlockState.NORMAL
     assert interlocks["PSHH-101"].evaluate(304.0, dt=1.0) is InterlockState.NORMAL
-    assert interlocks["FSLL-101"].evaluate(50.0, dt=1.0) is InterlockState.NORMAL
+
+
+def test_neither_reset_mode_can_clear_a_trip_while_its_condition_still_holds():
+    # The property behind why olefins_lite.yaml has no backflow interlock:
+    # once P-101 stops, it backflows past any threshold that would trip it in
+    # the first place, so neither reset mode ever gets it out of TRIPPED - see
+    # the comment above P-101's backflow limit in olefins_lite.yaml.
+    condition = Condition.parse("P-101.flow <= -20.0")
+    still_backflowing = -100.0
+
+    auto = Interlock(
+        InterlockDefinition(
+            tag="FSLL-101", condition=condition, delay_s=0.0, actions=("P-101.stop",), reset="auto"
+        )
+    )
+    auto.evaluate(still_backflowing, dt=0.0)
+    assert auto.evaluate(still_backflowing, dt=1.0) is InterlockState.TRIPPED
+
+    manual = Interlock(
+        InterlockDefinition(
+            tag="FSLL-101", condition=condition, delay_s=0.0, actions=("P-101.stop",), reset="manual"
+        )
+    )
+    manual.evaluate(still_backflowing, dt=0.0)
+    manual.evaluate(still_backflowing, dt=1.0)
+    assert manual.reset() is False
+    assert manual.tripped

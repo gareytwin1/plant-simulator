@@ -190,7 +190,7 @@ def test_the_disturbance_layer_is_the_one_that_imports_physics():
     PHYSICS_MODULES,
     ids=lambda path: str(path.relative_to(APP)),
 )
-def test_no_physics_module_imports_the_disturbance_layer(path):
+def test_no_physics_module_imports_a_forbidden_layer(path):
     assert not imports_forbidden_layer(path), (
         f"{path.relative_to(APP)} imports the disturbance, scoring or "
         f"scenarios layer — physics must never depend on any of them; a "

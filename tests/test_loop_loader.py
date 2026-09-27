@@ -181,6 +181,27 @@ def test_an_entry_with_a_bad_pv_does_not_claim_its_out_tag():
     assert not any("already driven" in e for e in errors)
 
 
+def test_an_entry_bad_on_both_pv_and_out_reports_both_problems():
+    """A later entry that reuses an already-claimed out tag AND has its own
+    unresolvable pv is wrong in two independent ways — unlike the entry
+    reusing that out tag being wrong (test above), an entry that has already
+    genuinely lost its out tag to an earlier, real loop gains nothing from
+    only being told about its pv. Every problem is reported, matching
+    app.plant.loader's convention of never picking one error over another
+    true one on the same item."""
+    config = valid_config()
+    second = copy.deepcopy(config["controllers"][0])
+    second["tag"] = "PIC-102"
+    second["pv"] = "N-999"
+    config["controllers"].append(second)
+
+    errors = rejected(config)
+
+    assert len(errors) == 2
+    assert any("$.controllers[1].pv" in e for e in errors)
+    assert any("$.controllers[1].out" in e and "already driven" in e for e in errors)
+
+
 def test_negative_ki_is_rejected_with_a_clear_message():
     config = valid_config()
     config["controllers"][0]["ki"] = -1.0

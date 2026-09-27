@@ -248,7 +248,13 @@ class Trigger:
                 f"expected 'time', 'condition' or 'operator_action'",
             )
 
-        return cls(id=trigger_id, kind=kind, one_shot=bool(config.get("one_shot", False)))
+        one_shot = config.get("one_shot", False)
+        if not isinstance(one_shot, bool):
+            raise ValueError(
+                f"trigger {trigger_id!r} has one_shot={one_shot!r}, which is not a bool",
+            )
+
+        return cls(id=trigger_id, kind=kind, one_shot=one_shot)
 
 
 def _required(config: Mapping[str, Any], key: str, trigger_id: str) -> Any:
@@ -280,8 +286,12 @@ class TriggerEvaluator:
 
         self._fired: set[str] = set()
         # An operator_action trigger reads an append-only log: once matched,
-        # it stays matched, so a latched id never needs scanning again.
+        # it stays matched, so a latched id never needs scanning again. Until
+        # then, `_action_seen_length` remembers the log length as of the last
+        # scan - unchanged means nothing new could have matched, so most
+        # steps (no action taken) cost a length check, not a rescan.
         self._action_matched: set[str] = set()
+        self._action_seen_length: dict[str, int] = {}
 
     @classmethod
     def from_config(cls, triggers: Iterable[Mapping[str, Any]]) -> TriggerEvaluator:
@@ -302,8 +312,9 @@ class TriggerEvaluator:
 
     def evaluate(self, snapshot: Snapshot, actions: ActionLog) -> tuple[str, ...]:
         """Return the ids of every trigger that fires on this step."""
+        total = len(actions)
         events: Sequence[ActionEvent] = ()
-        if any(self._needs_the_log(trigger) for trigger in self._triggers):
+        if any(self._needs_the_log(trigger, total) for trigger in self._triggers):
             events = actions.events
 
         fired: list[str] = []
@@ -312,13 +323,10 @@ class TriggerEvaluator:
             if trigger.one_shot and trigger.id in self._fired:
                 continue
 
-            if isinstance(trigger.kind, OperatorActionTrigger) and trigger.id in self._action_matched:
-                met = True
+            if isinstance(trigger.kind, OperatorActionTrigger):
+                met = self._operator_action_is_met(trigger, total, snapshot, events)
             else:
                 met = trigger.kind.is_met(snapshot, events)
-
-                if met and isinstance(trigger.kind, OperatorActionTrigger):
-                    self._action_matched.add(trigger.id)
 
             if met:
                 fired.append(trigger.id)
@@ -328,8 +336,38 @@ class TriggerEvaluator:
 
         return tuple(fired)
 
-    def _needs_the_log(self, trigger: Trigger) -> bool:
+    def _needs_the_log(self, trigger: Trigger, total: int) -> bool:
+        # Only an operator_action trigger ever reads the log; a time or
+        # condition trigger's is_met() ignores the `actions` argument.
+        if not isinstance(trigger.kind, OperatorActionTrigger):
+            return False
+
         if trigger.one_shot and trigger.id in self._fired:
             return False
 
-        return isinstance(trigger.kind, OperatorActionTrigger) and trigger.id not in self._action_matched
+        if trigger.id in self._action_matched:
+            return False
+
+        # Nothing new since the last scan means nothing new to match either.
+        return self._action_seen_length.get(trigger.id, 0) != total
+
+    def _operator_action_is_met(
+        self,
+        trigger: Trigger,
+        total: int,
+        snapshot: Snapshot,
+        events: Sequence[ActionEvent],
+    ) -> bool:
+        if trigger.id in self._action_matched:
+            return True
+
+        if self._action_seen_length.get(trigger.id, 0) == total:
+            return False
+
+        met = trigger.kind.is_met(snapshot, events)
+        self._action_seen_length[trigger.id] = total
+
+        if met:
+            self._action_matched.add(trigger.id)
+
+        return met

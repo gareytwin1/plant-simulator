@@ -267,6 +267,11 @@ def test_from_config_names_the_trigger_id_when_its_type_specific_field_is_missin
         Trigger.from_config(config)
 
 
+def test_from_config_rejects_a_non_boolean_one_shot():
+    with pytest.raises(ValueError, match="t1"):
+        Trigger.from_config({"id": "t1", "type": "time", "sim_time": 1.0, "one_shot": "false"})
+
+
 def test_duplicate_trigger_ids_rejected():
     triggers = [
         Trigger(id="dup", kind=TimeTrigger(sim_time=1.0)),
@@ -357,6 +362,36 @@ def test_operator_action_trigger_stops_scanning_the_log_once_it_has_matched():
             assert fired == ("ack",)
 
     assert calls == [1]
+
+
+def test_operator_action_trigger_only_rescans_when_the_log_has_grown():
+    # An unmatched trigger still has to look eventually, but not on a step
+    # where nothing new was recorded since it last looked - that is what
+    # would make an unanswered trigger cost O(log length) every single step
+    # for the rest of the scenario.
+    trigger = Trigger(id="ack", kind=OperatorActionTrigger(tag="K-101", action="stop"))
+    evaluator = TriggerEvaluator([trigger])
+    log = ActionLog()
+    log.record(tag="K-101", action="start", value=None, sim_time=0.0)  # no match
+
+    original_is_met = OperatorActionTrigger.is_met
+    calls = []
+
+    def spy(self, snapshot, actions):
+        calls.append(1)
+        return original_is_met(self, snapshot, actions)
+
+    with mock.patch.object(OperatorActionTrigger, "is_met", spy):
+        for step in range(20):
+            assert evaluator.evaluate(snapshot_at(float(step)), log) == ()
+
+        assert calls == [1]  # one look at the unchanged log, then no more
+
+        log.record(tag="K-101", action="stop", value=None, sim_time=20.0)
+        fired = evaluator.evaluate(snapshot_at(20.0), log)
+
+    assert fired == ("ack",)
+    assert calls == [1, 1]  # the new entry earns exactly one more look
 
 
 def test_evaluate_does_not_touch_the_action_log_when_no_trigger_needs_it():

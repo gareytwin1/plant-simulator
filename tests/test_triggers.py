@@ -389,6 +389,26 @@ def test_evaluate_returns_only_the_ids_that_fired_this_step():
     assert fired == ("early",)
 
 
+def test_a_later_triggers_exception_does_not_spend_an_earlier_one_shot():
+    # A one-shot trigger earlier in the list must not be recorded as fired
+    # for a step whose result the caller never received - here, a later
+    # condition trigger raises because K-101 isn't in this snapshot at all.
+    one_shot = Trigger(id="ack", kind=TimeTrigger(sim_time=0.0), one_shot=True)
+    condition = Trigger(
+        id="pressure",
+        kind=ConditionTrigger(Condition.parse("K-101.discharge_pressure > 900.0")),
+    )
+    evaluator = TriggerEvaluator([one_shot, condition])
+    log = ActionLog()
+
+    with pytest.raises(ConditionEvaluationError):
+        evaluator.evaluate(snapshot_at(0.0), log)
+
+    fired = evaluator.evaluate(compressor_snapshot(1.0, discharge_pressure=0.0), log)
+
+    assert fired == ("ack",)  # not silently already-spent by the failed step
+
+
 # --- validate() catches a bad condition before the step loop ---
 
 

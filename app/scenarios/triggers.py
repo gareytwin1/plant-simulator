@@ -441,13 +441,28 @@ class TriggerEvaluator:
             )
 
         fired: list[str] = []
+        # Every trigger evaluates against the state committed by the last
+        # successful call - never a partial update from this one - and
+        # nothing below is written to self until the whole loop finishes
+        # without raising. A condition trigger's field can disappear or
+        # turn non-numeric between one step and the next in ways validate()
+        # can't foresee for the rest of a run; if that raises partway
+        # through this loop, a one-shot trigger earlier in the list must
+        # not end up recorded as fired for a step whose result the caller
+        # never received, and an operator-action trigger's latch/cursor
+        # must not advance past a step it never actually completed.
+        one_shot_fired: set[str] = set()
+        newly_matched: set[str] = set()
+        newly_seen_length: dict[str, int] = {}
 
         for trigger in self._triggers:
             if trigger.one_shot and trigger.id in self._fired:
                 continue
 
             if isinstance(trigger.kind, OperatorActionTrigger):
-                met = self._operator_action_is_met(trigger, actions, snapshot)
+                met = self._operator_action_is_met(
+                    trigger, actions, snapshot, newly_matched, newly_seen_length,
+                )
             else:
                 met = trigger.kind.is_met(snapshot, ())
 
@@ -455,7 +470,11 @@ class TriggerEvaluator:
                 fired.append(trigger.id)
 
                 if trigger.one_shot:
-                    self._fired.add(trigger.id)
+                    one_shot_fired.add(trigger.id)
+
+        self._fired.update(one_shot_fired)
+        self._action_matched.update(newly_matched)
+        self._action_seen_length.update(newly_seen_length)
 
         return tuple(fired)
 
@@ -464,6 +483,8 @@ class TriggerEvaluator:
         trigger: Trigger,
         actions: ActionLog,
         snapshot: Snapshot,
+        newly_matched: set[str],
+        newly_seen_length: dict[str, int],
     ) -> bool:
         if trigger.id in self._action_matched:
             return True
@@ -482,9 +503,9 @@ class TriggerEvaluator:
         # docstring for why that's a smaller saving than a real cursor.
         new_entries = itertools.islice(actions, seen, None)
         met = trigger.kind.is_met(snapshot, new_entries)
-        self._action_seen_length[trigger.id] = total
+        newly_seen_length[trigger.id] = total
 
         if met:
-            self._action_matched.add(trigger.id)
+            newly_matched.add(trigger.id)
 
         return met

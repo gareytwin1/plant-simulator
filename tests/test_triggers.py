@@ -130,6 +130,13 @@ def test_condition_trigger_bare_field_is_a_truthy_check():
     assert condition.is_met(compressor_snapshot(0.0, discharge_pressure=0.0, tripped=False)) is False
 
 
+def test_bare_condition_on_a_non_boolean_field_raises_rather_than_reading_as_always_true():
+    condition = Condition.parse("K-101.discharge_pressure")
+
+    with pytest.raises(ConditionEvaluationError, match="not true/false"):
+        condition.is_met(compressor_snapshot(0.0, discharge_pressure=901.0))
+
+
 @pytest.mark.parametrize(
     "expression",
     ["", "K-101", "K-101.discharge_pressure >", "K-101.discharge_pressure ~ 900", "900 > K-101.discharge_pressure"],
@@ -241,6 +248,25 @@ def test_from_config_rejects_an_operator_action_without_a_dotted_tag():
         Trigger.from_config({"id": "t1", "type": "operator_action", "action": "stop"})
 
 
+@pytest.mark.parametrize("action", ["K-101.", ".stop"])
+def test_from_config_rejects_an_operator_action_with_an_empty_tag_or_verb(action):
+    with pytest.raises(ConditionSyntaxError):
+        Trigger.from_config({"id": "t1", "type": "operator_action", "action": action})
+
+
+@pytest.mark.parametrize(
+    ("trigger_type", "config"),
+    [
+        ("time", {"id": "t1", "type": "time"}),
+        ("condition", {"id": "t1", "type": "condition"}),
+        ("operator_action", {"id": "t1", "type": "operator_action"}),
+    ],
+)
+def test_from_config_names_the_trigger_id_when_its_type_specific_field_is_missing(trigger_type, config):
+    with pytest.raises(ValueError, match="t1"):
+        Trigger.from_config(config)
+
+
 def test_duplicate_trigger_ids_rejected():
     triggers = [
         Trigger(id="dup", kind=TimeTrigger(sim_time=1.0)),
@@ -264,6 +290,30 @@ def test_evaluate_returns_only_the_ids_that_fired_this_step():
     assert fired == ("early",)
 
 
+# --- validate() catches a bad condition before the step loop ---
+
+
+def test_validate_raises_for_a_bad_tag_before_any_evaluate_call():
+    evaluator = TriggerEvaluator.from_config(
+        [{"id": "typo", "type": "condition", "condition": "V-999.level > 50.0"}],
+    )
+
+    with pytest.raises(ConditionEvaluationError, match="V-999"):
+        evaluator.validate(compressor_snapshot(0.0, discharge_pressure=0.0))
+
+
+def test_validate_passes_a_well_formed_scenario():
+    evaluator = TriggerEvaluator.from_config(
+        [
+            {"id": "trip-onset", "type": "time", "sim_time": 30.0},
+            {"id": "high-discharge", "type": "condition", "condition": "K-101.discharge_pressure > 900.0"},
+            {"id": "operator-response", "type": "operator_action", "action": "K-101.stop"},
+        ],
+    )
+
+    evaluator.validate(compressor_snapshot(0.0, discharge_pressure=0.0))  # does not raise
+
+
 # --- no measurable per-step cost ---
 
 
@@ -283,3 +333,37 @@ def test_condition_is_compiled_once_and_never_reparsed_on_evaluate():
             evaluator.evaluate(snapshot, ActionLog())
 
         assert parse.call_count == 1
+
+
+def test_operator_action_trigger_stops_scanning_the_log_once_it_has_matched():
+    # The log is append-only, so a match can never un-happen. Once matched,
+    # evaluate() must not keep rescanning it on every later step - that is
+    # what would make per-step cost grow with scenario length.
+    trigger = Trigger(id="ack", kind=OperatorActionTrigger(tag="K-101", action="stop"))
+    evaluator = TriggerEvaluator([trigger])
+    log = ActionLog()
+    log.record(tag="K-101", action="stop", value=None, sim_time=0.0)
+
+    original_is_met = OperatorActionTrigger.is_met
+    calls = []
+
+    def spy(self, snapshot, actions):
+        calls.append(1)
+        return original_is_met(self, snapshot, actions)
+
+    with mock.patch.object(OperatorActionTrigger, "is_met", spy):
+        for step in range(50):
+            fired = evaluator.evaluate(snapshot_at(float(step)), log)
+            assert fired == ("ack",)
+
+    assert calls == [1]
+
+
+def test_evaluate_does_not_touch_the_action_log_when_no_trigger_needs_it():
+    evaluator = TriggerEvaluator([Trigger(id="t1", kind=TimeTrigger(sim_time=10.0))])
+    log = ActionLog()
+
+    with mock.patch.object(ActionLog, "events", new_callable=mock.PropertyMock) as events:
+        evaluator.evaluate(snapshot_at(10.0), log)
+
+    events.assert_not_called()

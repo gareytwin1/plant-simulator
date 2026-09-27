@@ -54,10 +54,6 @@ _COMPARISON = re.compile(
 )
 _BARE = re.compile(rf"^(?P<tag>{_TAG})\.(?P<field>{_FIELD})$")
 
-# Priority order a bare tag resolves against. `envelope` is keyed
-# "TAG.variable" rather than nested by tag, so it isn't a lookup source here.
-_SECTIONS = ("equipment", "nodes", "streams", "controllers")
-
 
 @dataclass(frozen=True)
 class Condition:
@@ -98,7 +94,17 @@ class Condition:
         current = _lookup(snapshot, self.tag, self.field)
 
         if self.op is None:
-            return bool(current)
+            # String equality ("PIC-101.mode == MANUAL") is a real gap - out
+            # of scope for T14-2, a C8 grammar decision for whoever needs it.
+            # A bare check is deliberately narrow rather than silently true
+            # for a non-boolean field.
+            if not isinstance(current, bool):
+                raise ConditionEvaluationError(
+                    f"{self.tag}.{self.field} is {current!r}, not true/false; "
+                    f"a bare condition needs a boolean field",
+                )
+
+            return current
 
         if isinstance(current, bool) or not isinstance(current, (int, float)):
             raise ConditionEvaluationError(
@@ -112,6 +118,9 @@ class Condition:
 
 
 def _lookup(snapshot: Snapshot, tag: str, field: str) -> JSONValue:
+    # Priority order a bare tag resolves against. `envelope` is keyed
+    # "TAG.variable" rather than nested by tag, so it isn't a lookup source
+    # here.
     sections: tuple[tuple[str, Section], ...] = (
         ("equipment", snapshot.equipment),
         ("nodes", snapshot.nodes),
@@ -201,10 +210,10 @@ class OperatorActionTrigger:
 def _split_action(value: str) -> tuple[str, str]:
     tag, dot, action = value.partition(".")
 
-    if not dot:
+    if not dot or not tag or not action:
         raise ConditionSyntaxError(
             f"{value!r} is not a valid operator_action trigger action; "
-            f"expected 'TAG.action'",
+            f"expected 'TAG.action' with both parts non-empty",
         )
 
     return tag, action
@@ -225,11 +234,13 @@ class Trigger:
         kind: TriggerKind
 
         if trigger_type == "time":
-            kind = TimeTrigger(sim_time=float(config["sim_time"]))
+            kind = TimeTrigger(sim_time=float(_required(config, "sim_time", trigger_id)))
         elif trigger_type == "condition":
-            kind = ConditionTrigger(condition=Condition.parse(config["condition"]))
+            kind = ConditionTrigger(
+                condition=Condition.parse(_required(config, "condition", trigger_id)),
+            )
         elif trigger_type == "operator_action":
-            tag, action = _split_action(config["action"])
+            tag, action = _split_action(_required(config, "action", trigger_id))
             kind = OperatorActionTrigger(tag=tag, action=action)
         else:
             raise ValueError(
@@ -238,6 +249,15 @@ class Trigger:
             )
 
         return cls(id=trigger_id, kind=kind, one_shot=bool(config.get("one_shot", False)))
+
+
+def _required(config: Mapping[str, Any], key: str, trigger_id: str) -> Any:
+    if key not in config:
+        raise ValueError(
+            f"trigger {trigger_id!r} is type {config['type']!r} but has no {key!r}",
+        )
+
+    return config[key]
 
 
 class TriggerEvaluator:
@@ -259,24 +279,57 @@ class TriggerEvaluator:
             seen.add(trigger.id)
 
         self._fired: set[str] = set()
+        # An operator_action trigger reads an append-only log: once matched,
+        # it stays matched, so a latched id never needs scanning again.
+        self._action_matched: set[str] = set()
 
     @classmethod
     def from_config(cls, triggers: Iterable[Mapping[str, Any]]) -> TriggerEvaluator:
         return cls(Trigger.from_config(config) for config in triggers)
 
+    def validate(self, snapshot: Snapshot) -> None:
+        """Resolve every condition trigger's tag, field and comparison now.
+
+        Raises the same `ConditionEvaluationError` `evaluate()` would, but up
+        front - at scenario load or arm time - rather than out of the step
+        loop partway through a run. Time and operator-action triggers need no
+        snapshot to be well-formed, so there is nothing here to check for
+        them.
+        """
+        for trigger in self._triggers:
+            if isinstance(trigger.kind, ConditionTrigger):
+                trigger.kind.condition.is_met(snapshot)
+
     def evaluate(self, snapshot: Snapshot, actions: ActionLog) -> tuple[str, ...]:
         """Return the ids of every trigger that fires on this step."""
-        events = actions.events
+        events: Sequence[ActionEvent] = ()
+        if any(self._needs_the_log(trigger) for trigger in self._triggers):
+            events = actions.events
+
         fired: list[str] = []
 
         for trigger in self._triggers:
             if trigger.one_shot and trigger.id in self._fired:
                 continue
 
-            if trigger.kind.is_met(snapshot, events):
+            if isinstance(trigger.kind, OperatorActionTrigger) and trigger.id in self._action_matched:
+                met = True
+            else:
+                met = trigger.kind.is_met(snapshot, events)
+
+                if met and isinstance(trigger.kind, OperatorActionTrigger):
+                    self._action_matched.add(trigger.id)
+
+            if met:
                 fired.append(trigger.id)
 
                 if trigger.one_shot:
                     self._fired.add(trigger.id)
 
         return tuple(fired)
+
+    def _needs_the_log(self, trigger: Trigger) -> bool:
+        if trigger.one_shot and trigger.id in self._fired:
+            return False
+
+        return isinstance(trigger.kind, OperatorActionTrigger) and trigger.id not in self._action_matched

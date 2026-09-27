@@ -86,11 +86,12 @@ drive equipment it has never seen before.
 
 ### Not built yet
 
-Controllers and PID loops, operating envelopes, alarms, trips and interlocks,
-malfunctions, scenarios, scoring, the historian and the operator console are
-all specified in the build plan and **none of them are implemented**. The
-snapshot's `controllers`, `envelope` and `alarms` sections are present and
-empty by design, so those layers can be built against a frozen shape.
+Operating envelopes, alarms, trips and interlocks, malfunctions, scenarios,
+scoring, the historian and the operator console are all specified in the build
+plan and **none of them run against the live plant**. The snapshot's
+`envelope` and `alarms` sections are present and empty by design, so those
+layers can be built against a frozen shape. PID loops do run: the engine
+executes every configured loop each step and publishes it in `controllers`.
 
 The **seven-device V1 train** is not assembled either. `olefins_lite.yaml`
 connects two domains through the separator, but `E-101` does not exist and its

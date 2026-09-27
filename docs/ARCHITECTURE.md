@@ -82,8 +82,9 @@ Nothing in `app/` draws a random number yet.
 An `Engine` built with no topology — `Engine(devices)`, the form that predates
 T4-4 — still integrates and nothing more; its snapshot reports the trivial
 converged placeholder and empty `nodes` and `streams`. The snapshot's
-`controllers`, `envelope` and `alarms` sections are empty for **every** engine,
-connected or not: nothing fills them yet.
+`controllers` section carries one row per loop the engine executes (T8-4),
+so it is empty for a plant with no `controllers` key; `envelope` and `alarms`
+are empty for **every** engine, connected or not: nothing fills them yet.
 
 A solve that fails to converge is reported, never raised and never guessed at:
 the plant keeps the state it had, `Engine.step()` still advances time and slow
@@ -169,12 +170,18 @@ Engine.step(dt)
   │
   ├── 1. SimulationClock             → elapsed simulated time          [live]
   │
-  ├── 2. integrate slow state        → every device advances load, speed,
+  ├── 2. controllers                 → read the indicated view the last step
+  │                                     published, post each output to the
+  │                                     CommandArbiter, which writes every
+  │                                     final element's target      [live, T8-4]
+  │
+  ├── 3. integrate slow state        → every device advances load, speed,
   │                                     valve stroke, level, metal temperature
   │                                     (never flow, never pressure)     [live]
-  │
-  ├── 3. controllers                 → read the published snapshot and move a
-  │                                     final element before the solve     [M8]
+  │                                     - a valve strokes toward the target
+  │                                     step 2 just wrote, so a loop answers
+  │                                     a published measurement in the very
+  │                                     next step, not the one after
   │
   ├── 4. inventory coupling          → app/engine/coupling.py            [live]
   │
@@ -190,7 +197,7 @@ Engine.step(dt)
   │
   └── 7. publish Snapshot (C4)       → immutable, the single read contract [live]
             │
-            ├── controllers (C-)   PID loops, auto/manual        [M8]
+            ├── controllers (C-)   PID loops, auto/manual  [live, T8-4]
             ├── envelopes          normal bands + excursion time [M9]
             ├── alarms (C6/C7)     symptom-named events          [M10]
             ├── trips/interlocks   protective actions            [M11]
@@ -222,7 +229,8 @@ worth stating plainly:
   `tests/test_truth_isolation.py` fails the build on any other reader in
   `app/`. Without that, an instrument fault could not be a hidden cause.
 - **Writing is narrower still.** A controller may only move a final element —
-  `ControlValve.set_position_target()` — never assign a pressure or a flow.
+  `ControlValve.set_position_target()`, and only through `Engine.arbiter` —
+  never assign a pressure or a flow.
   Nothing outside `app/engine/coupling.py` writes a node pressure, and the
   solver owns every internal one. T13-5 enforces the import direction with a
   test.
@@ -335,8 +343,13 @@ app/
     scheduler.py          Background stepping (new isolated module)
     rng.py                SeededRNG (required seed; no global stream)
   controls/
+    pid.py                PID block: anti-windup, derivative on measurement
+    modes.py              Loop: MANUAL / AUTO / CASCADE, bumpless transfer
+    loader.py             load_loops(): C3 controllers → LoopBinding
     arbitration.py        CommandArbiter: interlock > operator > controller
-                          per final element (not yet wired to any route)
+                          per final element; Engine routes every loop
+                          output through it, no operator or interlock
+                          route posts to it yet
   plant/
     topology.py           C2: Node / Branch / Stream / Topology  [SPINE]
     thermo.py             Heat capacity, stream mixing, ThermalDevice hook
@@ -381,7 +394,8 @@ and they have repeatedly been conflated:
 | **Models that exist** | `CentrifugalPump`, `GasCompressor`, `ControlValve` and `Vessel` are all implemented and registered in the loader's `DEVICE_TYPES`. |
 | **Wired into the browser pages** | Only K-101 and P-101, each alone on a single-device plant between two fixed boundaries. |
 | **Present in a reference config** | `liquid_transfer.yaml` and `gas_compression.yaml` (single-domain, T3-4), `liquid_valve_train.yaml` (T7-1), and `olefins_lite.yaml` (T5-5) — the two-domain train coupled through V-101 inventory. It is not yet the full seven-device V1 train: `E-101` is absent, and PV-101/LV-101 are manual. |
-| **Not built at all** | `E-101`, the heat exchanger. LIC-101 and PIC-101 as *controllers* — the PID block, modes, loop config and loop execution are all M8 and none of it exists. |
+| **Controllers** | The PID block, modes, loop config and loop execution (T8-1 to T8-4) all exist. PIC-101 is configured and executes every step, but MANUAL: the PID is direct-acting only, which is the wrong way round for a vent valve, so in AUTO it would drive PV-101 closed (see the fixture's `controllers` comment). LIC-101 is not configured at all - a `controllers.pv` can only name a node's pressure until instruments are in C3. |
+| **Not built at all** | `E-101`, the heat exchanger. |
 
 ### What ADR 0002 settles about the separator
 

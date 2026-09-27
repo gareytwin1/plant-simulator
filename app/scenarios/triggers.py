@@ -279,19 +279,25 @@ def _required(config: Mapping[str, Any], key: str, trigger_id: str) -> Any:
 
 
 class TriggerEvaluator:
-    """Evaluates a scenario's triggers each step, honouring one-shot.
+    """Evaluates one scenario run's triggers each step, honouring one-shot.
 
     Every trigger's `is_met` is otherwise pure; the state that makes it
     cheap to re-check lives here instead, the way `MalfunctionRegistry`
     tracks a malfunction's onset outside its stateless `StartCondition`:
     which one-shot triggers have already fired, and, for an
     operator-action trigger, how much of the action log it has already
-    looked at and whether it has matched. All of it is run-scoped, and a
-    fresh `ActionLog` identity is this evaluator's own signal that a new
-    run has begun: `evaluate()` seeing a different log than the one it saw
-    last resets every piece of that state together, one-shot bookkeeping
-    included, so a scenario reset or replay starts exactly as clean as a
-    brand new `TriggerEvaluator` would.
+    looked at and whether it has matched.
+
+    That state is scoped to a single run against a single `ActionLog` -
+    an instance is not meant to outlive the run it was built for. Starting
+    a new run (a scenario reset or replay) means building a fresh
+    `TriggerEvaluator` from the same trigger config, which is cheap: no
+    condition is re-parsed, since `Trigger.from_config` already compiled
+    each one once. `evaluate()` does not itself try to detect a new run by
+    watching for a different `ActionLog` - identity is not a reliable
+    signal (a freed log's address can be reused), and a caller that wants
+    a real reset should ask for one by constructing a new evaluator, not
+    get one as a side effect of which log object it happened to pass.
     """
 
     def __init__(self, triggers: Iterable[Trigger]) -> None:
@@ -308,11 +314,9 @@ class TriggerEvaluator:
         # it stays matched, so a latched id never needs scanning again. Until
         # then, `_action_seen_length` remembers the log length as of the last
         # scan - unchanged means nothing new could have matched, so most
-        # steps (no action taken) cost a length check, not a rescan. Both are
-        # scoped to whichever ActionLog `_action_log_id` last saw.
+        # steps (no action taken) cost a length check, not a rescan.
         self._action_matched: set[str] = set()
         self._action_seen_length: dict[str, int] = {}
-        self._action_log_id: int | None = None
 
     @classmethod
     def from_config(cls, triggers: Iterable[Mapping[str, Any]]) -> TriggerEvaluator:
@@ -335,13 +339,11 @@ class TriggerEvaluator:
                 _resolve_tag(snapshot, trigger.kind.tag)
 
     def evaluate(self, snapshot: Snapshot, actions: ActionLog) -> tuple[str, ...]:
-        """Return the ids of every trigger that fires on this step."""
-        if id(actions) != self._action_log_id:
-            self._fired.clear()
-            self._action_matched.clear()
-            self._action_seen_length.clear()
-            self._action_log_id = id(actions)
+        """Return the ids of every trigger that fires on this step.
 
+        `actions` must be the same `ActionLog` across every call for this
+        evaluator's life - see the class docstring.
+        """
         total = len(actions)
         events: Sequence[ActionEvent] = ()
         if any(self._needs_the_log(trigger, total) for trigger in self._triggers):

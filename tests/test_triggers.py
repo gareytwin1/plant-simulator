@@ -404,38 +404,20 @@ def test_operator_action_trigger_only_rescans_when_the_log_has_grown():
     assert calls == [1, 1]  # the new entry earns exactly one more look
 
 
-def test_a_fresh_action_log_is_not_read_through_the_previous_ones_latch():
-    # A scenario reset or replay hands the evaluator a new ActionLog. A
-    # trigger latched against the old one must not stay matched against a
-    # log where its action never happened, and an unmatched one must not
-    # skip the new log just because its length happens to coincide.
-    trigger = Trigger(id="ack", kind=OperatorActionTrigger(tag="K-101", action="stop"))
-    evaluator = TriggerEvaluator([trigger])
+def test_a_fresh_run_needs_a_fresh_evaluator_not_just_a_fresh_log():
+    # TriggerEvaluator is scoped to one run against one ActionLog (see its
+    # docstring) - starting a new run means building a new evaluator from
+    # the same trigger config, which is cheap (no condition is re-parsed).
+    config = [{"id": "ack", "type": "operator_action", "action": "K-101.stop"}]
 
     first_log = ActionLog()
     first_log.record(tag="K-101", action="stop", value=None, sim_time=0.0)
-    assert evaluator.evaluate(snapshot_at(0.0), first_log) == ("ack",)
+    first_run = TriggerEvaluator.from_config(config)
+    assert first_run.evaluate(snapshot_at(0.0), first_log) == ("ack",)
 
-    second_log = ActionLog()
-    second_log.record(tag="K-101", action="start", value=None, sim_time=0.0)  # same length, no match
-    assert evaluator.evaluate(snapshot_at(1.0), second_log) == ()
-
-    second_log.record(tag="K-101", action="stop", value=None, sim_time=1.0)
-    assert evaluator.evaluate(snapshot_at(2.0), second_log) == ("ack",)
-
-
-def test_a_fresh_action_log_also_resets_one_shot_bookkeeping():
-    # A fresh ActionLog is this evaluator's own signal that a new run has
-    # begun - a one-shot trigger that already fired in the previous run
-    # must not come back already spent in this one.
-    evaluator = TriggerEvaluator([Trigger(id="t1", kind=TimeTrigger(sim_time=0.0), one_shot=True)])
-
-    first_log = ActionLog()
-    assert evaluator.evaluate(snapshot_at(0.0), first_log) == ("t1",)
-    assert evaluator.evaluate(snapshot_at(1.0), first_log) == ()  # already fired
-
-    second_log = ActionLog()
-    assert evaluator.evaluate(snapshot_at(0.0), second_log) == ("t1",)  # fresh run, fires again
+    second_log = ActionLog()  # the new run's own log - no matching action yet
+    second_run = TriggerEvaluator.from_config(config)
+    assert second_run.evaluate(snapshot_at(0.0), second_log) == ()
 
 
 def test_evaluate_does_not_touch_the_action_log_when_no_trigger_needs_it():

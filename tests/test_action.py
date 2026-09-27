@@ -38,6 +38,19 @@ def test_apply_action_calls_a_value_action_and_logs_it():
     assert log.events[0].data["value"] == pytest.approx(0.6)
 
 
+def test_apply_action_logs_an_int_value_as_a_float():
+    # A JSON body's {"value": 1} decodes to a Python int; the log must not
+    # let that leak through as a type the client happened to spell with no
+    # decimal point - it should agree with what a float literal would log.
+    compressor = GasCompressor()
+    log = ActionLog()
+
+    apply_action({"K-101": compressor}, log, 0.0, "K-101", "set_load_target", 1)
+
+    assert isinstance(log.events[0].data["value"], float)
+    assert log.events[0].data["value"] == pytest.approx(1.0)
+
+
 def test_apply_action_on_pump_and_valve():
     pump = CentrifugalPump()
     valve = ControlValve()
@@ -165,6 +178,19 @@ def test_post_action_with_a_value_applies_it():
 
     assert response.status_code == 200
     assert engine.equipment["FV-101"].position_target == pytest.approx(0.25)
+
+
+def test_post_action_with_a_json_integer_value_logs_a_float():
+    app, engine, log = build_app()
+    client = app.test_client()
+
+    response = client.post(
+        "/api/action",
+        json={"target": "K-101", "action": "set_load_target", "value": 1},
+    )
+
+    assert response.status_code == 200
+    assert isinstance(log.events[0].data["value"], float)
 
 
 @pytest.mark.parametrize(

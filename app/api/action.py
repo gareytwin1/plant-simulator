@@ -113,7 +113,11 @@ def apply_action(
         if not math.isfinite(value):
             raise ValueError(f"{target}.{action} value must be finite, got {value!r}")
 
-        getattr(device, action)(float(value))
+        # Normalized once, here, so the logged value is always a float
+        # regardless of whether the caller's JSON used an int or a float
+        # literal - the device call and the log must agree on its type.
+        value = float(value)
+        getattr(device, action)(value)
     else:
         if value is not None:
             raise ValueError(f"{target}.{action} takes no value, got {value!r}")

@@ -154,7 +154,12 @@ def load_loops(plant: Plant) -> dict[str, LoopBinding]:
                 f"command from two loops",
             )
             resolvable = False
-        else:
+        elif node is not None:
+            # Registered only once this entry is otherwise resolvable: an
+            # entry with a bad pv never produces a binding, so it must not
+            # be able to "claim" an out tag and block a later, valid one
+            # from it — nor be named as the prior claimant in that later
+            # entry's error, which would blame a loop that was never built.
             out_paths[entry["out"]] = tag
 
         if not resolvable:

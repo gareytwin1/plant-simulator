@@ -163,6 +163,24 @@ def test_two_loops_on_one_output_is_rejected():
     )
 
 
+def test_an_entry_with_a_bad_pv_does_not_claim_its_out_tag():
+    """A first entry with an unresolvable pv never produces a binding, so it
+    must not block — or be blamed as the prior claimant for — a later, fully
+    valid entry that reuses its out tag."""
+    config = valid_config()
+    config["controllers"][0]["pv"] = "N-999"
+    second = copy.deepcopy(config["controllers"][0])
+    second["tag"] = "PIC-102"
+    second["pv"] = "N-02"
+    config["controllers"].append(second)
+
+    errors = rejected(config)
+
+    assert len(errors) == 1
+    assert "$.controllers[0].pv" in errors[0]
+    assert not any("already driven" in e for e in errors)
+
+
 def test_negative_ki_is_rejected_with_a_clear_message():
     config = valid_config()
     config["controllers"][0]["ki"] = -1.0

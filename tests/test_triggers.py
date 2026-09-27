@@ -409,13 +409,18 @@ def test_a_later_triggers_exception_does_not_spend_an_earlier_one_shot():
     assert fired == ("ack",)  # not silently already-spent by the failed step
 
 
-def test_a_later_triggers_exception_does_not_advance_the_operator_action_cursor():
-    # If the operator-action trigger's scan result were committed even
-    # though a later trigger raised, the cursor would already equal the
-    # log length by the next call, and the "nothing new since last look"
-    # check would permanently skip a match that was never actually
-    # delivered to the caller.
-    action_trigger = Trigger(id="ack", kind=OperatorActionTrigger(tag="K-101", action="stop"))
+def test_a_later_triggers_exception_does_not_spend_a_one_shot_operator_action_trigger():
+    # A plain (non-one-shot) operator_action trigger can't distinguish a
+    # leaked commit from a correct one here - matched-and-latched is
+    # idempotent, so it reports the same either way. One-shot is what makes
+    # a leak observable: if the earlier scan's commit had escaped the
+    # failed step, "ack" would already be in self._fired by the next call
+    # and would never fire at all, rather than firing exactly once.
+    action_trigger = Trigger(
+        id="ack",
+        kind=OperatorActionTrigger(tag="K-101", action="stop"),
+        one_shot=True,
+    )
     condition = Trigger(
         id="pressure",
         kind=ConditionTrigger(Condition.parse("K-101.discharge_pressure > 900.0")),
@@ -427,9 +432,11 @@ def test_a_later_triggers_exception_does_not_advance_the_operator_action_cursor(
     with pytest.raises(ConditionEvaluationError):
         evaluator.evaluate(snapshot_at(0.0), log)  # K-101 missing - condition raises after the scan
 
-    fired = evaluator.evaluate(compressor_snapshot(1.0, discharge_pressure=0.0), log)
+    first = evaluator.evaluate(compressor_snapshot(1.0, discharge_pressure=0.0), log)
+    second = evaluator.evaluate(compressor_snapshot(2.0, discharge_pressure=0.0), log)
 
-    assert fired == ("ack",)  # still detected, not silently lost by the failed step
+    assert first == ("ack",)  # not silently already-spent by the failed step
+    assert second == ()  # and one-shot still means once
 
 
 # --- validate() catches a bad condition before the step loop ---

@@ -1,6 +1,6 @@
 # Architecture
 
-How Plant Simulator is put together — what runs today, what it is being built
+How Plant Simulator is put together - what runs today, what it is being built
 toward, and who owns which piece of state.
 
 The two are kept strictly separate in this document. Blurring them has already
@@ -8,7 +8,7 @@ misled sessions. As of **T4-4 (Checkpoint B) the plant does solve as a
 network**, as of **T5-2 and T5-3 it solves as several coupled domains**, and as
 of **T2-6 a background scheduler, not a browser, advances it**. Controllers
 (T8-4) and envelope classification (T9-4) both run in the engine step now.
-What is still ahead is everything else the solved plant feeds — alarms,
+What is still ahead is everything else the solved plant feeds - alarms,
 trips, scenarios, scoring and the console. **None of those exist.**
 
 For current status and task-level detail see
@@ -25,7 +25,7 @@ model).
 This is what actually happens when someone loads the app today.
 
 ```text
-Browser (vanilla JS, 1 s poll — reads only, steps nothing)
+Browser (vanilla JS, 1 s poll - reads only, steps nothing)
   │   GET  /compressor            GET  /pump
   │   GET  /api/state             GET  /api/pump/state
   │   POST /api/start|stop        POST /api/pump/start|stop
@@ -52,7 +52,7 @@ Engine.step(dt)  ·  app/engine/engine.py
   │   └── build_snapshot(...) with the solved nodes and streams
   ▼
 Session.compressor_state() / pump_state()
-  │   reads the latest PUBLISHED snapshot — it does not step anything
+  │   reads the latest PUBLISHED snapshot - it does not step anything
   ▼
 JSON  →  browser display
 ```
@@ -60,7 +60,7 @@ JSON  →  browser display
 `/api/step` and `/api/pump/step` survive as manual, test-facing controls. They
 step exactly as before while the matching scheduler is stopped, and return
 HTTP 409 while it is running rather than racing the background worker. A
-Session's schedulers run until `Session.end()` stops and joins both — called
+Session's schedulers run until `Session.end()` stops and joins both - called
 directly, by `SessionRegistry.end()`, or by capacity-bounded LRU eviction at
 `config.MAX_SESSIONS`. There is deliberately no idle-age expiry yet; that is
 T18-5's scope.
@@ -68,26 +68,26 @@ T18-5's scope.
 **Interim, until the pages are rewired onto a plant that contains a valve:** a
 page's machine sits between two fixed battery limits with no line resistance
 and no valve in between. Flow is therefore whatever the machine curve gives
-against that fixed differential — above `max_flow`, which nothing clamps any
-more — and the process spread equals the boundary difference. The retired
+against that fixed differential - above `max_flow`, which nothing clamps any
+more - and the process spread equals the boundary difference. The retired
 standalone solve is where those resistances used to live. T7-1 built the
 valve and a plant that uses it (`config/plants/liquid_valve_train.yaml`) and
 T7-2 put one on K-101's discharge in `config/plants/olefins_lite.yaml`; the
 single-device pages have not been moved onto either, so **the compressor page
-carries no valve control at all** — T7-2 removed the inert slider rather than
+carries no valve control at all** - T7-2 removed the inert slider rather than
 leave one that moves nothing.
 
 **Still not on the request path:** `EquipmentRegistry` and `SeededRNG` (T2-2).
 Nothing in `app/` draws a random number yet.
 
-An `Engine` built with no topology — `Engine(devices)`, the form that predates
-T4-4 — still integrates and nothing more; its snapshot reports the trivial
+An `Engine` built with no topology - `Engine(devices)`, the form that predates
+T4-4 - still integrates and nothing more; its snapshot reports the trivial
 converged placeholder and empty `nodes` and `streams`. The snapshot's
 `controllers` section carries one row per loop the engine executes (T8-4),
 so it is empty for a plant with no `controllers` key; `envelope` carries one
 row per `(tag, variable)` currently outside its configured limits (T9-4), so
 it is empty for a plant with no `limits` key **or** whose configured points
-all read NORMAL — and empty too for a `limits` entry naming a `variable`
+all read NORMAL - and empty too for a `limits` entry naming a `variable`
 this engine cannot yet resolve to a published point (only one a device's own
 `get_state()` carries can be, today; see `app/engine/engine.py`'s module
 docstring). `alarms` is empty for **every** engine, connected or not: nothing
@@ -143,13 +143,13 @@ several nodes                         independent, and summed
 several nozzles on one node           one exchange, counted once
 ```
 
-Both components are signed sums over branch orientation — a reversed feed
-arrives negatively and is not clamped — and an aggregate any failed domain
+Both components are signed sums over branch orientation - a reversed feed
+arrives negatively and is not clamped - and an aggregate any failed domain
 feeds holds its previous value entirely rather than being written from the
 converged part.
 
 Classification is by **declared `phase`**: `liquid` is GPM and `vapor` is SCFM.
-Machines *confirm* it — a pump is GPM, a compressor SCFM — and a declaration
+Machines *confirm* it - a pump is GPM, a compressor SCFM - and a declaration
 they contradict refuses. `ControlValve` is listed as `UNIT_NEUTRAL` and
 confirms nothing, which is not the same as an unrecognised device: **a new
 device model on a branch must be added to `FLOW_UNITS`** either way, or a
@@ -169,7 +169,7 @@ consumers hanging off the snapshot are not.
 
 ```text
 Browser / API client
-  │   (C5: one action endpoint — POST /api/action {target, action, value})
+  │   (C5: one action endpoint - POST /api/action {target, action, value})
   ▼
 Session → Scheduler                              [live]
   ▼
@@ -218,8 +218,8 @@ Engine.step(dt)
 **Every one of those downstream systems reads the published `Snapshot` and
 nothing else.** A controller, alarm evaluator, envelope tracker, scenario
 runner, scoring module or console that reaches directly into `Equipment` or
-`Topology` — because the object is right there and the snapshot would need one
-more field — has coupled the operator layer to the physics implementation, and
+`Topology` - because the object is right there and the snapshot would need one
+more field - has coupled the operator layer to the physics implementation, and
 that is a contract violation rather than a shortcut.
 
 The boundary exists so the physics can be rewritten without rewriting the game
@@ -235,8 +235,8 @@ worth stating plainly:
   it - none in `app/` today.
   `tests/test_truth_isolation.py` fails the build on any other reader in
   `app/`. Without that, an instrument fault could not be a hidden cause.
-- **Writing is narrower still.** A controller may only move a final element —
-  `ControlValve.set_position_target()`, and only through `Engine.arbiter` —
+- **Writing is narrower still.** A controller may only move a final element -
+  `ControlValve.set_position_target()`, and only through `Engine.arbiter` -
   never assign a pressure or a flow.
   Nothing outside `app/engine/coupling.py` writes a node pressure, and the
   solver owns every internal one. T13-5 enforces the import direction with a
@@ -254,7 +254,7 @@ ownership violation.
 | **Temperature** | **`DomainTransport`** (`app/engine/transport.py`) writes `Stream.temperature` and holds the node temperature field; boundary temperatures are given to the `Engine` | Recomputed after each converged solve from the flows and pressures it committed. A device changes temperature only by implementing `thermo.ThermalDevice.leaving_temperature`, a pure query like `characteristic(flow)`. |
 | **Slow actuator state** (load, speed, valve position, level, vessel pressure, metal temp) | **Device** | Mutated *only* by `integrate(dt)`. `integrate(0)` must be a no-op. |
 | **Equipment characteristic curve** | **Device** | `characteristic(flow)` is pure: reads slow state, returns a number, mutates nothing. The solver may call it many times per timestep. |
-| **Port wiring** | `Port` | Connection metadata, not process state. `__slots__` makes it structurally impossible to store a pressure or flow on a port. Survives `reset()`. T3-7 adds `phase`, `purpose` and optional `control` — still description, still not process state, and only `phase` and `direction` may reach a balance. |
+| **Port wiring** | `Port` | Connection metadata, not process state. `__slots__` makes it structurally impossible to store a pressure or flow on a port. Survives `reset()`. T3-7 adds `phase`, `purpose` and optional `control` - still description, still not process state, and only `phase` and `direction` may reach a balance. |
 | **Domain coupling** | **`app/engine/coupling.py`** | The only place a vessel's inventory reaches a boundary, and the only writer of boundary pressures. |
 | **Simulated time** | **`SimulationClock`** | Never `time.time()`. Time enters a model only through injected `dt`. |
 | **Integration cadence** | **`Engine`**, driven by **`Scheduler`** | Engine consults the clock's speed only. No device has a speed of its own. |
@@ -278,10 +278,10 @@ class Equipment:
     def characteristic(self, flow):
         """Pressure change across the device at this flow.
         Positive = rise (machine), negative = drop (valve, pipe).
-        Pure — mutates nothing."""
+        Pure - mutates nothing."""
 
     def get_state(self):
-        """Flat, JSON-safe primitives — the device's row in the snapshot."""
+        """Flat, JSON-safe primitives - the device's row in the snapshot."""
 
     def reset(self):
         """Back to construction state, exactly. Port wiring is left alone."""
@@ -300,7 +300,7 @@ plant and the answer would depend on how hard the solver had to work. So the
 mutating half (`integrate`) and the asking half (`characteristic`) are separated,
 and only the mutating half gets `dt`.
 
-`characteristic(flow)` is **device-wide** — it takes no port or branch argument —
+`characteristic(flow)` is **device-wide** - it takes no port or branch argument -
 which is why a device may hold at most one hydraulic path, enforced at load. A
 device with no path at all is a **coupling device**: it lives in `Plant.devices`,
 sits in no `Topology`, and is how a vessel spans two domains.
@@ -321,7 +321,7 @@ scoring and the golden regression harness all depend on it.
 - Same config + same seed + same sequence of `step(dt)` calls ⇒ bit-identical
   state, forever.
 - `tests/fixtures/golden/*.json` pin current behaviour at 1e-5 relative /
-  1e-7 absolute tolerance. A moved trace means behaviour changed — investigate,
+  1e-7 absolute tolerance. A moved trace means behaviour changed - investigate,
   do not regenerate.
 
 ## 7. Module map
@@ -330,13 +330,13 @@ scoring and the golden regression harness all depend on it.
 app/
   main.py                 Flask routes (per-equipment today; C5 replaces this)
   config.py               Timing constants + TAG_PREFIXES. APPEND-ONLY.
-  statetypes.py           JSONValue / StateRow — the get_state() row type
+  statetypes.py           JSONValue / StateRow - the get_state() row type
   equipment/
     base.py               C1: Equipment + Port                  [SPINE]
     compressor.py         GasCompressor (K-101)
     pump.py               CentrifugalPump (P-101)
     valve.py              ControlValve (FV-101)
-    vessel.py             Vessel (V-101) — coupling device, liquid + gas
+    vessel.py             Vessel (V-101) - coupling device, liquid + gas
     exchanger.py          HeatExchanger - foulable, utility side
     furnace.py            Furnace - duty, firing ramp
     relief.py             ReliefValve - set pressure
@@ -364,7 +364,7 @@ app/
   envelope/
     evaluator.py          T9-1: Evaluator/Limits → Severity, deadband + on-delay
     loader.py             load_limits(): C3 limits → Evaluator per (tag, variable)
-    tracker.py            T9-3: ExcursionTracker — time-in-band + peak
+    tracker.py            T9-3: ExcursionTracker - time-in-band + peak
   alarms/
     state.py              T10-1: ISA alarm state machine (C7)
     manager.py            T10-2: envelope band changes → C6 alarm events
@@ -398,14 +398,14 @@ tests/
 
 ## 8. Version 1 target plant
 
-The train V1 is being built toward — small enough to finish, connected enough
+The train V1 is being built toward - small enough to finish, connected enough
 that an upset propagates somewhere the operator can see it.
 
 ```text
 N-01  boundary · feed header, pressure held
   ├─ P-101   centrifugal pump   speed, head curve, min-flow protection
   ├─ E-101   feed heater        duty, utility side, foulable
-  ├─ V-101   separator          LEVEL and PRESSURE — the slow variables
+  ├─ V-101   separator          LEVEL and PRESSURE - the slow variables
   ├─ K-101   gas compressor     load, head curve, discharge temperature
   ├─ FV-101  discharge valve    characteristic, stroke rate, fail-closed
   ├─ PV-101  vessel pressure control valve   vapour outlet
@@ -425,7 +425,7 @@ and they have repeatedly been conflated:
 |---|---|
 | **Models that exist** | `CentrifugalPump`, `GasCompressor`, `ControlValve`, `Vessel`, `HeatExchanger`, `Furnace` and `ReliefValve` are all implemented and registered in the loader's `DEVICE_TYPES`. |
 | **Wired into the browser pages** | Only K-101 and P-101, each alone on a single-device plant between two fixed boundaries. |
-| **Present in a reference config** | `liquid_transfer.yaml` and `gas_compression.yaml` (single-domain, T3-4), `liquid_valve_train.yaml` (T7-1), and `olefins_lite.yaml` (T5-5) — the two-domain train coupled through V-101 inventory. It is not yet the full seven-device V1 train: `E-101` is absent, and PV-101/LV-101 are manual. |
+| **Present in a reference config** | `liquid_transfer.yaml` and `gas_compression.yaml` (single-domain, T3-4), `liquid_valve_train.yaml` (T7-1), and `olefins_lite.yaml` (T5-5) - the two-domain train coupled through V-101 inventory. It is not yet the full seven-device V1 train: `E-101` is absent, and PV-101/LV-101 are manual. |
 | **Controllers** | The PID block, modes, loop config, loop execution and controller action (T8-1 to T8-4, T8-6) all exist. PIC-101 is configured direct-acting and executes every step, and holds its setpoint in AUTO, but the fixture configures it MANUAL (see its `controllers` comment). LIC-101 is not configured at all - a `controllers.pv` can only name a node's pressure until instruments are in C3. |
 | **Envelopes** | The evaluator, limit config and excursion tracker (T9-1 to T9-3) all exist, and Engine classifies every resolved limit each step (T9-4). Only `V-101.level` resolves - `K-101.discharge_pressure` and `P-101.flow` are configured but unresolvable today, the same tag-to-point gap `LIC-101` above hits, generalised past pressure. |
 | **Not built at all** | Nothing on the diagram's device list - every V1 device has a model. |
@@ -444,12 +444,12 @@ The connected train was assembled by **T5-5**, to ADR 0002's re-specification:
 - **T5-7 came first**, and both are now on `main`. ADR 0002 Amendment 3 lets an
   opted-in device (only `Vessel`, through a class-level
   `accepts_configured_ports` marker) take its port set, with a `direction` on
-  every entry, from configuration instead of its class — implemented in
+  every entry, from configuration instead of its class - implemented in
   `app/plant/loader.py` and `app/equipment/vessel.py`. Without it the `Vessel`
   declared only `inlet` and `outlet` and the loader rejected any other port
   name, so the separator could not be wired at all.
 - **V-101 gains a liquid draw**, which is what turns a vessel that fills
-  monotonically into one with a genuine self-regulating steady state — the head
+  monotonically into one with a genuine self-regulating steady state - the head
   rises, the drain flow rises, the feed flow falls. Conservation can then be
   asserted at steady state instead of before a bounded test horizon expires.
 - **PV-101 and LV-101 ship in T5-5 as MANUAL valves at fixed position.** T5-5

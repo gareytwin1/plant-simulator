@@ -2,7 +2,7 @@ import pytest
 from flask import Flask
 
 from app.alarms.history import AlarmHistory
-from app.alarms.manager import AlarmManager, EnvelopeEvent
+from app.alarms.manager import AlarmManager, EnvelopeEvent, _alarm_id
 from app.api.alarms import create_alarm_blueprint
 from app.envelope.evaluator import Severity
 
@@ -100,6 +100,39 @@ def test_post_acknowledge_twice_records_exactly_once():
 
     assert first.get_json() == {"ok": True, "recorded": True}
     assert second.get_json() == {"ok": True, "recorded": False}
+    assert len(history) == 2
+
+
+def test_post_acknowledge_of_a_point_that_never_left_normal_does_not_record():
+    # AlarmManager.evaluate() binds an Alarm to every monitored point on
+    # first sight, via setdefault, even one whose severity never left
+    # NORMAL - so this id is real to the manager despite never appearing in
+    # history. Acknowledging it must be a pure no-op, not a phantom record.
+    app, manager, history, sim_time = build_app()
+    client = app.test_client()
+    point = EnvelopeEvent(tag="K-101", pv="suction pressure", severity=Severity.NORMAL)
+    manager.evaluate([point], sim_time=sim_time["value"])
+    alarm_id = _alarm_id("K-101", "suction pressure")
+
+    response = client.post("/api/alarms/acknowledge", json={"alarm_id": alarm_id})
+
+    assert response.status_code == 200
+    assert response.get_json() == {"ok": True, "recorded": False}
+    assert len(history) == 0
+
+
+def test_post_acknowledge_of_an_already_cleared_alarm_does_not_record_again():
+    app, manager, history, sim_time = build_app()
+    client = app.test_client()
+    alarm_id = raise_alarm(manager, history, sim_time["value"])
+    client.post("/api/alarms/acknowledge", json={"alarm_id": alarm_id})
+
+    cleared = EnvelopeEvent(tag="K-101", pv="discharge pressure", severity=Severity.NORMAL)
+    manager.evaluate([cleared], sim_time=10.0)
+
+    response = client.post("/api/alarms/acknowledge", json={"alarm_id": alarm_id})
+
+    assert response.get_json() == {"ok": True, "recorded": False}
     assert len(history) == 2
 
 

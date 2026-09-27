@@ -13,15 +13,24 @@ Acknowledging here does two things in sequence, both against the same
 `sim_time`: `AlarmManager.acknowledge()` transitions the alarm's own state
 machine, and `AlarmHistory.record_acknowledge()` records that it happened -
 matching how `AlarmManager.acknowledge`'s docstring already flags `sim_time`
-as "part of C7's frozen signature; T10-3 records it in history". A request
-for an alarm `AlarmHistory` already has as acknowledged is a no-op reporting
-`recorded: false`, not a second `AcknowledgeRecord` - a retried request or a
-double click must not read as two separate operator acknowledgements in the
-debrief.
+as "part of C7's frozen signature; T10-3 records it in history".
+
+Whether an acknowledge is a no-op is read from `Alarm.acknowledged` itself
+(via `AlarmManager.get`, T10-3's own additive accessor), never guessed from
+what `AlarmHistory` happens to have recorded - a point that has never left
+NORMAL still gets an `Alarm` bound to it (`AlarmManager.evaluate`'s
+`setdefault`), so its id is real and already "acknowledged" (trivially, per
+`Alarm`'s own state machine) despite never appearing in history at all. A
+request for an alarm that is already acknowledged - already ACKED, cleared to
+NORMAL, or never raised - reports `recorded: false` rather than writing a
+second `AcknowledgeRecord`; the read-check-act-record sequence runs under one
+lock so two concurrent requests for the same id cannot both see "not yet
+acknowledged" and both record.
 """
 
 from __future__ import annotations
 
+import threading
 from collections.abc import Callable
 
 from flask import Blueprint, jsonify, request
@@ -62,6 +71,7 @@ def create_alarm_blueprint(
     machinery has already resolved for this request.
     """
     blueprint = Blueprint("alarms", __name__)
+    lock = threading.Lock()
 
     @blueprint.get("/api/alarms/history")
     def get_alarm_history() -> ResponseReturnValue:
@@ -80,19 +90,19 @@ def create_alarm_blueprint(
         if not isinstance(alarm_id, str):
             return jsonify({"error": "alarm_id must be a string"}), 400
 
-        history = get_history()
+        manager = get_manager()
 
-        if history.is_acknowledged(alarm_id):
-            return jsonify({"ok": True, "recorded": False}), 200
+        with lock:
+            alarm = manager.get(alarm_id)
+            if alarm is None:
+                return jsonify({"error": f"unknown alarm_id: {alarm_id!r}"}), 400
 
-        sim_time = get_sim_time()
+            if alarm.acknowledged:
+                return jsonify({"ok": True, "recorded": False}), 200
 
-        try:
-            get_manager().acknowledge(alarm_id, sim_time)
-        except KeyError as error:
-            return jsonify({"error": error.args[0]}), 400
-
-        history.record_acknowledge(alarm_id, sim_time)
+            sim_time = get_sim_time()
+            manager.acknowledge(alarm_id, sim_time)
+            get_history().record_acknowledge(alarm_id, sim_time)
 
         return jsonify({"ok": True, "recorded": True}), 200
 

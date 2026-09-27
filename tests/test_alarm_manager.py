@@ -1,6 +1,6 @@
 import pytest
 
-from app.alarms.manager import AlarmManager, EnvelopeEvent, Priority
+from app.alarms.manager import AlarmManager, EnvelopeEvent, Priority, _alarm_id
 from app.envelope.evaluator import Severity
 
 
@@ -247,3 +247,24 @@ def test_acknowledge_transitions_the_underlying_alarm():
 def test_side_is_required_for_a_non_normal_severity():
     with pytest.raises(ValueError):
         EnvelopeEvent(tag="K-101", pv="discharge pressure", severity=Severity.ALARM)
+
+
+def test_get_returns_none_for_an_id_never_seen():
+    manager = AlarmManager()
+
+    assert manager.get("no-such-alarm") is None
+
+
+def test_get_returns_the_bound_alarm_even_for_a_point_that_never_left_normal():
+    # evaluate() binds an Alarm to every monitored point on first sight, via
+    # setdefault, even one whose severity never left NORMAL - so its id is
+    # real and resolvable through get() despite never emitting an Event.
+    manager = AlarmManager()
+    point = EnvelopeEvent(tag="K-101", pv="suction pressure", severity=Severity.NORMAL)
+
+    events = manager.evaluate([point], sim_time=0.0)
+
+    assert events == []
+    alarm = manager.get(_alarm_id("K-101", "suction pressure"))
+    assert alarm is not None
+    assert alarm.acknowledged

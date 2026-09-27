@@ -152,6 +152,16 @@ class AlarmManager:
     def active(self) -> list[Alarm]:
         return [alarm for alarm in self._alarms.values() if alarm.active]
 
+    def get(self, alarm_id: str) -> Alarm | None:
+        """The `Alarm` bound to `alarm_id`, or `None` if this manager has
+        never seen it. Additive read accessor (T10-3): a caller deciding
+        whether `acknowledge()` would actually change anything needs the
+        real state, not a guess reconstructed from emitted events - `evaluate()`
+        binds an `Alarm` to every monitored point on first sight (via
+        `setdefault`), including one that has never left NORMAL and so has
+        never emitted an `Event` a caller could have observed."""
+        return self._alarms.get(alarm_id)
+
     def _event(self, alarm_id: str, envelope_event: EnvelopeEvent, sim_time: float) -> Event:
         assert envelope_event.side is not None  # enforced by EnvelopeEvent.__post_init__
         suffix = _SUFFIX[envelope_event.side] * envelope_event.severity.value

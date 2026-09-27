@@ -33,7 +33,12 @@ alarm state either.
 `record_events`/`record_acknowledge`/`entries` share one lock, same as
 `Historian` (T17-1): the engine's stepping thread calls `record_events` after
 every `evaluate()` while a Flask request thread reads `entries()` or calls
-`record_acknowledge`, and neither may observe a half-mutated buffer.
+`record_acknowledge`, and neither may observe a half-mutated buffer. That
+lock guards this instance's own data structures only - it says nothing about
+the order an `Event` and a later `AcknowledgeRecord` for the same id land in
+relative to each other across threads. Ordering the two against a concurrent
+`evaluate()`/`record_events()` call is the caller's problem to solve (a lock
+shared with that call site, held across both), not something bounded here.
 """
 
 from __future__ import annotations
@@ -85,8 +90,21 @@ class AlarmHistory:
                 self._tag_of[event.id] = event.tag
 
     def record_acknowledge(self, alarm_id: str, sim_time: float) -> None:
+        """Record that `alarm_id` was acknowledged. Raises `KeyError` if this
+        history has never recorded an event for `alarm_id` - a caller only
+        reaches this method once it has confirmed against `AlarmManager`
+        that the acknowledgement is real, so a missing tag means that
+        confirmation and this history have drifted apart, not that the tag
+        is legitimately unknown."""
         with self._lock:
-            tag = self._tag_of.get(alarm_id, "")
+            try:
+                tag = self._tag_of[alarm_id]
+            except KeyError:
+                raise KeyError(
+                    f"cannot acknowledge {alarm_id!r}: no event for it was ever "
+                    "recorded in this history"
+                ) from None
+
             self._entries.append(AcknowledgeRecord(alarm_id=alarm_id, tag=tag, sim_time=sim_time))
 
     def entries(self) -> tuple[HistoryEntry, ...]:

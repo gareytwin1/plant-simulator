@@ -1,8 +1,11 @@
+import threading
+
 import pytest
 from flask import Flask
 
 from app.alarms.history import AlarmHistory
 from app.alarms.manager import AlarmManager, EnvelopeEvent, _alarm_id
+from app.alarms.state import AlarmState
 from app.api.alarms import create_alarm_blueprint
 from app.envelope.evaluator import Severity
 
@@ -133,6 +136,50 @@ def test_post_acknowledge_of_an_already_cleared_alarm_does_not_record_again():
     response = client.post("/api/alarms/acknowledge", json={"alarm_id": alarm_id})
 
     assert response.get_json() == {"ok": True, "recorded": False}
+    assert len(history) == 2
+
+
+def test_post_acknowledge_of_an_alarm_that_cleared_before_being_acked_still_records():
+    # RTN_UNACK: the condition cleared before the operator ever acknowledged
+    # it. Alarm.acknowledge() still has a real transition to make here
+    # (RTN_UNACK -> NORMAL), even though the point already reads NORMAL.
+    app, manager, history, sim_time = build_app()
+    client = app.test_client()
+    alarm_id = raise_alarm(manager, history, sim_time["value"])
+
+    cleared = EnvelopeEvent(tag="K-101", pv="discharge pressure", severity=Severity.NORMAL)
+    manager.evaluate([cleared], sim_time=5.0)
+
+    response = client.post("/api/alarms/acknowledge", json={"alarm_id": alarm_id})
+
+    assert response.get_json() == {"ok": True, "recorded": True}
+    assert len(history) == 2
+    assert manager.get(alarm_id).state is AlarmState.NORMAL
+
+
+def test_post_acknowledge_concurrent_requests_record_exactly_once():
+    app, manager, history, sim_time = build_app()
+    alarm_id = raise_alarm(manager, history, sim_time["value"])
+
+    barrier = threading.Barrier(2)
+    responses: list[object] = []
+    lock = threading.Lock()
+
+    def post() -> None:
+        barrier.wait()
+        client = app.test_client()
+        response = client.post("/api/alarms/acknowledge", json={"alarm_id": alarm_id})
+        with lock:
+            responses.append(response.get_json())
+
+    threads = [threading.Thread(target=post) for _ in range(2)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    recorded = [body for body in responses if body["recorded"] is True]
+    assert len(recorded) == 1
     assert len(history) == 2
 
 

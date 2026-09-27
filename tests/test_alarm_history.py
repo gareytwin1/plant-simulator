@@ -80,11 +80,27 @@ def test_acknowledge_is_recorded_as_its_own_entry():
 
 def test_acknowledge_entries_count_toward_the_bound():
     history = AlarmHistory(capacity=2)
+    manager = AlarmManager()
+    ids = []
+    for pv in ("a", "b", "c"):
+        events = manager.evaluate(
+            [EnvelopeEvent(tag="K-101", pv=pv, severity=Severity.ALARM, side="hi")],
+            sim_time=0.0,
+        )
+        history.record_events(events)
+        ids.append(events[0].id)
 
-    history.record_acknowledge("alarm-1", sim_time=0.0)
-    history.record_acknowledge("alarm-2", sim_time=1.0)
-    history.record_acknowledge("alarm-3", sim_time=2.0)
+    history.record_acknowledge(ids[0], sim_time=1.0)
+    history.record_acknowledge(ids[1], sim_time=2.0)
+    history.record_acknowledge(ids[2], sim_time=3.0)
 
     entries = history.entries()
     assert len(entries) == 2
-    assert [entry.alarm_id for entry in entries] == ["alarm-2", "alarm-3"]
+    assert [entry.alarm_id for entry in entries] == [ids[1], ids[2]]
+
+
+def test_acknowledge_of_an_id_with_no_recorded_event_raises_key_error():
+    history = AlarmHistory(capacity=10)
+
+    with pytest.raises(KeyError, match="no event for it was ever recorded"):
+        history.record_acknowledge("no-such-alarm", sim_time=0.0)

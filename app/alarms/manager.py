@@ -18,6 +18,13 @@ at NORMAL clears the alarm (T10-1's own `clear()` semantics decide whether
 that makes it immediately available again) but is not itself reported as an
 alarm event.
 
+**A reportable change on an ACKED alarm returns it to UNACK.** The operator
+acknowledged the band that was active *then*; a change to a different one is
+a new condition, not the one they signed off on, so it goes back to
+demanding attention. `Alarm.activate()` alone is a no-op on ACKED (T10-1),
+so this manager clears it first, using only `Alarm`'s existing public
+transitions rather than reaching into its frozen state machine.
+
 **Messages name symptoms, never causes (C6).** A message is built only from
 the tag, the point's own description and an ISA-style HI/LO suffix repeated
 once per severity tier (HI, HIHI, HIHIHI) - never from anything that would
@@ -36,7 +43,7 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Literal
 
-from app.alarms.state import Alarm
+from app.alarms.state import Alarm, AlarmState
 from app.envelope.evaluator import Severity
 
 Side = Literal["lo", "hi"]
@@ -116,6 +123,11 @@ class AlarmManager:
                 alarm.clear()
                 continue
 
+            if alarm.state is AlarmState.ACKED:
+                # The operator acknowledged the *previous* band. A reportable
+                # change to a new one is a new condition, so it goes back to
+                # demanding attention rather than staying silently ACKED.
+                alarm.clear()
             alarm.activate()
             emitted.append(self._event(alarm_id, envelope_event, sim_time))
 

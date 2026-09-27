@@ -148,6 +148,37 @@ def test_de_escalation_between_two_active_severities_emits_an_updated_event():
     assert active_alarm.active
 
 
+def test_escalating_an_acknowledged_alarm_returns_it_to_unacknowledged():
+    manager = AlarmManager()
+    warning = EnvelopeEvent(tag="K-101", pv="discharge pressure", severity=Severity.WARNING, side="hi")
+    alarm = EnvelopeEvent(tag="K-101", pv="discharge pressure", severity=Severity.ALARM, side="hi")
+
+    events = manager.evaluate([warning], sim_time=0.0)
+    manager.acknowledge(events[0].id, sim_time=0.5)
+    [acked] = manager.active()
+    assert acked.acknowledged
+
+    events = manager.evaluate([alarm], sim_time=1.0)
+
+    assert len(events) == 1
+    [reactivated] = manager.active()
+    assert not reactivated.acknowledged
+
+
+def test_side_flip_of_an_acknowledged_alarm_returns_it_to_unacknowledged():
+    manager = AlarmManager()
+    lo = EnvelopeEvent(tag="K-101", pv="discharge pressure", severity=Severity.WARNING, side="lo")
+    hi = EnvelopeEvent(tag="K-101", pv="discharge pressure", severity=Severity.WARNING, side="hi")
+
+    events = manager.evaluate([lo], sim_time=0.0)
+    manager.acknowledge(events[0].id, sim_time=0.5)
+    assert manager.active()[0].acknowledged
+
+    manager.evaluate([hi], sim_time=1.0)
+
+    assert not manager.active()[0].acknowledged
+
+
 def test_acknowledge_with_an_unknown_alarm_id_raises_a_clear_error():
     manager = AlarmManager()
 

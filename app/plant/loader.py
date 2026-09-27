@@ -259,6 +259,22 @@ class Plant:
 
         return next(iter(self.topologies.values()))
 
+    def passthrough(self, section: str) -> list[Any]:
+        """A copy of one section this loader carries without interpreting it
+        (`PASSTHROUGH_SECTIONS`), or an empty list when the config had none.
+
+        The way a subsystem that does interpret one reads it: nothing about
+        the section depends on the devices, so reading it never needs the
+        whole plant serialised back through `to_config()`.
+        """
+        if section not in PASSTHROUGH_SECTIONS:
+            raise ValueError(
+                f"{section!r} is not a passthrough section, only "
+                f"{list(PASSTHROUGH_SECTIONS)}",
+            )
+
+        return copy.deepcopy(self._passthrough.get(section, []))
+
     def to_config(self) -> dict[str, Any]:
         config: dict[str, Any] = {
             "nodes": [self._node_config(node) for node in self.nodes.values()],

@@ -53,7 +53,8 @@ its own task, never as a side effect.
 
 C5–C8 exist **only as specifications in the build plan** — do not write code
 assuming they exist or invent your own version. **Do not write code, comments
-or docs implying controllers, alarms, envelopes or scoring exist.** None do.
+or docs implying alarms, envelopes or scoring run against the live plant.**
+None do; only controllers run in the engine step (T8-4).
 
 ## Critical architectural invariants
 
@@ -107,10 +108,10 @@ generator: [.claude/rules/engine.md](.claude/rules/engine.md).
 
 **Snapshot is the read boundary.** `Snapshot` (C4) is the only thing downstream
 consumers read — historian, console, trends, scoring, scenarios — and it is
-immutable. `controllers`, `envelope` and `alarms` are present but empty by
-design, so the UI and game layers can be built against a frozen shape first.
-`nodes` and `streams` are **not** in that category: they carry real solved
-numbers for any `Engine` built from a plant.
+immutable. `envelope` and `alarms` are present but empty by design, so the
+UI and game layers can be built against a frozen shape first. `nodes`,
+`streams` and `controllers` are **not** in that category: they carry real
+numbers for any `Engine` built from a plant (`controllers` one row per loop).
 
 **Golden regressions protect existing physics. Do not regenerate a golden trace
 to make a test pass.** If a trace moves, stop and explain why: either that was

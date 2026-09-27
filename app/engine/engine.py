@@ -68,11 +68,53 @@ Instruments sit outside the physics entirely: nothing in a step reads an
 indicated value, so a biased transmitter changes what is published and
 nothing that is solved.
 
+**Control runs first, on what the last snapshot showed (T8-4).** A step is,
+in this order and no other:
+
+  1. advance the clock;
+  2. **control** - every loop reads its measurement from the indicated view
+     of the plant as it stands at the start of the step, which is what the
+     previous snapshot published, computes its output over the elapsed time,
+     and posts it to the command arbiter as a controller demand; the arbiter
+     then writes every bound output;
+  3. integrate every device, so a valve strokes toward the target control
+     just wrote;
+  4. couple and solve, as above;
+  5. publish the snapshot, whose controllers section carries each loop's
+     output from step 2 against the measurement standing after step 4.
+
+Nothing in step 2 can see a mid-solve value, because no solve has started:
+a loop reads only what the last step published, and the solve that follows
+reads only the slow state the loop moved. And there is no extra step of lag:
+a measurement published at the end of step n moves the valve during step
+n+1, and the flow that results is published at the end of that same step.
+Running control after the solve instead would write a target that step n+1's
+integrate had already missed, and a loop would answer every change a step
+late.
+
+Loops run in the order they were added - configuration order, from
+`Engine.from_plant`. Within one step that order changes nothing: every loop
+reads the same pre-step view, and no two loops drive one output (the
+arbiter refuses a second binding), so no loop can read or overwrite what
+another has just written. Control reads the *indicated* view, never the
+truth, so a biased transmitter fools the loop exactly as it fools the
+operator. A loop is primed on its first execution - its integral preloaded
+to reproduce the output it was bound at - so a loop that starts in AUTO
+starts without a bump, as a MANUAL loop already does by tracking.
+
+Every loop output reaches its device through `Engine.arbiter` (T7-4), never
+by calling the setter itself, so an operator or an interlock that later
+posts to the same arbiter outranks the controller by precedence rather than
+by running last. A loop writes its output in MANUAL too: that output is the
+operator's manual command.
+
 start()/stop() and the snapshot's running field delegate entirely to the
 clock's pause/resume. There is deliberately no second "is it running"
 flag to keep in sync with the clock's own — a stopped engine is exactly
 a paused clock. A stopped engine still solves, and since nothing moved,
-the solve lands on the same answer.
+the solve lands on the same answer. Nor does it control: a stopped step has
+no elapsed time to integrate a loop over, so no loop runs and no output is
+written.
 
 The clock is the sole speed authority. A device has no speed multiplier of
 its own to consult.
@@ -84,9 +126,11 @@ from a wall clock — determinism depends on the caller owning time.
 import math
 from collections.abc import Iterable, Mapping
 
+from app.controls.arbitration import CommandArbiter, Source
+from app.controls.loader import LoopBinding, load_loops
 from app.engine.clock import SimulationClock
 from app.engine.coupling import VesselCoupling, build_couplings
-from app.engine.instruments import Instrument, indicate, true_reading
+from app.engine.instruments import Instrument, Point, indicate, true_reading
 from app.engine.network import NetworkSolver, SolverResult
 from app.engine.snapshot import DEFAULT_SOLVER_STATUS, JSONValue, Snapshot, build_snapshot
 from app.engine.transport import ABSOLUTE_ZERO, DomainTransport
@@ -104,6 +148,7 @@ class Engine:
         couplings: Iterable[VesselCoupling] = (),
         boundary_temperatures: Mapping[str, float] | None = None,
         instruments: Iterable[Instrument] = (),
+        loops: Iterable[LoopBinding] = (),
     ) -> None:
         if topology is not None and topologies is not None:
             raise ValueError(
@@ -124,6 +169,9 @@ class Engine:
         self.solver_results: dict[str, SolverResult] = {}
         self.couplings: list[VesselCoupling] = list(couplings)
         self.instruments: dict[str, Instrument] = {}
+        self.loops: dict[str, LoopBinding] = {}
+        self.arbiter = CommandArbiter()
+        self._primed: set[str] = set()
 
         _check_boundary_temperatures(
             boundary_temperatures or {},
@@ -143,6 +191,9 @@ class Engine:
         for instrument in instruments:
             self.add_instrument(instrument)
 
+        for binding in loops:
+            self.add_loop(binding)
+
     @classmethod
     def from_plant(
         cls,
@@ -156,6 +207,7 @@ class Engine:
             couplings=build_couplings(plant.devices.values(), plant.topologies),
             boundary_temperatures=boundary_temperatures,
             instruments=instruments,
+            loops=load_loops(plant).values(),
         )
 
     @property
@@ -211,12 +263,16 @@ class Engine:
         """Register an instrument, keyed by its own tag.
 
         Refused unless the point it reads is published and numeric now, its
-        tag is free among devices and instruments alike, and no other
+        tag is free among devices, instruments and loops alike, and no other
         instrument already reads that point - a snapshot has one indicated
         value per point, so a second instrument there would have nowhere to
         show.
         """
-        if instrument.tag in self.equipment or instrument.tag in self.instruments:
+        if (
+            instrument.tag in self.equipment
+            or instrument.tag in self.instruments
+            or instrument.tag in self.loops
+        ):
             raise ValueError(f"tag {instrument.tag!r} is already in use")
 
         for other in self.instruments.values():
@@ -230,6 +286,32 @@ class Engine:
 
         self.instruments[instrument.tag] = instrument
 
+    def add_loop(self, binding: LoopBinding) -> None:
+        """Register a loop, keyed by its own tag, and bind its output to the
+        arbiter.
+
+        Refused unless its tag is free among devices, instruments and loops,
+        the point it measures is published now, and the device it drives is
+        one this engine integrates - a loop on a device outside the engine
+        would move a valve that never strokes. The arbiter refuses a second
+        loop on an output one already drives.
+        """
+        tag = binding.tag
+
+        if tag in self.equipment or tag in self.instruments or tag in self.loops:
+            raise ValueError(f"tag {tag!r} is already in use")
+
+        _reading(self._indicated(), binding.pv_point, f"loop {tag}")
+
+        if binding.out_tag not in self.equipment:
+            raise ValueError(
+                f"loop {tag} drives {binding.out_tag!r}, which is not "
+                f"equipment of this engine",
+            )
+
+        self.arbiter.bind(binding.out_tag, binding.output_setter)
+        self.loops[tag] = binding
+
     def start(self) -> None:
         self.clock.resume()
 
@@ -237,18 +319,22 @@ class Engine:
         self.clock.pause()
 
     def step(self, dt: float) -> Snapshot:
-        """Advance the clock by dt, integrate every device by the elapsed
-        simulated time the clock actually applied, couple the resulting slow
-        state to the plant, solve every flow domain, and publish the
-        resulting snapshot.
+        """Advance the clock by dt, run every loop on the measurements the
+        last step published, integrate every device by the elapsed simulated
+        time the clock actually applied, couple the resulting slow state to
+        the plant, solve every flow domain, and publish the resulting
+        snapshot. The order is the module docstring's, and it is deliberate.
 
         While stopped (the clock paused), the clock applies zero elapsed
-        time, and integrate(0) is a no-op per the Equipment contract — so
-        stepping a stopped engine changes nothing: the boundary written from
-        an unchanged level is the value already there, and the solve that
-        follows reproduces the state it started from.
+        time, no loop runs, and integrate(0) is a no-op per the Equipment
+        contract — so stepping a stopped engine changes nothing: the
+        boundary written from an unchanged level is the value already there,
+        and the solve that follows reproduces the state it started from.
         """
         elapsed = self.clock.step(dt)
+
+        if elapsed > 0.0:
+            self._control(elapsed)
 
         for device in self.equipment.values():
             device.integrate(elapsed)
@@ -261,6 +347,15 @@ class Engine:
         truth = self._truth()
         indicated = indicate(truth, self.instruments.values())
         clock_state = self.clock.get_state()
+        controllers: dict[str, dict[str, JSONValue]] = {
+            tag: {
+                "pv": _reading(indicated, binding.pv_point, f"loop {tag}"),
+                "sp": binding.loop.pid.setpoint,
+                "out": binding.loop.output,
+                "mode": binding.loop.mode.name,
+            }
+            for tag, binding in self.loops.items()
+        }
 
         return build_snapshot(
             sim_time=clock_state["sim_time"],
@@ -269,9 +364,34 @@ class Engine:
             equipment=indicated["equipment"],
             nodes=indicated["nodes"],
             streams=indicated["streams"],
+            controllers=controllers,
             solver=self._solver_section(),
             truth=truth,
         )
+
+    def _control(self, dt: float) -> None:
+        """Every loop, in order, on the plant as the last snapshot showed it."""
+        if not self.loops:
+            return
+
+        indicated = self._indicated()
+
+        for tag, binding in self.loops.items():
+            loop = binding.loop
+            measurement = _reading(indicated, binding.pv_point, f"loop {tag}")
+
+            if tag not in self._primed:
+                loop.pid.track(measurement, dt, loop.output)
+                self._primed.add(tag)
+
+            output = loop.compute(measurement, dt)
+
+            self.arbiter.demand(binding.out_tag, Source.CONTROLLER, tag, output)
+
+        self.arbiter.apply()
+
+    def _indicated(self) -> dict[str, dict[str, dict[str, JSONValue]]]:
+        return indicate(self._truth(), self.instruments.values())
 
     def _truth(self) -> dict[str, dict[str, dict[str, JSONValue]]]:
         equipment: dict[str, dict[str, JSONValue]] = {
@@ -340,6 +460,34 @@ class Engine:
             return None
 
         return next(iter(self.topologies))
+
+
+def _reading(
+    view: Mapping[str, Mapping[str, Mapping[str, JSONValue]]],
+    point: Point,
+    reader: str,
+) -> float:
+    """The number `view` publishes at `point`, or ValueError naming `reader`
+    if it publishes none - the same refusal `true_reading` gives an
+    instrument."""
+    section, source, variable = point
+    row = view[section].get(source)
+
+    if row is None or variable not in row:
+        raise ValueError(
+            f"{reader} measures {section}.{source}.{variable}, which the "
+            f"plant does not publish",
+        )
+
+    value = row[variable]
+
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(
+            f"{reader} measures {section}.{source}.{variable}, which is "
+            f"{value!r}, not a number",
+        )
+
+    return float(value)
 
 
 def _check_boundary_temperatures(

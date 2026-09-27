@@ -263,7 +263,14 @@ class Trigger:
         kind: TriggerKind
 
         if trigger_type == "time":
-            kind = TimeTrigger(sim_time=_required_number(config, "sim_time", trigger_id))
+            sim_time = _required_number(config, "sim_time", trigger_id)
+            if sim_time < 0:
+                raise ValueError(
+                    f"trigger {trigger_id!r} has sim_time={sim_time!r}, which is "
+                    f"negative; scenario.schema.json requires 0 or more",
+                )
+
+            kind = TimeTrigger(sim_time=sim_time)
         elif trigger_type == "condition":
             kind = ConditionTrigger(
                 condition=Condition.parse(_required_string(config, "condition", trigger_id)),

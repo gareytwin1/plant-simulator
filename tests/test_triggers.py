@@ -330,7 +330,7 @@ def test_from_config_rejects_a_config_missing_type():
         Trigger.from_config({"id": "t1", "sim_time": 1.0})
 
 
-@pytest.mark.parametrize("bad_sim_time", [float("nan"), float("inf"), True, "soon"])
+@pytest.mark.parametrize("bad_sim_time", [float("nan"), float("inf"), True, "soon", -1.0])
 def test_from_config_rejects_a_malformed_sim_time(bad_sim_time):
     with pytest.raises(ValueError, match="t1"):
         Trigger.from_config({"id": "t1", "type": "time", "sim_time": bad_sim_time})

@@ -108,14 +108,15 @@ def create_alarm_blueprint(
             if alarm.acknowledged:
                 return jsonify({"ok": True, "recorded": False}), 200
 
-            if history.tag_of(alarm_id) is None:
+            tag = history.tag_of(alarm_id)
+            if tag is None:
                 return jsonify(
                     {"error": f"alarm_id {alarm_id!r} has no recorded event in history"}
                 ), 409
 
             sim_time = get_sim_time()
             manager.acknowledge(alarm_id, sim_time)
-            history.record_acknowledge(alarm_id, sim_time)
+            history.record_acknowledge(alarm_id, tag, sim_time)
 
         return jsonify({"ok": True, "recorded": True}), 200
 

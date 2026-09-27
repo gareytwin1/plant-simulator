@@ -92,29 +92,21 @@ class AlarmHistory:
     def tag_of(self, alarm_id: str) -> str | None:
         """The tag last recorded for `alarm_id`'s raising event, or `None`
         if this history has never recorded one. A caller about to change
-        other state on the strength of `record_acknowledge` succeeding
-        (`AlarmManager.acknowledge`, notably) should check this first -
-        once that other state has changed, a `record_acknowledge` that then
-        raises leaves nothing to undo it."""
+        other state on the strength of recording an acknowledgement
+        (`AlarmManager.acknowledge`, notably) should check this first and
+        pass the result to `record_acknowledge` - one lookup, one decision
+        point, rather than a second lookup inside `record_acknowledge`
+        whose failure would arrive only after that other state already
+        changed, with nothing left to undo it."""
         with self._lock:
             return self._tag_of.get(alarm_id)
 
-    def record_acknowledge(self, alarm_id: str, sim_time: float) -> None:
-        """Record that `alarm_id` was acknowledged. Raises `KeyError` if this
-        history has never recorded an event for `alarm_id` - a caller only
-        reaches this method once it has confirmed against `AlarmManager`
-        that the acknowledgement is real, so a missing tag means that
-        confirmation and this history have drifted apart, not that the tag
-        is legitimately unknown."""
+    def record_acknowledge(self, alarm_id: str, tag: str, sim_time: float) -> None:
+        """Record that `alarm_id` (raised against `tag`) was acknowledged.
+        Trusts `tag` rather than re-deriving it - the caller is expected to
+        have obtained it from `tag_of` moments earlier, under the same
+        decision that made recording an acknowledgement the right call."""
         with self._lock:
-            try:
-                tag = self._tag_of[alarm_id]
-            except KeyError:
-                raise KeyError(
-                    f"cannot acknowledge {alarm_id!r}: no event for it was ever "
-                    "recorded in this history"
-                ) from None
-
             self._entries.append(AcknowledgeRecord(alarm_id=alarm_id, tag=tag, sim_time=sim_time))
 
     def entries(self) -> tuple[HistoryEntry, ...]:

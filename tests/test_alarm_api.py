@@ -1,4 +1,5 @@
 import threading
+import time
 
 import pytest
 from flask import Flask
@@ -219,16 +220,35 @@ def test_post_acknowledge_concurrent_requests_record_exactly_once():
 
     second = threading.Thread(target=post)
     second.start()
-    second.join(timeout=0.2)
-    assert second.is_alive()  # blocked behind the lock, not yet past its own check
+
+    # Give the second request every chance to reach get_sim_time if the lock
+    # were not actually holding it back - poll rather than a single fixed
+    # sleep, so this only passes because the second call never arrives, not
+    # because we didn't wait long enough for it to.
+    deadline = time.monotonic() + 2.0
+    while time.monotonic() < deadline:
+        with call_count_lock:
+            reached = call_count["value"]
+        if reached >= 2 or not second.is_alive():
+            break
+        time.sleep(0.01)
+
+    assert call_count["value"] == 1  # second never reached get_sim_time
+    assert manager.get(alarm_id).acknowledged is False  # ...nor manager.acknowledge()
+    assert second.is_alive()  # ...so it is still blocked on the lock
     assert len(history) == 1  # only the original raise; neither ack recorded yet
 
     release_first_thread.set()
     first.join(timeout=5.0)
     second.join(timeout=5.0)
+    assert not first.is_alive()
+    assert not second.is_alive()
 
+    assert len(responses) == 2
     recorded = [body for body in responses if body["recorded"] is True]
     assert len(recorded) == 1
+    not_recorded = [body for body in responses if body["recorded"] is False]
+    assert not_recorded == [{"ok": True, "recorded": False}]
     assert len(history) == 2
 
 

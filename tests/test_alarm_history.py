@@ -67,7 +67,7 @@ def test_acknowledge_is_recorded_as_its_own_entry():
     events = manager.evaluate([point], sim_time=0.0)
     history.record_events(events)
     manager.acknowledge(events[0].id, sim_time=2.5)
-    history.record_acknowledge(events[0].id, sim_time=2.5)
+    history.record_acknowledge(events[0].id, history.tag_of(events[0].id), sim_time=2.5)
 
     entries = history.entries()
     assert len(entries) == 2
@@ -90,17 +90,27 @@ def test_acknowledge_entries_count_toward_the_bound():
         history.record_events(events)
         ids.append(events[0].id)
 
-    history.record_acknowledge(ids[0], sim_time=1.0)
-    history.record_acknowledge(ids[1], sim_time=2.0)
-    history.record_acknowledge(ids[2], sim_time=3.0)
+    history.record_acknowledge(ids[0], "K-101", sim_time=1.0)
+    history.record_acknowledge(ids[1], "K-101", sim_time=2.0)
+    history.record_acknowledge(ids[2], "K-101", sim_time=3.0)
 
     entries = history.entries()
     assert len(entries) == 2
     assert [entry.alarm_id for entry in entries] == [ids[1], ids[2]]
 
 
-def test_acknowledge_of_an_id_with_no_recorded_event_raises_key_error():
+def test_tag_of_is_none_for_an_id_never_recorded():
     history = AlarmHistory(capacity=10)
 
-    with pytest.raises(KeyError, match="no event for it was ever recorded"):
-        history.record_acknowledge("no-such-alarm", sim_time=0.0)
+    assert history.tag_of("no-such-alarm") is None
+
+
+def test_tag_of_returns_the_tag_of_the_raising_event():
+    history = AlarmHistory(capacity=10)
+    manager = AlarmManager()
+    point = EnvelopeEvent(tag="K-101", pv="discharge pressure", severity=Severity.ALARM, side="hi")
+
+    events = manager.evaluate([point], sim_time=0.0)
+    history.record_events(events)
+
+    assert history.tag_of(events[0].id) == "K-101"

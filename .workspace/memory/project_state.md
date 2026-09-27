@@ -148,7 +148,14 @@ scope, and item 1 in particular reads like a bug and is not.
   since a node has exactly one measured quantity (its pressure) and needs no
   new key. That only covers pressure loops - a level, flow or temperature PV
   still has nothing to bind to. Transmitters only have `bias` - no stuck or
-  range-clamped reading (T13-2).
+  range-clamped reading (T13-2). T9-4 (`app/engine/engine.py`) hit the same
+  gap from the `limits` side: a `(tag, variable)` resolves only against a
+  field the device's own `get_state()` publishes, so `V-101.level` classifies
+  live but `K-101.discharge_pressure` and `P-101.flow` - both solved
+  node/branch values - are configured in `olefins_lite.yaml` and warned about
+  once, at Engine construction, then never evaluated. No task owns the general
+  device-to-point resolver either loops or limits would need to close this for
+  good.
 - **A stopped machine keeps a small residual flow.** Never-run reads exactly
   `0.0`; *stopped* settles just off zero and stays: **0.055 GPM** (pump),
   **0.004 SCFM** (compressor). At shutoff the branch curve is flat, so the root

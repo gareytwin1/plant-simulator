@@ -44,7 +44,7 @@ from dataclasses import dataclass
 from enum import IntEnum
 from typing import Literal
 
-_Side = Literal["lo", "hi"]
+Side = Literal["lo", "hi"]
 
 _LIMIT_ORDER: tuple[str, ...] = (
     "trip_lo",
@@ -88,7 +88,7 @@ class Limits:
 @dataclass(frozen=True)
 class _Band:
     severity: Severity
-    side: _Side
+    side: Side
     threshold: float
 
 
@@ -126,6 +126,14 @@ class Evaluator:
     @property
     def severity(self) -> Severity:
         return self._band.severity if self._band is not None else Severity.NORMAL
+
+    @property
+    def side(self) -> Side | None:
+        """Which limit the held band is against, or None at NORMAL - a
+        read-only projection of the same private band `severity` already
+        exposes, for a caller that needs to know which side engaged (T9-4's
+        ISA-style band label, for one)."""
+        return self._band.side if self._band is not None else None
 
     def evaluate(self, value: float, dt: float) -> Severity:
         if dt < 0.0:
@@ -172,3 +180,14 @@ class Evaluator:
     def _clear_pending(self) -> None:
         self._pending = None
         self._pending_elapsed = 0.0
+
+
+def isa_band(severity: Severity, side: Side) -> str:
+    """The ISA-style band label for a severity/side pair: the side repeated
+    once per step above NORMAL - "lo"/"hi" at WARNING, "lolo"/"hihi" at
+    ALARM, "lololo"/"hihihi" at TRIP (C4's snapshot example shows the
+    WARNING/hi case: `{"band": "hi", ...}`). NORMAL has no side and is never
+    passed here - a caller filters it out before asking for a label, the same
+    way `app.alarms.manager` builds its own HI/HIHI/HIHIHI suffix from a
+    `Severity` and a side."""
+    return side * severity.value

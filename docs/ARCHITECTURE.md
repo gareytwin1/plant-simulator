@@ -6,8 +6,9 @@ toward, and who owns which piece of state.
 The two are kept strictly separate in this document. Blurring them has already
 misled sessions. As of **T4-4 (Checkpoint B) the plant does solve as a
 network**, as of **T5-2 and T5-3 it solves as several coupled domains**, and as
-of **T2-6 a background scheduler, not a browser, advances it**. What is still
-ahead is everything the solved plant feeds — controllers, envelopes, alarms,
+of **T2-6 a background scheduler, not a browser, advances it**. Controllers
+(T8-4) and envelope classification (T9-4) both run in the engine step now.
+What is still ahead is everything else the solved plant feeds — alarms,
 trips, scenarios, scoring and the console. **None of those exist.**
 
 For current status and task-level detail see
@@ -83,8 +84,14 @@ An `Engine` built with no topology — `Engine(devices)`, the form that predates
 T4-4 — still integrates and nothing more; its snapshot reports the trivial
 converged placeholder and empty `nodes` and `streams`. The snapshot's
 `controllers` section carries one row per loop the engine executes (T8-4),
-so it is empty for a plant with no `controllers` key; `envelope` and `alarms`
-are empty for **every** engine, connected or not: nothing fills them yet.
+so it is empty for a plant with no `controllers` key; `envelope` carries one
+row per `(tag, variable)` currently outside its configured limits (T9-4), so
+it is empty for a plant with no `limits` key **or** whose configured points
+all read NORMAL — and empty too for a `limits` entry naming a `variable`
+this engine cannot yet resolve to a published point (only one a device's own
+`get_state()` carries can be, today; see `app/engine/engine.py`'s module
+docstring). `alarms` is empty for **every** engine, connected or not: nothing
+fills it yet.
 
 A solve that fails to converge is reported, never raised and never guessed at:
 the plant keeps the state it had, `Engine.step()` still advances time and slow
@@ -198,7 +205,7 @@ Engine.step(dt)
   └── 7. publish Snapshot (C4)       → immutable, the single read contract [live]
             │
             ├── controllers (C-)   PID loops, auto/manual  [live, T8-4]
-            ├── envelopes          normal bands + excursion time [M9]
+            ├── envelopes          normal bands + excursion time [live, T9-4]
             ├── alarms (C6/C7)     symptom-named events          [M10]
             ├── trips/interlocks   protective actions            [M11]
             ├── historian/trends   ring buffer                   [M17]
@@ -350,6 +357,10 @@ app/
                           per final element; Engine routes every loop
                           output through it, no operator or interlock
                           route posts to it yet
+  envelope/
+    evaluator.py          T9-1: Evaluator/Limits → Severity, deadband + on-delay
+    loader.py             load_limits(): C3 limits → Evaluator per (tag, variable)
+    tracker.py            T9-3: ExcursionTracker — time-in-band + peak
   plant/
     topology.py           C2: Node / Branch / Stream / Topology  [SPINE]
     thermo.py             Heat capacity, stream mixing, ThermalDevice hook
@@ -395,6 +406,7 @@ and they have repeatedly been conflated:
 | **Wired into the browser pages** | Only K-101 and P-101, each alone on a single-device plant between two fixed boundaries. |
 | **Present in a reference config** | `liquid_transfer.yaml` and `gas_compression.yaml` (single-domain, T3-4), `liquid_valve_train.yaml` (T7-1), and `olefins_lite.yaml` (T5-5) — the two-domain train coupled through V-101 inventory. It is not yet the full seven-device V1 train: `E-101` is absent, and PV-101/LV-101 are manual. |
 | **Controllers** | The PID block, modes, loop config and loop execution (T8-1 to T8-4) all exist. PIC-101 is configured and executes every step, but MANUAL: the PID is direct-acting only, which is the wrong way round for a vent valve, so in AUTO it would drive PV-101 closed (see the fixture's `controllers` comment). LIC-101 is not configured at all - a `controllers.pv` can only name a node's pressure until instruments are in C3. |
+| **Envelopes** | The evaluator, limit config and excursion tracker (T9-1 to T9-3) all exist, and Engine classifies every resolved limit each step (T9-4). Only `V-101.level` resolves - `K-101.discharge_pressure` and `P-101.flow` are configured but unresolvable today, the same tag-to-point gap `LIC-101` above hits, generalised past pressure. |
 | **Not built at all** | `E-101`, the heat exchanger. |
 
 ### What ADR 0002 settles about the separator

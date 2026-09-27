@@ -41,7 +41,11 @@ the machine's load or speed target, which is a different output with a
 different owner. A valve's output is its position target, named by the bare
 valve tag and bound to `set_position_target` - exactly the output a loop
 (T8-3) binds - so a trip on a loop-driven valve joins the loop's binding
-rather than contending for a second one. That needs the loop bound first:
+rather than contending for a second one. The loop is not told its output is
+overridden: in AUTO it keeps computing for the length of the trip and can
+saturate, so handing back on release is not bumpless. Tracking a
+loop to its arbitrated output belongs in `Engine._control`, a spine change
+this task does not make. Sharing the binding needs the loop bound first:
 build the `TripSystem` after the engine has every loop, as
 `Engine.from_plant` does at construction, or `add_loop` will find the valve
 already bound. The valve's own travel clamp turns

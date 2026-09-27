@@ -309,10 +309,13 @@ class Trigger:
         return cls(id=trigger_id, kind=kind, one_shot=one_shot)
 
 
-# Every key a trigger config may carry regardless of type, per
-# scenario.schema.json (which sets additionalProperties: false on a
-# trigger, even though nothing under app/ validates against the schema
-# itself yet - this check is the from_config-side half of that).
+# Every key a trigger config may carry regardless of type. Stricter than
+# scenario.schema.json itself: the schema's additionalProperties: false
+# lists sim_time/condition/action as siblings with no oneOf/if-then tying
+# each to its own "type", so today it would accept a time trigger carrying
+# a stray "condition" key that from_config rejects. Deliberate - narrowing
+# the schema to match is config/schema/scenario.schema.json's file, T14-1's,
+# not this task's.
 _COMMON_TRIGGER_KEYS = frozenset({"id", "type", "one_shot"})
 
 

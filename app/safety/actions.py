@@ -95,7 +95,7 @@ from app.engine.snapshot import Snapshot
 from app.equipment.base import Equipment
 from app.equipment.compressor import GasCompressor
 from app.equipment.pump import CentrifugalPump
-from app.equipment.valve import FAIL_CLOSED, ControlValve
+from app.equipment.valve import FAIL_CLOSED, FAIL_OPEN, ControlValve
 from app.plant.loader import Plant
 from app.safety.interlocks import Interlock, load_interlocks
 from app.statetypes import JSONValue
@@ -147,8 +147,13 @@ def _position_actuator(device: Equipment) -> Actuator:
 def _fail_value(device: Equipment) -> float:
     assert isinstance(device, ControlValve)
 
-    return CLOSED if device.fail_action == FAIL_CLOSED else OPEN
+    return FAIL_TARGETS[device.fail_action]
 
+
+FAIL_TARGETS = {
+    FAIL_CLOSED: CLOSED,
+    FAIL_OPEN: OPEN,
+}
 
 STOP_MACHINE = Verb(_run_output, _run_actuator, lambda device: STOP)
 
@@ -217,6 +222,7 @@ class TripSystem:
         equipment: Mapping[str, Equipment],
         arbiter: CommandArbiter,
         snapshot: Snapshot,
+        _stacklevel: int = 3,
     ) -> None:
         self.interlocks = dict(interlocks)
         self.arbiter = arbiter
@@ -241,7 +247,7 @@ class TripSystem:
                 + "\n".join(f"  {error}" for error in errors),
             )
 
-        self.evaluated = self._resolve_conditions(snapshot)
+        self.evaluated = self._resolve_conditions(snapshot, _stacklevel)
         self._last_time: float | None = None
 
         for actions in self.actions.values():
@@ -264,6 +270,7 @@ class TripSystem:
             equipment,
             arbiter,
             snapshot,
+            _stacklevel=4,
         )
 
     @property
@@ -275,6 +282,13 @@ class TripSystem:
         each one's demands, and apply the arbiter. Call it immediately before
         `Engine.step`, on the latest snapshot - see the module docstring."""
         dt = 0.0 if self._last_time is None else snapshot.sim_time - self._last_time
+
+        if dt < 0.0:
+            raise ValueError(
+                f"snapshot at sim_time {snapshot.sim_time} is older than the "
+                f"last one this trip system evaluated, at {self._last_time}",
+            )
+
         self._last_time = snapshot.sim_time
 
         for tag in self.evaluated:
@@ -313,7 +327,7 @@ class TripSystem:
 
         return errors
 
-    def _resolve_conditions(self, snapshot: Snapshot) -> tuple[str, ...]:
+    def _resolve_conditions(self, snapshot: Snapshot, stacklevel: int) -> tuple[str, ...]:
         evaluated: list[str] = []
 
         for tag, interlock in self.interlocks.items():
@@ -325,7 +339,7 @@ class TripSystem:
                     f"interlock {tag} condition {condition.tag}.{condition.variable} "
                     f"does not resolve against the equipment section the snapshot "
                     f"publishes and will not be evaluated",
-                    stacklevel=3,
+                    stacklevel=stacklevel,
                 )
                 continue
 

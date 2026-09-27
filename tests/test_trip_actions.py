@@ -386,6 +386,33 @@ def test_a_paused_engine_advances_no_trip_delay():
     assert pump.running
 
 
+def test_an_older_snapshot_is_refused_before_any_interlock_moves():
+    pump = running_machine(CentrifugalPump)
+    engine, trips, trigger = build([pump], interlock("XS-1", ["M-1.stop"], delay_s=5.0))
+    stale = engine.snapshot()
+    trigger.set_position_target(0.0)
+    run(engine, trips, 12.0)
+    pending = trips.interlocks["XS-1"].pending_elapsed
+
+    with pytest.raises(ValueError, match="older than"):
+        trips.update(stale)
+
+    assert trips.interlocks["XS-1"].pending_elapsed == pytest.approx(pending)
+
+
+def test_an_unresolvable_condition_is_warned_about_at_the_callers_line():
+    plant = load_plant_file(PLANT_FILE)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        engine = Engine.from_plant(plant)
+
+    with pytest.warns(UserWarning, match="PSHH-101") as caught:
+        TripSystem.from_plant(plant, engine.equipment, engine.arbiter, engine.snapshot())
+
+    assert caught[0].filename == __file__
+
+
 # Configuration is checked up front
 
 

@@ -224,8 +224,8 @@ def test_lv_101_is_manual_with_no_controller():
 
 def test_pic_101_loads_and_binds_to_n_201_and_pv_101():
     """T8-3: the one loop this fixture wires. It resolves and binds at load
-    exactly like every other reference here, but nothing at engine-step time
-    reads it yet (T8-4), so it is configured MANUAL rather than AUTO."""
+    exactly like every other reference here, and is configured MANUAL - see
+    the controllers comment in the fixture for why it cannot run in AUTO."""
     plant = load()
 
     binding = load_loops(plant)["PIC-101"]
@@ -233,6 +233,20 @@ def test_pic_101_loads_and_binds_to_n_201_and_pv_101():
     assert binding.pv_node is plant.nodes["N-201"]
     assert binding.out_tag == "PV-101"
     assert binding.loop.mode is Mode.MANUAL
+
+
+def test_pic_101_holds_pv_101_where_the_fixture_puts_it():
+    """Binding and executing PIC-101 moves nothing: in MANUAL it drives
+    PV-101 at the travel the fixture configures, so the plant's design point
+    is exactly what it was before any loop ran."""
+    plant = load()
+    engine = Engine.from_plant(plant)
+    start(plant)
+
+    snapshot = run(engine, 200)
+
+    assert snapshot.controllers["PIC-101"]["out"] == pytest.approx(0.5)
+    assert plant.devices["PV-101"].position == pytest.approx(0.5)
 
 
 def test_round_trip_plant_config_plant_is_identical():
@@ -412,7 +426,9 @@ def test_opening_pv_101_lowers_the_pressure():
     run(engine, 6000)
     before = plant.devices["V-101"].pressure
 
-    plant.devices["PV-101"].set_position_target(0.8)
+    # PIC-101 drives PV-101 every step (T8-4), so an operator moves it the
+    # way a loop-owned valve is moved: through the loop's manual output.
+    engine.loops["PIC-101"].loop.manual_output = 0.8
     run(engine, 6000)
     after = plant.devices["V-101"].pressure
 
@@ -427,7 +443,9 @@ def test_closing_pv_101_raises_the_pressure():
     run(engine, 6000)
     before = plant.devices["V-101"].pressure
 
-    plant.devices["PV-101"].set_position_target(0.35)
+    # PIC-101 drives PV-101 every step (T8-4), so an operator moves it the
+    # way a loop-owned valve is moved: through the loop's manual output.
+    engine.loops["PIC-101"].loop.manual_output = 0.35
     run(engine, 6000)
     after = plant.devices["V-101"].pressure
 

@@ -141,26 +141,15 @@ def stream_events(
             return
 
 
-def _set_send_timeout(environ: Mapping[str, Any], timeout_seconds: float) -> None:
-    """Best-effort transport-level backstop for a write that never
-    completes at all.
-
-    `stream_events`'s own dropout check only runs once a write returns
-    control to it, so a client whose socket is simply never drained -
-    not merely slow - parks this thread on that write forever; nothing in
-    a generator can interrupt a blocking call it does not itself make.
-    Werkzeug's development server hands the raw socket through under this
-    environ key, and a socket timeout bounds *any* blocking operation on
-    it, including the write this module never sees. `environ` is a WSGI
-    environ - a mapping of a shape nothing here types - so the value found
-    is read as `Any`; a server that does not expose this key leaves the
-    dict without it, and this is silently a no-op, since it is a backstop
-    and not the primary mechanism.
+def _socket_of(environ: Mapping[str, Any]) -> Any:
+    """The raw socket behind this request, if the WSGI server hands one
+    through - Werkzeug's development server does, under this environ key.
+    `environ` is a WSGI environ - a mapping of a shape nothing here types -
+    so both the key lookup and the return are `Any`; a server that does not
+    expose this key yields `None`, which every caller here treats as "no
+    transport-level backstop available", not an error.
     """
-    sock = environ.get("werkzeug.socket")
-
-    if sock is not None:
-        sock.settimeout(timeout_seconds)
+    return environ.get("werkzeug.socket")
 
 
 def create_stream_blueprint(
@@ -181,13 +170,44 @@ def create_stream_blueprint(
     @blueprint.get("/api/stream")
     def get_stream() -> Response:
         # Resolved here, under the real request context, and captured by
-        # the generator's closure - stream_events never touches flask.g or
-        # flask.request itself, so it needs no stream_with_context.
+        # generate()'s closure - stream_events never touches flask.g or
+        # flask.request itself, so it needs no stream_with_context. A dead
+        # source gets a 204: EventSource treats that as "stop reconnecting",
+        # rather than retrying forever against a plant that no longer
+        # advances (see the module docstring's `_is_dead` note).
         source = get_source()
-        _set_send_timeout(request.environ, interval_seconds * DROPOUT_INTERVALS)
+
+        if _is_dead(source):
+            return Response(status=204)
+
+        sock = _socket_of(request.environ)
+        previous_timeout = sock.gettimeout() if sock is not None else None
+
+        if sock is not None:
+            # Best-effort transport-level backstop for a write that never
+            # completes at all: `stream_events`'s own dropout check only
+            # runs once a write returns control to it, so a client whose
+            # socket is simply never drained parks this thread on that
+            # write forever otherwise; nothing in a generator can
+            # interrupt a blocking call it does not itself make. A socket
+            # timeout bounds *any* blocking operation on it, including the
+            # write this module never sees.
+            sock.settimeout(interval_seconds * DROPOUT_INTERVALS)
+
+        def generate() -> Iterator[str]:
+            # This connection may be kept alive past this stream (HTTP/1.1
+            # keep-alive) and reused for something else entirely - restore
+            # what was there before so a later request or idle read on the
+            # same socket does not inherit a push-rate-scaled timeout that
+            # has nothing to do with it.
+            try:
+                yield from stream_events(source, interval_seconds)
+            finally:
+                if sock is not None:
+                    sock.settimeout(previous_timeout)
 
         return Response(
-            stream_events(source, interval_seconds),
+            generate(),
             mimetype="text/event-stream",
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )

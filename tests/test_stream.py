@@ -8,6 +8,7 @@ import pytest
 from flask import Flask
 from werkzeug.serving import make_server
 
+import app.api.stream as stream_module
 from app.api.stream import create_stream_blueprint, format_event, stream_events
 from app.engine.engine import Engine
 from app.engine.scheduler import Scheduler
@@ -257,7 +258,14 @@ def test_get_stream_disconnect_and_reconnect_each_see_the_current_state():
         second.close()
 
 
-def test_a_slow_consumer_does_not_stall_the_engines_own_scheduler():
+def test_an_open_stream_never_blocks_the_schedulers_own_worker():
+    # The Flask test client has no real socket and so no real backpressure -
+    # this does not exercise a slow *client*; see
+    # test_a_client_that_never_reads_is_dropped_by_the_transport_backstop
+    # for that. What this proves is narrower but still real: an open,
+    # unread stream holds no lock the scheduler's worker thread needs, so
+    # that thread keeps stepping regardless of whether this connection is
+    # ever read again.
     engine = Engine(equipment=[GasCompressor()])
     scheduler = Scheduler(engine, step_seconds=0.01)
     scheduler.start()
@@ -272,10 +280,6 @@ def test_a_slow_consumer_does_not_stall_the_engines_own_scheduler():
             _read_events(response, 1)
             before = scheduler.snapshot().sim_time
 
-            # A "slow consumer" that never reads any more of this response;
-            # nothing about that can be observed from here except that the
-            # scheduler's own worker thread - unrelated to this connection -
-            # keeps advancing regardless.
             time.sleep(0.2)
 
             after = scheduler.snapshot().sim_time
@@ -289,35 +293,28 @@ def test_a_slow_consumer_does_not_stall_the_engines_own_scheduler():
 # ---- a client that never reads at all: the real transport backstop ----
 
 
-def _wait_until_closed(sock, timeout_seconds):
-    """Poll `sock` for the server having closed its end, without ever
-    sending anything back ourselves - a real client that stops reading,
-    not one that hangs up. Drains whatever was already buffered and
-    returns as soon as either EOF or a reset is seen, or False once
-    `timeout_seconds` passes with the connection still apparently open."""
-    deadline = time.monotonic() + timeout_seconds
-    sock.settimeout(0.2)
-
-    while time.monotonic() < deadline:
-        try:
-            data = sock.recv(65536)
-        except socket.timeout:
-            continue
-        except OSError:
-            return True
-
-        if data == b"":
-            return True
-
-    return False
-
-
-def test_a_client_that_never_reads_is_dropped_by_the_transport_backstop():
+def test_a_client_that_never_reads_is_dropped_by_the_transport_backstop(monkeypatch):
     # stream_events's own dropout check runs only once a write returns
     # control to it, so it cannot see a write that blocks forever - this
     # drives the real Werkzeug development server over a real socket and
-    # never reads from it, to prove create_stream_blueprint's socket-timeout
-    # backstop (not stream_events itself) is what bounds that case.
+    # never reads from it at all, to prove create_stream_blueprint's
+    # socket-timeout backstop (not stream_events itself) is what bounds
+    # that case. Detection is via an Event set in generate()'s own finally
+    # (wrapped around the real stream_events here) rather than by racing a
+    # fixed sleep against however long this host's real TCP buffers take
+    # to fill: a client that drains anything to check for closure would
+    # itself relieve the backpressure under test.
+    closed = threading.Event()
+    real_stream_events = stream_module.stream_events
+
+    def instrumented(*args, **kwargs):
+        try:
+            yield from real_stream_events(*args, **kwargs)
+        finally:
+            closed.set()
+
+    monkeypatch.setattr(stream_module, "stream_events", instrumented)
+
     app = Flask(__name__)
     app.register_blueprint(create_stream_blueprint(lambda: PaddedFakeSource(), 0.001))
 
@@ -333,13 +330,7 @@ def test_a_client_that_never_reads_is_dropped_by_the_transport_backstop():
                 b"GET /api/stream HTTP/1.1\r\nHost: localhost\r\nConnection: keep-alive\r\n\r\n"
             )
 
-            # Give the server time to actually fill the socket's real send
-            # buffer and hit the transport-level timeout - reading anything
-            # before then would drain the buffer ourselves and mask the
-            # very scenario under test (a client that never reads at all).
-            time.sleep(3.0)
-
-            assert _wait_until_closed(client, timeout_seconds=10.0), (
+            assert closed.wait(timeout=15.0), (
                 "a client that never reads was never dropped by the server"
             )
         finally:
@@ -347,3 +338,16 @@ def test_a_client_that_never_reads_is_dropped_by_the_transport_backstop():
     finally:
         server.shutdown()
         thread.join(timeout=5.0)
+
+
+def test_dead_at_connect_gets_a_204_so_eventsource_stops_retrying():
+    source = FakeSource()
+    source.closed = True
+
+    app = Flask(__name__)
+    app.register_blueprint(create_stream_blueprint(lambda: source, interval_seconds=0.01))
+    client = app.test_client()
+
+    response = client.get("/api/stream")
+
+    assert response.status_code == 204

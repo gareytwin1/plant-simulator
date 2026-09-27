@@ -148,25 +148,10 @@ def create_action_blueprint(
         if not isinstance(target, str) or not isinstance(action, str):
             return jsonify({"error": "target and action must be strings"}), 400
 
-        if value is not None and (
-            isinstance(value, bool) or not isinstance(value, (int, float))
-        ):
-            return jsonify({"error": "value must be a number or null"}), 400
-
-        if value is not None and not math.isfinite(value):
-            return jsonify({"error": "value must be finite"}), 400
-
         engine = get_engine()
 
         try:
-            apply_action(
-                engine.equipment,
-                get_log(),
-                engine.clock.sim_time,
-                target,
-                action,
-                None if value is None else float(value),
-            )
+            apply_action(engine.equipment, get_log(), engine.clock.sim_time, target, action, value)
         except (KeyError, UnknownAction, ValueError) as error:
             return jsonify({"error": str(error)}), 400
 

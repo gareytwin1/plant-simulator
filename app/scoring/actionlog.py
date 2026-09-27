@@ -13,7 +13,12 @@ count unnecessary actions.
 `ActionEvent` is the C6 event record shape, this module's own type="action"
 corner of it - same pattern as `app.alarms.manager.Event` (type="alarm"):
 each contract owner fills in its own fixed `type`, since no shared
-`app/events.py` exists yet to hang a single class off of.
+`app/events.py` exists yet to hang a single class off of. `priority` reuses
+`app.alarms.manager.Priority` rather than inventing a second scale, and every
+action carries `Priority.LOW`: an operator's own considered input is never
+something demanding attention the way an alarm is, but the field still has to
+be present and comparable so a mixed event stream (console, historian) can
+sort or filter by priority without a type-specific special case for actions.
 """
 
 from __future__ import annotations
@@ -21,6 +26,8 @@ from __future__ import annotations
 from collections.abc import Iterator, Mapping
 from dataclasses import dataclass, field
 from typing import Literal
+
+from app.alarms.manager import Priority
 
 
 @dataclass(frozen=True)
@@ -30,6 +37,7 @@ class ActionEvent:
     id: str
     sim_time: float
     tag: str
+    priority: Priority
     message: str
     data: Mapping[str, object] = field(default_factory=dict)
     type: Literal["action"] = "action"
@@ -53,6 +61,7 @@ class ActionLog:
             id=f"action-{len(self._events)}",
             sim_time=sim_time,
             tag=tag,
+            priority=Priority.LOW,
             message=f"{tag} {action}{detail}",
             data={"action": action, "value": value},
         )

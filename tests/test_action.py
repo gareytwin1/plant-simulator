@@ -205,6 +205,24 @@ def test_post_action_rejects_a_raw_nan_literal_value():
     assert len(log) == 0
 
 
+def test_post_action_rejects_a_string_value_for_a_value_taking_action():
+    # The handler does only shape validation (target/action are strings);
+    # value correctness is apply_action's job alone, exercised here through
+    # the full HTTP path rather than just the pure function.
+    app, engine, log = build_app()
+    client = app.test_client()
+
+    response = client.post(
+        "/api/action",
+        json={"target": "K-101", "action": "set_load_target", "value": "abc"},
+    )
+
+    assert response.status_code == 400
+    assert "error" in response.get_json()
+    assert engine.equipment["K-101"].load_target == pytest.approx(0.0)
+    assert len(log) == 0
+
+
 def test_post_action_non_json_body_is_rejected():
     app, _engine, _log = build_app()
     client = app.test_client()

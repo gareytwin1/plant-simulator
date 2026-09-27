@@ -1,5 +1,6 @@
 import pytest
 
+from app.alarms.manager import Priority
 from app.scoring.actionlog import ActionLog
 
 
@@ -12,6 +13,7 @@ def test_record_returns_a_c6_shaped_event():
     assert event.sim_time == pytest.approx(12.5)
     assert event.tag == "K-101"
     assert event.type == "action"
+    assert event.priority == Priority.LOW
     assert event.data == {"action": "start", "value": None}
 
 

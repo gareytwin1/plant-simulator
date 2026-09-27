@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "27 September 2026",
-  "main_sha": "37338190707656a5bda6386f2a748c748c9fdc73",
-  "tests_passing_on_main": 1757,
+  "main_sha": "6cafbd25d11209126bea4ca43ec85098923a73ba",
+  "tests_passing_on_main": 1803,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -93,7 +93,7 @@
     },
     "M15": {
       "name": "Action Log and Scoring",
-      "complete": 0,
+      "complete": 1,
       "total": 4
     },
     "M16": {
@@ -119,8 +119,8 @@
   },
   "totals": {
     "tasks": 115,
-    "complete": 75,
-    "startable_now": 15
+    "complete": 76,
+    "startable_now": 16
   },
   "tasks": [
     {
@@ -1768,8 +1768,7 @@
       "status_key": "todo",
       "startable": false,
       "blocked_by": [
-        "T14-4",
-        "T15-1"
+        "T14-4"
       ],
       "note": ""
     },
@@ -1808,10 +1807,9 @@
         "app/scoring/actionlog.py",
         "app/api/action.py"
       ],
-      "status": "Ready for Review",
-      "status_key": "review",
-      "startable": true,
-      "note": "PR #103"
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged 6cafbd2 (PR #103). 1803 tests passing on main post-merge."
     },
     {
       "id": "T15-2",
@@ -1831,7 +1829,6 @@
       "status_key": "todo",
       "startable": false,
       "blocked_by": [
-        "T15-1",
         "T10-3"
       ],
       "note": ""
@@ -2097,10 +2094,7 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "T15-1"
-      ],
+      "startable": true,
       "note": ""
     },
     {

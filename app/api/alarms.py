@@ -26,6 +26,13 @@ NORMAL, or never raised - reports `recorded: false` rather than writing a
 second `AcknowledgeRecord`; the read-check-act-record sequence runs under one
 lock so two concurrent requests for the same id cannot both see "not yet
 acknowledged" and both record.
+
+`AlarmHistory.tag_of` is checked before `manager.acknowledge()` runs, not
+after - `record_acknowledge()` can still raise if history and manager have
+drifted apart (a fresh history for a reused manager; a missed
+`record_events` call), and checking first means that failure leaves the
+manager's state untouched instead of acknowledging an alarm whose ack then
+never reaches the debrief.
 """
 
 from __future__ import annotations
@@ -91,6 +98,7 @@ def create_alarm_blueprint(
             return jsonify({"error": "alarm_id must be a string"}), 400
 
         manager = get_manager()
+        history = get_history()
 
         with lock:
             alarm = manager.get(alarm_id)
@@ -100,9 +108,14 @@ def create_alarm_blueprint(
             if alarm.acknowledged:
                 return jsonify({"ok": True, "recorded": False}), 200
 
+            if history.tag_of(alarm_id) is None:
+                return jsonify(
+                    {"error": f"alarm_id {alarm_id!r} has no recorded event in history"}
+                ), 409
+
             sim_time = get_sim_time()
             manager.acknowledge(alarm_id, sim_time)
-            get_history().record_acknowledge(alarm_id, sim_time)
+            history.record_acknowledge(alarm_id, sim_time)
 
         return jsonify({"ok": True, "recorded": True}), 200
 

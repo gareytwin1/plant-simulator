@@ -89,6 +89,16 @@ class AlarmHistory:
                 self._entries.append(event)
                 self._tag_of[event.id] = event.tag
 
+    def tag_of(self, alarm_id: str) -> str | None:
+        """The tag last recorded for `alarm_id`'s raising event, or `None`
+        if this history has never recorded one. A caller about to change
+        other state on the strength of `record_acknowledge` succeeding
+        (`AlarmManager.acknowledge`, notably) should check this first -
+        once that other state has changed, a `record_acknowledge` that then
+        raises leaves nothing to undo it."""
+        with self._lock:
+            return self._tag_of.get(alarm_id)
+
     def record_acknowledge(self, alarm_id: str, sim_time: float) -> None:
         """Record that `alarm_id` was acknowledged. Raises `KeyError` if this
         history has never recorded an event for `alarm_id` - a caller only

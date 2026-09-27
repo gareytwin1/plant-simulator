@@ -157,26 +157,75 @@ def test_post_acknowledge_of_an_alarm_that_cleared_before_being_acked_still_reco
     assert manager.get(alarm_id).state is AlarmState.NORMAL
 
 
-def test_post_acknowledge_concurrent_requests_record_exactly_once():
+def test_post_acknowledge_of_an_id_missing_from_history_is_a_409_and_leaves_state_unchanged():
+    # Simulates history and manager having drifted apart - a fresh history
+    # for a reused manager, or a missed record_events call: the manager has
+    # a real, unacknowledged alarm this history was never told about.
     app, manager, history, sim_time = build_app()
-    alarm_id = raise_alarm(manager, history, sim_time["value"])
+    client = app.test_client()
+    point = EnvelopeEvent(tag="K-101", pv="discharge pressure", severity=Severity.ALARM, side="hi")
+    events = manager.evaluate([point], sim_time=sim_time["value"])
+    alarm_id = events[0].id
+    # Deliberately not calling history.record_events(events).
 
-    barrier = threading.Barrier(2)
+    response = client.post("/api/alarms/acknowledge", json={"alarm_id": alarm_id})
+
+    assert response.status_code == 409
+    assert "error" in response.get_json()
+    assert len(history) == 0
+    assert manager.get(alarm_id).acknowledged is False
+
+
+def test_post_acknowledge_concurrent_requests_record_exactly_once():
+    # get_sim_time runs inside the blueprint's locked section, so blocking
+    # the first request there and only releasing it once the second request
+    # has been sent proves the lock actually serializes the two - a version
+    # of this test that just lines threads up before each POST would pass
+    # even with the lock removed, since the requests would still very likely
+    # run one after another.
+    manager = AlarmManager()
+    history = AlarmHistory(capacity=100)
+    alarm_id = raise_alarm(manager, history, 0.0)
+
+    first_thread_entered = threading.Event()
+    release_first_thread = threading.Event()
+    call_count = {"value": 0}
+    call_count_lock = threading.Lock()
+
+    def get_sim_time() -> float:
+        with call_count_lock:
+            call_count["value"] += 1
+            is_first_call = call_count["value"] == 1
+        if is_first_call:
+            first_thread_entered.set()
+            assert release_first_thread.wait(timeout=5.0)
+        return 0.0
+
+    app = Flask(__name__)
+    app.register_blueprint(create_alarm_blueprint(lambda: manager, lambda: history, get_sim_time))
+
     responses: list[object] = []
-    lock = threading.Lock()
+    responses_lock = threading.Lock()
 
     def post() -> None:
-        barrier.wait()
         client = app.test_client()
         response = client.post("/api/alarms/acknowledge", json={"alarm_id": alarm_id})
-        with lock:
+        with responses_lock:
             responses.append(response.get_json())
 
-    threads = [threading.Thread(target=post) for _ in range(2)]
-    for thread in threads:
-        thread.start()
-    for thread in threads:
-        thread.join()
+    first = threading.Thread(target=post)
+    first.start()
+    assert first_thread_entered.wait(timeout=5.0)
+
+    second = threading.Thread(target=post)
+    second.start()
+    second.join(timeout=0.2)
+    assert second.is_alive()  # blocked behind the lock, not yet past its own check
+    assert len(history) == 1  # only the original raise; neither ack recorded yet
+
+    release_first_thread.set()
+    first.join(timeout=5.0)
+    second.join(timeout=5.0)
 
     recorded = [body for body in responses if body["recorded"] is True]
     assert len(recorded) == 1

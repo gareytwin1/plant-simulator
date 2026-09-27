@@ -249,12 +249,21 @@ class Trigger:
 
     @classmethod
     def from_config(cls, config: Mapping[str, Any]) -> Trigger:
+        if "id" not in config:
+            raise ValueError(f"a trigger config is missing 'id': {config!r}")
+
         trigger_id = config["id"]
+        if not isinstance(trigger_id, str) or not trigger_id:
+            raise ValueError(f"a trigger id must be a non-empty string, got {trigger_id!r}")
+
+        if "type" not in config:
+            raise ValueError(f"trigger {trigger_id!r} is missing 'type'")
+
         trigger_type = config["type"]
         kind: TriggerKind
 
         if trigger_type == "time":
-            kind = TimeTrigger(sim_time=float(_required(config, "sim_time", trigger_id)))
+            kind = TimeTrigger(sim_time=_required_number(config, "sim_time", trigger_id))
         elif trigger_type == "condition":
             kind = ConditionTrigger(
                 condition=Condition.parse(_required(config, "condition", trigger_id)),
@@ -284,6 +293,18 @@ def _required(config: Mapping[str, Any], key: str, trigger_id: str) -> Any:
         )
 
     return config[key]
+
+
+def _required_number(config: Mapping[str, Any], key: str, trigger_id: str) -> float:
+    value = _required(config, key, trigger_id)
+
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"trigger {trigger_id!r} has {key}={value!r}, which is not a number")
+
+    if not math.isfinite(value):
+        raise ValueError(f"trigger {trigger_id!r} has {key}={value!r}, which is not finite")
+
+    return float(value)
 
 
 class TriggerEvaluator:

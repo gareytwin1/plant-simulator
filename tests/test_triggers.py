@@ -314,6 +314,28 @@ def test_from_config_rejects_a_non_boolean_one_shot():
         Trigger.from_config({"id": "t1", "type": "time", "sim_time": 1.0, "one_shot": "false"})
 
 
+def test_from_config_rejects_a_config_missing_id():
+    with pytest.raises(ValueError, match="id"):
+        Trigger.from_config({"type": "time", "sim_time": 1.0})
+
+
+@pytest.mark.parametrize("bad_id", [123, "", None])
+def test_from_config_rejects_a_non_string_or_empty_id(bad_id):
+    with pytest.raises(ValueError):
+        Trigger.from_config({"id": bad_id, "type": "time", "sim_time": 1.0})
+
+
+def test_from_config_rejects_a_config_missing_type():
+    with pytest.raises(ValueError, match="t1"):
+        Trigger.from_config({"id": "t1", "sim_time": 1.0})
+
+
+@pytest.mark.parametrize("bad_sim_time", [float("nan"), float("inf"), True, "soon"])
+def test_from_config_rejects_a_malformed_sim_time(bad_sim_time):
+    with pytest.raises(ValueError, match="t1"):
+        Trigger.from_config({"id": "t1", "type": "time", "sim_time": bad_sim_time})
+
+
 def test_duplicate_trigger_ids_rejected():
     triggers = [
         Trigger(id="dup", kind=TimeTrigger(sim_time=1.0)),

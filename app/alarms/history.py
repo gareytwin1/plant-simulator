@@ -31,14 +31,17 @@ own solved plant state" (AGENTS.md), one level up: this module does not own
 alarm state either.
 
 `record_events`/`record_acknowledge`/`entries` share one lock, same as
-`Historian` (T17-1): the engine's stepping thread calls `record_events` after
-every `evaluate()` while a Flask request thread reads `entries()` or calls
+`Historian` (T17-1) - for the same reason: a producer thread calling
+`record_events` (whatever wires `AlarmManager.evaluate()` into the step loop
+eventually calls it from there, not yet wired as of T10-3) can run
+concurrently with a Flask request thread reading `entries()` or calling
 `record_acknowledge`, and neither may observe a half-mutated buffer. That
 lock guards this instance's own data structures only - it says nothing about
 the order an `Event` and a later `AcknowledgeRecord` for the same id land in
 relative to each other across threads. Ordering the two against a concurrent
-`evaluate()`/`record_events()` call is the caller's problem to solve (a lock
-shared with that call site, held across both), not something bounded here.
+`record_events()` call from that other thread is whichever caller wires them
+together's problem to solve (a lock shared with that call site, held across
+both), not something bounded here.
 """
 
 from __future__ import annotations

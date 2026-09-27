@@ -84,6 +84,15 @@ class SnapshotSource(Protocol):
 # ordinary jitter so an occasional slow tick never trips it.
 DROPOUT_INTERVALS = 5.0
 
+# EventSource remembers the last retry: value it was given across every
+# later reconnect, including ones that hit an empty response - so tying it
+# to a fast push interval would let a source that goes from healthy to
+# merely erroring turn into every open console hammering the server once
+# per interval until someone notices. A floor near the browser's own
+# built-in default keeps a persistent error from becoming a self-inflicted
+# reconnect storm.
+MIN_RETRY_MS = 1000
+
 
 def format_event(snapshot: Snapshot, retry_ms: int | None = None) -> str:
     """One SSE event: a `data:` line carrying a Snapshot's C4 JSON, closed
@@ -105,7 +114,10 @@ def format_event(snapshot: Snapshot, retry_ms: int | None = None) -> str:
     try:
         body = json.dumps(payload, allow_nan=False)
     except ValueError:
-        body = json.dumps(_finite_or_none(payload))
+        # allow_nan=False again: if _finite_or_none still missed a case,
+        # that is a bug in it worth failing loudly on, not another
+        # silent lapse into invalid JSON.
+        body = json.dumps(_finite_or_none(payload), allow_nan=False)
 
     return f"{retry_line}data: {body}\n\n"
 
@@ -115,7 +127,7 @@ def _finite_or_none(value: Any) -> Any:
         return value if math.isfinite(value) else None
     if isinstance(value, dict):
         return {key: _finite_or_none(item) for key, item in value.items()}
-    if isinstance(value, list):
+    if isinstance(value, (list, tuple)):
         return [_finite_or_none(item) for item in value]
     return value
 
@@ -173,7 +185,7 @@ def stream_events(
     transport-level backstop that covers it.
     """
     dropout_seconds = interval_seconds * dropout_intervals
-    retry_ms = max(1, round(interval_seconds * 1000))
+    retry_ms = max(MIN_RETRY_MS, round(interval_seconds * 1000))
     cadence = Cadence(interval_seconds, monotonic())
     first = True
 

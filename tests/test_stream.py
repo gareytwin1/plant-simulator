@@ -180,13 +180,26 @@ def test_stream_events_sets_a_retry_line_on_the_first_event_only():
     clock, sleep = _clocked()
 
     events = list(itertools.islice(
-        stream_events(source, interval_seconds=0.25, sleep=sleep, monotonic=clock),
+        stream_events(source, interval_seconds=2.0, sleep=sleep, monotonic=clock),
         3,
     ))
 
-    assert events[0].startswith("retry: 250\n")
+    assert events[0].startswith("retry: 2000\n")
     assert not events[1].startswith("retry:")
     assert not events[2].startswith("retry:")
+
+
+def test_stream_events_floors_retry_well_above_a_fast_push_interval():
+    # EventSource keeps whatever retry: value it was last given across
+    # every later reconnect, including ones that hit an empty response -
+    # tying it to a fast push interval would turn a source that goes from
+    # healthy to merely erroring into a reconnect storm every interval.
+    source = FakeSource()
+    clock, sleep = _clocked()
+
+    first = next(stream_events(source, interval_seconds=0.01, sleep=sleep, monotonic=clock))
+
+    assert first.startswith(f"retry: {stream_module.MIN_RETRY_MS}\n")
 
 
 def test_stream_events_reflects_the_current_snapshot_not_a_queued_backlog():
@@ -238,7 +251,8 @@ def test_stream_events_dropout_ignores_time_spent_sleeping():
 
     # A 100s interval means a 100s sleep between events - the dropout
     # check must not mistake that wait for a slow write against its 500s
-    # budget (5 * 100s): `started` is captured only after sleep() returns.
+    # budget (5 * 100s): its own timestamp is taken only after sleep()
+    # returns, right before the yield it is timing.
     events = list(itertools.islice(
         stream_events(source, interval_seconds=100.0, sleep=sleep, monotonic=clock, dropout_intervals=5.0),
         2,

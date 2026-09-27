@@ -9,7 +9,10 @@ network**, as of **T5-2 and T5-3 it solves as several coupled domains**, and as
 of **T2-6 a background scheduler, not a browser, advances it**. Controllers
 (T8-4) and envelope classification (T9-4) both run in the engine step now.
 What is still ahead is everything else the solved plant feeds - alarms,
-trips, scenarios, scoring and the console. **None of those exist.**
+trips, scenarios, scoring and the console. Modules for the first four exist
+under `app/` (see the module map below), but **none of them is wired into the
+live step path**: nothing in a `Session` or `Scheduler` builds or calls them
+yet, and the console does not exist.
 
 For current status and task-level detail see
 [project_state.md](../.workspace/memory/project_state.md); for the rules that constrain changes see
@@ -359,8 +362,8 @@ app/
     loader.py             load_loops(): C3 controllers → LoopBinding
     arbitration.py        CommandArbiter: interlock > operator > controller
                           per final element; Engine routes every loop
-                          output through it, TripSystem every trip
-                          action; no operator route posts to it yet
+                          output through it; TripSystem posts trip
+                          actions to it; no operator route posts to it yet
   envelope/
     evaluator.py          T9-1: Evaluator/Limits → Severity, deadband + on-delay
     loader.py             load_limits(): C3 limits → Evaluator per (tag, variable)
@@ -381,7 +384,8 @@ app/
   safety/
     interlocks.py         T11-1: Interlock - condition, delay, latch, reset
     actions.py            T11-2: TripSystem - trip actions as interlock
-                          demands on the arbiter, run before each step
+                          demands on the arbiter; meant to run before each
+                          Engine.step, not yet called from Session/Scheduler
   plant/
     topology.py           C2: Node / Branch / Stream / Topology  [SPINE]
     thermo.py             Heat capacity, stream mixing, ThermalDevice hook

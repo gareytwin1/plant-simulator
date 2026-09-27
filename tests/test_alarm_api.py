@@ -224,8 +224,10 @@ def test_post_acknowledge_concurrent_requests_record_exactly_once():
     # Give the second request every chance to reach get_sim_time if the lock
     # were not actually holding it back - poll rather than a single fixed
     # sleep, so this only passes because the second call never arrives, not
-    # because we didn't wait long enough for it to.
-    deadline = time.monotonic() + 2.0
+    # because we didn't wait long enough for it to. Reaching get_sim_time
+    # takes microseconds when unblocked, so 0.5s is a large margin without
+    # taxing every passing run by seconds.
+    deadline = time.monotonic() + 0.5
     while time.monotonic() < deadline:
         with call_count_lock:
             reached = call_count["value"]

@@ -28,11 +28,12 @@ lock so two concurrent requests for the same id cannot both see "not yet
 acknowledged" and both record.
 
 `AlarmHistory.tag_of` is checked before `manager.acknowledge()` runs, not
-after - `record_acknowledge()` can still raise if history and manager have
-drifted apart (a fresh history for a reused manager; a missed
-`record_events` call), and checking first means that failure leaves the
-manager's state untouched instead of acknowledging an alarm whose ack then
-never reaches the debrief.
+after: a history that has drifted from the manager (a fresh history for a
+reused manager; a missed `record_events` call) has no tag for the id, and
+checking first reports that as a 409 without changing the alarm's state -
+rather than acknowledging first and having nothing to record. The tag this
+check fetches is passed straight through to `record_acknowledge()`, which
+trusts it rather than looking it up a second time.
 """
 
 from __future__ import annotations

@@ -20,20 +20,29 @@ interlock holds its demands for as long as it stays TRIPPED, so it outranks
 any operator or controller demand on the same output by precedence rather
 than by running last, and releases them the moment it is no longer TRIPPED -
 an `"auto"` interlock whose condition clears, or a `"manual"` one reset.
-Releasing moves nothing: the output falls back to whatever the next source
-demands, or holds where the trip left it if nobody demands it. A stopped
-machine therefore stays stopped after a reset until someone starts it; what
-must be true before that is allowed is T11-3's.
+Releasing moves nothing of its own: the output falls back to whatever the
+next source demands, or holds where the trip left it if nobody demands it. A
+stopped machine therefore stays stopped after a reset until someone starts
+it - unless a lower-precedence source is still holding a standing `RUN`
+demand on it, which takes effect the moment the trip releases, exactly as a
+standing operator position does on a valve. Whoever posts a run demand owns
+that; gating a restart on what must be true first is T11-3's.
 
 **The arbiter carries numbers, so starting and stopping is a number.** A
 machine's run command is its own arbiter output, `"<tag>.run"`, taking `RUN`
 (1.0) or `STOP` (0.0); its actuator calls the machine's own `start()` or
-`stop()` and refuses anything else. That keeps the run command separate from
+`stop()`. Like a discrete output driven from an analog signal it switches at
+the midpoint rather than refusing anything in between - the arbiter holds
+demands standing, so an actuator that raised on one bad value would raise on
+every apply after it, trips included. That keeps the run command separate from
 the machine's load or speed target, which is a different output with a
 different owner. A valve's output is its position target, named by the bare
 valve tag and bound to `set_position_target` - exactly the output a loop
 (T8-3) binds - so a trip on a loop-driven valve joins the loop's binding
-rather than contending for a second one. The valve's own travel clamp turns
+rather than contending for a second one. That needs the loop bound first:
+build the `TripSystem` after the engine has every loop, as
+`Engine.from_plant` does at construction, or `add_loop` will find the valve
+already bound. The valve's own travel clamp turns
 `close`'s 0.0 into `min_position`; a trip no more seals a resistance-only
 valve than a signal loss does.
 
@@ -110,15 +119,10 @@ def _run_actuator(device: Equipment) -> Actuator:
     assert isinstance(machine, (CentrifugalPump, GasCompressor))
 
     def actuate(value: float) -> None:
-        if value == RUN:
+        if value >= (RUN + STOP) / 2.0:
             machine.start()
-        elif value == STOP:
-            machine.stop()
         else:
-            raise ValueError(
-                f"{machine.tag}.run takes {RUN} (run) or {STOP} (stop), "
-                f"got {value}",
-            )
+            machine.stop()
 
     return actuate
 

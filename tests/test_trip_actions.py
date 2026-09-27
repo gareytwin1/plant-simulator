@@ -200,14 +200,55 @@ def test_a_trip_action_is_an_interlock_demand_on_the_arbiter():
     assert engine.arbiter.resolve("M-1.run").value == 0.0
 
 
-def test_the_run_output_refuses_anything_but_run_or_stop():
-    pump = running_machine(CentrifugalPump)
+@pytest.mark.parametrize(("demand", "running"), [(0.7, True), (0.2, False)])
+def test_the_run_output_switches_at_its_midpoint_and_never_raises(demand, running):
+    pump = CentrifugalPump("M-1")
+    pump.start()
     engine, trips, _ = build([pump], interlock("XS-1", ["M-1.stop"]))
 
-    engine.arbiter.demand("M-1.run", Source.OPERATOR, "console", 0.5)
+    if running:
+        pump.stop()
 
-    with pytest.raises(ExceptionGroup):
-        engine.arbiter.apply()
+    engine.arbiter.demand("M-1.run", Source.OPERATOR, "console", demand)
+    run(engine, trips, 5.0)
+
+    assert pump.running is running
+
+
+def test_a_standing_run_demand_restarts_the_machine_when_the_trip_releases():
+    pump = running_machine(CentrifugalPump)
+    engine, trips, trigger = build([pump], interlock("XS-1", ["M-1.stop"], reset="manual"))
+    engine.arbiter.demand("M-1.run", Source.OPERATOR, "console", 1.0)
+    run(engine, trips, 5.0)
+
+    trip(engine, trips, trigger)
+    clear(engine, trips, trigger)
+    assert not pump.running
+
+    assert trips.interlocks["XS-1"].reset()
+    run(engine, trips, 1.0)
+
+    assert pump.running
+
+
+def test_a_condition_that_stops_reading_a_number_fails_safe(monkeypatch):
+    pump = running_machine(CentrifugalPump)
+    engine, trips, trigger = build([pump], interlock("XS-1", ["M-1.stop"], delay_s=3.0))
+    run(engine, trips, 5.0)
+    assert trips.tripped == ()
+
+    monkeypatch.setattr(
+        trigger,
+        "get_state",
+        lambda: {**ControlValve.get_state(trigger), "position": None},
+    )
+    run(engine, trips, 2.0)
+    assert trips.interlocks["XS-1"].state is InterlockState.PENDING
+
+    run(engine, trips, 5.0)
+
+    assert trips.tripped == ("XS-1",)
+    assert not pump.running
 
 
 # Trip overrides an operator command

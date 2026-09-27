@@ -46,7 +46,7 @@ import math
 import re
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Any
 
 from app.engine.snapshot import Section, Snapshot
 from app.scoring.actionlog import ActionEvent, ActionLog
@@ -195,19 +195,6 @@ def _compare(op: str, current: float, target: float) -> bool:
     raise AssertionError(f"unreachable: {op!r} is not one of {_OPS}")
 
 
-class TriggerKind(Protocol):
-    """Whether a trigger fires now. Reads the snapshot and action log only.
-
-    `actions` is `Iterable`, not `Sequence`: `TriggerEvaluator` may hand an
-    operator-action trigger a one-shot slice of the log (only the entries
-    added since it last looked) rather than the whole thing, and a
-    `Sequence`'s random access and `len()` are never needed to check "did
-    any of these match".
-    """
-
-    def is_met(self, snapshot: Snapshot, actions: Iterable[ActionEvent]) -> bool: ...
-
-
 @dataclass(frozen=True)
 class TimeTrigger:
     """Fires on every step from `sim_time` onward."""
@@ -240,6 +227,15 @@ class OperatorActionTrigger:
             event.tag == self.tag and event.data.get("action") == self.action
             for event in actions
         )
+
+
+# A closed union, not a Protocol: only OperatorActionTrigger ever reads
+# `actions` in evaluate()'s dispatch (see there) - TimeTrigger and
+# ConditionTrigger always get an empty iterable. Closing the union over
+# exactly these three means a fourth kind that ignored that and expected a
+# real log is a type error at the Trigger construction site, not a trigger
+# that silently never fires.
+TriggerKind = TimeTrigger | ConditionTrigger | OperatorActionTrigger
 
 
 def _split_action(value: str) -> tuple[str, str]:

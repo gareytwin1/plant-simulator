@@ -409,6 +409,29 @@ def test_a_later_triggers_exception_does_not_spend_an_earlier_one_shot():
     assert fired == ("ack",)  # not silently already-spent by the failed step
 
 
+def test_a_later_triggers_exception_does_not_advance_the_operator_action_cursor():
+    # If the operator-action trigger's scan result were committed even
+    # though a later trigger raised, the cursor would already equal the
+    # log length by the next call, and the "nothing new since last look"
+    # check would permanently skip a match that was never actually
+    # delivered to the caller.
+    action_trigger = Trigger(id="ack", kind=OperatorActionTrigger(tag="K-101", action="stop"))
+    condition = Trigger(
+        id="pressure",
+        kind=ConditionTrigger(Condition.parse("K-101.discharge_pressure > 900.0")),
+    )
+    evaluator = TriggerEvaluator([action_trigger, condition])
+    log = ActionLog()
+    log.record(tag="K-101", action="stop", value=None, sim_time=0.0)
+
+    with pytest.raises(ConditionEvaluationError):
+        evaluator.evaluate(snapshot_at(0.0), log)  # K-101 missing - condition raises after the scan
+
+    fired = evaluator.evaluate(compressor_snapshot(1.0, discharge_pressure=0.0), log)
+
+    assert fired == ("ack",)  # still detected, not silently lost by the failed step
+
+
 # --- validate() catches a bad condition before the step loop ---
 
 
@@ -597,10 +620,19 @@ def test_evaluate_raises_if_a_later_call_passes_a_different_action_log():
 
 
 def test_evaluate_does_not_touch_the_action_log_when_no_trigger_needs_it():
+    # Only an operator_action trigger ever reads the log (via __len__ and
+    # __iter__, not .events - see the cursor rewrite); a pure time/condition
+    # evaluator must not touch it at all.
     evaluator = TriggerEvaluator([Trigger(id="t1", kind=TimeTrigger(sim_time=10.0))])
     log = ActionLog()
 
-    with mock.patch.object(ActionLog, "events", new_callable=mock.PropertyMock) as events:
+    with (
+        mock.patch.object(ActionLog, "events", new_callable=mock.PropertyMock) as events,
+        mock.patch.object(ActionLog, "__len__", wraps=ActionLog.__len__) as length,
+        mock.patch.object(ActionLog, "__iter__", wraps=ActionLog.__iter__) as iterate,
+    ):
         evaluator.evaluate(snapshot_at(10.0), log)
 
     events.assert_not_called()
+    length.assert_not_called()
+    iterate.assert_not_called()

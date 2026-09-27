@@ -230,13 +230,14 @@ def test_the_physics_filter_would_exclude_a_future_scoring_module():
 
 
 def integrate_targets(cls):
-    """Attribute names `cls`'s own `integrate` assigns on `self` — its slow state."""
-    method = cls.__dict__.get("integrate")
+    """Attribute names `integrate` assigns on `self` — its slow state.
 
-    if method is None:
-        return frozenset()
-
-    tree = ast.parse(textwrap.dedent(inspect.getsource(method)))
+    Resolved through the MRO (`cls.integrate`, not `cls.__dict__`), so a class
+    that inherits `integrate` from a shared base rather than overriding it is
+    still checked against the base's actual attribute writes, not silently
+    skipped as if it had none.
+    """
+    tree = ast.parse(textwrap.dedent(inspect.getsource(cls.integrate)))
     targets = set()
 
     for node in ast.walk(tree):
@@ -281,3 +282,17 @@ def test_the_guard_catches_a_deliberate_collision():
             self.speed = self.speed + dt
 
     assert integrate_targets(FakeDevice) == frozenset({"speed"})
+
+
+def test_the_guard_sees_integrate_inherited_from_a_base_class():
+    # Not resolvable via cls.__dict__.get("integrate") - only cls.integrate
+    # (through the MRO) finds it.
+    class BaseDevice:
+        def integrate(self, dt):
+            self.speed = self.speed + dt
+
+    class SubDevice(BaseDevice):
+        pass
+
+    assert "integrate" not in SubDevice.__dict__
+    assert integrate_targets(SubDevice) == frozenset({"speed"})

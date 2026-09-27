@@ -463,7 +463,7 @@ class Engine:
                     f"envelope limit {tag}.{variable} does not resolve "
                     f"against the equipment section this engine publishes "
                     f"and will not be evaluated",
-                    stacklevel=2,
+                    stacklevel=3,
                 )
                 continue
 

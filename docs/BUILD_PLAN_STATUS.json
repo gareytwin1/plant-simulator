@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "27 September 2026",
-  "main_sha": "f3cc8b642658688b6b9665c3a43c8be0126c227b",
-  "tests_passing_on_main": 1705,
+  "main_sha": "73ff965d6c35f1ad5418f53dab3ef4ea0393ba5a",
+  "tests_passing_on_main": 1736,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -63,7 +63,7 @@
     },
     "M9": {
       "name": "Operating Envelopes",
-      "complete": 3,
+      "complete": 4,
       "total": 4
     },
     "M10": {
@@ -119,8 +119,8 @@
   },
   "totals": {
     "tasks": 115,
-    "complete": 73,
-    "startable_now": 20
+    "complete": 74,
+    "startable_now": 15
   },
   "tasks": [
     {
@@ -1270,10 +1270,10 @@
         "app/controls/loader.py",
         "config/plants/olefins_lite.yaml"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
+      "status": "Ready for Review",
+      "status_key": "review",
       "startable": true,
-      "note": ""
+      "note": "PR #102 (feature/controller-action, 0e56722). C3 controllers entries take an optional action DIRECT/REVERSE (ISA); it flips only the error's sign, and omitting it is REVERSE, bit-identical to before. PIC-101 configured DIRECT; in AUTO it returns V-101 to a +/-3 psi setpoint change within 0.05 psi. The fixture still configures PIC-101 MANUAL (switching to AUTO is a follow-up), and tuning is unchanged (slow: ~7800 s to settle). Full suite 1726 passed, mypy clean, golden traces unmoved, roborev clean first pass."
     },
     {
       "id": "T9-1",
@@ -1338,10 +1338,9 @@
       "files": [
         "app/engine/snapshot.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true,
-      "note": ""
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged to main at 73ff965d6c35f1ad5418f53dab3ef4ea0393ba5a (PR #104). Post-merge full suite: 1736 passed."
     },
     {
       "id": "T10-1",
@@ -1672,10 +1671,10 @@
       "files": [
         "tests/test_layer_isolation.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
+      "status": "Ready for Review",
+      "status_key": "review",
       "startable": true,
-      "note": ""
+      "note": "PR #100"
     },
     {
       "id": "T14-1",
@@ -1810,10 +1809,10 @@
         "app/scoring/actionlog.py",
         "app/api/action.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
+      "status": "Ready for Review",
+      "status_key": "review",
       "startable": true,
-      "note": ""
+      "note": "PR #103"
     },
     {
       "id": "T15-2",
@@ -1981,10 +1980,10 @@
       "files": [
         "app/historian/buffer.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
+      "status": "Ready for Review",
+      "status_key": "review",
       "startable": true,
-      "note": ""
+      "note": "PR #101 open (feature/historian). Full suite 1723 passed, mypy clean, roborev-refine clean."
     },
     {
       "id": "T17-2",

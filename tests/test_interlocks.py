@@ -72,12 +72,29 @@ def test_unknown_operator_is_rejected():
         Condition(tag="P-101", variable="flow", operator="<>", threshold=1.0)
 
 
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+@pytest.mark.parametrize("op", ["<", "<=", ">", ">=", "==", "!="])
+def test_condition_fails_safe_on_a_non_finite_value(op: str, value: float):
+    # Every operator except "!=" is False against NaN in a bare comparison,
+    # which would silently read a lost or garbage transmitter as healthy.
+    # is_met() must treat any non-finite value as met, regardless of operator.
+    condition = Condition(tag="P-101", variable="flow", operator=op, threshold=20.0)
+
+    assert condition.is_met(value) is True
+
+
 # --- InterlockDefinition validation --------------------------------------
 
 
 def test_negative_delay_is_rejected():
     with pytest.raises(ValueError, match="delay_s"):
         _definition(delay_s=-1.0)
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+def test_non_finite_delay_is_rejected(value: float):
+    with pytest.raises(ValueError, match="delay_s"):
+        _definition(delay_s=value)
 
 
 def test_empty_actions_is_rejected():
@@ -185,6 +202,59 @@ def test_negative_dt_is_rejected():
 
     with pytest.raises(ValueError, match="dt"):
         interlock.evaluate(360.0, dt=-1.0)
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+def test_non_finite_dt_is_rejected(value: float):
+    interlock = Interlock(_definition(delay_s=5.0))
+
+    with pytest.raises(ValueError, match="dt"):
+        interlock.evaluate(360.0, dt=value)
+
+
+def test_trip_fires_on_the_step_that_accumulates_the_delay_despite_float_noise():
+    # Ten additions of 0.1 sum to 0.9999999999999999 in IEEE754, one ULP
+    # short of 1.0 - a plain >= would trip one whole step late here.
+    interlock = Interlock(_definition(delay_s=1.0))
+
+    for _ in range(9):
+        state = interlock.evaluate(360.0, dt=0.1)
+        assert state is InterlockState.PENDING
+
+    state = interlock.evaluate(360.0, dt=0.1)
+
+    assert state is InterlockState.TRIPPED
+
+
+def test_nan_value_never_clears_a_pending_timer():
+    interlock = Interlock(_definition(delay_s=5.0))
+    interlock.evaluate(360.0, dt=4.0)
+
+    state = interlock.evaluate(float("nan"), dt=0.5)
+
+    assert state is InterlockState.PENDING
+    assert interlock.pending_elapsed == pytest.approx(4.5)
+
+
+def test_nan_value_never_clears_an_auto_reset_trip():
+    interlock = Interlock(_definition(delay_s=0.0, reset="auto"))
+    interlock.evaluate(360.0, dt=0.0)
+    assert interlock.tripped
+
+    state = interlock.evaluate(float("nan"), dt=1.0)
+
+    assert state is InterlockState.TRIPPED
+
+
+def test_nan_value_blocks_a_manual_reset():
+    interlock = Interlock(_definition(delay_s=0.0, reset="manual"))
+    interlock.evaluate(360.0, dt=0.0)
+    interlock.evaluate(float("nan"), dt=1.0)  # would clear _condition_met if it weren't fail-safe
+
+    took_effect = interlock.reset()
+
+    assert took_effect is False
+    assert interlock.tripped
 
 
 # --- Reset semantics ---------------------------------------------------
@@ -363,8 +433,13 @@ def test_the_reference_plant_config_defines_loadable_interlocks():
 
     assert {"LSHH-101", "PSHH-101", "FSLL-101"} <= set(interlocks)
 
+    # This only exercises config loading and Condition.is_met() against the
+    # design-point values by hand, the same way test_envelope_loader.py's own
+    # reference-plant test does for the identical two tags - it is not a
+    # claim that PSHH-101 or FSLL-101 resolve against a live snapshot today
+    # (see the module comment above `interlocks:` in olefins_lite.yaml).
     # The design point sits on the safe side of every trip threshold (T5-5),
-    # so every configured interlock reads NORMAL the moment the plant loads.
+    # so every configured interlock reads NORMAL against it.
     assert interlocks["LSHH-101"].evaluate(0.5, dt=1.0) is InterlockState.NORMAL
     assert interlocks["PSHH-101"].evaluate(304.0, dt=1.0) is InterlockState.NORMAL
     assert interlocks["FSLL-101"].evaluate(50.0, dt=1.0) is InterlockState.NORMAL

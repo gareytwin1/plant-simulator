@@ -150,12 +150,20 @@ limits:
   - {tag: K-101, variable: discharge_pressure, hi: 320.0, hi_hi: 350.0, trip: true}
   - {tag: P-101, variable: flow, lo_lo: -20.0, trip: true}
 # Interlocks (T11-1, app/safety/interlocks.py): one trip per trip-rated limit
-# above, at the same threshold, so a variable already flagged TRIP-severity
-# in `limits` also has a real interlock watching it. `condition` is a bare
-# "tag.variable op threshold" expression; `actions` are opaque strings this
-# module never interprets - T11-2 gives them meaning through the
-# arbitration layer. `delay_s` is the operator's recovery window: how long
-# each condition must persist, once it starts, before the trip latches.
+# above, at the same threshold. `condition` is a bare "tag.variable op
+# threshold" expression; `actions` are opaque strings this module never
+# interprets - T11-2 gives them meaning through the arbitration layer.
+# `delay_s` is the operator's recovery window: how long each condition must
+# persist, once it starts, before the trip latches.
+#
+# Only LSHH-101 resolves against a live value today - V-101.level is a
+# device attribute. PSHH-101 and FSLL-101 name K-101.discharge_pressure and
+# P-101.flow, the same two solved node/branch values app/engine/engine.py's
+# module docstring already documents as unresolvable without a tag-to-point
+# resolver no task owns yet (the identical gap T9-4 hit from the `limits`
+# side, above). They are configured now, alongside their `limits` twins, so
+# they start resolving the moment that resolver lands - not a claim that
+# anything watches them live yet.
 interlocks:
   - tag: LSHH-101
     condition: "V-101.level >= 0.9"
@@ -167,11 +175,17 @@ interlocks:
     delay_s: 2.0
     actions: ["K-101.stop"]
     reset: manual
+  # reset: manual, not auto - this plant has no check valve (recorded, not
+  # scheduled, in .workspace/memory/project_state.md: "A resistance-only
+  # valve cannot stop reverse flow"), so P-101.stop does not clear the
+  # backflow that trips this interlock; a stopped P-101 backflows at
+  # -100 GPM, well past this trip's own -20 GPM threshold. Auto-reset would
+  # immediately re-arm and re-trip for as long as the pump stays off.
   - tag: FSLL-101
     condition: "P-101.flow <= -20.0"
     delay_s: 10.0
     actions: ["P-101.stop"]
-    reset: auto
+    reset: manual
 controllers:
   # PIC-101: holds V-101's headspace pressure by venting through PV-101.
   # pv names N-201 rather than a transmitter tag — VesselCoupling writes

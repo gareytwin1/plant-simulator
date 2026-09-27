@@ -34,10 +34,19 @@ the condition until `reset()` is called explicitly, and `reset()` itself
 refuses while the condition most recently evaluated is still met - real
 interlock hardware does not let an operator paper over an ongoing trip
 condition by resetting through it.
+
+**A non-finite reading fails safe.** `Condition.is_met()` treats a NaN or
+infinite `value` as met regardless of operator - the opposite of what a bare
+comparison would do, since every comparison except `!=` is `False` against
+NaN. A lost or garbage transmitter reading is exactly the situation an
+interlock exists to catch, so it drives the same timer a real excursion
+would rather than silently reading as healthy, clearing a TRIPPED `"auto"`
+interlock, or letting a manual `reset()` through.
 """
 
 from __future__ import annotations
 
+import math
 import re
 import warnings
 from collections.abc import Callable, Mapping
@@ -97,6 +106,8 @@ class Condition:
         )
 
     def is_met(self, value: float) -> bool:
+        if not math.isfinite(value):
+            return True
         return _OPERATORS[self.operator](value, self.threshold)
 
 
@@ -109,8 +120,8 @@ class InterlockDefinition:
     reset: Reset
 
     def __post_init__(self) -> None:
-        if self.delay_s < 0.0:
-            raise ValueError(f"delay_s must be non-negative, got {self.delay_s}")
+        if not math.isfinite(self.delay_s) or self.delay_s < 0.0:
+            raise ValueError(f"delay_s must be a finite, non-negative number, got {self.delay_s}")
         if not self.actions:
             raise ValueError("actions must not be empty")
         if self.reset not in ("manual", "auto"):
@@ -143,8 +154,8 @@ class Interlock:
         return self._pending_elapsed
 
     def evaluate(self, value: float, dt: float) -> InterlockState:
-        if dt < 0.0:
-            raise ValueError(f"dt must be non-negative, got {dt}")
+        if not math.isfinite(dt) or dt < 0.0:
+            raise ValueError(f"dt must be a finite, non-negative number, got {dt}")
 
         self._condition_met = self.definition.condition.is_met(value)
 
@@ -155,7 +166,7 @@ class Interlock:
 
         if self._condition_met:
             self._pending_elapsed += dt
-            if self._pending_elapsed >= self.definition.delay_s:
+            if self._delay_elapsed():
                 self._state = InterlockState.TRIPPED
                 self._pending_elapsed = 0.0
             else:
@@ -164,6 +175,16 @@ class Interlock:
             self._clear()
 
         return self._state
+
+    def _delay_elapsed(self) -> bool:
+        # A plain >= can miss by float noise: ten additions of 0.1 sum to
+        # 0.9999999999999999, one ULP short of a 1.0 delay, which would trip
+        # the interlock one whole step late. isclose absorbs that without
+        # opening a real early-trip window - the tolerance is far below any
+        # dt this simulator uses.
+        return self._pending_elapsed >= self.definition.delay_s or math.isclose(
+            self._pending_elapsed, self.definition.delay_s, rel_tol=1e-9, abs_tol=1e-9
+        )
 
     def reset(self) -> bool:
         """Manually clear a TRIPPED interlock. Returns whether it took

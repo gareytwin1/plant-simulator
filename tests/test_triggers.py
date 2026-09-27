@@ -123,7 +123,7 @@ def test_every_comparison_operator_evaluates_correctly(expression, value, expect
     assert condition.is_met(compressor_snapshot(0.0, discharge_pressure=value)) is expected
 
 
-def test_condition_trigger_bare_field_is_a_truthy_check():
+def test_condition_trigger_bare_field_is_a_boolean_check():
     condition = Condition.parse("K-101.tripped")
 
     assert condition.is_met(compressor_snapshot(0.0, discharge_pressure=0.0, tripped=True)) is True
@@ -307,6 +307,15 @@ def test_validate_raises_for_a_bad_tag_before_any_evaluate_call():
         evaluator.validate(compressor_snapshot(0.0, discharge_pressure=0.0))
 
 
+def test_validate_raises_for_a_misspelled_operator_action_tag():
+    evaluator = TriggerEvaluator.from_config(
+        [{"id": "typo", "type": "operator_action", "action": "K-1O1.stop"}],
+    )
+
+    with pytest.raises(ConditionEvaluationError, match="K-1O1"):
+        evaluator.validate(compressor_snapshot(0.0, discharge_pressure=0.0))
+
+
 def test_validate_passes_a_well_formed_scenario():
     evaluator = TriggerEvaluator.from_config(
         [
@@ -392,6 +401,26 @@ def test_operator_action_trigger_only_rescans_when_the_log_has_grown():
 
     assert fired == ("ack",)
     assert calls == [1, 1]  # the new entry earns exactly one more look
+
+
+def test_a_fresh_action_log_is_not_read_through_the_previous_ones_latch():
+    # A scenario reset or replay hands the evaluator a new ActionLog. A
+    # trigger latched against the old one must not stay matched against a
+    # log where its action never happened, and an unmatched one must not
+    # skip the new log just because its length happens to coincide.
+    trigger = Trigger(id="ack", kind=OperatorActionTrigger(tag="K-101", action="stop"))
+    evaluator = TriggerEvaluator([trigger])
+
+    first_log = ActionLog()
+    first_log.record(tag="K-101", action="stop", value=None, sim_time=0.0)
+    assert evaluator.evaluate(snapshot_at(0.0), first_log) == ("ack",)
+
+    second_log = ActionLog()
+    second_log.record(tag="K-101", action="start", value=None, sim_time=0.0)  # same length, no match
+    assert evaluator.evaluate(snapshot_at(1.0), second_log) == ()
+
+    second_log.record(tag="K-101", action="stop", value=None, sim_time=1.0)
+    assert evaluator.evaluate(snapshot_at(2.0), second_log) == ("ack",)
 
 
 def test_evaluate_does_not_touch_the_action_log_when_no_trigger_needs_it():

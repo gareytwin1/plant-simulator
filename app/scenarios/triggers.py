@@ -12,15 +12,23 @@ actions. Each trigger type reads exactly one of those:
 
 `is_met` on every kind is pure - it reads only the snapshot and action log
 handed to it, never a clock or a copy of prior state - the same shape as
-`app.disturbances.malfunction.StartCondition`. `TriggerEvaluator` is the one
-place that remembers which one-shot triggers have already fired; a trigger
-without `one_shot` re-evaluates fresh every call and may fire on every step
-its condition holds, which is the point for something like "discharge
-pressure is high" driving a continuous alarm-style cue.
+`app.disturbances.malfunction.StartCondition`. `TriggerEvaluator` is where
+external bookkeeping lives instead: which one-shot triggers have already
+fired, and, for an operator-action trigger, how much of the log it has
+already looked at and whether it has matched. A time or condition trigger
+carries none of that - it re-evaluates fresh every call and may fire on
+every step its condition holds, which is the point for something like
+"discharge pressure is high" driving a continuous alarm-style cue. An
+operator-action trigger is different: once the log shows its action ever
+happened, it stays met forever (the log is append-only, so a match can't
+un-happen), and `TriggerEvaluator` latches that rather than re-scanning.
 
 A condition string is compiled once, at construction, into a `Condition`:
 evaluating it each step is a handful of dict lookups and one comparison, not
-a re-parse, which is what keeps trigger evaluation from adding measurable
+a re-parse. An operator-action trigger gets the same treatment a different
+way - `TriggerEvaluator` skips fetching and re-scanning the action log
+entirely on a step where nothing new has been recorded since it last
+looked - which is what keeps trigger evaluation from adding measurable
 per-step cost.
 """
 
@@ -59,8 +67,10 @@ _BARE = re.compile(rf"^(?P<tag>{_TAG})\.(?P<field>{_FIELD})$")
 class Condition:
     """A compiled `TAG.field [OP value]` expression.
 
-    `op is None` means a bare truthy check on the field's own value, the
-    shape an objective's `"K-101.tripped"` failure condition needs.
+    `op is None` means a bare boolean check on the field's own value, the
+    shape an objective's `"K-101.tripped"` failure condition needs. String
+    equality ("PIC-101.mode == MANUAL") is a real gap - out of scope for
+    T14-2, a C8 grammar decision for whoever needs it.
     """
 
     tag: str
@@ -94,10 +104,8 @@ class Condition:
         current = _lookup(snapshot, self.tag, self.field)
 
         if self.op is None:
-            # String equality ("PIC-101.mode == MANUAL") is a real gap - out
-            # of scope for T14-2, a C8 grammar decision for whoever needs it.
-            # A bare check is deliberately narrow rather than silently true
-            # for a non-boolean field.
+            # Deliberately narrow rather than silently true for a
+            # non-boolean field - see the class docstring.
             if not isinstance(current, bool):
                 raise ConditionEvaluationError(
                     f"{self.tag}.{self.field} is {current!r}, not true/false; "
@@ -117,7 +125,7 @@ class Condition:
         return _compare(self.op, float(current), self.value)
 
 
-def _lookup(snapshot: Snapshot, tag: str, field: str) -> JSONValue:
+def _resolve_tag(snapshot: Snapshot, tag: str) -> Mapping[str, JSONValue]:
     # Priority order a bare tag resolves against. `envelope` is keyed
     # "TAG.variable" rather than nested by tag, so it isn't a lookup source
     # here.
@@ -140,7 +148,11 @@ def _lookup(snapshot: Snapshot, tag: str, field: str) -> JSONValue:
             f"{found[0][0]} and {found[1][0]}",
         )
 
-    row = found[0][1]
+    return found[0][1]
+
+
+def _lookup(snapshot: Snapshot, tag: str, field: str) -> JSONValue:
+    row = _resolve_tag(snapshot, tag)
 
     if field not in row:
         raise ConditionEvaluationError(
@@ -269,10 +281,15 @@ def _required(config: Mapping[str, Any], key: str, trigger_id: str) -> Any:
 class TriggerEvaluator:
     """Evaluates a scenario's triggers each step, honouring one-shot.
 
-    The only state owned here is which one-shot triggers have already
-    fired - every other trigger's `is_met` is re-checked fresh on each call,
-    exactly as `MalfunctionRegistry` tracks a malfunction's onset outside its
-    stateless `StartCondition`.
+    Every trigger's `is_met` is otherwise pure; the state that makes it
+    cheap to re-check lives here instead, the way `MalfunctionRegistry`
+    tracks a malfunction's onset outside its stateless `StartCondition`:
+    which one-shot triggers have already fired, and, for an
+    operator-action trigger, how much of the action log it has already
+    looked at and whether it has matched. That memo is keyed to a specific
+    `ActionLog` instance (by identity) and is dropped if `evaluate()` is
+    ever called with a different one - a scenario reset or replay handing
+    in a fresh log must not inherit a stale latch from the run before it.
     """
 
     def __init__(self, triggers: Iterable[Trigger]) -> None:
@@ -289,29 +306,39 @@ class TriggerEvaluator:
         # it stays matched, so a latched id never needs scanning again. Until
         # then, `_action_seen_length` remembers the log length as of the last
         # scan - unchanged means nothing new could have matched, so most
-        # steps (no action taken) cost a length check, not a rescan.
+        # steps (no action taken) cost a length check, not a rescan. Both are
+        # scoped to whichever ActionLog `_action_log_id` last saw.
         self._action_matched: set[str] = set()
         self._action_seen_length: dict[str, int] = {}
+        self._action_log_id: int | None = None
 
     @classmethod
     def from_config(cls, triggers: Iterable[Mapping[str, Any]]) -> TriggerEvaluator:
         return cls(Trigger.from_config(config) for config in triggers)
 
     def validate(self, snapshot: Snapshot) -> None:
-        """Resolve every condition trigger's tag, field and comparison now.
+        """Resolve every trigger's snapshot references against `snapshot` now.
 
         Raises the same `ConditionEvaluationError` `evaluate()` would, but up
         front - at scenario load or arm time - rather than out of the step
-        loop partway through a run. Time and operator-action triggers need no
-        snapshot to be well-formed, so there is nothing here to check for
-        them.
+        loop partway through a run: a condition trigger's tag, field and
+        comparison, and an operator-action trigger's tag. Its action verb
+        cannot be checked this way - only the log tells whether it is one a
+        device ever accepts - and a time trigger needs no snapshot at all.
         """
         for trigger in self._triggers:
             if isinstance(trigger.kind, ConditionTrigger):
                 trigger.kind.condition.is_met(snapshot)
+            elif isinstance(trigger.kind, OperatorActionTrigger):
+                _resolve_tag(snapshot, trigger.kind.tag)
 
     def evaluate(self, snapshot: Snapshot, actions: ActionLog) -> tuple[str, ...]:
         """Return the ids of every trigger that fires on this step."""
+        if id(actions) != self._action_log_id:
+            self._action_matched.clear()
+            self._action_seen_length.clear()
+            self._action_log_id = id(actions)
+
         total = len(actions)
         events: Sequence[ActionEvent] = ()
         if any(self._needs_the_log(trigger, total) for trigger in self._triggers):

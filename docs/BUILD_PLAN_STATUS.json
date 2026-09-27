@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "26 September 2026",
-  "main_sha": "8552445141a30e546179bb644e5dbbcc4a7273ca",
-  "tests_passing_on_main": 1566,
+  "main_sha": "17ae66d517ac9faa4ce0d8051d0ddd28c3f93f89",
+  "tests_passing_on_main": 1605,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -53,7 +53,7 @@
     },
     "M7": {
       "name": "Control Valves and Final Elements",
-      "complete": 4,
+      "complete": 5,
       "total": 5
     },
     "M8": {
@@ -119,8 +119,8 @@
   },
   "totals": {
     "tasks": 114,
-    "complete": 67,
-    "startable_now": 19
+    "complete": 68,
+    "startable_now": 18
   },
   "tasks": [
     {
@@ -1166,10 +1166,9 @@
       "files": [
         "app/equipment/relief.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true,
-      "note": "NEW, added 20 Sep 2026 by docs/ADR_0002_TYPED_PORTS.md section 8.1. Waits on T3-7 and blocks nothing. Relief is a third branch on the vapor node and changes nothing structural; it needs typed ports so a relief path can be told apart from a process path in the snapshot. Its port declares purpose relief (ADR 0002 Amendment 1 renamed service to purpose, alongside an independent control descriptor). purpose is metadata and must never change the conservation math (ADR 0002 section 3.4, amended by A.3)."
+      "status": "Complete",
+      "status_key": "done",
+      "note": "COMPLETE - merged to main as 17ae66d (Merge T7-5: Add relief valve device, PR #94), 26 Sep 2026. 1605 passed on main post-merge, mypy clean over 41 source files, no golden trace moved. Also wires ReliefValve into app/engine/coupling.py (FLOW_UNITS unit-neutral classification and automatic inlet_pressure sensing in VesselCoupling.write_boundary_pressures) beyond the task's own file list, closing the gap the same session opened it in."
     },
     {
       "id": "T8-1",

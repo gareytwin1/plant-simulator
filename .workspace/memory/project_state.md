@@ -15,10 +15,10 @@ already in BUILD_PLAN_STATUS.json and does not need a second home.
 
 ## Right now
 
-**Last state refresh:** 26 September 2026, at `8552445` (Merge T6-4: Add
-furnace model, PR #93) - **this is a snapshot, not a live
-pointer.** Run `git log 8552445..HEAD --oneline` to see what has merged since.
-**Full suite as of this refresh:** **1566 passed** · `python -m mypy` clean over 40 source files · compressor golden trace moved deliberately (temperature field only, on the two boundary-asymmetric scenarios - justified in T6-2's note)
+**Last state refresh:** 26 September 2026, at `17ae66d` (Merge T7-5: Add
+relief valve device, PR #94) - **this is a snapshot, not a live
+pointer.** Run `git log 17ae66d..HEAD --oneline` to see what has merged since.
+**Full suite as of this refresh:** **1605 passed** · `python -m mypy` clean over 41 source files · compressor golden trace moved deliberately (temperature field only, on the two boundary-asymmetric scenarios - justified in T6-2's note)
 **In flight:** nothing.
 **No spine lock is held.** No task is Blocked. CI runs on every PR, and `main` requires its
 `test` check before a merge.
@@ -27,12 +27,12 @@ pointer.** Run `git log 8552445..HEAD --oneline` to see what has merged since.
 
 | Task | SHA | What landed |
 |---|---|---|
+| **T7-5** | `17ae66d` | Relief device. `ReliefValve` in `app/equipment/relief.py`: a resistance with hysteresis rather than a commanded position - pops open at `set_pressure`, recloses at `set_pressure - blowdown`, closed as a small leak (`CLOSED_LEAK_FRACTION`) rather than a seal, same divide-by-zero reason `ControlValve` floors at `min_position`. Registered in `DEVICE_TYPES`, the plant schema, `TAG_PREFIXES` (`PSV`) and the malfunction `WRITABLE` allowlist. Also took the spine lock for one small, deliberate `app/engine/coupling.py` change beyond its own file list: `FLOW_UNITS` now lists it unit-neutral, and `VesselCoupling.write_boundary_pressures()` senses `inlet_pressure` onto it - a relief valve beside a vessel now lifts, passes flow and recloses through a real `Engine.step()` with nothing hand-driven. Closes M7 (5/5), which closes Checkpoint C; unblocks nothing (deferred, blocks nothing per the build plan) |
 | **T6-4** | `8552445` | Furnace model. `Furnace` in `app/equipment/furnace.py` implements `thermo.ThermalDevice`: a single ramp-limited slow state (`firing_rate` chasing `duty_setpoint` via `_move_toward`) drives a straight, deliberately unbounded energy balance (`T_in + firing_rate / abs(q·Cp)`) - modelling the loss-of-flow-while-firing hazard rather than bounding it away, and with no live-stream dependency between `integrate` calls, so it avoids T6-3's "nothing writes inlet_temperature" gap. Registered in `DEVICE_TYPES` and the malfunction `WRITABLE` allowlist (`max_duty`, `firing_ramp_rate`, `furnace_resistance`). Not yet wired into any plant config - V1.1 per the build plan. Closes M6 (5/5); unblocks nothing yet |
 | **T7-3** | `59d0b65` | Valve fault modes. Four failure modes on `ControlValve` (`app/equipment/valve.py`), each a validated device property rather than a new mechanism: `stuck` and `action_reversed` are new booleans consulted in `integrate()`; slow reuses `stroke_rate` (now validated, must stay positive); passing-through reuses the existing `min_position` floor. None writes a flow or a pressure. Unblocks T13-4 |
 | **R8** | `3ed567a` | Flow unit label. One-token fix: `templates/compressor.html:130` and `static/compressor.js:51` relabeled from MMcfd to SCFM, matching the actual unit of `state.flow`. D8 waived the `static/compressor.js` freeze for this token only. No dependents |
 | **T14-1** | `f1a48ef` | Scenario file schema (C8). `config/schema/scenario.schema.json` covers `Scenario(initial_condition, malfunctions[], triggers[], objectives[], time_limit_s, difficulty, seed)`. Malfunction entries mirror `app/disturbances/malfunction.py`'s constructor; `profile`, `start_condition` and per-type trigger fields are left as tagged objects (`type` enforced, type-specific fields not), the same move `plant.schema.json` makes for typed ports - exact per-type shape is T13-3's and T14-2's job. Reuses the existing generic `app/plant/validate.py:validate()` against the new schema. Unblocks T14-2, T18-5 |
 | **T10-1** | `3cb05dc` | Alarm state machine (C7). Pure ISA-style lifecycle in `app/alarms/state.py`: `NORMAL`/`UNACK`/`ACKED`/`RTN_UNACK`, with clear-before-acknowledge handled explicitly - a condition that clears before acknowledgement holds in `RTN_UNACK` rather than returning to `NORMAL`, and a re-alarm from there returns to `UNACK` on the same `Alarm` instance rather than duplicating it. No plant dependency. T10-2 binds to it |
-| **T9-1** | `89ed2fc` | Envelope evaluator. `Evaluator`/`Limits`/`Severity` in `app/envelope/evaluator.py`: boundary-inclusive classification against six optional ordered thresholds (normal/warning/alarm/trip), deadband gating de-escalation only, on-delay gating escalation only. Roborev caught two real edge cases pre-merge: a same-severity side flip (`warning_lo` held, `warning_hi` reached) silently bypassing both guards, and the on-delay pending timer not resetting when an uncommitted escalation flips side - both fixed and locked in with tests. No plant dependency. Unblocks T9-2, T9-3, T11-1 |
 
 **ADRs on `main`:** ADR 0001 ([flow-domain separation](../../docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md))
 with Amendment 1, and ADR 0002 ([typed ports](../../docs/ADR_0002_TYPED_PORTS.md)) with
@@ -46,7 +46,7 @@ what made this file 1,086 lines.
 |---|---|
 | **M0**–**M5** | **Complete.** Checkpoint A (M1) and Checkpoint B (M4) both reached |
 | **M6** Energy Balance and Temperature | 5/5 - **Complete.** T6-1 through T6-5 all merged |
-| **M7** Control Valves and Final Elements | 4/5 - T7-1, T7-2, T7-4, T7-3 Complete; T7-5 startable |
+| **M7** Control Valves and Final Elements | 5/5 - **Complete.** T7-1 through T7-5 all merged |
 | **M8** PID Controllers and Modes | 2/5 - T8-1, T8-2 Complete; T8-3 startable |
 | **M9** Operating Envelopes | 1/4 - T9-1 Complete; T9-2, T9-3 startable |
 | **M10** Alarms | 1/5 - T10-1 Complete; T10-2 startable |
@@ -56,20 +56,19 @@ what made this file 1,086 lines.
 | **M18** Deployment and Operations | 1/5 - T18-2 Complete |
 | M11, M12, M15–M17, M19 | None Complete |
 
-**67 of 114 tasks Complete.** Next checkpoint is **C** (M5 + M6 + M7); M5 and
-M6 are both closed, M7 has landed four of its five tasks. **MR is now fully
-merged.**
+**68 of 114 tasks Complete.** Checkpoint **C** (M5 + M6 + M7) is now reached -
+all three closed. Next checkpoint is **D** (M8), which has landed two of its
+five tasks. **MR is now fully merged.**
 
 ## The next task
 
-**No single task is "the" next one.** Nineteen tasks are startable, all Sonnet.
+**No single task is "the" next one.** Eighteen tasks are startable, all Sonnet.
 Which to hand out next is a scheduling choice, not a dependency one.
 
-### Startable now (19)
+### Startable now (18)
 
 | Task | Name | Model | Branch |
 |---|---|---|---|
-| **T7-5** | Relief device | Sonnet | `feature/relief-valve` |
 | **T8-3** | Loop configuration and tag wiring | Sonnet | `feature/loop-config` |
 | **T9-2** | Limit definitions in plant config | Sonnet | `feature/envelope-limits` |
 | **T9-3** | Time-in-band and excursion tracking | Sonnet | `feature/excursion-tracking` |
@@ -93,7 +92,10 @@ Which to hand out next is a scheduling choice, not a dependency one.
 
 **Scheduling notes.** The spine lock is **one global lock**, now the standing
 rule (R12, [DEVELOPMENT.md](../../DEVELOPMENT.md#file-ownership)); the spine
-queue is empty since T6-5. **T18-1 must run exactly one Gunicorn
+queue is empty since T7-5, which took it for one small, deliberate
+`app/engine/coupling.py` addition (`FLOW_UNITS` classification and
+`inlet_pressure` sensing for `ReliefValve`) beyond its own declared file list,
+now merged and released. **T18-1 must run exactly one Gunicorn
 worker process** — `SessionRegistry` is per-process (R7). T12-1 adds a *new* isolated module under `app/engine/`, which is
 satellite work, but `rng.py` is spine: adding RNG state save/restore there
 (T12-1 or T14-5) takes the spine lock.

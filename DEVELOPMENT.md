@@ -44,6 +44,18 @@ python -m pytest -k "test_pump_half_speed_operating_point" -q
 flask --app app.main run     # http://127.0.0.1:5000/compressor and /pump
 ```
 
+Claude Code's auto-memory belongs in `.workspace/memory-auto/`, so Codex and
+every worktree read the same notes. `autoMemoryDirectory` only accepts an
+absolute or `~/` path, which a committed setting cannot carry portably, so link
+the default location to the main checkout once per machine, from its root:
+
+```bash
+dir=~/.claude/projects/$(pwd | sed 's/[^a-zA-Z0-9]/-/g')/memory
+[ -L "$dir" ] || { [ -d "$dir" ] && mv "$dir" "$dir.bak"; ln -s "$PWD/.workspace/memory-auto" "$dir"; }
+```
+
+Merge anything in a `.bak` into `.workspace/memory-auto/` and delete it.
+
 `conftest.py` only customizes pytest's status glyphs (✓ / ✗ / ○); it defines no
 fixtures.
 

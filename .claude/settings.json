@@ -5,6 +5,5 @@
     "memory@local": true,
     "development@local": true,
     "roborev@local": true
-  },
-  "autoMemoryDirectory": "./.workspace/memory-auto"
+  }
 }

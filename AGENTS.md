@@ -222,42 +222,9 @@ every context window and bypasses the memory budget.
 
 @.workspace/memory/MEMORY_INDEX.md
 
-### Claude auto-memory (writer-asymmetric)
-
-Claude Code writes autonomous learnings to `.workspace/memory-auto/MEMORY.md`,
-redirected there from the default `~/.claude/projects/<slug>/memory/` via
-`autoMemoryDirectory` in `.claude/settings.json`. Claude loads it natively.
-Codex has no equivalent and reads it on demand, like any other memory file.
-
-It sits outside `.workspace/memory/` on purpose: the memory plugin recurses
-into that directory, so auto-memory nested inside it would be seeded into the
-index and swept by `/memory-gc`. Model-authored memory accumulates through
-Claude sessions only; Codex-only sessions rely on the curated files.
-
-### Session progress
-
-Session progress goes to timestamped `.workspace/transitions/YYYY-MM-DD/HHMMSS.md`
-files, one per event, written by the `transition` plugin's own
-PreCompact/PostCompact/SessionEnd hooks. No per-project wiring is needed.
-`/handoff` covers events with no compaction (before `/clear`, a Claude/Codex
-host swap, a milestone); `/continue` resumes. Both agents share the files.
-
-```bash
-ls -r .workspace/transitions/$(date +%Y-%m-%d)/*.md   # newest first
-```
-
-## Agent infrastructure layout
-
-```text
-AGENTS.md                  # this file - Codex reads natively
-CLAUDE.md                  # one line: @AGENTS.md
-.workspace/                # SHARED state for both Claude and Codex
-  memory/                  #   curated memory; only MEMORY_INDEX.md is @-included
-  memory-auto/             #   Claude auto-memory (harness writes; Codex reads)
-  transitions/             #   session progress (transition plugin writes; gitignored)
-  work/                    #   active work units / plans
-.claude/                   # CLAUDE-SPECIFIC ONLY
-  settings.json            #   enabled plugins, autoMemoryDirectory
-  rules/                   #   path-scoped rules (Codex: read the matching file)
-  skills/                  #   task lifecycle skills
-```
+Claude auto-memory lives in `.workspace/memory-auto/` (Claude loads its
+`MEMORY.md`; Codex reads it on demand) through a one-time per-machine symlink,
+[DEVELOPMENT.md](DEVELOPMENT.md#environment). It stays outside
+`.workspace/memory/`, which the memory plugin indexes and garbage-collects.
+Session progress: `.workspace/transitions/`, written by the `transition`
+plugin's hooks; `/handoff` and `/continue` cover the rest.

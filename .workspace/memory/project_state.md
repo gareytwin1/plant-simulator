@@ -1,15 +1,8 @@
 # Project State
 
-What is true **right now**. This file goes stale by design; the stable rules are
-in [AGENTS.md](../../AGENTS.md) and the architecture is in
-[ARCHITECTURE.md](../../docs/ARCHITECTURE.md).
-
-**Refresh this file when a task merges, and keep it lean:** a merged task gets
-its **one-line** entry here, and its full completion note goes in
-[BUILD_PLAN_STATUS.json](../../docs/BUILD_PLAN_STATUS.json). Per-task handoff sections do
-not accumulate here — that is what grew this file to 1,086 lines once already.
-When the recent-merges table below passes ~6 rows, drop the oldest — it is
-already in BUILD_PLAN_STATUS.json and does not need a second home.
+What is true **right now**; stable rules are in [AGENTS.md](../../AGENTS.md).
+Refreshed at each merge by `merge-task`, one line per merged task - the
+regrowth rule is in [.claude/rules/docs.md](../../.claude/rules/docs.md).
 
 ---
 
@@ -24,92 +17,57 @@ merged since.
 **No spine lock is held.** No task is Blocked. CI runs on every PR, and `main` requires its
 `test` check before a merge.
 
-**Recent merges** (full notes in [BUILD_PLAN_STATUS.json](../../docs/BUILD_PLAN_STATUS.json)):
+**Recent merges** (one line each; detail in the PR and
+[BUILD_PLAN_STATUS.json](../../docs/BUILD_PLAN_STATUS.json)):
 
 | Task | SHA | What landed |
 |---|---|---|
-| **T14-2** | `eb195c0` | Trigger evaluator (M14, 2/6). `app/scenarios/triggers.py`: `TimeTrigger`/`ConditionTrigger`/`OperatorActionTrigger` as a closed `TriggerKind` union, `Trigger` (id/kind/one_shot with strict `from_config` key validation per type - deliberately stricter than the schema, which can't discriminate `sim_time`/`condition`/`action` keys per type), `TriggerEvaluator` (validate/evaluate, one-shot bookkeeping, atomic commit so a mid-loop exception can't half-spend a one-shot's only chance to fire). Operator-action triggers cursor the `ActionLog` with `itertools.islice` - real skip of the tag/action comparison and full-log copy, but still walks past already-seen entries one by one, not an index-jump; a true O(new) cursor needs an `ActionLog` accessor, out of scope (T15-1's file). Went through several `/roborev-refine` iterations (atomicity bug, `Protocol`→closed union, config-key gap, test-quality fixes). Unblocks nothing new directly (T14-4 still waits on T14-3 + T12-2) |
-| **T11-1** | `994b30e` | Interlock definitions and evaluator (opens M11, 1/4). `app/safety/interlocks.py`: `Condition` parses C3's `"tag.variable op threshold"` string and fails safe on a non-finite value (treats NaN/inf as met, regardless of operator, rather than reading a lost transmitter as healthy). `Interlock` is the delay/latch/reset state machine - a condition must hold continuously for `delay_s` before latching TRIPPED, resetting to zero the instant it clears; `reset: "manual"` refuses `reset()` while the condition is still met, `"auto"` clears itself in `evaluate()`. `load_interlocks()`/`get_interlock()` mirror T9-2's limit loader. Three interlocks added to `olefins_lite.yaml` (`LSHH-101`, `LSLL-101`, `PSHH-101`); a fourth (P-101's backflow trip) deliberately left out - see "No check valve" below. `actions` are opaque strings; T11-2 gives them meaning. Went through 4 `/roborev-refine` iterations. Unblocks T11-2 |
-| **T17-1** | `b36af0d` | Ring-buffer historian. `Historian` (`app/historian/buffer.py`) holds fixed-capacity, oldest-evicted per-tag history via `collections.deque(maxlen=capacity)`, throttled to a configurable `sample_period` so memory stays bounded over an arbitrarily long run regardless of call frequency. No wall clock - timestamps are caller-supplied simulated time, validated non-decreasing per tag independent of throttling (a roborev finding: the check originally used the last *recorded* sample as its baseline, so a call dropped by throttling could hide a real backwards-time bug). `record()`/`history()` share one lock; `history()` returns a snapshot copy under it. Pure data structure, no plant dependency. Unblocks T17-2 |
-| **T13-5** | `65458ee` | Physics/disturbance layer isolation guard (C8's structural half). `tests/test_layer_isolation.py` enforces two things structurally: no physics module imports `app.disturbances` or `app.scoring` (absolute or relative), and no device's `WRITABLE` malfunction-allowlisted parameter overlaps what its own `integrate()` actually writes, derived from source via AST rather than hand-listed. `PHYSICS_MODULES` excludes the two forbidden layers' own internals plus the orchestration layer above them - `app/api` and `app/main.py` - since T15-1 (merged while this branch was out for review) made `app/api/action.py`'s import of `app.scoring.actionlog` a real, legitimate case, not a hypothetical one; the rebase caught it as a false positive and the guard's scope was corrected before merge. Went through 5 `/roborev-refine` iterations. Unblocks nothing (no task depends on T13-5) |
-| **T15-1** | `6cafbd2` | Operator action log (C6 event) and the C5 `/api/action` endpoint. `ActionLog` (`app/scoring/actionlog.py`) records every operator input as an append-only, sim-timed `ActionEvent` (always `Priority.LOW`, reusing `app.alarms.manager.Priority`). `apply_action` (`app/api/action.py`) validates target/action against an explicit per-device-class allowlist (`ACTIONS`, mirroring `WRITABLE`/`OUTPUTS`) before calling the device and logging - a JSON int value is normalized to float once, before both the call and the log, so the two never disagree on type. `create_action_blueprint` takes its `Engine`/`ActionLog` as injected callables rather than `flask.g`; wiring into `app/main.py`'s session lifecycle is left unowned. Unblocks T18-3 |
-| **T8-6** | `3733819` | Controller action (C3 contract change). A `controllers` entry takes an optional `action`, `DIRECT` or `REVERSE`, by the ISA convention (direct: output rises as the measurement rises). It flips only the error's sign, so anti-windup, `track()` and bumpless transfer hold in both; omitted means `REVERSE`, bit-identical to before. PIC-101 is configured `DIRECT` and holds a changed setpoint in AUTO, but the fixture still configures it **MANUAL** - its other tests pin open-loop response - and its kp 0.01 / ki 0.005 tuning is slow (~7800 s to settle). Unblocks nothing directly |
+| **T14-2** | `eb195c0` | Trigger evaluator, `app/scenarios/triggers.py` (PR #106) |
+| **T11-1** | `994b30e` | Interlock definitions and evaluator, `app/safety/interlocks.py`; 3 interlocks in `olefins_lite.yaml` (PR #105) |
+| **T17-1** | `b36af0d` | Ring-buffer historian, `app/historian/buffer.py` (PR #101) |
+| **T13-5** | `65458ee` | Physics/disturbance layer isolation guard, `tests/test_layer_isolation.py` (PR #100) |
+| **T15-1** | `6cafbd2` | Operator action log and C5 `/api/action`; not yet wired into `app/main.py` (PR #103) |
+| **T8-6** | `3733819` | Controller `action` (`DIRECT`/`REVERSE`) in C3; PIC-101 is `DIRECT` but still configured MANUAL |
 
-**ADRs on `main`:** ADR 0001 ([flow-domain separation](../../docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md))
-with Amendment 1, and ADR 0002 ([typed ports](../../docs/ADR_0002_TYPED_PORTS.md)) with
-Amendments 1–3 (the last now implemented by T5-7 and consumed by T5-5, closing
-its sequencing chain). **Read the ADRs themselves** — summarising them here is
-what made this file 1,086 lines.
+**ADRs on `main`:** [0001](../../docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md)
+(+ Amendment 1) and [0002](../../docs/ADR_0002_TYPED_PORTS.md) (+ Amendments
+1-3, all implemented). Read the ADRs themselves; do not summarise them here.
 
 ## Milestone progress
 
-| Milestone | Status |
-|---|---|
-| **M0**–**M5** | **Complete.** Checkpoint A (M1) and Checkpoint B (M4) both reached |
-| **M6** Energy Balance and Temperature | 5/5 - **Complete.** T6-1 through T6-5 all merged |
-| **M7** Control Valves and Final Elements | 5/5 - **Complete.** T7-1 through T7-5 all merged |
-| **M8** PID Controllers and Modes | 5/6 - T8-1 through T8-4 and T8-6 Complete; T8-5 startable (V1.1-deferred) |
-| **M9** Operating Envelopes | 4/4 - **Complete.** T9-1 through T9-4 all merged |
-| **M10** Alarms | 2/5 - T10-1, T10-2 Complete; T10-3 startable |
-| **M11** Interlocks, Trips and Shutdown | 1/4 - T11-1 Complete; T11-2 startable (`core`, Opus) |
-| **M13** Malfunctions | 3/5 - T13-1, T13-2, T13-5 Complete; T13-3, T13-4 startable |
-| **M14** Scenario Engine | 2/6 - T14-1, T14-2 Complete; T14-3 startable |
-| **MR** Remediation | 13/13 - **Complete.** R1-R12, R8 all merged |
-| **M15** Action Log and Scoring | 1/4 - T15-1 Complete; T15-4 startable |
-| **M17** Historian and Trends | 1/4 - T17-1 Complete; T17-2 startable (V1.1-deferred) |
-| **M18** Deployment and Operations | 1/5 - T18-2 Complete |
-| M12, M16, M19 | None Complete |
+Complete: **M0-M7, M9, MR**. Open:
 
-**80 of 115 tasks Complete.** Checkpoint **C** (M5 + M6 + M7) is now reached -
-all three closed. M9 (Operating Envelopes) is now also fully closed. Next
-checkpoint is **D** (M8), which has landed five of its six tasks (T8-5 is
-V1.1-deferred). Its "loops reject an injected disturbance" gate on the
-reference plant still needs PIC-101 switched to AUTO in `olefins_lite.yaml`,
-which T8-6 made possible but deliberately did not do - no task owns it yet. **MR is now fully merged.**
+| Milestone | Done | Complete / startable |
+|---|---|---|
+| **M8** PID Controllers | 5/6 | T8-5 startable (V1.1-deferred) |
+| **M10** Alarms | 2/5 | T10-1, T10-2; T10-3 startable |
+| **M11** Interlocks and Trips | 1/4 | T11-1; T11-2 startable |
+| **M13** Malfunctions | 3/5 | T13-1, T13-2, T13-5; T13-3, T13-4 startable |
+| **M14** Scenario Engine | 2/6 | T14-1, T14-2; T14-3 startable |
+| **M15** Action Log and Scoring | 1/4 | T15-1; T15-4 startable |
+| **M17** Historian and Trends | 1/4 | T17-1; T17-2 startable (V1.1-deferred) |
+| **M18** Deployment | 1/5 | T18-2 |
+| M12, M16, M19 | 0 | - |
+
+**80 of 115 tasks Complete.** Checkpoints A-C reached. Checkpoint **D** (M8)
+needs only its "loops reject an injected disturbance" gate: PIC-101 switched to
+AUTO in `olefins_lite.yaml`, which T8-6 enabled but no task owns yet.
 
 ## The next task
 
-**T11-2 is now startable and is `core`-category (Opus)** - T11-1's merge
-cleared its last dependency (T7-4 was already Complete). It is the only
-Opus-assigned task in the startable set; the other sixteen default to Sonnet.
-The spine lock (`app/engine/snapshot.py`, `app/engine/engine.py`,
-`app/equipment/base.py`, `app/plant/topology.py`) is free and no startable
-task needs it - T11-2's own file (`app/safety/actions.py`) isn't a spine file
-either, despite the `core` category. T12-1 and T18-5 each add a *new* isolated
-module under `app/engine/` (satellite work). Which Sonnet task to hand out
-alongside T11-2 is a scheduling choice, not a dependency one.
+**16 tasks are startable** - list them from
+[BUILD_PLAN_STATUS.json](../../docs/BUILD_PLAN_STATUS.json) (`startable`
+field). All are Sonnet except **T11-2** (trip actions, `core`, Opus). T8-5,
+T10-4 and T17-2 are V1.1-deferred. No startable task needs the spine lock;
+T12-1 and T18-5 add new isolated modules under `app/engine/` (satellite work).
 
-### Startable now (16)
-
-| Task | Name | Model | Branch |
-|---|---|---|---|
-| **T8-5** | Cascade control (V1.1-deferred) | Sonnet | `feature/cascade-control` |
-| **T10-3** | Alarm history and acknowledge | Sonnet | `feature/alarm-history` |
-| **T10-4** | Flood suppression and first-out (V1.1-deferred) | Sonnet | `feature/alarm-flood-control` |
-| **T11-2** | Trip actions on equipment | **Opus** (`core`) | `feature/trip-actions` |
-| **T12-1** | Plant snapshot save and restore | Sonnet | `feature/state-persistence` |
-| **T13-3** | Injection profiles | Sonnet | `feature/malfunction-profiles` |
-| **T13-4** | Malfunction catalogue | Sonnet | `feature/malfunction-catalogue` |
-| **T14-3** | Objective evaluator | Sonnet | `feature/scenario-objectives` |
-| **T15-4** | Score persistence | Sonnet | `feature/score-store` |
-| **T16-1** | Console design system | Sonnet | `design/console-system` |
-| **T16-2** | Snapshot push transport | Sonnet | `feature/snapshot-transport` |
-| **T17-2** | Peak-preserving decimation (V1.1-deferred) | Sonnet | `feature/trend-decimation` |
-| **T18-1** | Container and WSGI serving | Sonnet · one worker process | `chore/container-and-ci` |
-| **T18-3** | API input validation | Sonnet | `feature/api-validation` |
-| **T18-4** | Structured logging and health | Sonnet | `feature/observability` |
-| **T18-5** | Session lifecycle and config versioning | Sonnet | `feature/lifecycle-versioning` |
-
-**Scheduling notes.** The spine lock is **one global lock**, now the standing
-rule (R12, [DEVELOPMENT.md](../../DEVELOPMENT.md#file-ownership)); it is
-free. **T18-1 must run exactly one Gunicorn
-worker process** — `SessionRegistry` is per-process (R7). T12-1 adds a *new* isolated module under `app/engine/`, which is
-satellite work, but `rng.py` is spine: adding RNG state save/restore there
-(T12-1 or T14-5) takes the spine lock. **T11-2 routes through T7-4's
-`CommandArbiter`**, which at T7-4's own merge was noted as "not wired to
-anything yet" - T8-4 wired the control loops through it, so T11-2 is only the
-second consumer; per T7-4's note, start/stop is not arbitrated there, only
-numeric targets, so T11-2 decides how "stop the machine" is expressed.
+**Scheduling notes.** The spine lock is one global lock
+([DEVELOPMENT.md](../../DEVELOPMENT.md#file-ownership)); it is free. `rng.py` is
+spine, so RNG state save/restore (T12-1 or T14-5) takes it. **T18-1 must run
+exactly one Gunicorn worker** - `SessionRegistry` is per-process (R7).
+**T11-2 is the second consumer of T7-4's `CommandArbiter`** (after T8-4's
+loops); it arbitrates numeric targets only, not start/stop, so T11-2 decides
+how "stop the machine" is expressed.
 
 ## Known interim behaviour — do not "fix" these in passing
 
@@ -148,60 +106,36 @@ scope, and item 1 in particular reads like a bug and is not.
 
 ## Known technical debt (recorded, not scheduled)
 
-- **Boundary temperatures are not in C3.** A config-loaded plant supplies at
-  60 °F everywhere unless the caller passes `boundary_temperatures`; a node
-  `temperature` field is a C3 change that no task owns yet. Related: the
-  compressor page's `temperature` still reads `temperature_at` from the 75 °F
-  design suction, not the transported stream, and C4 has no field for a
-  transport that did not settle.
-
-- **Instruments are not in C3.** `Engine(instruments=...)` is the only way to
-  give a plant a transmitter; a config key for them is a C3 change no task owns
-  yet. T8-3 (`app/controls/loader.py`) sidestepped it rather than closing it:
-  a `controllers.pv` entry resolves against a node id, not a transmitter tag,
-  since a node has exactly one measured quantity (its pressure) and needs no
-  new key. That only covers pressure loops - a level, flow or temperature PV
-  still has nothing to bind to. Transmitters only have `bias` - no stuck or
-  range-clamped reading (T13-2). T9-4 (`app/engine/engine.py`) hit the same
-  gap from the `limits` side: a `(tag, variable)` resolves only against a
-  field the device's own `get_state()` publishes, so `V-101.level` classifies
-  live but `K-101.discharge_pressure` and `P-101.flow` - both solved
-  node/branch values - are configured in `olefins_lite.yaml` and warned about
-  once, at Engine construction, then never evaluated. No task owns the general
-  device-to-point resolver either loops or limits would need to close this for
-  good.
-- **A stopped machine keeps a small residual flow.** Never-run reads exactly
-  `0.0`; *stopped* settles just off zero and stays: **0.055 GPM** (pump),
-  **0.004 SCFM** (compressor). At shutoff the branch curve is flat, so the root
-  is a double root and the 1e-7 psia of slack maps to `sqrt(tolerance /
-  resistance)` of flow. The solver reports `converged` at `iterations: 0`. Not a
-  defect, and **not a reason to retune the tolerance**. **Do not assert an idle
-  flow of exactly zero.** That residual reaches vessel level with no clamp and
-  no deadband — 3.3 gal/hour against a 1000 gal vessel — and that is decided
-  behaviour, not a leak to plug.
-- **The `Equipment.characteristic` docstring overstates the Jacobian** —
-  `base.py` is frozen, so this hasn't been corrected in place. Full explanation
-  in [.claude/rules/engine.md](../../.claude/rules/engine.md).
-- **A resistance-only valve cannot stop reverse flow, and it absorbs most of the
-  drop.** Against 50 → 180 psia a cold plant backflows through a wide-open valve
-  (−1000 GPM at Cv 100), and closing it trims that only by the square root of
-  the added resistance. With the valve as the only resistance it takes 107–139
-  psi of the 150 psi the pumps make — 70–93% of system drop against 10–30% in a
-  real plant. A pipe or resistance device is needed for line loss; **no task
-  owns one yet.**
-- **Contract-test discovery is import-order dependent.** `REGISTERED` in
-  `tests/test_equipment_contract.py` is computed at import time, so an
-  `Equipment` subclass defined in a later-imported test module silently escapes
-  the parametrized contract tests. Passes either way today.
-- **`app/init.py` is a misnamed empty file** (not `__init__.py`). `app` resolves
-  as a namespace package, so imports work. Harmless; never had a task.
-- **`static/style.css` is 15 lines** and defines almost none of the classes the
-  templates use. The pages are largely unstyled — intentional, rebuilt at M16.
-- **History carries T1-5 twice** (`d41949a` + `5ea07cb`, identical) from a branch
-  race. Already pushed; deliberately not rewritten. This is why the one-worktree
-  rule exists.
-- **`package.json` / `node_modules/`** exist only for a TypeScript dev
-  dependency and are not part of the app.
+- **Boundary temperatures are not in C3.** A config-loaded plant supplies 60 °F
+  everywhere unless the caller passes `boundary_temperatures`; a node
+  `temperature` field is an unowned C3 change. The compressor page's
+  `temperature` still reads `temperature_at` from the 75 °F design suction, and
+  C4 has no field for a transport that did not settle.
+- **Instruments are not in C3, and no device-to-point resolver exists.**
+  `Engine(instruments=...)` is the only way to add a transmitter. A
+  `controllers.pv` resolves against a node id (T8-3), so only pressure loops
+  can bind. A `limits` `(tag, variable)` resolves only against a device's own
+  `get_state()` field (T9-4): `V-101.level` classifies live, but
+  `K-101.discharge_pressure` and `P-101.flow` in `olefins_lite.yaml` are warned
+  about once at Engine construction and never evaluated. Transmitters only have
+  `bias` - no stuck or range-clamped reading (T13-2).
+- **A stopped machine keeps a small residual flow**: 0.055 GPM (pump), 0.004
+  SCFM (compressor); never-run reads exactly `0.0`. At shutoff the branch root
+  is a double root, so 1e-7 psia of slack maps to `sqrt(tolerance /
+  resistance)` of flow. It reaches vessel level unclamped (3.3 gal/hour against
+  1000 gal). Decided behaviour: **do not retune the tolerance, and do not assert
+  an idle flow of exactly zero.**
+- **The `Equipment.characteristic` docstring overstates the Jacobian**; `base.py`
+  is frozen. See [.claude/rules/engine.md](../../.claude/rules/engine.md).
+- **A resistance-only valve cannot stop reverse flow and absorbs most of the
+  drop** (107-139 of 150 psi, 70-93% of system drop vs 10-30% in a real plant).
+  A pipe or line-loss resistance device is needed; **no task owns one.**
+- **Contract-test discovery is import-order dependent**: `REGISTERED` in
+  `tests/test_equipment_contract.py` is computed at import, so an `Equipment`
+  subclass in a later-imported test module escapes the contract tests.
+- Harmless oddities: `app/init.py` is a misnamed empty file (`app` is a
+  namespace package); `static/style.css` is a 15-line stub until M16;
+  `package.json` exists only for a TypeScript dev dependency.
 
 ## Open decisions with no owner
 
@@ -219,37 +153,16 @@ scope, and item 1 in particular reads like a bug and is not.
 
 ## Traps for the next tasks
 
-**The mass-balance conservation identity is now recorded, not open.** T5-4
-(`tests/test_mass_balance.py`) wrote down ADR 0002 §7.1's identity —
-`Δinventory = Σ(n=0…N-1) q_n·dt/60`, with `q₀` read before the first `step()` —
-and checked it against T5-5's cold-start transient, both cumulatively (no
-drift to 20,000 steps) and per-step. A later task touching conservation should
-read that file before re-deriving the identity.
+- **Mass-balance identity** (ADR 0002 §7.1) is written down and checked in
+  `tests/test_mass_balance.py`; read it before re-deriving conservation.
+- **Near zero vapour flow, explicit Euler limit-cycles** (stable period-2,
+  ±0.0615 SCFM / ±7.5e-6 psi, bounded to step 12,000). Unowned until M8 testing
+  needs it; **assert a pressure asymptote, not a final flow.**
+- **Do not assert a cold-start operating point in T3-4's reference fixtures**:
+  without a check valve or line resistance, a stopped machine backflows if
+  boundaries are sized for running, and a started one runs away if sized cold.
+- Repo-wide test-writing traps and golden-trace policy:
+  [.claude/rules/testing.md](../../.claude/rules/testing.md).
 
-**Near zero vapour flow, explicit Euler limit-cycles.** Where `dε/dt ∝ −√ε` it
-settles into a stable period-2 cycle, measured at ±0.0615 SCFM and ±7.5e-6 psi,
-still bounded at step 12,000. Owned by nobody; it gets a numerical-stability
-task *if and when* M8 controller testing needs one. Until then **assert a
-pressure asymptote rather than a final flow**, which is phase-dependent.
-
-**Do not assert a cold-start operating point in T3-4's reference fixtures.**
-With no check valve, line resistance or control valve, a stopped machine
-backflows if the boundaries are sized for running and a started one runs away if
-they are sized for cold.
-
-Test-writing traps that apply repo-wide — backflow hiding inside a "flow rises"
-assertion, asserting mid-ramp states, and golden-trace policy — live in
-[.claude/rules/testing.md](../../.claude/rules/testing.md).
-
-## Where the rest lives
-
-| Question | Source |
-|---|---|
-| What must I never break? | [AGENTS.md](../../AGENTS.md) |
-| How do current and target architecture differ? What is in which module? | [ARCHITECTURE.md](../../docs/ARCHITECTURE.md) |
-| Why was a decision made? | ADR [0001](../../docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md), ADR [0002](../../docs/ADR_0002_TYPED_PORTS.md) |
-| What did task T*n* actually deliver? | [BUILD_PLAN_STATUS.json](../../docs/BUILD_PLAN_STATUS.json) — search the task ID |
-| What is the task list and schedule? | [BUILD_PLAN.html](../../docs/BUILD_PLAN.html) — search your task ID, never read it whole |
-| How do I branch, test and merge? | [DEVELOPMENT.md](../../DEVELOPMENT.md) |
-| What units does a number carry? | [UNITS_CONVENTION.md](../../docs/UNITS_CONVENTION.md) |
-| How many tests, and where? | `python -m pytest --collect-only -q` — never a table in a doc |
+Everything else: the "Where authoritative state lives" table in
+[AGENTS.md](../../AGENTS.md).

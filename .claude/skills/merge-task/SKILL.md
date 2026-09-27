@@ -58,7 +58,7 @@ two disagree, DEVELOPMENT.md is authoritative and this skill is stale.
    - Update "Last state refresh" to the new date and merge SHA.
    - Add one line to the recent-merges table; if it now has more than ~6
      rows, drop the oldest (it's already in `BUILD_PLAN_STATUS.json`).
-   - Update milestone progress and the startable-tasks list — cross-check
+   - Update milestone progress and the startable count and Opus exceptions — cross-check
      against `BUILD_PLAN_STATUS.json`'s actual dependency graph, don't just
      append.
    - Do not add a per-task handoff section. One line in the table is the

@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "27 September 2026",
-  "main_sha": "619af4ea87193e3d45bd04539ea03b09cb95c62f",
-  "tests_passing_on_main": 1664,
+  "main_sha": "0bb2e257142e9ce21af48b53693536f79e36654b",
+  "tests_passing_on_main": 1675,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -59,11 +59,11 @@
     "M8": {
       "name": "PID Controllers and Modes",
       "complete": 3,
-      "total": 5
+      "total": 6
     },
     "M9": {
       "name": "Operating Envelopes",
-      "complete": 2,
+      "complete": 3,
       "total": 4
     },
     "M10": {
@@ -118,8 +118,8 @@
     }
   },
   "totals": {
-    "tasks": 114,
-    "complete": 71,
+    "tasks": 115,
+    "complete": 72,
     "startable_now": 18
   },
   "tasks": [
@@ -1233,10 +1233,10 @@
       "files": [
         "app/engine/engine.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
+      "status": "In Progress",
+      "status_key": "prog",
       "startable": true,
-      "note": ""
+      "note": "In progress on feature/loop-execution (worktree ../plant-simulator-loop-execution). Holds the spine lock (app/engine/engine.py)."
     },
     {
       "id": "T8-5",
@@ -1249,6 +1249,30 @@
       ],
       "files": [
         "app/controls/cascade.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T8-4"
+      ],
+      "note": ""
+    },
+    {
+      "id": "T8-6",
+      "milestone": "M8",
+      "name": "Controller action (direct / reverse)",
+      "category": "core",
+      "branch": "feature/controller-action",
+      "depends_on": [
+        "T8-3",
+        "T8-4"
+      ],
+      "files": [
+        "app/controls/pid.py",
+        "config/schema/plant.schema.json",
+        "app/controls/loader.py",
+        "config/plants/olefins_lite.yaml"
       ],
       "status": "Not Started",
       "status_key": "todo",
@@ -1303,10 +1327,9 @@
       "files": [
         "app/envelope/tracker.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true,
-      "note": ""
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged 0bb2e25 (PR #98). Post-merge full suite: 1675 passed, mypy clean."
     },
     {
       "id": "T9-4",
@@ -1324,10 +1347,7 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "T9-3"
-      ],
+      "startable": true,
       "note": ""
     },
     {
@@ -1711,10 +1731,7 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "T9-3"
-      ],
+      "startable": true,
       "note": ""
     },
     {
@@ -1824,7 +1841,6 @@
       "startable": false,
       "blocked_by": [
         "T15-1",
-        "T9-3",
         "T10-3"
       ],
       "note": ""

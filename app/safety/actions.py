@@ -245,7 +245,8 @@ class TripSystem:
                 errors.append(f"interlock {tag}: {error}")
 
         errors.extend(self._conflicts())
-        self.evaluated = self._resolve_conditions(snapshot, equipment, errors)
+        unresolved: list[str] = []
+        self.evaluated = self._resolve_conditions(snapshot, equipment, errors, unresolved)
         self._last_time: float | None = None
 
         if errors:
@@ -253,6 +254,9 @@ class TripSystem:
                 f"interlocks rejected, {len(errors)} problem(s):\n"
                 + "\n".join(f"  {error}" for error in errors),
             )
+
+        for message in unresolved:
+            warnings.warn(message, stacklevel=_outside_this_module())
 
         for actions in self.actions.values():
             for action in actions:
@@ -335,12 +339,13 @@ class TripSystem:
         snapshot: Snapshot,
         equipment: Mapping[str, Equipment],
         errors: list[str],
+        unresolved: list[str],
     ) -> tuple[str, ...]:
         """The interlocks whose condition reads a published number. A
         condition naming no device of this plant, or a published field that
         is not a number, is a configuration fault and joins `errors`; only an
-        existing device's unpublished variable - the resolver gap - is
-        warned about and skipped."""
+        existing device's unpublished variable - the resolver gap - joins
+        `unresolved`, to be warned about once construction succeeds."""
         evaluated: list[str] = []
 
         for tag, interlock in self.interlocks.items():
@@ -357,11 +362,10 @@ class TripSystem:
             row = snapshot.equipment.get(condition.tag, {})
 
             if condition.variable not in row:
-                warnings.warn(
+                unresolved.append(
                     f"interlock {tag} condition {point} does not resolve "
                     f"against the equipment section the snapshot publishes "
                     f"and will not be evaluated",
-                    stacklevel=_outside_this_module(),
                 )
                 continue
 

@@ -418,8 +418,32 @@ def test_an_unresolvable_condition_is_warned_about_at_the_callers_line():
             engine.snapshot(),
         )
 
-    assert caught[0].filename == __file__
-    assert caught_directly[0].filename == __file__
+    for records in (caught, caught_directly):
+        (record,) = [record for record in records if "PSHH-101" in str(record.message)]
+        assert record.filename == __file__
+
+
+def test_a_rejected_configuration_warns_about_nothing():
+    plant = load_plant_file(PLANT_FILE)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        engine = Engine.from_plant(plant)
+
+    entries = [*plant.passthrough("interlocks"), interlock("XS-1", ["P-101.close"])]
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+
+        with pytest.raises(ValueError, match="interlock XS-1"):
+            TripSystem(
+                load_interlocks({"interlocks": entries}),
+                engine.equipment,
+                CommandArbiter(),
+                engine.snapshot(),
+            )
+
+    assert caught == []
 
 
 # Configuration is checked up front

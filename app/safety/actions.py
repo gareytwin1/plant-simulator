@@ -88,9 +88,11 @@ paused engine advances no delay.
 from __future__ import annotations
 
 import math
+import sys
 import warnings
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+from types import FrameType
 
 from app.controls.arbitration import AGREEMENT, Actuator, CommandArbiter, Source
 from app.engine.snapshot import Snapshot
@@ -224,7 +226,6 @@ class TripSystem:
         equipment: Mapping[str, Equipment],
         arbiter: CommandArbiter,
         snapshot: Snapshot,
-        _stacklevel: int = 3,
     ) -> None:
         self.interlocks = dict(interlocks)
         self.arbiter = arbiter
@@ -249,7 +250,7 @@ class TripSystem:
                 + "\n".join(f"  {error}" for error in errors),
             )
 
-        self.evaluated = self._resolve_conditions(snapshot, _stacklevel)
+        self.evaluated = self._resolve_conditions(snapshot)
         self._last_time: float | None = None
 
         for actions in self.actions.values():
@@ -272,7 +273,6 @@ class TripSystem:
             equipment,
             arbiter,
             snapshot,
-            _stacklevel=4,
         )
 
     @property
@@ -329,7 +329,7 @@ class TripSystem:
 
         return errors
 
-    def _resolve_conditions(self, snapshot: Snapshot, stacklevel: int) -> tuple[str, ...]:
+    def _resolve_conditions(self, snapshot: Snapshot) -> tuple[str, ...]:
         evaluated: list[str] = []
 
         for tag, interlock in self.interlocks.items():
@@ -341,7 +341,7 @@ class TripSystem:
                     f"interlock {tag} condition {condition.tag}.{condition.variable} "
                     f"does not resolve against the equipment section the snapshot "
                     f"publishes and will not be evaluated",
-                    stacklevel=stacklevel,
+                    stacklevel=_outside_this_module(),
                 )
                 continue
 
@@ -361,3 +361,18 @@ def _number(value: JSONValue) -> float | None:
         return None
 
     return float(value)
+
+
+def _outside_this_module() -> int:
+    """The `warnings.warn` stacklevel of the first frame outside this file,
+    counted from the caller, so a warning names the code that built the trip
+    system whichever constructor it went through. (`skip_file_prefixes` does
+    not skip frames on the Python 3.12 this project pins.)"""
+    frame: FrameType | None = sys._getframe(1)
+    level = 1
+
+    while frame is not None and frame.f_code.co_filename == __file__:
+        frame = frame.f_back
+        level += 1
+
+    return level

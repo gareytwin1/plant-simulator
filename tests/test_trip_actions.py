@@ -20,7 +20,7 @@ from types import MappingProxyType
 
 import pytest
 
-from app.controls.arbitration import Source
+from app.controls.arbitration import CommandArbiter, Source
 from app.controls.modes import Mode
 from app.disturbances.malfunction import Malfunction, MalfunctionRegistry
 from app.engine.engine import Engine
@@ -410,7 +410,16 @@ def test_an_unresolvable_condition_is_warned_about_at_the_callers_line():
     with pytest.warns(UserWarning, match="PSHH-101") as caught:
         TripSystem.from_plant(plant, engine.equipment, engine.arbiter, engine.snapshot())
 
+    with pytest.warns(UserWarning, match="PSHH-101") as caught_directly:
+        TripSystem(
+            load_interlocks({"interlocks": plant.passthrough("interlocks")}),
+            engine.equipment,
+            CommandArbiter(),
+            engine.snapshot(),
+        )
+
     assert caught[0].filename == __file__
+    assert caught_directly[0].filename == __file__
 
 
 # Configuration is checked up front

@@ -306,7 +306,9 @@ def _required_number(config: Mapping[str, Any], key: str, trigger_id: str) -> fl
     except OverflowError:
         # An int too large for a float (e.g. a 400-digit sim_time) - still a
         # malformed config, not a crash.
-        raise ValueError(f"trigger {trigger_id!r} has {key}={value!r}, which is too large") from None
+        raise ValueError(
+            f"trigger {trigger_id!r} has {key}={value!r}, which is too large",
+        ) from None
 
     if not math.isfinite(number):
         raise ValueError(f"trigger {trigger_id!r} has {key}={value!r}, which is not finite")

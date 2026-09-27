@@ -1,7 +1,7 @@
 """
 Alarm API (T10-3, contract C7 exposed over HTTP).
 
-Two things a console needs beyond what `AlarmManager` computes each step: the
+Two things a console needs beyond what `AlarmManager.evaluate()` returns: the
 running record for the debrief (`GET /api/alarms/history`) and a way for the
 operator to acknowledge (`POST /api/alarms/acknowledge`). Same shape as
 `app/api/action.py` (T15-1): `create_alarm_blueprint` takes its

@@ -4,7 +4,7 @@ import time
 import pytest
 from flask import Flask
 
-from app.alarms.history import AlarmHistory
+from app.alarms.history import AcknowledgeRecord, AlarmHistory
 from app.alarms.manager import AlarmManager, EnvelopeEvent, _alarm_id
 from app.alarms.state import AlarmState
 from app.api.alarms import create_alarm_blueprint
@@ -156,6 +156,40 @@ def test_post_acknowledge_of_an_alarm_that_cleared_before_being_acked_still_reco
     assert response.get_json() == {"ok": True, "recorded": True}
     assert len(history) == 2
     assert manager.get(alarm_id).state is AlarmState.NORMAL
+
+
+def test_post_acknowledge_after_the_raising_event_has_been_evicted_still_works():
+    # tag_of's entry for an id outlives that id's Event in the bounded
+    # deque (the two are tracked separately) - an operator must still be
+    # able to acknowledge a long-standing alarm whose original Event has
+    # long since scrolled out of a capacity-bounded history.
+    manager = AlarmManager()
+    history = AlarmHistory(capacity=2)
+    app = Flask(__name__)
+    app.register_blueprint(create_alarm_blueprint(lambda: manager, lambda: history, lambda: 0.0))
+    client = app.test_client()
+
+    def raise_point(pv: str) -> str:
+        point = EnvelopeEvent(tag="K-101", pv=pv, severity=Severity.ALARM, side="hi")
+        events = manager.evaluate([point], sim_time=0.0)
+        history.record_events(events)
+        return events[0].id
+
+    alarm_id = raise_point("discharge pressure")
+    raise_point("suction pressure")
+    raise_point("temperature")
+
+    assert all(getattr(entry, "id", None) != alarm_id for entry in history.entries())
+
+    response = client.post("/api/alarms/acknowledge", json={"alarm_id": alarm_id})
+
+    assert response.get_json() == {"ok": True, "recorded": True}
+    assert manager.get(alarm_id).acknowledged is True
+    ack = history.entries()[-1]
+    assert isinstance(ack, AcknowledgeRecord)
+    assert ack.alarm_id == alarm_id
+    assert ack.tag == "K-101"
+    assert all(getattr(entry, "id", None) != alarm_id for entry in history.entries())
 
 
 def test_post_acknowledge_of_an_id_missing_from_history_is_a_409_and_leaves_state_unchanged():

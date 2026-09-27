@@ -11,6 +11,6 @@ auto_loaded_cap: 3500
 ## project_state.md
 - status: active
 - last_referenced: 2026-09-24
-- tokens: 3857
+- tokens: 2372
 - anchors: -
 

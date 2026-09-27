@@ -28,8 +28,8 @@ if the two disagree, DEVELOPMENT.md is authoritative and this skill is stale.
 4. **Check the model assignment.** `BUILD_PLAN_STATUS.json` does not carry one
    — the assignment lives in the `AGENT` map in `docs/BUILD_PLAN.html` (grep
    the task ID), which defaults to Opus for a `core` task and Sonnet for
-   everything else. project_state.md's startable-tasks table repeats it for
-   the tasks listed there. Sanity-check the result against
+   everything else. project_state.md names the Opus exceptions among the
+   startable tasks. Sanity-check the result against
    [AGENTS.md's Agent model guidance](../../../AGENTS.md#agent-model-guidance):
    Sonnet implements and executes, Opus decides. If this session isn't running
    as that model, say so plainly and let the user switch — a skill cannot

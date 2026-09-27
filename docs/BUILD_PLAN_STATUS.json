@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "27 September 2026",
-  "main_sha": "b36af0d746c688bf1d54fb0381bd71ff24d61f7b",
-  "tests_passing_on_main": 1888,
+  "main_sha": "994b30e1244dc75ec3761999fcf5e3662917fa94",
+  "tests_passing_on_main": 1963,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -73,7 +73,7 @@
     },
     "M11": {
       "name": "Interlocks, Trips and Shutdown",
-      "complete": 0,
+      "complete": 1,
       "total": 4
     },
     "M12": {
@@ -119,7 +119,7 @@
   },
   "totals": {
     "tasks": 115,
-    "complete": 78,
+    "complete": 79,
     "startable_now": 17
   },
   "tasks": [
@@ -1443,10 +1443,9 @@
         "app/safety/interlocks.py",
         "config/plants/olefins_lite.yaml"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true,
-      "note": "T5-5 merged as 37fbc36 (PR #49) 22 Sep 2026 - only T9-1 blocks this now. Depends on T5-5, which creates config/plants/olefins_lite.yaml; explicit because milestone ordering alone is too implicit for agents (docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md)."
+      "status": "Complete",
+      "status_key": "done",
+      "note": "COMPLETE - merged to main as 994b30e (Merge T11-1, PR #105), 27 Sep 2026. 1963 passed on main post-merge, mypy clean over 53 source files. Adds app/safety/interlocks.py (Condition parser, Interlock delay/latch/reset state machine, load_interlocks/get_interlock) and three interlocks in olefins_lite.yaml (LSHH-101, LSLL-101, PSHH-101). Fails safe on non-finite readings; reset: manual refuses while the condition is still met. P-101's backflow trip deliberately unconfigured - see project_state.md's 'No check valve' item. /roborev-refine ran to a clean branch review after 4 fix-review cycles."
     },
     {
       "id": "T11-2",
@@ -1463,10 +1462,7 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "T11-1"
-      ],
+      "startable": true,
       "note": ""
     },
     {

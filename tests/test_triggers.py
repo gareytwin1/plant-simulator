@@ -79,10 +79,11 @@ def test_time_trigger_without_one_shot_fires_on_every_later_step():
 def test_time_trigger_with_one_shot_fires_exactly_once():
     trigger = Trigger(id="t1", kind=TimeTrigger(sim_time=30.0), one_shot=True)
     evaluator = TriggerEvaluator([trigger])
+    log = ActionLog()  # one log for the whole run, as a real caller keeps
 
-    first = evaluator.evaluate(snapshot_at(30.0), ActionLog())
-    second = evaluator.evaluate(snapshot_at(31.0), ActionLog())
-    third = evaluator.evaluate(snapshot_at(3000.0), ActionLog())
+    first = evaluator.evaluate(snapshot_at(30.0), log)
+    second = evaluator.evaluate(snapshot_at(31.0), log)
+    third = evaluator.evaluate(snapshot_at(3000.0), log)
 
     assert first == ("t1",)
     assert second == ()
@@ -421,6 +422,20 @@ def test_a_fresh_action_log_is_not_read_through_the_previous_ones_latch():
 
     second_log.record(tag="K-101", action="stop", value=None, sim_time=1.0)
     assert evaluator.evaluate(snapshot_at(2.0), second_log) == ("ack",)
+
+
+def test_a_fresh_action_log_also_resets_one_shot_bookkeeping():
+    # A fresh ActionLog is this evaluator's own signal that a new run has
+    # begun - a one-shot trigger that already fired in the previous run
+    # must not come back already spent in this one.
+    evaluator = TriggerEvaluator([Trigger(id="t1", kind=TimeTrigger(sim_time=0.0), one_shot=True)])
+
+    first_log = ActionLog()
+    assert evaluator.evaluate(snapshot_at(0.0), first_log) == ("t1",)
+    assert evaluator.evaluate(snapshot_at(1.0), first_log) == ()  # already fired
+
+    second_log = ActionLog()
+    assert evaluator.evaluate(snapshot_at(0.0), second_log) == ("t1",)  # fresh run, fires again
 
 
 def test_evaluate_does_not_touch_the_action_log_when_no_trigger_needs_it():

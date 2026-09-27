@@ -286,10 +286,12 @@ class TriggerEvaluator:
     tracks a malfunction's onset outside its stateless `StartCondition`:
     which one-shot triggers have already fired, and, for an
     operator-action trigger, how much of the action log it has already
-    looked at and whether it has matched. That memo is keyed to a specific
-    `ActionLog` instance (by identity) and is dropped if `evaluate()` is
-    ever called with a different one - a scenario reset or replay handing
-    in a fresh log must not inherit a stale latch from the run before it.
+    looked at and whether it has matched. All of it is run-scoped, and a
+    fresh `ActionLog` identity is this evaluator's own signal that a new
+    run has begun: `evaluate()` seeing a different log than the one it saw
+    last resets every piece of that state together, one-shot bookkeeping
+    included, so a scenario reset or replay starts exactly as clean as a
+    brand new `TriggerEvaluator` would.
     """
 
     def __init__(self, triggers: Iterable[Trigger]) -> None:
@@ -335,6 +337,7 @@ class TriggerEvaluator:
     def evaluate(self, snapshot: Snapshot, actions: ActionLog) -> tuple[str, ...]:
         """Return the ids of every trigger that fires on this step."""
         if id(actions) != self._action_log_id:
+            self._fired.clear()
             self._action_matched.clear()
             self._action_seen_length.clear()
             self._action_log_id = id(actions)

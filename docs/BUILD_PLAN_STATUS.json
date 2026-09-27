@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "27 September 2026",
-  "main_sha": "d8d59c3",
-  "tests_passing_on_main": 1632,
+  "main_sha": "dee5cd82acad26ba1b86a0296ae1b179f1dd95fb",
+  "tests_passing_on_main": 1647,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -63,7 +63,7 @@
     },
     "M9": {
       "name": "Operating Envelopes",
-      "complete": 1,
+      "complete": 2,
       "total": 4
     },
     "M10": {
@@ -119,7 +119,7 @@
   },
   "totals": {
     "tasks": 114,
-    "complete": 69,
+    "complete": 70,
     "startable_now": 17
   },
   "tasks": [
@@ -1291,10 +1291,9 @@
         "config/plants/olefins_lite.yaml",
         "app/envelope/loader.py"
       ],
-      "status": "Ready for Review",
-      "status_key": "review",
-      "startable": true,
-      "note": "PR #95 open (feature/envelope-limits -> main). app/envelope/loader.py binds C3's limits key to T9-1's Evaluator; lo/hi -> warning_lo/warning_hi, lo_lo/hi_hi -> trip_lo/trip_hi when trip is true else alarm_lo/alarm_hi. Repeated (tag,variable) entries rejected. olefins_lite.yaml gains its limits key (V-101.level, K-101.discharge_pressure, P-101.flow) at the plant's design point. 1620 passed, mypy clean over 42 files, no golden trace moved, roborev clean."
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged to main as dee5cd8 (PR #95, merge commit dee5cd82acad26ba1b86a0296ae1b179f1dd95fb), 27 Sep 2026. app/envelope/loader.py binds C3's limits key to T9-1's Evaluator: lo/hi -> warning_lo/warning_hi, lo_lo/hi_hi -> trip_lo/trip_hi when trip is true else alarm_lo/alarm_hi; repeated (tag,variable) entries rejected. olefins_lite.yaml gains its limits key (V-101.level, K-101.discharge_pressure, P-101.flow) at the plant's design point, so a freshly loaded plant reads NORMAL on all three. Post-merge full suite on main: 1647 passed, mypy clean over 43 files, no golden trace moved. Unblocks nothing further on its own (T9-4 also needs T9-3 and T2-3)."
     },
     {
       "id": "T9-3",
@@ -1331,7 +1330,6 @@
       "status_key": "todo",
       "startable": false,
       "blocked_by": [
-        "T9-2",
         "T9-3"
       ],
       "note": ""

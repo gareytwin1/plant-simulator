@@ -232,9 +232,11 @@ def test_a_standing_run_demand_restarts_the_machine_when_the_trip_releases():
     assert not pump.running
 
     assert trips.interlocks["XS-1"].reset()
-    run(engine, trips, 1.0)
+    run(engine, trips, 10.0)
 
     assert pump.running
+    assert pump.speed_target == pytest.approx(0.0)
+    assert pump.speed == pytest.approx(0.0)
 
 
 def test_a_condition_that_stops_reading_a_number_fails_safe(monkeypatch):

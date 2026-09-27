@@ -24,9 +24,11 @@ Releasing moves nothing of its own: the output falls back to whatever the
 next source demands, or holds where the trip left it if nobody demands it. A
 stopped machine therefore stays stopped after a reset until someone starts
 it - unless a lower-precedence source is still holding a standing `RUN`
-demand on it, which takes effect the moment the trip releases, exactly as a
-standing operator position does on a valve. Whoever posts a run demand owns
-that; gating a restart on what must be true first is T11-3's.
+demand on it, which calls `start()` the moment the trip releases. That sets
+only the run flag: the trip's `stop()` zeroed the speed or load target, so
+the machine comes back running at zero until that target is demanded again.
+Whoever posts a run demand owns that; gating a restart on what must be true
+first is T11-3's.
 
 **The arbiter carries numbers, so starting and stopping is a number.** A
 machine's run command is its own arbiter output, `"<tag>.run"`, taking `RUN`

@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "27 September 2026",
-  "main_sha": "6cafbd25d11209126bea4ca43ec85098923a73ba",
-  "tests_passing_on_main": 1803,
+  "main_sha": "65458ee4bdb62103cbf76e084cd1269fde429453",
+  "tests_passing_on_main": 1868,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -83,7 +83,7 @@
     },
     "M13": {
       "name": "Disturbance and Malfunction Layer",
-      "complete": 2,
+      "complete": 3,
       "total": 5
     },
     "M14": {
@@ -119,7 +119,7 @@
   },
   "totals": {
     "tasks": 115,
-    "complete": 76,
+    "complete": 77,
     "startable_now": 16
   },
   "tasks": [
@@ -1670,10 +1670,9 @@
       "files": [
         "tests/test_layer_isolation.py"
       ],
-      "status": "Ready for Review",
-      "status_key": "review",
-      "startable": true,
-      "note": "PR #100"
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged 65458ee (PR #100). 1868 passed, mypy clean over 49 files. Guard excludes app/api and app/main.py (orchestration layer) alongside app/disturbances and app/scoring."
     },
     {
       "id": "T14-1",

@@ -9,8 +9,10 @@ setpoint. Dropping the supply to 80 psia takes N-02 to 50.0 with PV-101 where
 it was; holding 60.0 needs PV-101's Cv at sqrt(4000 / 20), which is travel
 1/sqrt(2).
 
-PIC-101 is direct-acting on PV-101 - opening the supply valve raises the
-pressure it measures - which is the only action the PID block has.
+PIC-101 is reverse-acting on PV-101 in ISA terms - opening the supply valve
+raises the pressure it measures, so its output must fall as that pressure
+rises - which is what a controllers entry with no `action` computes (T8-6).
+The direct-acting case mirrors it: the loop owns the drain valve instead.
 """
 
 import math
@@ -130,6 +132,67 @@ def test_the_same_disturbance_with_the_loop_in_manual_is_not_corrected():
 
     assert pressure(snapshot) == pytest.approx(DISTURBED_PRESSURE, abs=1e-6)
     assert snapshot.equipment["PV-101"]["position"] == pytest.approx(DESIGN_TRAVEL)
+
+
+def direct_config(mode="AUTO"):
+    """The mirror plant: HV-101 is the fixed supply valve and PV-101 the
+    drain the loop owns. Opening PV-101 lowers N-02, so the loop is
+    direct-acting. After the same supply drop to 80 psia, holding 60.0 needs
+    PV-101's Cv at 10 * sqrt(20 / 40) - travel 0.5 / sqrt(2)."""
+    cfg = config(mode)
+    cfg["equipment"] = [
+        valve("HV-101", "N-01", "N-02"),
+        valve("PV-101", "N-02", "N-03"),
+    ]
+    cfg["controllers"][0]["action"] = "DIRECT"
+
+    return cfg
+
+
+def test_a_direct_acting_loop_holds_setpoint_through_an_upstream_disturbance():
+    plant, engine = running(direct_config("AUTO"))
+    run(engine, 10)
+
+    disturb(plant)
+    snapshot = run(engine, 300)
+
+    assert pressure(snapshot) == pytest.approx(SETPOINT, abs=1e-6)
+    assert snapshot.equipment["PV-101"]["position"] == pytest.approx(
+        DESIGN_TRAVEL / math.sqrt(2.0), abs=1e-6
+    )
+
+
+def test_a_direct_acting_loop_given_the_reverse_action_runs_away():
+    """The control case: the same plant with the action left at its default
+    drives the drain valve the wrong way - open, lowering the pressure it was
+    meant to raise - which is what PIC-101 on the reference plant did before
+    T8-6."""
+    cfg = direct_config("AUTO")
+    del cfg["controllers"][0]["action"]
+    plant, engine = running(cfg)
+    run(engine, 10)
+
+    disturb(plant)
+    snapshot = run(engine, 300)
+
+    # PV-101 wide open at Cv 20 against HV-101's Cv 10:
+    # 10 * sqrt(80 - p) = 20 * sqrt(p - 20) gives p = 32.0.
+    assert snapshot.equipment["PV-101"]["position"] == pytest.approx(1.0)
+    assert pressure(snapshot) == pytest.approx(32.0, abs=1e-6)
+
+
+def test_a_config_with_no_action_runs_bit_identically_to_an_explicit_reverse():
+    explicit = config("AUTO")
+    explicit["controllers"][0]["action"] = "REVERSE"
+
+    traces = []
+    for cfg in (config("AUTO"), explicit):
+        plant, engine = running(cfg)
+        run(engine, 5)
+        disturb(plant)
+        traces.append([engine.step(DT).as_dict() for _ in range(100)])
+
+    assert traces[0] == traces[1]
 
 
 def test_a_loop_bound_in_auto_starts_without_a_bump():

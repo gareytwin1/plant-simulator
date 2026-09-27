@@ -4,6 +4,7 @@ import pytest
 
 from app.controls.loader import LoopBinding, LoopConfigError, load_loops
 from app.controls.modes import Mode
+from app.controls.pid import Action
 from app.plant.loader import load_plant
 
 
@@ -117,6 +118,22 @@ def test_auto_mode_loads_as_auto():
     binding = load_loops(load_plant(config))["PIC-101"]
 
     assert binding.loop.mode is Mode.AUTO
+
+
+def test_an_entry_with_no_action_loads_reverse_acting():
+    binding = load_loops(load_plant(valid_config()))["PIC-101"]
+
+    assert binding.loop.pid.action is Action.REVERSE
+
+
+@pytest.mark.parametrize("action, expected", [("DIRECT", Action.DIRECT), ("REVERSE", Action.REVERSE)])
+def test_an_entry_loads_the_action_it_names(action, expected):
+    config = valid_config()
+    config["controllers"][0]["action"] = action
+
+    binding = load_loops(load_plant(config))["PIC-101"]
+
+    assert binding.loop.pid.action is expected
 
 
 def test_unknown_pv_tag_is_rejected_at_load():

@@ -184,7 +184,11 @@ interlocks:
     actions: ["P-101.stop"]
     reset: manual
   # The low-side twin of LSHH-101: stopping the feed pump would only deepen a
-  # low level, so this one closes the drain valve instead.
+  # low level, so this one closes the drain valve instead - which stops
+  # drain-driven loss only. Level loss from P-101 backflowing (if it is
+  # stopped, by LSHH-101 or an operator) bypasses LV-101 entirely and is the
+  # same missing-check-valve gap the backflow limit above has no interlock
+  # for; this trip does not cover that case either.
   - tag: LSLL-101
     condition: "V-101.level <= 0.1"
     delay_s: 5.0

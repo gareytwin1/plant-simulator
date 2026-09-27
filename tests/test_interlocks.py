@@ -460,10 +460,10 @@ def test_every_trip_rated_limit_has_a_matching_interlock_except_the_documented_e
     limits = load_limits(config)
     interlocks = load_interlocks(config)
 
-    configured = {
-        (i.definition.condition.tag, i.definition.condition.variable, i.definition.condition.operator, i.definition.condition.threshold)
-        for i in interlocks.values()
-    }
+    configured = set()
+    for interlock in interlocks.values():
+        c = interlock.definition.condition
+        configured.add((c.tag, c.variable, c.operator, c.threshold))
 
     for (tag, variable), evaluator in limits.items():
         bounds = []
@@ -476,7 +476,8 @@ def test_every_trip_rated_limit_has_a_matching_interlock_except_the_documented_e
             key = (tag, variable, operator, threshold)
             if key == _DOCUMENTED_EXCEPTION:
                 continue
-            assert key in configured, f"trip-rated {tag}.{variable} {operator} {threshold} has no matching interlock"
+            message = f"trip-rated {tag}.{variable} {operator} {threshold} has no matching interlock"
+            assert key in configured, message
 
 
 def test_neither_reset_mode_can_clear_a_trip_while_its_condition_still_holds():

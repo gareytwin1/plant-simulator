@@ -314,6 +314,19 @@ def test_from_config_rejects_a_non_boolean_one_shot():
         Trigger.from_config({"id": "t1", "type": "time", "sim_time": 1.0, "one_shot": "false"})
 
 
+def test_from_config_rejects_a_misspelled_one_shot_key():
+    # A typo like this must not be silently ignored (and worse, mean the
+    # trigger re-fires on every step instead of the "oneshot": true the
+    # author actually intended).
+    with pytest.raises(ValueError, match="t1"):
+        Trigger.from_config({"id": "t1", "type": "time", "sim_time": 1.0, "oneshot": True})
+
+
+def test_from_config_rejects_a_field_belonging_to_another_trigger_type():
+    with pytest.raises(ValueError, match="t1"):
+        Trigger.from_config({"id": "t1", "type": "time", "sim_time": 1.0, "condition": "K-101.tripped"})
+
+
 def test_from_config_rejects_a_config_missing_id():
     with pytest.raises(ValueError, match="id"):
         Trigger.from_config({"type": "time", "sim_time": 1.0})

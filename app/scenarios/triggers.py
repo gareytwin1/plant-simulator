@@ -276,6 +276,7 @@ class Trigger:
         kind: TriggerKind
 
         if trigger_type == "time":
+            _reject_unexpected_keys(config, trigger_id, {"sim_time"})
             sim_time = _required_number(config, "sim_time", trigger_id)
             if sim_time < 0:
                 raise ValueError(
@@ -285,10 +286,12 @@ class Trigger:
 
             kind = TimeTrigger(sim_time=sim_time)
         elif trigger_type == "condition":
+            _reject_unexpected_keys(config, trigger_id, {"condition"})
             kind = ConditionTrigger(
                 condition=Condition.parse(_required_string(config, "condition", trigger_id)),
             )
         elif trigger_type == "operator_action":
+            _reject_unexpected_keys(config, trigger_id, {"action"})
             tag, action = _split_action(_required_string(config, "action", trigger_id))
             kind = OperatorActionTrigger(tag=tag, action=action)
         else:
@@ -304,6 +307,20 @@ class Trigger:
             )
 
         return cls(id=trigger_id, kind=kind, one_shot=one_shot)
+
+
+# Every key a trigger config may carry regardless of type, per
+# scenario.schema.json (which sets additionalProperties: false on a
+# trigger, even though nothing under app/ validates against the schema
+# itself yet - this check is the from_config-side half of that).
+_COMMON_TRIGGER_KEYS = frozenset({"id", "type", "one_shot"})
+
+
+def _reject_unexpected_keys(config: Mapping[str, Any], trigger_id: str, type_specific: set[str]) -> None:
+    unexpected = sorted(set(config) - _COMMON_TRIGGER_KEYS - type_specific)
+
+    if unexpected:
+        raise ValueError(f"trigger {trigger_id!r} has unexpected key(s) {unexpected}")
 
 
 def _required(config: Mapping[str, Any], key: str, trigger_id: str) -> Any:

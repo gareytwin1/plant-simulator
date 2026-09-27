@@ -68,18 +68,24 @@ def enclosing_package(path):
     its package's `__init__.py` land on the same directory either way, which
     is exactly right - a package's `__package__` equals its own dotted name,
     not its parent's.
+
+    Requires `path` to sit under `APP.parent` (i.e. be a real module inside
+    this repo's `app/` tree) - there is no package to climb from otherwise.
     """
+    if APP.parent not in path.parents:
+        raise ValueError(f"{path} is not under {APP.parent}, so it has no enclosing package")
+
     parts = list(path.relative_to(APP.parent).with_suffix("").parts)
 
     return parts[:-1]
 
 
-def source_imports_forbidden_layer(source, package_parts):
-    """Does `source` (the text of a module in package `package_parts`) reach a
-    forbidden layer - by an absolute import, or a relative one resolved
-    against its own package?
+def tree_imports_forbidden_layer(tree, package_parts):
+    """Does the parsed module in package `package_parts` reach a forbidden
+    layer - by an absolute import, or a relative one resolved against its own
+    package?
     """
-    for node in ast.walk(ast.parse(source)):
+    for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             for alias in node.names:
                 if FORBIDDEN_LAYERS & set(alias.name.split(".")):
@@ -98,7 +104,7 @@ def source_imports_forbidden_layer(source, package_parts):
                     else []
                 )
 
-            module = (node.module or "").split(".") if node.module else []
+            module = node.module.split(".") if node.module else []
             target = [*base, *module]
 
             if FORBIDDEN_LAYERS & set(target):
@@ -110,18 +116,21 @@ def source_imports_forbidden_layer(source, package_parts):
     return False
 
 
+def source_imports_forbidden_layer(source, package_parts):
+    return tree_imports_forbidden_layer(ast.parse(source), package_parts)
+
+
 def imports_forbidden_layer(path):
-    source = path.read_text()
+    tree = ast.parse(path.read_text())
     has_relative_import = any(
-        isinstance(node, ast.ImportFrom) and node.level > 0
-        for node in ast.walk(ast.parse(source))
+        isinstance(node, ast.ImportFrom) and node.level > 0 for node in ast.walk(tree)
     )
     # Only resolved when actually needed: a synthetic module built for a test
     # (outside app/, all-absolute imports) has no package of its own to climb
     # from, and none of these guarded modules use a relative import today.
     package_parts = enclosing_package(path) if has_relative_import else []
 
-    return source_imports_forbidden_layer(source, package_parts)
+    return tree_imports_forbidden_layer(tree, package_parts)
 
 
 def test_the_guard_sees_the_modules_it_is_guarding():

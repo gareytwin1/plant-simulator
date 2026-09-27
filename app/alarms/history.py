@@ -12,9 +12,14 @@ buffer, but one instance covers one scenario run in its entirety rather than
 one series per tag, since a debrief wants "everything that happened this
 scenario" in the order it happened. `AlarmHistory` carries no run
 identifier of its own and cannot reset itself - starting a new run means the
-owner replaces this instance and its `AlarmManager` together; reusing one
-against a fresh instance of the other is exactly the drift `record_acknowledge`'s
-caller is expected to check for (see `tag_of` below).
+owner replaces this instance and its `AlarmManager` together. Only one
+direction of getting that wrong is detectable here: a fresh `AlarmHistory`
+paired with a reused `AlarmManager` has no tag for any of the manager's
+existing alarms, so `tag_of` (below) returns `None` and the caller can
+refuse to acknowledge. A stale `AlarmHistory` kept past an `AlarmManager`
+restart is not - its `_tag_of` entries look exactly like the new run's would,
+so nothing here catches an ack landing in the previous run's history; that
+half relies entirely on the owner actually replacing both together.
 
 An acknowledgement is its own `AcknowledgeRecord`, not folded into the
 `Event` that first raised the alarm - the operator's response is a distinct
@@ -82,11 +87,17 @@ class AlarmHistory:
 
     `Event.id` names a monitored point for its whole life (T10-2), not one
     occurrence, so `entries()` can hold several `Event`s and
-    `AcknowledgeRecord`s with the same id - an escalation past an existing
-    ACKED alarm, or a re-activation after RTN_UNACK, each add another
-    `Event` with the id it already had. A consumer pairing an ack with the
-    occurrence it closed wants the most recent preceding `Event` sharing its
-    id, tolerating one that capacity has already evicted.
+    `AcknowledgeRecord`s with the same id: every reportable band change
+    (T10-2) while an alarm is UNACK adds another `Event` with the id it
+    already had - a WARNING escalating to ALARM, a same-severity side flip,
+    or (as `AlarmManager`'s own docstring notes) an escalation past an
+    existing ACKED alarm or a re-activation after RTN_UNACK. A consumer
+    pairing an ack with the occurrence it closed wants the most recent
+    preceding `Event` sharing its id - among entries in the order this
+    history's caller recorded them, which is only chronological order if
+    that caller orders its own `record_events`/`record_acknowledge` calls,
+    per the thread-safety paragraph above - tolerating one that capacity has
+    already evicted.
     """
 
     def __init__(self, capacity: int) -> None:

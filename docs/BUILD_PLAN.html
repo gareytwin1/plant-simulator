@@ -1529,6 +1529,13 @@ Scenario(initial_condition, malfunctions[], triggers[],
    t:["Cascade holds level against an inlet flow disturbance","Breaking the cascade leaves the slave in a safe mode"],
    x:"None."},
 
+  {id:"T8-6",m:"M8",cat:"core",n:"Controller action (direct / reverse)",
+   p:"A loop's output must move the right way for its final element. The PID block computes error as setpoint minus measurement, so its output rises as the measurement falls - reverse action in ISA terms, although its own docstring calls it direct. PIC-101 vents V-101's headspace through PV-101, which needs output rising with pressure; run in AUTO today, it drives PV-101 to its floor and N-201 away from setpoint. It is held in MANUAL until this lands.",
+   d:["T8-3","T8-4"],f:["app/controls/pid.py","config/schema/plant.schema.json","app/controls/loader.py","config/plants/olefins_lite.yaml"],b:"feature/controller-action",
+   w:["A controllers entry takes an action, named by the ISA convention: direct means output rises as the measurement rises","Omitting action keeps today's behaviour, so every existing config loads unchanged","Reverse and direct differ only in the sign of the error; anti-windup, bumpless tracking and derivative on measurement hold in both","PIC-101 configured with the action its vent valve needs"],
+   t:["PIC-101 in AUTO returns V-101 pressure to setpoint after a setpoint change in either direction","A direct-acting loop holds setpoint through an upstream disturbance","A config with no action field behaves exactly as before","Anti-windup and bumpless transfer hold for a direct-acting loop"],
+   x:"Adds a field to C3's controllers entry - a contract change, which is why it is its own task and not part of T8-4. Owns only the controllers key of the reference plant config. The PID docstring's use of direct-acting is the opposite of ISA's; fix it rather than inherit it."},
+
   // ---------------- M9 ----------------
   {id:"T9-1",m:"M9",cat:"ind",n:"Envelope evaluator",
    p:"Classify a value against normal, warning, alarm and trip bands with deadband and on-delay. Pure function of value, limits and time — buildable and finishable today with no plant at all.",

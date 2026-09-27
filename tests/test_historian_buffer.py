@@ -86,6 +86,15 @@ def test_timestamp_must_be_non_decreasing_per_tag():
         historian.record("PT-101", timestamp=4.0, value=2.0)
 
 
+def test_timestamp_regression_is_caught_even_inside_a_throttled_window():
+    historian = Historian(capacity=3, sample_period=10.0)
+    historian.record("PT-101", timestamp=0.0, value=1.0)
+    historian.record("PT-101", timestamp=5.0, value=2.0)  # dropped, inside the window
+
+    with pytest.raises(ValueError):
+        historian.record("PT-101", timestamp=3.0, value=3.0)  # behind the dropped call
+
+
 def test_memory_bounded_over_a_simulated_multi_hour_run():
     capacity = 60
     historian = Historian(capacity=capacity, sample_period=60.0)  # one sample/minute

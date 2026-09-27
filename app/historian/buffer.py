@@ -38,9 +38,6 @@ class _TagBuffer:
     def __init__(self, capacity: int) -> None:
         self._samples: deque[Sample] = deque(maxlen=capacity)
 
-    def __len__(self) -> int:
-        return len(self._samples)
-
     def append(self, timestamp: float, value: float) -> None:
         self._samples.append(Sample(timestamp, value))
 
@@ -67,23 +64,28 @@ class Historian:
         self._sample_period = sample_period
         self._lock = threading.Lock()
         self._buffers: dict[str, _TagBuffer] = {}
+        self._last_seen: dict[str, float] = {}
         self._last_recorded: dict[str, float] = {}
 
     def record(self, tag: str, timestamp: float, value: float) -> None:
         """Record `value` for `tag` at `timestamp`, subject to
         `sample_period`. `timestamp` must never decrease for a given tag
-        across calls that actually record - simulated time never runs
-        backwards."""
+        across *any* call, recorded or dropped by throttling - simulated
+        time never runs backwards, and a call silently swallowed by
+        `sample_period` must not hide a caller bug that would otherwise
+        raise."""
         with self._lock:
-            last = self._last_recorded.get(tag)
-            if last is not None:
-                if timestamp < last:
-                    raise ValueError(
-                        f"timestamp must be non-decreasing for tag {tag!r}, "
-                        f"got {timestamp} after {last}"
-                    )
-                if timestamp - last < self._sample_period:
-                    return
+            last_seen = self._last_seen.get(tag)
+            if last_seen is not None and timestamp < last_seen:
+                raise ValueError(
+                    f"timestamp must be non-decreasing for tag {tag!r}, "
+                    f"got {timestamp} after {last_seen}"
+                )
+            self._last_seen[tag] = timestamp
+
+            last_recorded = self._last_recorded.get(tag)
+            if last_recorded is not None and timestamp - last_recorded < self._sample_period:
+                return
 
             buffer = self._buffers.get(tag)
             if buffer is None:

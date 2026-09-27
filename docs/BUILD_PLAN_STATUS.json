@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "27 September 2026",
-  "main_sha": "65458ee4bdb62103cbf76e084cd1269fde429453",
-  "tests_passing_on_main": 1868,
+  "main_sha": "b36af0d746c688bf1d54fb0381bd71ff24d61f7b",
+  "tests_passing_on_main": 1888,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -103,7 +103,7 @@
     },
     "M17": {
       "name": "Historian and Trends",
-      "complete": 0,
+      "complete": 1,
       "total": 4
     },
     "M18": {
@@ -119,8 +119,8 @@
   },
   "totals": {
     "tasks": 115,
-    "complete": 77,
-    "startable_now": 16
+    "complete": 78,
+    "startable_now": 17
   },
   "tasks": [
     {
@@ -1975,10 +1975,9 @@
       "files": [
         "app/historian/buffer.py"
       ],
-      "status": "Ready for Review",
-      "status_key": "review",
-      "startable": true,
-      "note": "PR #101 open (feature/historian). Full suite 1723 passed, mypy clean, roborev-refine clean."
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged b36af0d (PR #101). Full suite 1888 passed on main, mypy clean."
     },
     {
       "id": "T17-2",
@@ -1994,10 +1993,7 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "T17-1"
-      ],
+      "startable": true,
       "note": ""
     },
     {
@@ -2017,7 +2013,6 @@
       "status_key": "todo",
       "startable": false,
       "blocked_by": [
-        "T17-1",
         "T17-2"
       ],
       "note": ""

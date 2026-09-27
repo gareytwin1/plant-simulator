@@ -4,8 +4,10 @@ prioritised alarm events in the C6 event record shape.
 
 A pure function of envelope events and time, same as `Evaluator.evaluate()`
 (T9-1): no plant access. Binds one `Alarm` (T10-1) per monitored point,
-keyed by `tag:pv`, so a compressor with two watched variables gets two
-independent alarms rather than one that conflates them.
+keyed by tag and pv together (length-prefixed so a ":" inside either string
+can't collide two distinct points onto one id), so a compressor with two
+watched variables gets two independent alarms rather than one that conflates
+them.
 
 **Every band change is reportable**, keyed on `(severity, side)` together -
 not just the first activation, and not severity alone. WARNING escalating to
@@ -51,6 +53,12 @@ Side = Literal["lo", "hi"]
 _SUFFIX: dict[Side, str] = {"lo": "LO", "hi": "HI"}
 
 _NON_NORMAL: tuple[Severity, ...] = (Severity.WARNING, Severity.ALARM, Severity.TRIP)
+
+
+def _alarm_id(tag: str, pv: str) -> str:
+    # Length-prefixing tag makes this collision-free regardless of ":" inside
+    # tag or pv - "K-101" + "a:b" and "K-101:a" + "b" produce different ids.
+    return f"{len(tag)}:{tag}:{pv}"
 
 
 class Priority(StrEnum):
@@ -112,7 +120,7 @@ class AlarmManager:
     def evaluate(self, envelope_events: Iterable[EnvelopeEvent], sim_time: float) -> list[Event]:
         emitted: list[Event] = []
         for envelope_event in envelope_events:
-            alarm_id = f"{envelope_event.tag}:{envelope_event.pv}"
+            alarm_id = _alarm_id(envelope_event.tag, envelope_event.pv)
             alarm = self._alarms.setdefault(alarm_id, Alarm())
             band = (envelope_event.severity, envelope_event.side)
             if band == self._band.get(alarm_id, (Severity.NORMAL, None)):

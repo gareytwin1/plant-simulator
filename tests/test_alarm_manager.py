@@ -179,6 +179,22 @@ def test_side_flip_of_an_acknowledged_alarm_returns_it_to_unacknowledged():
     assert not manager.active()[0].acknowledged
 
 
+def test_tag_and_pv_containing_a_colon_do_not_collide():
+    manager = AlarmManager()
+
+    events = manager.evaluate(
+        [
+            EnvelopeEvent(tag="K-101", pv="a:b", severity=Severity.ALARM, side="hi"),
+            EnvelopeEvent(tag="K-101:a", pv="b", severity=Severity.WARNING, side="lo"),
+        ],
+        sim_time=0.0,
+    )
+
+    assert len(events) == 2
+    assert events[0].id != events[1].id
+    assert len(manager.active()) == 2
+
+
 def test_acknowledge_with_an_unknown_alarm_id_raises_a_clear_error():
     manager = AlarmManager()
 

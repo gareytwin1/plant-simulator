@@ -149,6 +149,37 @@ def test_malformed_condition_expression_rejected_at_parse(expression):
         Condition.parse(expression)
 
 
+@pytest.mark.parametrize(
+    ("expression", "value", "expected"),
+    [
+        ("K-101.discharge_pressure > 9e2", 901.0, True),
+        ("K-101.discharge_pressure > +900.0", 901.0, True),
+        ("K-101.discharge_pressure > .5", 1.0, True),
+        ("K-101.discharge_pressure > 5.", 6.0, True),
+    ],
+)
+def test_condition_value_accepts_common_numeric_literal_forms(expression, value, expected):
+    # A scenario author writing an absolute pressure is exactly where
+    # scientific notation shows up ("9e5"); the grammar shouldn't reject a
+    # spelling of a number just because it isn't plain decimal digits.
+    condition = Condition.parse(expression)
+
+    assert condition.is_met(compressor_snapshot(0.0, discharge_pressure=value)) is expected
+
+
+@pytest.mark.parametrize(
+    "expression",
+    [
+        "K-101.discharge_pressure > nan",
+        "K-101.discharge_pressure > inf",
+        "K-101.discharge_pressure > not-a-number",
+    ],
+)
+def test_condition_rejects_a_non_finite_or_non_numeric_value(expression):
+    with pytest.raises(ConditionSyntaxError):
+        Condition.parse(expression)
+
+
 def test_condition_raises_on_unknown_tag():
     condition = Condition.parse("V-999.level > 50.0")
 
@@ -317,6 +348,28 @@ def test_validate_raises_for_a_misspelled_operator_action_tag():
 
     with pytest.raises(ConditionEvaluationError, match="K-1O1"):
         evaluator.validate(compressor_snapshot(0.0, discharge_pressure=0.0))
+
+
+def test_validate_accepts_an_operator_action_tag_even_if_a_node_shares_it():
+    # The C5 action endpoint only ever targets equipment (app/api/action.py's
+    # ACTIONS keys on Equipment subclasses) - a node happening to share the
+    # tag string is irrelevant to whether this trigger is well-formed.
+    evaluator = TriggerEvaluator.from_config(
+        [{"id": "ack", "type": "operator_action", "action": "K-101.stop"}],
+    )
+    snapshot = snapshot_at(0.0, equipment={"K-101": {}}, nodes={"K-101": {"pressure": 1.0}})
+
+    evaluator.validate(snapshot)  # does not raise despite the node collision
+
+
+def test_validate_rejects_an_operator_action_tag_that_is_only_a_node():
+    evaluator = TriggerEvaluator.from_config(
+        [{"id": "ack", "type": "operator_action", "action": "N-1.stop"}],
+    )
+    snapshot = snapshot_at(0.0, nodes={"N-1": {"pressure": 1.0}})
+
+    with pytest.raises(ConditionEvaluationError, match="N-1"):
+        evaluator.validate(snapshot)
 
 
 def test_validate_passes_a_well_formed_scenario():

@@ -34,6 +34,7 @@ per-step cost.
 
 from __future__ import annotations
 
+import math
 import re
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
@@ -58,7 +59,7 @@ _OPS = ("==", "!=", ">=", "<=", ">", "<")
 
 _COMPARISON = re.compile(
     rf"^(?P<tag>{_TAG})\.(?P<field>{_FIELD})\s*(?P<op>{'|'.join(_OPS)})\s*"
-    rf"(?P<value>-?\d+(?:\.\d+)?)$",
+    rf"(?P<value>\S+)$",
 )
 _BARE = re.compile(rf"^(?P<tag>{_TAG})\.(?P<field>{_FIELD})$")
 
@@ -84,12 +85,19 @@ class Condition:
 
         match = _COMPARISON.match(text)
         if match is not None:
-            return cls(
-                tag=match["tag"],
-                field=match["field"],
-                op=match["op"],
-                value=float(match["value"]),
-            )
+            try:
+                value = float(match["value"])
+            except ValueError:
+                raise ConditionSyntaxError(
+                    f"{match['value']!r} is not a number in condition {expression!r}",
+                ) from None
+
+            if not math.isfinite(value):
+                raise ConditionSyntaxError(
+                    f"{match['value']!r} is not a finite number in condition {expression!r}",
+                )
+
+            return cls(tag=match["tag"], field=match["field"], op=match["op"], value=value)
 
         match = _BARE.match(text)
         if match is not None:
@@ -340,7 +348,18 @@ class TriggerEvaluator:
             if isinstance(trigger.kind, ConditionTrigger):
                 trigger.kind.condition.is_met(snapshot)
             elif isinstance(trigger.kind, OperatorActionTrigger):
-                _resolve_tag(snapshot, trigger.kind.tag)
+                # The C5 action endpoint's ACTIONS allowlist (app/api/action.py)
+                # keys on Equipment subclasses only - a node, stream or
+                # controller is never an operator_action target, so checking
+                # against those sections too would both reject a valid tag
+                # that happens to collide with one of them and accept a tag
+                # that exists only as one, which no action could ever reach.
+                if trigger.kind.tag not in snapshot.equipment:
+                    raise ConditionEvaluationError(
+                        f"no equipment tagged {trigger.kind.tag!r} in this "
+                        f"snapshot; an operator_action trigger can only "
+                        f"target equipment",
+                    )
 
     def evaluate(self, snapshot: Snapshot, actions: ActionLog) -> tuple[str, ...]:
         """Return the ids of every trigger that fires on this step.
@@ -410,6 +429,14 @@ class TriggerEvaluator:
         if self._action_seen_length.get(trigger.id, 0) == total:
             return False
 
+        # On a step where the log did grow, this still scans it from index
+        # 0 rather than from `_action_seen_length[trigger.id]` - a true
+        # cursor would need `ActionLog` to expose a slice-since-index
+        # accessor, which is outside this task's file list
+        # (app/scenarios/triggers.py only; ActionLog is T15-1's). Bounded by
+        # how often an operator acts, which is human-paced, not per-step -
+        # a trigger that never matches costs one full rescan per action
+        # taken over the run, not one per simulation step.
         met = trigger.kind.is_met(snapshot, events)
         self._action_seen_length[trigger.id] = total
 

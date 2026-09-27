@@ -226,6 +226,11 @@ def test_the_physics_filter_would_exclude_a_future_scoring_module():
     assert DISTURBANCE_LAYER not in hypothetical.parents
 
 
+def test_enclosing_package_refuses_a_path_outside_the_app_tree(tmp_path):
+    with pytest.raises(ValueError, match="enclosing package"):
+        enclosing_package(tmp_path / "m.py")
+
+
 # ---- the allowlist never doubles as a way to move slow state --------------
 
 
@@ -241,16 +246,26 @@ def integrate_targets(cls):
     targets = set()
 
     for node in ast.walk(tree):
-        if isinstance(node, (ast.Assign, ast.AugAssign)):
-            assign_targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+        if isinstance(node, (ast.Assign, ast.AugAssign, ast.AnnAssign)):
+            if isinstance(node, ast.Assign):
+                assign_targets = node.targets
+            else:
+                assign_targets = [node.target]
 
             for target in assign_targets:
-                if (
-                    isinstance(target, ast.Attribute)
-                    and isinstance(target.value, ast.Name)
-                    and target.value.id == "self"
-                ):
-                    targets.add(target.attr)
+                # `self.a, self.b = x, y` - a tuple/list target unpacks into
+                # its own elements, each of which may itself be `self.attr`.
+                elements = (
+                    target.elts if isinstance(target, (ast.Tuple, ast.List)) else [target]
+                )
+
+                for element in elements:
+                    if (
+                        isinstance(element, ast.Attribute)
+                        and isinstance(element.value, ast.Name)
+                        and element.value.id == "self"
+                    ):
+                        targets.add(element.attr)
 
     return frozenset(targets)
 
@@ -280,6 +295,22 @@ def test_the_guard_catches_a_deliberate_collision():
     class FakeDevice:
         def integrate(self, dt):
             self.speed = self.speed + dt
+
+    assert integrate_targets(FakeDevice) == frozenset({"speed"})
+
+
+def test_the_guard_sees_a_tuple_unpacking_self_assignment():
+    class FakeDevice:
+        def integrate(self, dt):
+            self.speed, self.load = self.speed + dt, self.load + dt
+
+    assert integrate_targets(FakeDevice) == frozenset({"speed", "load"})
+
+
+def test_the_guard_sees_an_annotated_self_assignment():
+    class FakeDevice:
+        def integrate(self, dt: float) -> None:
+            self.speed: float = self.speed + dt
 
     assert integrate_targets(FakeDevice) == frozenset({"speed"})
 

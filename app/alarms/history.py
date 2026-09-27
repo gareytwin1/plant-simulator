@@ -88,10 +88,11 @@ class AlarmHistory:
     `Event.id` names a monitored point for its whole life (T10-2), not one
     occurrence, so `entries()` can hold several `Event`s and
     `AcknowledgeRecord`s with the same id: every reportable band change
-    (T10-2) while an alarm is UNACK adds another `Event` with the id it
-    already had - a WARNING escalating to ALARM, a same-severity side flip,
-    or (as `AlarmManager`'s own docstring notes) an escalation past an
-    existing ACKED alarm or a re-activation after RTN_UNACK. A consumer
+    (T10-2) adds another `Event` with the id it already had, whatever the
+    alarm's own state - a WARNING escalating to ALARM or a same-severity
+    side flip while UNACK, an escalation past an existing ACKED alarm
+    (`AlarmManager`'s docstring), or a re-activation after RTN_UNACK
+    (`Alarm`, T10-1). A consumer
     pairing an ack with the occurrence it closed wants the most recent
     preceding `Event` sharing its id - among entries in the order this
     history's caller recorded them, which is only chronological order if

@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "27 September 2026",
-  "main_sha": "73ff965d6c35f1ad5418f53dab3ef4ea0393ba5a",
-  "tests_passing_on_main": 1736,
+  "main_sha": "37338190707656a5bda6386f2a748c748c9fdc73",
+  "tests_passing_on_main": 1757,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -58,7 +58,7 @@
     },
     "M8": {
       "name": "PID Controllers and Modes",
-      "complete": 4,
+      "complete": 5,
       "total": 6
     },
     "M9": {
@@ -119,7 +119,7 @@
   },
   "totals": {
     "tasks": 115,
-    "complete": 74,
+    "complete": 75,
     "startable_now": 15
   },
   "tasks": [
@@ -1270,10 +1270,9 @@
         "app/controls/loader.py",
         "config/plants/olefins_lite.yaml"
       ],
-      "status": "Ready for Review",
-      "status_key": "review",
-      "startable": true,
-      "note": "PR #102 (feature/controller-action, 0e56722). C3 controllers entries take an optional action DIRECT/REVERSE (ISA); it flips only the error's sign, and omitting it is REVERSE, bit-identical to before. PIC-101 configured DIRECT; in AUTO it returns V-101 to a +/-3 psi setpoint change within 0.05 psi. The fixture still configures PIC-101 MANUAL (switching to AUTO is a follow-up), and tuning is unchanged (slow: ~7800 s to settle). Full suite 1726 passed, mypy clean, golden traces unmoved, roborev clean first pass."
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged to main as 3733819 (Merge T8-6: Add ISA direct/reverse controller action, PR #102), 27 Sep 2026 - rebased over T9-4 first (ARCHITECTURE.md table conflict only, both rows kept). C3 controllers entries take an optional action DIRECT/REVERSE by the ISA convention (direct: output rises as the measurement rises). It flips only the error's sign - derivative on measurement carries the same sign - so anti-windup, track() and bumpless transfer hold in both; omitting it is REVERSE, bit-identical to before. The PID docstring's inverted use of 'direct' is corrected. PIC-101 is configured DIRECT and in AUTO returns V-101 to a +/-3 psi setpoint change within 0.05 psi on olefins_lite. Follow-ups not done here: the fixture still configures PIC-101 MANUAL (its other tests pin open-loop response; Checkpoint D will need AUTO), and the kp 0.01 / ki 0.005 tuning is slow (~7800 s to settle; kp 0.5 settles in ~1250 s). Full suite 1757 passed on main post-merge, mypy clean over 45 files, golden traces unmoved, roborev clean first pass."
     },
     {
       "id": "T9-1",

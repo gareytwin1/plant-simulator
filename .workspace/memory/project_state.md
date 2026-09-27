@@ -15,11 +15,11 @@ already in BUILD_PLAN_STATUS.json and does not need a second home.
 
 ## Right now
 
-**Last state refresh:** 27 September 2026, at `73ff965` (Merge T9-4: Envelope
-status in the snapshot, PR #104) - **this is a snapshot,
-not a live pointer.** Run `git log 73ff965..HEAD --oneline` to see what has
+**Last state refresh:** 27 September 2026, at `3733819` (Merge T8-6: Add ISA
+direct/reverse controller action, PR #102) - **this is a snapshot,
+not a live pointer.** Run `git log 3733819..HEAD --oneline` to see what has
 merged since.
-**Full suite as of this refresh:** **1736 passed** · `python -m mypy` clean over 45 source files · no golden trace movement
+**Full suite as of this refresh:** **1757 passed** · `python -m mypy` clean over 45 source files · no golden trace movement
 **In flight:** nothing.
 **No spine lock is held.** No task is Blocked. CI runs on every PR, and `main` requires its
 `test` check before a merge.
@@ -28,12 +28,12 @@ merged since.
 
 | Task | SHA | What landed |
 |---|---|---|
+| **T8-6** | `3733819` | Controller action (C3 contract change). A `controllers` entry takes an optional `action`, `DIRECT` or `REVERSE`, by the ISA convention (direct: output rises as the measurement rises). It flips only the error's sign, so anti-windup, `track()` and bumpless transfer hold in both; omitted means `REVERSE`, bit-identical to before. PIC-101 is configured `DIRECT` and holds a changed setpoint in AUTO, but the fixture still configures it **MANUAL** - its other tests pin open-loop response - and its kp 0.01 / ki 0.005 tuning is slow (~7800 s to settle). Unblocks nothing directly |
 | **T9-4** | `73ff965` | Envelope status in the snapshot (closes M9, 4/4). `Engine` classifies every configured limit against equipment state each step, via T9-1's `Evaluator` and T9-3's `ExcursionTracker`, and publishes a sparse ISA-labeled envelope map in the snapshot (`{"V-101.level": {"band": "hi", "since": 12.0}}`) - `NORMAL` points are simply absent. `since` is seeded at construction against the design point; instruments are wired before limits resolve, so a pre-biased transmitter seeds correctly (a roborev-caught construction-order bug, now a regression test). A limit that doesn't resolve against the equipment section (`K-101.discharge_pressure`, `P-101.flow` - both solved node/branch values) warns once at construction and is skipped rather than crashing - the same "instruments are not in C3" gap below, now also hit from the `limits` side. Frees the spine lock (`app/engine/snapshot.py`); unblocks nothing directly (no task depends on T9-4) |
 | **T8-4** | `f3cc8b6` | Loop execution in the engine step. `Engine.step()` is now clock -> control -> integrate -> couple/solve -> publish: each loop reads its PV from the indicated view the previous step published and posts its output to `Engine.arbiter` (T7-4) as a controller demand, so a published measurement strokes the valve within the very next step and no loop can see a mid-solve value. Config order, order-independent by construction; a stopped step runs no loop; a loop is primed on first execution so AUTO starts bumpless. The snapshot's `controllers` section now carries `pv`/`sp`/`out`/`mode`. `load_loops()` seeds a loop from its valve's current command, and `Plant.passthrough()` replaces a `to_config()` round-trip. **PIC-101 must stay MANUAL** - the PID is wrong-acting for a vent valve; T8-6 was added to the build plan to fix it. Unblocks T8-5 (V1.1-deferred) and T8-6 |
 | **T9-3** | `0bb2e25` | Time-in-band and excursion tracking. `ExcursionTracker` in `app/envelope/tracker.py` accumulates per-severity time-in-band (WARNING/ALARM/TRIP) and the single worst excursion (magnitude + timestamp) for one monitored point, from severities its caller's own T9-1 `Evaluator` already classified - hysteresis stays owned by `Evaluator` alone. A roborev finding (magnitude reads `0.0` while a deadband-held severity is non-normal) was fixed by documenting the interaction and adding a regression test driving the tracker from a real `Evaluator`. Closes M9's third task; unblocks T9-4 and T14-3 on the dependency side (T9-4 separately needed the spine lock, held by T8-4 at the time) |
 | **T8-3** | `619af4e` | Loop configuration and tag wiring (C3's `controllers` key). `app/controls/loader.py`'s `load_loops()` resolves each entry into a `Loop`/`PID` (T8-1/T8-2): `pv` resolves against a node id - a node has exactly one measured quantity, its pressure, so the bare tag is unambiguous with no C3 change, sidestepping the "instruments are not in C3" gap below - and `out` resolves against an explicit per-class allowlist of settable devices (`ControlValve.set_position_target` only, mirroring `app.disturbances.malfunction.WRITABLE`). Two loops claiming one `out` tag is rejected (roborev), and an entry with a bad `pv` cannot itself "claim" an `out` tag it never actually got to drive (also roborev). Wires `PIC-101` (`N-201` -> `PV-101`) into `config/plants/olefins_lite.yaml`, configured MANUAL since nothing reads `controllers` at engine-step time yet. Rebased over T9-2/T10-2's own `olefins_lite.yaml` additions (trivial conflict, both top-level keys kept). Unblocks T8-4 |
 | **T9-2** | `dee5cd8` | Envelope limits in plant config (C3). `app/envelope/loader.py`'s `load_limits()` binds the `limits` key to T9-1's `Evaluator`/`Limits`: `lo`/`hi` become `warning_lo`/`warning_hi`, and `lo_lo`/`hi_hi` become `trip_lo`/`trip_hi` when `trip` is true or `alarm_lo`/`alarm_hi` otherwise - one severity choice per variable, not per side. Ordering violations reuse `Limits.__post_init__`, re-raised with the offending `tag.variable`; a repeated `(tag, variable)` entry is rejected rather than silently overwritten (found by roborev). `get_limit()` warns rather than crashes on a tag with no configured limits. `config/plants/olefins_lite.yaml` gains only its `limits` key (`V-101.level`, `K-101.discharge_pressure`, `P-101.flow`) at the plant's design point. Unblocks nothing on its own - T9-4 also needed T9-3 |
-| **T10-2** | `d8d59c3` | Alarm manager (C7). `AlarmManager` in `app/alarms/manager.py` binds one `Alarm` (T10-1) per monitored point (tag+pv, collision-free) to severity from an `Evaluator` (T9-1). Every band change - keyed on `(severity, side)` together, not severity alone - emits a re-prioritised `Event` in the C6 shape; a reportable change on an already-ACKED alarm returns it to UNACK, since the operator signed off on the previous band, not the new one. Messages are symptom-only by construction (tag + pv + ISA-style HI/HIHI/HIHIHI suffix). Priorities come from a configurable `Severity -> Priority` mapping. Closes 2/5 of M10; unblocks T10-3, T10-4 (T10-4 is V1.1-deferred) |
 
 **ADRs on `main`:** ADR 0001 ([flow-domain separation](../../docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md))
 with Amendment 1, and ADR 0002 ([typed ports](../../docs/ADR_0002_TYPED_PORTS.md)) with
@@ -48,7 +48,7 @@ what made this file 1,086 lines.
 | **M0**–**M5** | **Complete.** Checkpoint A (M1) and Checkpoint B (M4) both reached |
 | **M6** Energy Balance and Temperature | 5/5 - **Complete.** T6-1 through T6-5 all merged |
 | **M7** Control Valves and Final Elements | 5/5 - **Complete.** T7-1 through T7-5 all merged |
-| **M8** PID Controllers and Modes | 4/6 - T8-1 through T8-4 Complete; T8-6 Ready for Review (PR #102); T8-5 startable (V1.1-deferred) |
+| **M8** PID Controllers and Modes | 5/6 - T8-1 through T8-4 and T8-6 Complete; T8-5 startable (V1.1-deferred) |
 | **M9** Operating Envelopes | 4/4 - **Complete.** T9-1 through T9-4 all merged |
 | **M10** Alarms | 2/5 - T10-1, T10-2 Complete; T10-3 startable |
 | **M13** Malfunctions | 2/5 - T13-1, T13-2 Complete; T13-5 Ready for Review (PR #100); T13-3, T13-4 startable |
@@ -59,12 +59,12 @@ what made this file 1,086 lines.
 | **M18** Deployment and Operations | 1/5 - T18-2 Complete |
 | M11, M12, M16, M19 | None Complete |
 
-**74 of 115 tasks Complete.** Checkpoint **C** (M5 + M6 + M7) is now reached -
+**75 of 115 tasks Complete.** Checkpoint **C** (M5 + M6 + M7) is now reached -
 all three closed. M9 (Operating Envelopes) is now also fully closed. Next
-checkpoint is **D** (M8), which has landed four of its six tasks; T8-6
-(Ready for Review, PR #102) is what lets its "loops reject an injected
-disturbance" gate hold on the reference plant, since PIC-101 cannot run in
-AUTO until it merges. **MR is now fully merged.**
+checkpoint is **D** (M8), which has landed five of its six tasks (T8-5 is
+V1.1-deferred). Its "loops reject an injected disturbance" gate on the
+reference plant still needs PIC-101 switched to AUTO in `olefins_lite.yaml`,
+which T8-6 made possible but deliberately did not do - no task owns it yet. **MR is now fully merged.**
 
 ## The next task
 
@@ -95,8 +95,7 @@ Which task to hand out next is a scheduling choice, not a dependency one.
 | **T18-4** | Structured logging and health | Sonnet | `feature/observability` |
 | **T18-5** | Session lifecycle and config versioning | Sonnet | `feature/lifecycle-versioning` |
 
-**In review, not yet startable-list eligible:** T8-6 (PR #102), T13-5
-(PR #100), T15-1 (PR #103), T17-1 - all Ready for Review, none merged yet.
+**In review, not yet startable-list eligible:** T13-5 (PR #100), T15-1 (PR #103), T17-1 - all Ready for Review, none merged yet.
 
 **Scheduling notes.** The spine lock is **one global lock**, now the standing
 rule (R12, [DEVELOPMENT.md](../../DEVELOPMENT.md#file-ownership)); it is

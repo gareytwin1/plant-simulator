@@ -337,6 +337,10 @@ app/
     pump.py               CentrifugalPump (P-101)
     valve.py              ControlValve (FV-101)
     vessel.py             Vessel (V-101) — coupling device, liquid + gas
+    exchanger.py          HeatExchanger — foulable, utility side
+    furnace.py            Furnace — duty, firing ramp
+    relief.py             ReliefValve — set pressure
+    ranges.py             checked(): validated design-parameter ranges
     registry.py           EquipmentRegistry: tag → device
   engine/                                                        [SPINE]
     clock.py              SimulationClock
@@ -361,6 +365,19 @@ app/
     evaluator.py          T9-1: Evaluator/Limits → Severity, deadband + on-delay
     loader.py             load_limits(): C3 limits → Evaluator per (tag, variable)
     tracker.py            T9-3: ExcursionTracker — time-in-band + peak
+  alarms/
+    state.py              T10-1: ISA alarm state machine (C7)
+    manager.py            T10-2: envelope band changes → C6 alarm events
+  api/
+    action.py             T15-1: C5 POST /api/action, not yet wired into main.py
+  disturbances/
+    malfunction.py        C8 faults: WRITABLE allowlist, MalfunctionRegistry
+  historian/
+    buffer.py             T17-1: ring-buffer per-tag history
+  scenarios/
+    triggers.py           T14-2: C8 scenario triggers
+  scoring/
+    actionlog.py          T15-1: operator action log (C6 action events)
   safety/
     interlocks.py         T11-1: Interlock — condition, delay, latch, reset
     actions.py            T11-2: TripSystem — trip actions as interlock

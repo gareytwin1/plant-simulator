@@ -15,25 +15,25 @@ already in BUILD_PLAN_STATUS.json and does not need a second home.
 
 ## Right now
 
-**Last state refresh:** 27 September 2026, at `0bb2e25` (Merge T9-3: Add
-time-in-band and excursion tracking, PR #98) - **this is a snapshot,
-not a live pointer.** Run `git log 0bb2e25..HEAD --oneline` to see what has
+**Last state refresh:** 27 September 2026, at `f3cc8b6` (Merge T8-4: Execute
+control loops in the engine step, PR #99) - **this is a snapshot,
+not a live pointer.** Run `git log f3cc8b6..HEAD --oneline` to see what has
 merged since.
-**Full suite as of this refresh:** **1675 passed** · `python -m mypy` clean over 45 source files · compressor golden trace moved deliberately (temperature field only, on the two boundary-asymmetric scenarios - justified in T6-2's note)
-**In flight:** T8-4 (Opus, `feature/loop-execution`) - In Progress.
-**T8-4 holds the spine lock** (`app/engine/engine.py`). No other spine task starts until it releases. No task is otherwise Blocked. CI runs on every PR, and `main` requires its
+**Full suite as of this refresh:** **1705 passed** · `python -m mypy` clean over 45 source files · compressor golden trace moved deliberately (temperature field only, on the two boundary-asymmetric scenarios - justified in T6-2's note)
+**In flight:** nothing.
+**No spine lock is held.** No task is Blocked. CI runs on every PR, and `main` requires its
 `test` check before a merge.
 
 **Recent merges** (full notes in [BUILD_PLAN_STATUS.json](../../docs/BUILD_PLAN_STATUS.json)):
 
 | Task | SHA | What landed |
 |---|---|---|
+| **T8-4** | `f3cc8b6` | Loop execution in the engine step. `Engine.step()` is now clock -> control -> integrate -> couple/solve -> publish: each loop reads its PV from the indicated view the previous step published and posts its output to `Engine.arbiter` (T7-4) as a controller demand, so a published measurement strokes the valve within the very next step and no loop can see a mid-solve value. Config order, order-independent by construction; a stopped step runs no loop; a loop is primed on first execution so AUTO starts bumpless. The snapshot's `controllers` section now carries `pv`/`sp`/`out`/`mode`. `load_loops()` seeds a loop from its valve's current command, and `Plant.passthrough()` replaces a `to_config()` round-trip. **PIC-101 must stay MANUAL** - the PID is wrong-acting for a vent valve; T8-6 was added to the build plan to fix it. Unblocks T8-5 (V1.1-deferred) and T8-6 |
 | **T9-3** | `0bb2e25` | Time-in-band and excursion tracking. `ExcursionTracker` in `app/envelope/tracker.py` accumulates per-severity time-in-band (WARNING/ALARM/TRIP) and the single worst excursion (magnitude + timestamp) for one monitored point, from severities its caller's own T9-1 `Evaluator` already classified - hysteresis stays owned by `Evaluator` alone. A roborev finding (magnitude reads `0.0` while a deadband-held severity is non-normal) was fixed by documenting the interaction and adding a regression test driving the tracker from a real `Evaluator`. Closes M9's third task; unblocks T9-4 and T14-3 on the dependency side (T9-4 separately needs the spine lock, currently held by T8-4) |
 | **T8-3** | `619af4e` | Loop configuration and tag wiring (C3's `controllers` key). `app/controls/loader.py`'s `load_loops()` resolves each entry into a `Loop`/`PID` (T8-1/T8-2): `pv` resolves against a node id - a node has exactly one measured quantity, its pressure, so the bare tag is unambiguous with no C3 change, sidestepping the "instruments are not in C3" gap below - and `out` resolves against an explicit per-class allowlist of settable devices (`ControlValve.set_position_target` only, mirroring `app.disturbances.malfunction.WRITABLE`). Two loops claiming one `out` tag is rejected (roborev), and an entry with a bad `pv` cannot itself "claim" an `out` tag it never actually got to drive (also roborev). Wires `PIC-101` (`N-201` -> `PV-101`) into `config/plants/olefins_lite.yaml`, configured MANUAL since nothing reads `controllers` at engine-step time yet. Rebased over T9-2/T10-2's own `olefins_lite.yaml` additions (trivial conflict, both top-level keys kept). Unblocks T8-4 |
 | **T9-2** | `dee5cd8` | Envelope limits in plant config (C3). `app/envelope/loader.py`'s `load_limits()` binds the `limits` key to T9-1's `Evaluator`/`Limits`: `lo`/`hi` become `warning_lo`/`warning_hi`, and `lo_lo`/`hi_hi` become `trip_lo`/`trip_hi` when `trip` is true or `alarm_lo`/`alarm_hi` otherwise - one severity choice per variable, not per side. Ordering violations reuse `Limits.__post_init__`, re-raised with the offending `tag.variable`; a repeated `(tag, variable)` entry is rejected rather than silently overwritten (found by roborev). `get_limit()` warns rather than crashes on a tag with no configured limits. `config/plants/olefins_lite.yaml` gains only its `limits` key (`V-101.level`, `K-101.discharge_pressure`, `P-101.flow`) at the plant's design point. Unblocks nothing on its own - T9-4 also needs T9-3 |
 | **T10-2** | `d8d59c3` | Alarm manager (C7). `AlarmManager` in `app/alarms/manager.py` binds one `Alarm` (T10-1) per monitored point (tag+pv, collision-free) to severity from an `Evaluator` (T9-1). Every band change - keyed on `(severity, side)` together, not severity alone - emits a re-prioritised `Event` in the C6 shape; a reportable change on an already-ACKED alarm returns it to UNACK, since the operator signed off on the previous band, not the new one. Messages are symptom-only by construction (tag + pv + ISA-style HI/HIHI/HIHIHI suffix). Priorities come from a configurable `Severity -> Priority` mapping. Closes 2/5 of M10; unblocks T10-3, T10-4 (T10-4 is V1.1-deferred) |
 | **T7-5** | `17ae66d` | Relief device. `ReliefValve` in `app/equipment/relief.py`: a resistance with hysteresis rather than a commanded position - pops open at `set_pressure`, recloses at `set_pressure - blowdown`, closed as a small leak (`CLOSED_LEAK_FRACTION`) rather than a seal, same divide-by-zero reason `ControlValve` floors at `min_position`. Registered in `DEVICE_TYPES`, the plant schema, `TAG_PREFIXES` (`PSV`) and the malfunction `WRITABLE` allowlist. Also took the spine lock for one small, deliberate `app/engine/coupling.py` change beyond its own file list: `FLOW_UNITS` now lists it unit-neutral, and `VesselCoupling.write_boundary_pressures()` senses `inlet_pressure` onto it - a relief valve beside a vessel now lifts, passes flow and recloses through a real `Engine.step()` with nothing hand-driven. Closes M7 (5/5), which closes Checkpoint C; unblocks nothing (deferred, blocks nothing per the build plan) |
-| **T6-4** | `8552445` | Furnace model. `Furnace` in `app/equipment/furnace.py` implements `thermo.ThermalDevice`: a single ramp-limited slow state (`firing_rate` chasing `duty_setpoint` via `_move_toward`) drives a straight, deliberately unbounded energy balance (`T_in + firing_rate / abs(q·Cp)`) - modelling the loss-of-flow-while-firing hazard rather than bounding it away, and with no live-stream dependency between `integrate` calls, so it avoids T6-3's "nothing writes inlet_temperature" gap. Registered in `DEVICE_TYPES` and the malfunction `WRITABLE` allowlist (`max_duty`, `firing_ramp_rate`, `furnace_resistance`). Not yet wired into any plant config - V1.1 per the build plan. Closes M6 (5/5); unblocks nothing yet |
 
 **ADRs on `main`:** ADR 0001 ([flow-domain separation](../../docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md))
 with Amendment 1, and ADR 0002 ([typed ports](../../docs/ADR_0002_TYPED_PORTS.md)) with
@@ -48,8 +48,8 @@ what made this file 1,086 lines.
 | **M0**–**M5** | **Complete.** Checkpoint A (M1) and Checkpoint B (M4) both reached |
 | **M6** Energy Balance and Temperature | 5/5 - **Complete.** T6-1 through T6-5 all merged |
 | **M7** Control Valves and Final Elements | 5/5 - **Complete.** T7-1 through T7-5 all merged |
-| **M8** PID Controllers and Modes | 3/6 - T8-1, T8-2, T8-3 Complete; T8-4 In Progress (spine lock); T8-6 blocked on T8-4 |
-| **M9** Operating Envelopes | 3/4 - T9-1, T9-2, T9-3 Complete; T9-4 startable (dependency-clear, but needs the spine lock T8-4 holds) |
+| **M8** PID Controllers and Modes | 4/6 - T8-1 through T8-4 Complete; T8-6 startable; T8-5 startable (V1.1-deferred) |
+| **M9** Operating Envelopes | 3/4 - T9-1, T9-2, T9-3 Complete; T9-4 startable (takes the spine lock) |
 | **M10** Alarms | 2/5 - T10-1, T10-2 Complete; T10-3 startable |
 | **M13** Malfunctions | 2/5 - T13-1, T13-2 Complete; T13-3, T13-4, T13-5 startable |
 | **M14** Scenario Engine | 1/6 - T14-1 Complete; T14-2, T14-3 startable |
@@ -57,25 +57,26 @@ what made this file 1,086 lines.
 | **M18** Deployment and Operations | 1/5 - T18-2 Complete |
 | M11, M12, M15–M17, M19 | None Complete |
 
-**72 of 115 tasks Complete.** Checkpoint **C** (M5 + M6 + M7) is now reached -
-all three closed. Next checkpoint is **D** (M8), which has landed three of its
-now-six tasks (T8-6 was added to the build plan after M8's count was last set).
+**73 of 115 tasks Complete.** Checkpoint **C** (M5 + M6 + M7) is now reached -
+all three closed. Next checkpoint is **D** (M8), which has landed four of its
+six tasks; T8-6 is what lets its "loops reject an injected disturbance" gate
+hold on the reference plant, since PIC-101 cannot run in AUTO until it lands.
 **MR is now fully merged.**
 
 ## The next task
 
-**T8-4 is already In Progress** (Opus, `feature/loop-execution`) and holds the
-spine lock. Among the eighteen Sonnet tasks below, which to hand out next is a
-scheduling choice, not a dependency one - except **T9-4**, which is
-dependency-clear (T9-2, T9-3, T2-3 all Complete) but touches
-`app/engine/snapshot.py` (spine) per its own build-plan note, so it cannot
-actually start until T8-4 releases the lock.
+**T8-6** is the Opus task among twenty startable (C3 contract change, no spine
+file). **T9-4** is the one startable task that takes the spine lock
+(`app/engine/snapshot.py`), which is now free. Which Sonnet task to hand out
+next is otherwise a scheduling choice, not a dependency one.
 
-### Startable now (18)
+### Startable now (20)
 
 | Task | Name | Model | Branch |
 |---|---|---|---|
-| **T9-4** | Envelope status in the snapshot | Sonnet · needs the spine lock T8-4 holds | `feature/envelope-in-snapshot` |
+| **T8-6** | Controller action (direct / reverse) | **Opus** · C3 contract change | `feature/controller-action` |
+| **T8-5** | Cascade control (V1.1-deferred) | Sonnet | `feature/cascade-control` |
+| **T9-4** | Envelope status in the snapshot | Sonnet · takes the spine lock | `feature/envelope-in-snapshot` |
 | **T10-3** | Alarm history and acknowledge | Sonnet | `feature/alarm-history` |
 | **T10-4** | Flood suppression and first-out (V1.1-deferred) | Sonnet | `feature/alarm-flood-control` |
 | **T11-1** | Interlock definitions and evaluator | Sonnet | `feature/interlock-evaluator` |
@@ -94,14 +95,9 @@ actually start until T8-4 releases the lock.
 | **T18-4** | Structured logging and health | Sonnet | `feature/observability` |
 | **T18-5** | Session lifecycle and config versioning | Sonnet | `feature/lifecycle-versioning` |
 
-**Still waiting:** T8-6 - on T8-4 (T8-3 already met). Nothing else waits on a
-dependency alone; T9-4's blocker is the spine lock, not a dependency.
-
 **Scheduling notes.** The spine lock is **one global lock**, now the standing
-rule (R12, [DEVELOPMENT.md](../../DEVELOPMENT.md#file-ownership)). **T8-4
-holds it now** (`app/engine/engine.py`, In Progress on `feature/loop-execution`),
-so no other spine task, including T9-4's snapshot work, starts until it
-releases. **T18-1 must run exactly one Gunicorn
+rule (R12, [DEVELOPMENT.md](../../DEVELOPMENT.md#file-ownership)); it is
+free since T8-4 merged. **T18-1 must run exactly one Gunicorn
 worker process** — `SessionRegistry` is per-process (R7). T12-1 adds a *new* isolated module under `app/engine/`, which is
 satellite work, but `rng.py` is spine: adding RNG state save/restore there
 (T12-1 or T14-5) takes the spine lock.

@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "27 September 2026",
-  "main_sha": "0bb2e257142e9ce21af48b53693536f79e36654b",
-  "tests_passing_on_main": 1675,
+  "main_sha": "f3cc8b642658688b6b9665c3a43c8be0126c227b",
+  "tests_passing_on_main": 1705,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -58,7 +58,7 @@
     },
     "M8": {
       "name": "PID Controllers and Modes",
-      "complete": 3,
+      "complete": 4,
       "total": 6
     },
     "M9": {
@@ -119,8 +119,8 @@
   },
   "totals": {
     "tasks": 115,
-    "complete": 72,
-    "startable_now": 18
+    "complete": 73,
+    "startable_now": 20
   },
   "tasks": [
     {
@@ -1233,10 +1233,9 @@
       "files": [
         "app/engine/engine.py"
       ],
-      "status": "In Progress",
-      "status_key": "prog",
-      "startable": true,
-      "note": "In progress on feature/loop-execution (worktree ../plant-simulator-loop-execution). Holds the spine lock (app/engine/engine.py)."
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged to main as f3cc8b642658688b6b9665c3a43c8be0126c227b (Merge T8-4: Execute control loops in the engine step, PR #99), 27 Sep 2026 - rebased over T9-3 first. Engine.step() is now clock -> control -> integrate -> couple/solve -> publish: each loop reads its PV from the indicated view the previous step published and posts its output to Engine.arbiter (T7-4) as a controller demand, so a published measurement strokes the valve within the very next step. Loops run in config order (order-independent by construction), a stopped step runs none, and a loop is primed on first execution so AUTO starts bumpless. Snapshot controllers carries pv/sp/out/mode. Beyond engine.py: load_loops() seeds a loop from its valve's current command, Plant.passthrough() replaces a to_config() round-trip, olefins_lite PV-101 tests go through PIC-101's manual output. PIC-101 must stay MANUAL (PID is wrong-acting for a vent) - that is T8-6, added to the build plan. Full suite 1705 passed on main post-merge, mypy clean over 45 files, golden traces unmoved, roborev-refine clean after 3 fix iterations."
     },
     {
       "id": "T8-5",
@@ -1252,10 +1251,7 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "T8-4"
-      ],
+      "startable": true,
       "note": ""
     },
     {
@@ -1276,10 +1272,7 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "T8-4"
-      ],
+      "startable": true,
       "note": ""
     },
     {

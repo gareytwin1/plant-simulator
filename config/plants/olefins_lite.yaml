@@ -149,6 +149,56 @@ limits:
   - {tag: V-101, variable: level, lo_lo: 0.1, lo: 0.2, hi: 0.8, hi_hi: 0.9, trip: true, deadband: 0.02}
   - {tag: K-101, variable: discharge_pressure, hi: 320.0, hi_hi: 350.0, trip: true}
   - {tag: P-101, variable: flow, lo_lo: -20.0, trip: true}
+# Interlocks (T11-1, app/safety/interlocks.py): one trip per trip-rated limit
+# above, at the same threshold, with one deliberate exception (P-101's
+# backflow trip - see below). `condition` is a bare "tag.variable op
+# threshold" expression; `actions` are opaque strings this module never
+# interprets - T11-2 gives them meaning through the arbitration layer.
+# `delay_s` is the operator's recovery window: how long each condition must
+# persist, once it starts, before the trip latches.
+#
+# Only LSHH-101 and LSLL-101 resolve against a live value today -
+# V-101.level is a device attribute. PSHH-101 names K-101.discharge_pressure,
+# the same solved node value app/engine/engine.py's module docstring already
+# documents as unresolvable without a tag-to-point resolver no task owns yet
+# (the identical gap T9-4 hit from the `limits` side, above). It is
+# configured now, alongside its `limits` twin, so it starts resolving the
+# moment that resolver lands - not a claim that anything watches it live yet.
+#
+# P-101's backflow limit above has no interlock twin. A stopped P-101 backflows
+# at -100 GPM (this file's header derivation) - already past the -20 GPM
+# trip threshold - and the only available action is P-101.stop, which cannot
+# clear the condition it would respond to: with reset: auto the interlock
+# just stays TRIPPED for as long as the pump is off (auto only clears once
+# the condition stops being met - it does not cycle), and with reset: manual
+# `reset()` correctly refuses while backflow continues. Either way a cold
+# start would trip immediately and the pump could never be restarted. This is
+# a plant-physics gap, not an interlock-logic one - the plant has no check
+# valve yet (project_state.md's "No check valve" item, under "Known interim
+# behaviour", which now also records this omission so a future check-valve
+# task restores it).
+interlocks:
+  - tag: LSHH-101
+    condition: "V-101.level >= 0.9"
+    delay_s: 5.0
+    actions: ["P-101.stop"]
+    reset: manual
+  # The low-side twin of LSHH-101: stopping the feed pump would only deepen a
+  # low level, so this one closes the drain valve instead - which stops
+  # drain-driven loss only. Level loss from P-101 backflowing (if it is
+  # stopped, by LSHH-101 or an operator) bypasses LV-101 entirely and is the
+  # same missing-check-valve gap the backflow limit above has no interlock
+  # for; this trip does not cover that case either.
+  - tag: LSLL-101
+    condition: "V-101.level <= 0.1"
+    delay_s: 5.0
+    actions: ["LV-101.close"]
+    reset: manual
+  - tag: PSHH-101
+    condition: "K-101.discharge_pressure >= 350.0"
+    delay_s: 2.0
+    actions: ["K-101.stop"]
+    reset: manual
 controllers:
   # PIC-101: holds V-101's headspace pressure by venting through PV-101.
   # pv names N-201 rather than a transmitter tag — VesselCoupling writes

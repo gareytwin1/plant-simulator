@@ -125,7 +125,12 @@ scope, and item 1 in particular reads like a bug and is not.
    standalone solve clipped at zero. The live pages have equal boundaries and do
    not hit it; a plant sized for running and started cold would.
    *Status:* **not retired.** A resistance cannot stop reverse flow against an
-   adverse gradient. Needs a check valve, which no task owns.
+   adverse gradient. Needs a check valve, which no task owns. T11-1
+   (`app/safety/interlocks.py`) left P-101's backflow trip (the interlock twin
+   of `limits`' `P-101.flow lo_lo: -20.0` in `olefins_lite.yaml`) unconfigured
+   for exactly this reason: `P-101.stop` cannot clear the backflow it would
+   trip on, since a stopped P-101 already backflows past -20 GPM. Restore it
+   when a check valve lands.
 
 3. **`get_state()` on a device is slow state only.** Flow and the two pressures
    are not device attributes; a page's row is assembled from the snapshot by

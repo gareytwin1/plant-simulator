@@ -147,6 +147,22 @@ def test_duplicate_loop_tag_is_rejected():
     )
 
 
+def test_two_loops_on_one_output_is_rejected():
+    config = valid_config()
+    second = copy.deepcopy(config["controllers"][0])
+    second["tag"] = "PIC-102"
+    config["controllers"].append(second)
+
+    errors = rejected(config)
+
+    assert any(
+        "$.controllers[1].out" in e
+        and "FV-101" in e
+        and "PIC-101" in e
+        for e in errors
+    )
+
+
 def test_negative_ki_is_rejected_with_a_clear_message():
     config = valid_config()
     config["controllers"][0]["ki"] = -1.0

@@ -103,6 +103,7 @@ def load_loops(plant: Plant) -> dict[str, LoopBinding]:
 
     errors: list[str] = []
     tag_paths: dict[str, str] = {}
+    out_paths: dict[str, str] = {}
     bindings: dict[str, LoopBinding] = {}
 
     for i, entry in enumerate(entries):
@@ -127,6 +128,7 @@ def load_loops(plant: Plant) -> dict[str, LoopBinding]:
             )
 
         device = plant.devices.get(entry["out"])
+        resolvable = node is not None and device is not None
 
         if device is None:
             errors.append(
@@ -139,9 +141,27 @@ def load_loops(plant: Plant) -> dict[str, LoopBinding]:
                 f"which a loop cannot drive; only "
                 f"{sorted(t.__name__ for t in OUTPUT_SETTERS)}",
             )
+            resolvable = False
+        elif entry["out"] in out_paths:
+            # Two loops on one output is not a tag-resolution failure — both
+            # tags are real — but silently letting it through would hand
+            # T8-4 a last-write-wins race with no signal that anything is
+            # wrong. Caught here, at load, where the error can still name
+            # both loops.
+            errors.append(
+                f"{path}.out: {entry['out']!r} is already driven by loop "
+                f"{out_paths[entry['out']]!r} — one output cannot take a "
+                f"command from two loops",
+            )
+            resolvable = False
+        else:
+            out_paths[entry["out"]] = tag
 
-        if node is None or device is None or type(device) not in OUTPUT_SETTERS:
+        if not resolvable:
             continue
+
+        assert node is not None
+        assert device is not None
 
         try:
             pid = PID(

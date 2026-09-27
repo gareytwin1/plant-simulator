@@ -200,19 +200,25 @@ def test_a_trip_action_is_an_interlock_demand_on_the_arbiter():
     assert engine.arbiter.resolve("M-1.run").value == 0.0
 
 
-@pytest.mark.parametrize(("demand", "running"), [(0.7, True), (0.2, False)])
-def test_the_run_output_switches_at_its_midpoint_and_never_raises(demand, running):
-    pump = CentrifugalPump("M-1")
-    pump.start()
-    engine, trips, _ = build([pump], interlock("XS-1", ["M-1.stop"]))
+@pytest.mark.parametrize("machine_type", [CentrifugalPump, GasCompressor])
+@pytest.mark.parametrize(
+    ("starts_running", "demand", "ends_running"),
+    [(False, 0.7, True), (True, 0.2, False)],
+)
+def test_the_run_output_switches_at_its_midpoint_and_never_raises(
+    machine_type, starts_running, demand, ends_running,
+):
+    machine = machine_type("M-1")
 
-    if running:
-        pump.stop()
+    if starts_running:
+        machine.start()
+
+    engine, trips, _ = build([machine], interlock("XS-1", ["M-1.stop"]))
 
     engine.arbiter.demand("M-1.run", Source.OPERATOR, "console", demand)
     run(engine, trips, 5.0)
 
-    assert pump.running is running
+    assert machine.running is ends_running
 
 
 def test_a_standing_run_demand_restarts_the_machine_when_the_trip_releases():

@@ -10,22 +10,25 @@ repeat it.
 What is still open is the *direction* of the dependency. Nothing stops a
 physics module from importing the disturbance layer back - reaching into a
 `MalfunctionRegistry` or calling something the allowlist was built to guard
-against from the other side. The rule is "physics never imports disturbances
-or scoring", and it is easy to violate by accident once a device or the
-engine wants to know whether it is currently faulted. Two checks enforce it:
+against from the other side. The rule is "physics never imports disturbances,
+scoring or scenarios", and it is easy to violate by accident once a device or
+the engine wants to know whether it is currently faulted. Two checks enforce
+it:
 
-1. **Import direction** - no *physics* module imports `app.disturbances` or
-   `app.scoring`, absolute or relative. "Physics" excludes not just those two
-   layers themselves but also the orchestration layer above them -
-   `app/api` (T15-1's C5 action endpoint legitimately imports
+1. **Import direction** - no *physics* module imports `app.disturbances`,
+   `app.scoring` or `app.scenarios` (the last forbidden because it imports
+   `app.scoring` itself - a physics module reaching into it would pull
+   scoring in without ever naming it), absolute or relative. "Physics"
+   excludes not just those layers themselves but also the orchestration layer
+   above them - `app/api` (T15-1's C5 action endpoint legitimately imports
    `app.scoring.actionlog` to log what an operator did), `app/scenarios`
    (T14-2's trigger evaluator reads the same action log to fire an
    `operator_action` trigger, and a later task's objective evaluator and
    runner will dispatch into `app.disturbances` too; that is coordination,
    not physics reaching backwards) and `app/main.py`, the composition root.
    Equipment, the engine, the plant graph, controllers, the envelope
-   evaluator and alarms have no legitimate reason to know either layer
-   exists, and that is what stays guarded.
+   evaluator and alarms have no legitimate reason to know any of these
+   layers exist, and that is what stays guarded.
 2. **Allowlist vs. slow state** - derived structurally rather than
    hand-listed: for every device class in `WRITABLE`, none of its allowlisted
    parameters are among the attributes that class's own `integrate()` writes.
@@ -57,18 +60,22 @@ API_LAYER = APP / "api"
 SCENARIOS_LAYER = APP / "scenarios"
 MAIN_MODULE = APP / "main.py"
 
-FORBIDDEN_LAYERS = frozenset({"disturbances", "scoring"})
+# app/scenarios is forbidden too, alongside the two layers it sits above: it
+# imports app.scoring itself (T14-2's trigger evaluator reads the action
+# log), so a physics module reaching into app.scenarios would pull scoring
+# in by the back door without ever naming it directly.
+FORBIDDEN_LAYERS = frozenset({"disturbances", "scoring", "scenarios"})
 
 # PHYSICS_MODULES is everything guarded against FORBIDDEN_LAYERS - which is
-# not "all of app/". Excluded: the two forbidden layers' own internals (their
-# own imports of each other, or of themselves, are not the violation this
-# guards against), and the orchestration layer above them - app/api (T15-1's
-# C5 action endpoint legitimately imports app.scoring.actionlog), app/scenarios
+# not "all of app/". Excluded: the forbidden layers' own internals (their own
+# imports of each other, or of themselves, are not the violation this guards
+# against), and the orchestration layer above them - app/api (T15-1's C5
+# action endpoint legitimately imports app.scoring.actionlog), app/scenarios
 # (T14-2's trigger evaluator does the same, and will dispatch into
 # app.disturbances too) and app/main.py, the Flask composition root. None of
 # these is physics; each exists to coordinate between layers, which is a
-# different direction than physics reaching backwards into disturbances or
-# scoring.
+# different direction than physics reaching backwards into disturbances,
+# scoring or scenarios.
 ORCHESTRATION_LAYERS = (DISTURBANCE_LAYER, SCORING_LAYER, API_LAYER, SCENARIOS_LAYER)
 
 APP_MODULES = sorted(APP.rglob("*.py"))
@@ -185,10 +192,11 @@ def test_the_disturbance_layer_is_the_one_that_imports_physics():
 )
 def test_no_physics_module_imports_the_disturbance_layer(path):
     assert not imports_forbidden_layer(path), (
-        f"{path.relative_to(APP)} imports the disturbance (or scoring) layer "
-        f"— physics must never depend on it; a malfunction reaches a device "
-        f"only through the allowlist in app/disturbances/malfunction.py "
-        f"(WRITABLE), never the other way around"
+        f"{path.relative_to(APP)} imports the disturbance, scoring or "
+        f"scenarios layer — physics must never depend on any of them; a "
+        f"malfunction reaches a device only through the allowlist in "
+        f"app/disturbances/malfunction.py (WRITABLE), never the other way "
+        f"around"
     )
 
 
@@ -201,6 +209,8 @@ def test_the_guard_catches_each_way_of_importing_the_forbidden_layer(tmp_path):
         "from app import disturbances",
         "from app import scoring as s",
         "import app.scoring.board",
+        "from app.scenarios.triggers import Trigger",
+        "import app.scenarios.triggers",
     ):
         module = tmp_path / "m.py"
         module.write_text(source)

@@ -43,6 +43,8 @@ from pathlib import Path
 
 import pytest
 
+from app.controls.loader import load_loops
+from app.controls.modes import Mode
 from app.engine.engine import Engine
 from app.plant.loader import load_plant, load_plant_file
 
@@ -209,14 +211,28 @@ def test_the_series_pair_lands_k_101_at_its_design_point():
     )
 
 
-def test_pv_101_and_lv_101_are_manual_with_no_controller():
+def test_lv_101_is_manual_with_no_controller():
     plant = load()
 
     # Only a start/stop-able machine has a controller to wait for; a valve's
-    # position is manual by construction, and this fixture ships no
-    # controller object at all (M8 owns closed-loop control, ADR 0002 3.7).
+    # position is manual by construction. LV-101 has no loop wired to it at
+    # all (M8 owns closed-loop control, ADR 0002 3.7) — unlike PV-101, which
+    # PIC-101 (T8-3) does bind to, in MANUAL mode.
     assert not hasattr(plant.devices["LV-101"], "start")
     assert not hasattr(plant.devices["PV-101"], "start")
+
+
+def test_pic_101_loads_and_binds_to_n_201_and_pv_101():
+    """T8-3: the one loop this fixture wires. It resolves and binds at load
+    exactly like every other reference here, but nothing at engine-step time
+    reads it yet (T8-4), so it is configured MANUAL rather than AUTO."""
+    plant = load()
+
+    binding = load_loops(plant)["PIC-101"]
+
+    assert binding.pv_node is plant.nodes["N-201"]
+    assert binding.out_tag == "PV-101"
+    assert binding.loop.mode is Mode.MANUAL
 
 
 def test_round_trip_plant_config_plant_is_identical():

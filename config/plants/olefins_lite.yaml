@@ -10,8 +10,12 @@
 # the vapor node N-201 carries one outlet, and K-101 and PV-101 are two
 # branches on that one node, not two vessel nozzles.
 #
-# PV-101 and LV-101 are MANUAL valves at a fixed position — there is no
-# controller here, and M8 owns closed-loop control (ADR 0002 section 3.7).
+# PV-101 and LV-101 are MANUAL valves at a fixed position (ADR 0002 section
+# 3.7 — M8 owns closed-loop control). PIC-101 (T8-3) is the one loop this
+# fixture wires: it resolves and binds at load, exactly like every other
+# reference here, but is itself configured MANUAL — nothing yet reads the
+# `controllers` key at engine-step time (that is T8-4's job), so an AUTO mode
+# here would be silently inert rather than actually controlling anything.
 #
 # Design values, closed-form (both pumps' and the compressor's own resistance
 # are sized for this plant, not left at the class default, precisely so a
@@ -147,3 +151,14 @@ limits:
   - {tag: V-101, variable: level, lo_lo: 0.1, lo: 0.2, hi: 0.8, hi_hi: 0.9, trip: true, deadband: 0.02}
   - {tag: K-101, variable: discharge_pressure, hi: 320.0, hi_hi: 350.0, trip: true}
   - {tag: P-101, variable: flow, lo_lo: -20.0, trip: true}
+controllers:
+  # PIC-101: holds V-101's headspace pressure by venting through PV-101.
+  # pv names N-201 rather than a transmitter tag — VesselCoupling writes
+  # N-201's solved pressure from V-101's own inventory every step (T5-2), so
+  # it is the same number a real PT there would read, and app/controls/loader.py
+  # (T8-3) resolves a controllers.pv entry against a node id for exactly this
+  # reason (no instruments key exists in C3 yet — see
+  # .workspace/memory/project_state.md's "Known technical debt"). sp matches
+  # N-201's own design steady state (this file's header derivation), so a
+  # future switch to AUTO starts with no error to correct.
+  - {tag: PIC-101, pv: N-201, sp: 200.0, out: PV-101, mode: MANUAL, kp: 0.01, ki: 0.005, kd: 0.0}

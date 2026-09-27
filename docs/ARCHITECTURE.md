@@ -374,7 +374,8 @@ app/
   api/
     action.py             T15-1: C5 POST /api/action, not yet wired into main.py
   disturbances/
-    malfunction.py        C8 faults: WRITABLE allowlist, MalfunctionRegistry
+    malfunction.py        T13-1/T13-2: C8 faults on devices and instrument
+                          bias; WRITABLE allowlist, MalfunctionRegistry
   historian/
     buffer.py             T17-1: ring-buffer per-tag history
   scenarios/

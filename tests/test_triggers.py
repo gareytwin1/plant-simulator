@@ -69,9 +69,10 @@ def test_time_trigger_fires_once_sim_time_is_reached():
 def test_time_trigger_without_one_shot_fires_on_every_later_step():
     trigger = Trigger(id="t1", kind=TimeTrigger(sim_time=30.0))
     evaluator = TriggerEvaluator([trigger])
+    log = ActionLog()
 
-    evaluator.evaluate(snapshot_at(30.0), ActionLog())
-    second = evaluator.evaluate(snapshot_at(31.0), ActionLog())
+    evaluator.evaluate(snapshot_at(30.0), log)
+    second = evaluator.evaluate(snapshot_at(31.0), log)
 
     assert second == ("t1",)
 
@@ -99,9 +100,10 @@ def test_condition_trigger_fires_when_comparison_holds():
         kind=ConditionTrigger(Condition.parse("K-101.discharge_pressure > 900.0")),
     )
     evaluator = TriggerEvaluator([trigger])
+    log = ActionLog()
 
-    below = evaluator.evaluate(compressor_snapshot(0.0, discharge_pressure=899.0), ActionLog())
-    above = evaluator.evaluate(compressor_snapshot(1.0, discharge_pressure=901.0), ActionLog())
+    below = evaluator.evaluate(compressor_snapshot(0.0, discharge_pressure=899.0), log)
+    above = evaluator.evaluate(compressor_snapshot(1.0, discharge_pressure=901.0), log)
 
     assert below == ()
     assert above == ("high-discharge",)
@@ -344,8 +346,9 @@ def test_condition_is_compiled_once_and_never_reparsed_on_evaluate():
         assert parse.call_count == 1
 
         snapshot = compressor_snapshot(0.0, discharge_pressure=901.0)
+        log = ActionLog()
         for step in range(1000):
-            evaluator.evaluate(snapshot, ActionLog())
+            evaluator.evaluate(snapshot, log)
 
         assert parse.call_count == 1
 
@@ -404,20 +407,29 @@ def test_operator_action_trigger_only_rescans_when_the_log_has_grown():
     assert calls == [1, 1]  # the new entry earns exactly one more look
 
 
-def test_a_fresh_run_needs_a_fresh_evaluator_not_just_a_fresh_log():
+def test_a_fresh_run_needs_a_fresh_evaluator_over_the_same_triggers():
     # TriggerEvaluator is scoped to one run against one ActionLog (see its
-    # docstring) - starting a new run means building a new evaluator from
-    # the same trigger config, which is cheap (no condition is re-parsed).
-    config = [{"id": "ack", "type": "operator_action", "action": "K-101.stop"}]
+    # docstring) - starting a new run means constructing a new evaluator
+    # over the same, already-compiled Trigger tuple, which re-parses
+    # nothing (unlike calling from_config again on the raw config).
+    triggers = [Trigger.from_config({"id": "ack", "type": "operator_action", "action": "K-101.stop"})]
 
     first_log = ActionLog()
     first_log.record(tag="K-101", action="stop", value=None, sim_time=0.0)
-    first_run = TriggerEvaluator.from_config(config)
+    first_run = TriggerEvaluator(triggers)
     assert first_run.evaluate(snapshot_at(0.0), first_log) == ("ack",)
 
     second_log = ActionLog()  # the new run's own log - no matching action yet
-    second_run = TriggerEvaluator.from_config(config)
+    second_run = TriggerEvaluator(triggers)
     assert second_run.evaluate(snapshot_at(0.0), second_log) == ()
+
+
+def test_evaluate_raises_if_a_later_call_passes_a_different_action_log():
+    evaluator = TriggerEvaluator([Trigger(id="t1", kind=TimeTrigger(sim_time=0.0))])
+    evaluator.evaluate(snapshot_at(0.0), ActionLog())
+
+    with pytest.raises(ValueError, match="different"):
+        evaluator.evaluate(snapshot_at(1.0), ActionLog())
 
 
 def test_evaluate_does_not_touch_the_action_log_when_no_trigger_needs_it():

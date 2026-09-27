@@ -289,15 +289,14 @@ class TriggerEvaluator:
     looked at and whether it has matched.
 
     That state is scoped to a single run against a single `ActionLog` -
-    an instance is not meant to outlive the run it was built for. Starting
-    a new run (a scenario reset or replay) means building a fresh
-    `TriggerEvaluator` from the same trigger config, which is cheap: no
-    condition is re-parsed, since `Trigger.from_config` already compiled
-    each one once. `evaluate()` does not itself try to detect a new run by
-    watching for a different `ActionLog` - identity is not a reliable
-    signal (a freed log's address can be reused), and a caller that wants
-    a real reset should ask for one by constructing a new evaluator, not
-    get one as a side effect of which log object it happened to pass.
+    an instance is not meant to outlive the run it was built for, and
+    `evaluate()` enforces that rather than trusting the caller: the first
+    call binds the evaluator to whichever `ActionLog` it was given, and a
+    later call with a *different* log raises. Starting a new run (a
+    scenario reset or replay) means constructing a fresh `TriggerEvaluator`
+    over the same, already-compiled `Trigger` tuple - `TriggerEvaluator(the
+    same triggers)`, not `TriggerEvaluator.from_config(the same config)`,
+    which would re-parse every condition string for no reason.
     """
 
     def __init__(self, triggers: Iterable[Trigger]) -> None:
@@ -317,6 +316,11 @@ class TriggerEvaluator:
         # steps (no action taken) cost a length check, not a rescan.
         self._action_matched: set[str] = set()
         self._action_seen_length: dict[str, int] = {}
+        # The ActionLog this evaluator is bound to - set on the first
+        # evaluate() call. A strong reference, not just its id(): holding it
+        # keeps that log alive, so unlike an id-only check this can never be
+        # fooled by CPython reusing a freed object's address.
+        self._action_log: ActionLog | None = None
 
     @classmethod
     def from_config(cls, triggers: Iterable[Mapping[str, Any]]) -> TriggerEvaluator:
@@ -341,9 +345,19 @@ class TriggerEvaluator:
     def evaluate(self, snapshot: Snapshot, actions: ActionLog) -> tuple[str, ...]:
         """Return the ids of every trigger that fires on this step.
 
-        `actions` must be the same `ActionLog` across every call for this
-        evaluator's life - see the class docstring.
+        `actions` must be the same `ActionLog` on every call - see the
+        class docstring. Raises `ValueError` if a later call passes a
+        different one.
         """
+        if self._action_log is None:
+            self._action_log = actions
+        elif actions is not self._action_log:
+            raise ValueError(
+                "TriggerEvaluator.evaluate() was called with a different "
+                "ActionLog than its first call - it is scoped to one run; "
+                "construct a new TriggerEvaluator for a new one",
+            )
+
         total = len(actions)
         events: Sequence[ActionEvent] = ()
         if any(self._needs_the_log(trigger, total) for trigger in self._triggers):

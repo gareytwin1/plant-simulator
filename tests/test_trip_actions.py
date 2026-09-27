@@ -27,9 +27,9 @@ from app.engine.engine import Engine
 from app.equipment.compressor import GasCompressor
 from app.equipment.pump import CentrifugalPump
 from app.equipment.registry import EquipmentRegistry
-from app.equipment.valve import FAIL_OPEN, ControlValve
+from app.equipment.valve import FAIL_ACTIONS, FAIL_OPEN, ControlValve
 from app.plant.loader import load_plant_file
-from app.safety.actions import TRIP_ACTIONS, TripSystem
+from app.safety.actions import FAIL_TARGETS, TRIP_ACTIONS, TripSystem
 from app.safety.interlocks import InterlockState, load_interlocks
 
 PLANT_FILE = Path(__file__).resolve().parent.parent / "config" / "plants" / "olefins_lite.yaml"
@@ -456,6 +456,10 @@ def test_two_interlocks_that_agree_on_one_output_both_hold_it():
 
 def test_every_trippable_class_has_at_least_one_verb():
     assert all(TRIP_ACTIONS.values())
+
+
+def test_every_valve_fail_action_has_a_trip_target():
+    assert set(FAIL_TARGETS) == set(FAIL_ACTIONS)
 
 
 # The reference plant, end to end

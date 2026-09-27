@@ -50,7 +50,9 @@ build the `TripSystem` after the engine has every loop, as
 `Engine.from_plant` does at construction, or `add_loop` will find the valve
 already bound. The valve's own travel clamp turns
 `close`'s 0.0 into `min_position`; a trip no more seals a resistance-only
-valve than a signal loss does.
+valve than a signal loss does. What `fail` demands is read from the valve's
+`fail_action` once, when the `TripSystem` is built - it is a design value,
+not something a malfunction can move.
 
 **A trip overrides every source, including what an operator wrote directly.**
 `TripSystem.update` evaluates every interlock against the snapshot, posts or

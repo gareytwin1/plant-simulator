@@ -108,6 +108,29 @@ posts to the same arbiter outranks the controller by precedence rather than
 by running last. A loop writes its output in MANUAL too: that output is the
 operator's manual command.
 
+**Envelope classification runs once per step, after couple (T9-4).** Every
+configured `limits` entry (T9-2) gets one `Evaluator` and one
+`ExcursionTracker` (T9-3), advanced exactly once per step by the elapsed
+simulated time - a second call in the same step would double-count the
+on-delay and time-in-band state both carry. `Engine.snapshot()` only reads
+the band each call left, so polling it between steps cannot re-advance
+either. The published `envelope` section carries one entry per point
+currently outside NORMAL, keyed `"{tag}.{variable}"`: `band` is the
+ISA-style severity/side label (`isa_band` - "hi", "hihi", "hihihi" and the
+"lo" equivalents), and `since` is the sim_time this engine's clock read when
+that band was last entered. A point that clears to NORMAL drops out of the
+section entirely rather than reporting a "normal" row.
+
+**A `limits` entry resolves only against a field the device's own
+`get_state()` publishes.** `V-101.level` does; `K-101.discharge_pressure` and
+`P-101.flow` do not - a solved node pressure or branch flow needs a
+tag-to-point resolver this engine does not have yet, the same
+"instruments are not in C3" gap `app/controls/loader.py` (T8-3) already hits
+for every `controllers.pv` but pressure. An unresolvable entry is warned
+about once, at construction, and then never evaluated - it does not crash
+Engine.from_plant on a plant that configures one, and it is not silently
+dropped either.
+
 start()/stop() and the snapshot's running field delegate entirely to the
 clock's pause/resume. There is deliberately no second "is it running"
 flag to keep in sync with the clock's own — a stopped engine is exactly
@@ -124,6 +147,7 @@ from a wall clock — determinism depends on the caller owning time.
 """
 
 import math
+import warnings
 from collections.abc import Iterable, Mapping
 
 from app.controls.arbitration import CommandArbiter, Source
@@ -134,6 +158,9 @@ from app.engine.instruments import Instrument, Point, indicate, true_reading
 from app.engine.network import NetworkSolver, SolverResult
 from app.engine.snapshot import DEFAULT_SOLVER_STATUS, JSONValue, Snapshot, build_snapshot
 from app.engine.transport import ABSOLUTE_ZERO, DomainTransport
+from app.envelope.evaluator import Evaluator, Severity, Side, isa_band
+from app.envelope.loader import LimitKey, load_limits
+from app.envelope.tracker import ExcursionTracker
 from app.equipment.base import Equipment
 from app.plant.loader import DEFAULT_DOMAIN, Plant
 from app.plant.topology import Topology
@@ -149,6 +176,7 @@ class Engine:
         boundary_temperatures: Mapping[str, float] | None = None,
         instruments: Iterable[Instrument] = (),
         loops: Iterable[LoopBinding] = (),
+        limits: Mapping[LimitKey, Evaluator] | None = None,
     ) -> None:
         if topology is not None and topologies is not None:
             raise ValueError(
@@ -188,6 +216,15 @@ class Engine:
 
         self._couple()
 
+        self.limits: dict[LimitKey, Evaluator] = self._resolve_limits(limits or {})
+        self.trackers: dict[LimitKey, ExcursionTracker] = {
+            key: ExcursionTracker(evaluator.limits)
+            for key, evaluator in self.limits.items()
+        }
+        self._envelope_band: dict[LimitKey, tuple[Severity, Side | None]] = {}
+        self._envelope_since: dict[LimitKey, float] = {}
+        self._update_envelope(0.0)
+
         for instrument in instruments:
             self.add_instrument(instrument)
 
@@ -208,6 +245,7 @@ class Engine:
             boundary_temperatures=boundary_temperatures,
             instruments=instruments,
             loops=load_loops(plant).values(),
+            limits=load_limits({"limits": plant.passthrough("limits")}),
         )
 
     @property
@@ -340,6 +378,7 @@ class Engine:
             device.integrate(elapsed)
 
         self._couple()
+        self._update_envelope(elapsed)
 
         return self.snapshot()
 
@@ -356,6 +395,15 @@ class Engine:
             }
             for tag, binding in self.loops.items()
         }
+        envelope: dict[str, dict[str, JSONValue]] = {}
+        for (tag, variable), (severity, side) in self._envelope_band.items():
+            if severity is Severity.NORMAL:
+                continue
+            assert side is not None  # a non-NORMAL band always has a side
+            envelope[f"{tag}.{variable}"] = {
+                "band": isa_band(severity, side),
+                "since": self._envelope_since[(tag, variable)],
+            }
 
         return build_snapshot(
             sim_time=clock_state["sim_time"],
@@ -365,6 +413,7 @@ class Engine:
             nodes=indicated["nodes"],
             streams=indicated["streams"],
             controllers=controllers,
+            envelope=envelope,
             solver=self._solver_section(),
             truth=truth,
         )
@@ -389,6 +438,64 @@ class Engine:
             self.arbiter.demand(binding.out_tag, Source.CONTROLLER, tag, output)
 
         self.arbiter.apply()
+
+    def _resolve_limits(
+        self, limits: Mapping[LimitKey, Evaluator],
+    ) -> dict[LimitKey, Evaluator]:
+        """Keep only the configured limits this engine can actually read.
+
+        A `variable` an equipment's own `get_state()` carries resolves; one
+        that only a solved node or branch would answer does not, until a
+        device-to-point resolver exists (see the module docstring). Warned
+        about once, here, rather than raised - a plant with an unresolvable
+        limit still builds and runs, exactly as `get_limit()` (T9-2) already
+        warns rather than crashes on a tag nobody configured limits for.
+        """
+        equipment = self._indicated()["equipment"]
+        resolved: dict[LimitKey, Evaluator] = {}
+
+        for key, evaluator in limits.items():
+            tag, variable = key
+            row = equipment.get(tag)
+
+            if row is None or variable not in row:
+                warnings.warn(
+                    f"envelope limit {tag}.{variable} does not resolve "
+                    f"against the equipment section this engine publishes "
+                    f"and will not be evaluated",
+                    stacklevel=2,
+                )
+                continue
+
+            resolved[key] = evaluator
+
+        return resolved
+
+    def _update_envelope(self, dt: float) -> None:
+        """Advance every resolved limit by dt and record when its band last
+        changed. Called once at construction (dt=0.0, to seed the design
+        point's classification) and once per step, after couple - never
+        from snapshot(), which only reads what this last left."""
+        if not self.limits:
+            return
+
+        indicated = self._indicated()
+        sim_time = self.clock.get_state()["sim_time"]
+
+        for key, evaluator in self.limits.items():
+            tag, variable = key
+            value = _reading(
+                indicated,
+                ("equipment", tag, variable),
+                f"envelope limit {tag}.{variable}",
+            )
+            severity = evaluator.evaluate(value, dt)
+            self.trackers[key].update(value, severity, dt)
+
+            band = (severity, evaluator.side)
+            if band != self._envelope_band.get(key):
+                self._envelope_band[key] = band
+                self._envelope_since[key] = sim_time
 
     def _indicated(self) -> dict[str, dict[str, dict[str, JSONValue]]]:
         return indicate(self._truth(), self.instruments.values())

@@ -83,6 +83,28 @@ def test_equipment_section_carries_get_state_through():
     }
 
 
+def test_envelope_section_carries_a_band_and_since():
+    snapshot = make_snapshot(
+        envelope={"K-101.discharge_pressure": {"band": "hi", "since": 1790.0}},
+    )
+
+    assert snapshot.as_dict()["envelope"] == {
+        "K-101.discharge_pressure": {"band": "hi", "since": 1790.0},
+    }
+
+
+def test_envelope_mappings_cannot_be_mutated():
+    snapshot = make_snapshot(
+        envelope={"K-101.discharge_pressure": {"band": "hi", "since": 1790.0}},
+    )
+
+    with pytest.raises(TypeError):
+        snapshot.envelope["K-101.discharge_pressure"] = {}
+
+    with pytest.raises(TypeError):
+        snapshot.envelope["K-101.discharge_pressure"]["band"] = "lo"
+
+
 def test_snapshot_top_level_fields_cannot_be_reassigned():
     snapshot = make_snapshot()
 

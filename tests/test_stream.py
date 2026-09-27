@@ -1,9 +1,12 @@
 import itertools
 import json
+import socket
+import threading
 import time
 
 import pytest
 from flask import Flask
+from werkzeug.serving import make_server
 
 from app.api.stream import create_stream_blueprint, format_event, stream_events
 from app.engine.engine import Engine
@@ -15,13 +18,31 @@ from app.equipment.compressor import GasCompressor
 class FakeSource:
     """A snapshot source whose current value the test controls directly,
     with no queue or history behind it - exactly the shape stream_events
-    is written against."""
+    is written against. `closed`/`error` default off, matching a source
+    with no liveness signal of its own."""
 
     def __init__(self):
         self.sim_time = 0.0
+        self.closed = False
+        self.error = None
 
     def snapshot(self):
         return build_snapshot(sim_time=self.sim_time, speed=1.0, running=True, equipment={})
+
+
+class PaddedFakeSource:
+    """A snapshot source whose payload is large enough that a handful of
+    them, written back to back with nobody reading, fill a real OS socket
+    send buffer in well under a second - the only way to reproduce a write
+    that genuinely blocks, rather than one that merely takes a while."""
+
+    def snapshot(self):
+        return build_snapshot(
+            sim_time=0.0,
+            speed=1.0,
+            running=True,
+            equipment={"PAD": {"filler": "x" * 4000}},
+        )
 
 
 class FakeClock:
@@ -45,6 +66,10 @@ class RecordingSleep:
         self.calls.append(seconds)
 
 
+def _payload(event):
+    return json.loads(event[len("data: "):-2])
+
+
 # ---- format_event ----
 
 
@@ -55,14 +80,13 @@ def test_format_event_is_one_sse_data_frame_carrying_c4_json():
 
     assert event.startswith("data: ")
     assert event.endswith("\n\n")
-    payload = json.loads(event[len("data: "):-2])
-    assert payload == snapshot.as_dict()
+    assert _payload(event) == snapshot.as_dict()
 
 
 # ---- stream_events: the pure core, no Flask involved ----
 
 
-def test_stream_events_sleeps_the_configured_interval_before_each_event():
+def test_stream_events_yields_the_first_event_immediately_then_sleeps_between_later_ones():
     source = FakeSource()
     sleep = RecordingSleep()
     clock = FakeClock([0.0, 0.1, 0.1, 0.2, 0.2, 0.3])
@@ -73,7 +97,9 @@ def test_stream_events_sleeps_the_configured_interval_before_each_event():
     ))
 
     assert len(events) == 3
-    assert sleep.calls == [1.0, 1.0, 1.0]
+    # Three events need only two gaps between them - a fresh connection is
+    # not kept blank for a whole interval before its first event.
+    assert sleep.calls == [1.0, 1.0]
 
 
 def test_stream_events_reflects_the_current_snapshot_not_a_queued_backlog():
@@ -84,9 +110,9 @@ def test_stream_events_reflects_the_current_snapshot_not_a_queued_backlog():
     gen = stream_events(source, interval_seconds=1.0, sleep=sleep, monotonic=clock)
 
     source.sim_time = 1.0
-    first = json.loads(next(gen)[len("data: "):-2])
+    first = _payload(next(gen))
     source.sim_time = 99.0
-    second = json.loads(next(gen)[len("data: "):-2])
+    second = _payload(next(gen))
 
     assert first["sim_time"] == pytest.approx(1.0)
     assert second["sim_time"] == pytest.approx(99.0)
@@ -110,14 +136,15 @@ def test_stream_events_continues_when_the_write_lands_within_budget():
 def test_stream_events_ends_when_a_write_alone_exceeds_the_dropout_budget():
     source = FakeSource()
     sleep = RecordingSleep()
-    # First write takes 1s (fine); second takes 9s against a 5s budget -
-    # a wedged client, not a briefly slow one.
+    # First write (the immediate one, no sleep before it) takes 1s, fine;
+    # the second takes 9s against a 5s budget - a wedged client, not a
+    # briefly slow one.
     clock = FakeClock([0.0, 1.0, 1.0, 10.0])
 
     events = list(stream_events(source, interval_seconds=1.0, sleep=sleep, monotonic=clock, dropout_intervals=5.0))
 
     assert len(events) == 2
-    assert sleep.calls == [1.0, 1.0]
+    assert sleep.calls == [1.0]
 
 
 def test_stream_events_dropout_ignores_time_spent_sleeping():
@@ -133,6 +160,34 @@ def test_stream_events_dropout_ignores_time_spent_sleeping():
     ))
 
     assert len(events) == 2
+
+
+def test_stream_events_ends_once_the_source_reports_itself_closed():
+    source = FakeSource()
+    sleep = RecordingSleep()
+    clock = FakeClock(itertools.count(0.0, 0.1))
+
+    gen = stream_events(source, interval_seconds=1.0, sleep=sleep, monotonic=clock)
+    next(gen)
+
+    source.closed = True
+
+    with pytest.raises(StopIteration):
+        next(gen)
+
+
+def test_stream_events_ends_once_the_source_reports_a_worker_error():
+    source = FakeSource()
+    sleep = RecordingSleep()
+    clock = FakeClock(itertools.count(0.0, 0.1))
+
+    gen = stream_events(source, interval_seconds=1.0, sleep=sleep, monotonic=clock)
+    next(gen)
+
+    source.error = RuntimeError("boom")
+
+    with pytest.raises(StopIteration):
+        next(gen)
 
 
 def test_create_stream_blueprint_rejects_a_non_positive_interval():
@@ -151,7 +206,7 @@ def _read_events(response, count):
     ever fully consuming its (endless) generator."""
     chunks = itertools.islice(iter(response.response), count)
 
-    return [json.loads(chunk.decode()[len("data: "):-2]) for chunk in chunks]
+    return [_payload(chunk.decode()) for chunk in chunks]
 
 
 def build_app(interval_seconds=0.01):
@@ -187,17 +242,17 @@ def test_get_stream_disconnect_and_reconnect_each_see_the_current_state():
     app, source = build_app()
     client = app.test_client()
 
-    first = client.get("/api/stream")
     source.sim_time = 1.0
-    _read_events(first, 1)
-    first.close()
+    first = client.get("/api/stream")
+    try:
+        assert _read_events(first, 1)[0]["sim_time"] == pytest.approx(1.0)
+    finally:
+        first.close()
 
     source.sim_time = 42.0
     second = client.get("/api/stream")
     try:
-        payloads = _read_events(second, 1)
-
-        assert payloads[0]["sim_time"] == pytest.approx(42.0)
+        assert _read_events(second, 1)[0]["sim_time"] == pytest.approx(42.0)
     finally:
         second.close()
 
@@ -229,3 +284,66 @@ def test_a_slow_consumer_does_not_stall_the_engines_own_scheduler():
             response.close()
     finally:
         scheduler.close()
+
+
+# ---- a client that never reads at all: the real transport backstop ----
+
+
+def _wait_until_closed(sock, timeout_seconds):
+    """Poll `sock` for the server having closed its end, without ever
+    sending anything back ourselves - a real client that stops reading,
+    not one that hangs up. Drains whatever was already buffered and
+    returns as soon as either EOF or a reset is seen, or False once
+    `timeout_seconds` passes with the connection still apparently open."""
+    deadline = time.monotonic() + timeout_seconds
+    sock.settimeout(0.2)
+
+    while time.monotonic() < deadline:
+        try:
+            data = sock.recv(65536)
+        except socket.timeout:
+            continue
+        except OSError:
+            return True
+
+        if data == b"":
+            return True
+
+    return False
+
+
+def test_a_client_that_never_reads_is_dropped_by_the_transport_backstop():
+    # stream_events's own dropout check runs only once a write returns
+    # control to it, so it cannot see a write that blocks forever - this
+    # drives the real Werkzeug development server over a real socket and
+    # never reads from it, to prove create_stream_blueprint's socket-timeout
+    # backstop (not stream_events itself) is what bounds that case.
+    app = Flask(__name__)
+    app.register_blueprint(create_stream_blueprint(lambda: PaddedFakeSource(), 0.001))
+
+    server = make_server("127.0.0.1", 0, app, threaded=True)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+
+    try:
+        port = server.socket.getsockname()[1]
+        client = socket.create_connection(("127.0.0.1", port), timeout=5.0)
+        try:
+            client.sendall(
+                b"GET /api/stream HTTP/1.1\r\nHost: localhost\r\nConnection: keep-alive\r\n\r\n"
+            )
+
+            # Give the server time to actually fill the socket's real send
+            # buffer and hit the transport-level timeout - reading anything
+            # before then would drain the buffer ourselves and mask the
+            # very scenario under test (a client that never reads at all).
+            time.sleep(3.0)
+
+            assert _wait_until_closed(client, timeout_seconds=10.0), (
+                "a client that never reads was never dropped by the server"
+            )
+        finally:
+            client.close()
+    finally:
+        server.shutdown()
+        thread.join(timeout=5.0)

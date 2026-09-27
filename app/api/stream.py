@@ -16,22 +16,45 @@ snapshot source as a callable for the same reason `app.api.action` takes its
 exists on `main.py` yet, so this module makes no assumption about where its
 `SnapshotSource` comes from.
 
-Nothing here ever takes the engine's `step_lock` across a socket write.
-`Scheduler.snapshot()` (or `Engine.snapshot()`) returns the last published
-Snapshot without stepping and without a lock once one has been published, so
-a client stalled on a slow read stalls only the thread serving it - never
-the scheduler's own worker, which keeps stepping regardless of who is
-reading.
+Only a source that publishes a Snapshot independently of live stepping -
+`Scheduler.snapshot()`, which returns the last snapshot a `step_lock`-held
+step already finished building - is safe to read from this module's own
+thread while something else steps the plant concurrently. A bare `Engine`
+satisfies the same `.snapshot()` shape structurally, but `Engine.snapshot()`
+walks live devices on every call with no lock of its own; passing one still
+being stepped by a `Scheduler` elsewhere is the caller's bug, not this
+module's, in exactly the way `Scheduler`'s own docstring already warns
+`step_lock` callers about.
+
+Nothing here holds a lock across the socket write. Two backstops keep a
+stuck reader from parking this module's thread forever, since a `yield`
+that never regains control cannot run any check written after it:
+
+- A dropout check inside `stream_events` measures how long each `yield`
+  took to return control - in production, exactly how long the client's
+  socket write took to drain - and ends the stream once that alone
+  exceeds `dropout_intervals` worth of `interval_seconds`. This catches a
+  write that is slow but still completes.
+- `create_stream_blueprint` additionally sets a send timeout on the raw
+  socket, when the WSGI server hands one through (Werkzeug's development
+  server does, under `environ["werkzeug.socket"]`). A write that never
+  completes at all - a client that stops draining its socket entirely -
+  cannot return control to `stream_events` for its own check to run; the
+  socket timeout is what bounds that case instead, by making the blocked
+  write itself raise. A WSGI server that does not expose its socket this
+  way has no backstop against that specific case here; closing that gap
+  for such a server is deployment's job (see T18-1/T18-2), not this
+  module's.
 """
 
 from __future__ import annotations
 
 import json
 import time
-from collections.abc import Callable, Iterator
-from typing import Protocol
+from collections.abc import Callable, Iterator, Mapping
+from typing import Any, Protocol
 
-from flask import Blueprint, Response
+from flask import Blueprint, Response, request
 
 from app.engine.snapshot import Snapshot
 
@@ -39,8 +62,14 @@ from app.engine.snapshot import Snapshot
 class SnapshotSource(Protocol):
     """What the stream needs of an engine or scheduler: the last published
     Snapshot, without stepping. Structural, so this module depends on
-    neither `Engine` nor `Scheduler` in particular - both already satisfy
-    it."""
+    neither `Engine` nor `Scheduler` in particular - see the module
+    docstring for which of them is actually safe to pass while something
+    else steps it concurrently.
+
+    `closed` and `error` are optional (`_is_dead` reads them defensively):
+    `Scheduler` carries both, so a stream built on one stops itself once
+    the scheduler is closed or its worker has failed, rather than pushing
+    the same stale snapshot forever."""
 
     def snapshot(self) -> Snapshot: ...
 
@@ -57,6 +86,15 @@ def format_event(snapshot: Snapshot) -> str:
     return f"data: {json.dumps(snapshot.as_dict())}\n\n"
 
 
+def _is_dead(source: SnapshotSource) -> bool:
+    """True once `source` has stopped advancing for good - closed, or its
+    worker failed - rather than merely being paused or between steps.
+    `snapshot()` alone cannot tell the two apart: it keeps returning its
+    last value either way. Both attributes are optional on the protocol; a
+    source with neither is always considered live."""
+    return bool(getattr(source, "closed", False)) or getattr(source, "error", None) is not None
+
+
 def stream_events(
     source: SnapshotSource,
     interval_seconds: float,
@@ -64,25 +102,35 @@ def stream_events(
     monotonic: Callable[[], float] = time.monotonic,
     dropout_intervals: float = DROPOUT_INTERVALS,
 ) -> Iterator[str]:
-    """Yield one formatted SSE event per `interval_seconds`, forever, until
-    the consumer is gone or too slow to keep up.
+    """Yield one formatted SSE event per `interval_seconds`, starting
+    immediately on connect, until the source is dead or the consumer is
+    too slow to keep up.
 
-    Each cycle sleeps, then reads whichever Snapshot is current - never a
-    queued one - so a client that fell behind is shown the plant's present
-    state rather than its history. The `yield` below hands a chunk to
-    whatever is driving this generator (Flask/Werkzeug in production, a
-    test in a unit test) and does not resume until that caller comes back
-    for the next one - in production, that is exactly as long as the
-    client's socket write took to drain. When that gap alone - not the
-    sleep before it - exceeds `dropout_intervals` worth of
-    `interval_seconds`, the client is wedged rather than momentarily slow,
-    and this generator returns, ending the stream from the server side
-    instead of parking its thread on a dead consumer forever.
+    Each cycle reads whichever Snapshot is current - never a queued one -
+    so a client that fell behind is shown the plant's present state rather
+    than its history. The `yield` below hands a chunk to whatever is
+    driving this generator (Flask/Werkzeug in production, a test in a unit
+    test) and does not resume until that caller comes back for the next
+    one - in production, that is exactly as long as the client's socket
+    write took to drain. When that gap alone - not the sleep before it -
+    exceeds `dropout_intervals` worth of `interval_seconds`, the client is
+    wedged rather than momentarily slow, and this generator returns,
+    ending the stream from the server side. A write that never returns
+    control at all cannot be caught here; see the module docstring for the
+    transport-level backstop that covers it.
     """
     dropout_seconds = interval_seconds * dropout_intervals
+    first = True
 
     while True:
-        sleep(interval_seconds)
+        if first:
+            first = False
+        else:
+            sleep(interval_seconds)
+
+        if _is_dead(source):
+            return
+
         event = format_event(source.snapshot())
 
         before = monotonic()
@@ -91,6 +139,28 @@ def stream_events(
 
         if write_seconds > dropout_seconds:
             return
+
+
+def _set_send_timeout(environ: Mapping[str, Any], timeout_seconds: float) -> None:
+    """Best-effort transport-level backstop for a write that never
+    completes at all.
+
+    `stream_events`'s own dropout check only runs once a write returns
+    control to it, so a client whose socket is simply never drained -
+    not merely slow - parks this thread on that write forever; nothing in
+    a generator can interrupt a blocking call it does not itself make.
+    Werkzeug's development server hands the raw socket through under this
+    environ key, and a socket timeout bounds *any* blocking operation on
+    it, including the write this module never sees. `environ` is a WSGI
+    environ - a mapping of a shape nothing here types - so the value found
+    is read as `Any`; a server that does not expose this key leaves the
+    dict without it, and this is silently a no-op, since it is a backstop
+    and not the primary mechanism.
+    """
+    sock = environ.get("werkzeug.socket")
+
+    if sock is not None:
+        sock.settimeout(timeout_seconds)
 
 
 def create_stream_blueprint(
@@ -112,8 +182,9 @@ def create_stream_blueprint(
     def get_stream() -> Response:
         # Resolved here, under the real request context, and captured by
         # the generator's closure - stream_events never touches flask.g or
-        # flask.request, so it needs no stream_with_context.
+        # flask.request itself, so it needs no stream_with_context.
         source = get_source()
+        _set_send_timeout(request.environ, interval_seconds * DROPOUT_INTERVALS)
 
         return Response(
             stream_events(source, interval_seconds),

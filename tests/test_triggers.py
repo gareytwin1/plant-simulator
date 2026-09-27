@@ -336,6 +336,17 @@ def test_from_config_rejects_a_malformed_sim_time(bad_sim_time):
         Trigger.from_config({"id": "t1", "type": "time", "sim_time": bad_sim_time})
 
 
+@pytest.mark.parametrize("sim_time", [0, 0.0, -0.0])
+def test_from_config_accepts_the_schemas_inclusive_zero_minimum(sim_time):
+    # scenario.schema.json declares sim_time's minimum as 0, inclusive - a
+    # trigger built through from_config (as every real scenario is, unlike
+    # most tests here) must accept the boundary the schema allows.
+    trigger = Trigger.from_config({"id": "t1", "type": "time", "sim_time": sim_time})
+
+    assert isinstance(trigger.kind, TimeTrigger)
+    assert trigger.kind.sim_time == pytest.approx(0.0)
+
+
 def test_from_config_rejects_a_sim_time_too_large_for_a_float():
     with pytest.raises(ValueError, match="t1"):
         Trigger.from_config({"id": "t1", "type": "time", "sim_time": 10**400})
@@ -507,6 +518,37 @@ def test_operator_action_trigger_only_rescans_when_the_log_has_grown():
 
     assert fired == ("ack",)
     assert calls == [1, 1]  # the new entry earns exactly one more look
+
+
+def test_operator_action_trigger_scan_only_inspects_entries_added_since_its_last_look():
+    # A rescan must not re-walk entries it has already ruled out - that is
+    # what would make an unmatched trigger's cost grow with total log
+    # length rather than with how many new entries arrived since it last
+    # checked.
+    trigger = Trigger(id="ack", kind=OperatorActionTrigger(tag="K-101", action="stop"))
+    evaluator = TriggerEvaluator([trigger])
+    log = ActionLog()
+    log.record(tag="K-101", action="start", value=None, sim_time=0.0)  # no match
+
+    original_is_met = OperatorActionTrigger.is_met
+    inspected: list[list[object]] = []
+
+    def spy(self, snapshot, actions):
+        events = list(actions)
+        inspected.append(events)
+        return original_is_met(self, snapshot, events)
+
+    with mock.patch.object(OperatorActionTrigger, "is_met", spy):
+        evaluator.evaluate(snapshot_at(0.0), log)  # scans the 1 existing entry
+
+        log.record(tag="K-101", action="start", value=None, sim_time=1.0)  # still no match
+        log.record(tag="K-101", action="stop", value=None, sim_time=2.0)  # matches
+        fired = evaluator.evaluate(snapshot_at(2.0), log)
+
+    assert fired == ("ack",)
+    assert len(inspected) == 2
+    assert len(inspected[0]) == 1  # the one entry that existed at the first look
+    assert len(inspected[1]) == 2  # only the two added since - not a rescan of the first
 
 
 def test_a_fresh_run_needs_a_fresh_evaluator_over_the_same_triggers():

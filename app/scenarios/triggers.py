@@ -26,17 +26,20 @@ un-happen), and `TriggerEvaluator` latches that rather than re-scanning.
 A condition string is compiled once, at construction, into a `Condition`:
 evaluating it each step is a handful of dict lookups and one comparison, not
 a re-parse. An operator-action trigger gets the same treatment a different
-way - `TriggerEvaluator` skips fetching and re-scanning the action log
-entirely on a step where nothing new has been recorded since it last
-looked - which is what keeps trigger evaluation from adding measurable
-per-step cost.
+way - on a step where nothing new has been recorded since it last looked,
+`TriggerEvaluator` skips the log entirely; on a step where it has grown, the
+trigger inspects only the entries added since its own last look
+(`itertools.islice` over the log's `__iter__`, never a copy of the whole
+thing), never re-scanning ones it has already ruled out - which is what
+keeps trigger evaluation from adding measurable per-step cost.
 """
 
 from __future__ import annotations
 
+import itertools
 import math
 import re
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -188,9 +191,16 @@ def _compare(op: str, current: float, target: float) -> bool:
 
 
 class TriggerKind(Protocol):
-    """Whether a trigger fires now. Reads the snapshot and action log only."""
+    """Whether a trigger fires now. Reads the snapshot and action log only.
 
-    def is_met(self, snapshot: Snapshot, actions: Sequence[ActionEvent]) -> bool: ...
+    `actions` is `Iterable`, not `Sequence`: `TriggerEvaluator` may hand an
+    operator-action trigger a one-shot slice of the log (only the entries
+    added since it last looked) rather than the whole thing, and a
+    `Sequence`'s random access and `len()` are never needed to check "did
+    any of these match".
+    """
+
+    def is_met(self, snapshot: Snapshot, actions: Iterable[ActionEvent]) -> bool: ...
 
 
 @dataclass(frozen=True)
@@ -199,7 +209,7 @@ class TimeTrigger:
 
     sim_time: float
 
-    def is_met(self, snapshot: Snapshot, actions: Sequence[ActionEvent]) -> bool:
+    def is_met(self, snapshot: Snapshot, actions: Iterable[ActionEvent]) -> bool:
         return snapshot.sim_time >= self.sim_time
 
 
@@ -209,7 +219,7 @@ class ConditionTrigger:
 
     condition: Condition
 
-    def is_met(self, snapshot: Snapshot, actions: Sequence[ActionEvent]) -> bool:
+    def is_met(self, snapshot: Snapshot, actions: Iterable[ActionEvent]) -> bool:
         return self.condition.is_met(snapshot)
 
 
@@ -220,7 +230,7 @@ class OperatorActionTrigger:
     tag: str
     action: str
 
-    def is_met(self, snapshot: Snapshot, actions: Sequence[ActionEvent]) -> bool:
+    def is_met(self, snapshot: Snapshot, actions: Iterable[ActionEvent]) -> bool:
         return any(
             event.tag == self.tag and event.data.get("action") == self.action
             for event in actions
@@ -423,11 +433,6 @@ class TriggerEvaluator:
                 "construct a new TriggerEvaluator for a new one",
             )
 
-        total = len(actions)
-        events: Sequence[ActionEvent] = ()
-        if any(self._needs_the_log(trigger, total) for trigger in self._triggers):
-            events = actions.events
-
         fired: list[str] = []
 
         for trigger in self._triggers:
@@ -435,9 +440,9 @@ class TriggerEvaluator:
                 continue
 
             if isinstance(trigger.kind, OperatorActionTrigger):
-                met = self._operator_action_is_met(trigger, total, snapshot, events)
+                met = self._operator_action_is_met(trigger, actions, snapshot)
             else:
-                met = trigger.kind.is_met(snapshot, events)
+                met = trigger.kind.is_met(snapshot, ())
 
             if met:
                 fired.append(trigger.id)
@@ -447,43 +452,27 @@ class TriggerEvaluator:
 
         return tuple(fired)
 
-    def _needs_the_log(self, trigger: Trigger, total: int) -> bool:
-        # Only an operator_action trigger ever reads the log; a time or
-        # condition trigger's is_met() ignores the `actions` argument.
-        if not isinstance(trigger.kind, OperatorActionTrigger):
-            return False
-
-        if trigger.one_shot and trigger.id in self._fired:
-            return False
-
-        if trigger.id in self._action_matched:
-            return False
-
-        # Nothing new since the last scan means nothing new to match either.
-        return self._action_seen_length.get(trigger.id, 0) != total
-
     def _operator_action_is_met(
         self,
         trigger: Trigger,
-        total: int,
+        actions: ActionLog,
         snapshot: Snapshot,
-        events: Sequence[ActionEvent],
     ) -> bool:
         if trigger.id in self._action_matched:
             return True
 
-        if self._action_seen_length.get(trigger.id, 0) == total:
+        total = len(actions)
+        seen = self._action_seen_length.get(trigger.id, 0)
+
+        if seen == total:
+            # Nothing new since the last look means nothing new to match.
             return False
 
-        # On a step where the log did grow, this still scans it from index
-        # 0 rather than from `_action_seen_length[trigger.id]` - a true
-        # cursor would need `ActionLog` to expose a slice-since-index
-        # accessor, which is outside this task's file list
-        # (app/scenarios/triggers.py only; ActionLog is T15-1's). Bounded by
-        # how often an operator acts, which is human-paced, not per-step -
-        # a trigger that never matches costs one full rescan per action
-        # taken over the run, not one per simulation step.
-        met = trigger.kind.is_met(snapshot, events)
+        # Only the entries added since this trigger's own last look - never
+        # a copy of the whole log, and never a re-scan of one it has
+        # already ruled out.
+        new_entries = itertools.islice(actions, seen, None)
+        met = trigger.kind.is_met(snapshot, new_entries)
         self._action_seen_length[trigger.id] = total
 
         if met:

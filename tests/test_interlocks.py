@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pytest
 
+from app.envelope.loader import load_limits
 from app.plant.loader import load_plant_file
 from app.plant.validate import validate
 from app.safety.interlocks import (
@@ -431,7 +432,7 @@ def test_the_reference_plant_config_defines_loadable_interlocks():
 
     interlocks = load_interlocks(config)
 
-    assert {"LSHH-101", "PSHH-101"} <= set(interlocks)
+    assert {"LSHH-101", "LSLL-101", "PSHH-101"} <= set(interlocks)
 
     # This only exercises config loading and Condition.is_met() against the
     # design-point values by hand, the same way test_envelope_loader.py's own
@@ -441,7 +442,41 @@ def test_the_reference_plant_config_defines_loadable_interlocks():
     # The design point sits on the safe side of every trip threshold (T5-5),
     # so every configured interlock reads NORMAL against it.
     assert interlocks["LSHH-101"].evaluate(0.5, dt=1.0) is InterlockState.NORMAL
+    assert interlocks["LSLL-101"].evaluate(0.5, dt=1.0) is InterlockState.NORMAL
     assert interlocks["PSHH-101"].evaluate(304.0, dt=1.0) is InterlockState.NORMAL
+
+
+# One documented exception: P-101's backflow trip has no interlock twin - see
+# the comment above P-101's backflow limit in olefins_lite.yaml for why.
+_DOCUMENTED_EXCEPTION = ("P-101", "flow", "<=", -20.0)
+
+
+def test_every_trip_rated_limit_has_a_matching_interlock_except_the_documented_exception():
+    # Catches exactly the drift a previous roborev pass caught by hand: a
+    # trip-rated limits entry with no interlock twin, silently unprotected.
+    plant = load_plant_file(PLANTS / "olefins_lite.yaml")
+    config = plant.to_config()
+
+    limits = load_limits(config)
+    interlocks = load_interlocks(config)
+
+    configured = {
+        (i.definition.condition.tag, i.definition.condition.variable, i.definition.condition.operator, i.definition.condition.threshold)
+        for i in interlocks.values()
+    }
+
+    for (tag, variable), evaluator in limits.items():
+        bounds = []
+        if evaluator.limits.trip_lo is not None:
+            bounds.append(("<=", evaluator.limits.trip_lo))
+        if evaluator.limits.trip_hi is not None:
+            bounds.append((">=", evaluator.limits.trip_hi))
+
+        for operator, threshold in bounds:
+            key = (tag, variable, operator, threshold)
+            if key == _DOCUMENTED_EXCEPTION:
+                continue
+            assert key in configured, f"trip-rated {tag}.{variable} {operator} {threshold} has no matching interlock"
 
 
 def test_neither_reset_mode_can_clear_a_trip_while_its_condition_still_holds():

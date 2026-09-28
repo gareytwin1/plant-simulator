@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
-  "refreshed": "27 September 2026",
-  "main_sha": "eb195c0aa7fc513827db47cac4dbd975832e7ed8",
-  "tests_passing_on_main": 2050,
+  "refreshed": "28 September 2026",
+  "main_sha": "868f484830f2e3ab4f1ded7a6bc63d2ac9d63d3c",
+  "tests_passing_on_main": 2094,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -73,7 +73,7 @@
     },
     "M11": {
       "name": "Interlocks, Trips and Shutdown",
-      "complete": 1,
+      "complete": 2,
       "total": 4
     },
     "M12": {
@@ -119,8 +119,8 @@
   },
   "totals": {
     "tasks": 115,
-    "complete": 80,
-    "startable_now": 16
+    "complete": 81,
+    "startable_now": 15
   },
   "tasks": [
     {
@@ -1385,10 +1385,10 @@
         "app/alarms/history.py",
         "app/api/alarms.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
+      "status": "Ready for Review",
+      "status_key": "review",
       "startable": true,
-      "note": ""
+      "note": "PR #109 opened. 2083 passed, mypy clean. Note: adds AlarmManager.is_acknowledged() to app/alarms/manager.py, outside this task's declared files - flagged in the PR for a merge-time decision (also touches T10-4's file)."
     },
     {
       "id": "T10-4",
@@ -1460,10 +1460,9 @@
       "files": [
         "app/safety/actions.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true,
-      "note": ""
+      "status": "Complete",
+      "status_key": "done",
+      "note": "COMPLETE - merged to main as 868f484 (Merge T11-2, PR #108), 28 Sep 2026. 2094 passed on main post-merge, mypy clean over 56 source files, no golden trace moved. Adds app/safety/actions.py: TRIP_ACTIONS allowlist (pump/compressor stop; valve close/open/fail), TripSystem posting interlock-precedence demands on CommandArbiter and releasing them when the interlock clears. A machine's run command is its own '<tag>.run' arbiter output (1.0 run / 0.0 stop, midpoint switch); a valve's is its bare tag, shared with a loop's binding. TripSystem.update runs immediately before Engine.step. Conditions on unknown devices are refused; PSHH-101 (solved pressure) warns and is skipped. Not wired into Session/Scheduler (spine follow-up, unowned); loop handback after a trip is not bumpless (Engine._control tracking, spine follow-up, unowned). /roborev-refine ran to a clean branch review."
     },
     {
       "id": "T11-3",
@@ -1479,10 +1478,7 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "T11-2"
-      ],
+      "startable": true,
       "note": ""
     },
     {
@@ -1499,10 +1495,7 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "T11-2"
-      ],
+      "startable": true,
       "note": ""
     },
     {
@@ -1890,8 +1883,8 @@
       "files": [
         "app/api/stream.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
+      "status": "Ready for Review",
+      "status_key": "review",
       "startable": true,
       "note": ""
     },

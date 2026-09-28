@@ -8,12 +8,12 @@ regrowth rule is in [.claude/rules/docs.md](../../.claude/rules/docs.md).
 
 ## Right now
 
-**Last state refresh:** 27 September 2026, at `eb195c0` (Merge T14-2: Trigger
-evaluator, PR #106) - **this is a snapshot,
-not a live pointer.** Run `git log eb195c0..HEAD --oneline` to see what has
+**Last state refresh:** 28 September 2026, at `868f484` (Merge T11-2: Trip
+actions on equipment, PR #108) - **this is a snapshot,
+not a live pointer.** Run `git log 868f484..HEAD --oneline` to see what has
 merged since.
-**Full suite as of this refresh:** **2050 passed** · `python -m mypy` clean over 55 source files · no golden trace movement
-**In flight:** nothing.
+**Full suite as of this refresh:** **2094 passed** · `python -m mypy` clean over 56 source files · no golden trace movement
+**In flight:** T10-3 (PR #109) and T16-2 are Ready for Review in the live artifact; T16-2 has no PR yet.
 **No spine lock is held.** No task is Blocked. CI runs on every PR, and `main` requires its
 `test` check before a merge.
 
@@ -22,12 +22,12 @@ merged since.
 
 | Task | SHA | What landed |
 |---|---|---|
+| **T11-2** | `868f484` | Trip actions, `app/safety/actions.py`: `TripSystem` posts interlock demands on the arbiter; not yet called from `Session`/`Scheduler` (PR #108) |
 | **T14-2** | `eb195c0` | Trigger evaluator, `app/scenarios/triggers.py` (PR #106) |
 | **T11-1** | `994b30e` | Interlock definitions and evaluator, `app/safety/interlocks.py`; 3 interlocks in `olefins_lite.yaml` (PR #105) |
 | **T17-1** | `b36af0d` | Ring-buffer historian, `app/historian/buffer.py` (PR #101) |
 | **T13-5** | `65458ee` | Physics/disturbance layer isolation guard, `tests/test_layer_isolation.py` (PR #100) |
 | **T15-1** | `6cafbd2` | Operator action log and C5 `/api/action`; not yet wired into `app/main.py` (PR #103) |
-| **T8-6** | `3733819` | Controller `action` (`DIRECT`/`REVERSE`) in C3; PIC-101 is `DIRECT` but still configured MANUAL |
 
 **ADRs on `main`:** [0001](../../docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md)
 (+ Amendment 1) and [0002](../../docs/ADR_0002_TYPED_PORTS.md) (+ Amendments
@@ -40,8 +40,8 @@ Complete: **M0-M7, M9, MR**. Open:
 | Milestone | Done | Complete / startable |
 |---|---|---|
 | **M8** PID Controllers | 5/6 | T8-5 startable (V1.1-deferred) |
-| **M10** Alarms | 2/5 | T10-1, T10-2; T10-3 startable |
-| **M11** Interlocks and Trips | 1/4 | T11-1; T11-2 startable |
+| **M10** Alarms | 2/5 | T10-1, T10-2; T10-3 Ready for Review (PR #109) |
+| **M11** Interlocks and Trips | 2/4 | T11-1, T11-2; T11-3 startable, T11-4 startable (V1.1-deferred) |
 | **M13** Malfunctions | 3/5 | T13-1, T13-2, T13-5; T13-3, T13-4 startable |
 | **M14** Scenario Engine | 2/6 | T14-1, T14-2; T14-3 startable |
 | **M15** Action Log and Scoring | 1/4 | T15-1; T15-4 startable |
@@ -49,25 +49,27 @@ Complete: **M0-M7, M9, MR**. Open:
 | **M18** Deployment | 1/5 | T18-2 |
 | M12, M16, M19 | 0 | - |
 
-**80 of 115 tasks Complete.** Checkpoints A-C reached. Checkpoint **D** (M8)
+**81 of 115 tasks Complete.** Checkpoints A-C reached. Checkpoint **D** (M8)
 needs only its "loops reject an injected disturbance" gate: PIC-101 switched to
 AUTO in `olefins_lite.yaml`, which T8-6 enabled but no task owns yet.
 
 ## The next task
 
-**16 tasks are startable** - list them from
+**15 tasks are startable** - list them from
 [BUILD_PLAN_STATUS.json](../../docs/BUILD_PLAN_STATUS.json) (`startable`
-field). All are Sonnet except **T11-2** (trip actions, `core`, Opus). T8-5,
-T10-4 and T17-2 are V1.1-deferred. No startable task needs the spine lock;
+field). All are Sonnet. T8-5, T10-4, T11-4 and T17-2 are V1.1-deferred. No startable task needs the spine lock;
 T12-1 and T18-5 add new isolated modules under `app/engine/` (satellite work).
 
 **Scheduling notes.** The spine lock is one global lock
 ([DEVELOPMENT.md](../../DEVELOPMENT.md#file-ownership)); it is free. `rng.py` is
 spine, so RNG state save/restore (T12-1 or T14-5) takes it. **T18-1 must run
 exactly one Gunicorn worker** - `SessionRegistry` is per-process (R7).
-**T11-2 is the second consumer of T7-4's `CommandArbiter`** (after T8-4's
-loops); it arbitrates numeric targets only, not start/stop, so T11-2 decides
-how "stop the machine" is expressed.
+**Trips do not run in a live session yet**: nothing in `Session`/`Scheduler`
+calls `TripSystem.update`, and wiring it in is a spine change no task owns.
+T11-3 (permissives) builds on T11-2's `"<tag>.run"` arbiter output; a standing
+lower-precedence RUN demand restarts a machine the moment its trip releases
+(see `app/safety/actions.py`). A loop overridden by a trip is not tracked, so
+its handback is not bumpless - also an unowned `Engine._control` change.
 
 ## Known interim behaviour — do not "fix" these in passing
 

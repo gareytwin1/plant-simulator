@@ -540,20 +540,14 @@ def test_a_transient_error_at_connect_ends_the_stream_without_a_204():
 
 
 class FakeSocket:
-    """A werkzeug.socket stand-in that only records what was asked of it -
-    real enough for the gettimeout()/settimeout() calls generate() makes,
-    nothing more."""
+    """A werkzeug.socket stand-in that only records settimeout() calls -
+    all generate() ever makes on one."""
 
-    def __init__(self, initial_timeout):
-        self._timeout = initial_timeout
+    def __init__(self):
         self.calls = []
-
-    def gettimeout(self):
-        return self._timeout
 
     def settimeout(self, value):
         self.calls.append(value)
-        self._timeout = value
 
 
 def test_the_sockets_timeout_is_set_once_generate_starts_and_never_restored():
@@ -561,10 +555,9 @@ def test_the_sockets_timeout_is_set_once_generate_starts_and_never_restored():
     # this socket - sends Connection: close on every response and never
     # reuses one, including for its own trailing chunked-encoding
     # terminator write after generate() exhausts - so there is nothing
-    # for a later read or write on this socket to observe, and nothing
-    # here restores the value gettimeout() would have returned before.
+    # left to restore this to, and nothing here tries.
     source = FakeSource()
-    fake_socket = FakeSocket(initial_timeout=30.0)
+    fake_socket = FakeSocket()
 
     app = Flask(__name__)
     app.register_blueprint(create_stream_blueprint(lambda: source, interval_seconds=0.1))
@@ -585,7 +578,7 @@ def test_a_head_request_never_touches_the_sockets_timeout():
     # therefore never run, so the socket this fake stands in for is left
     # exactly as it was found, not set once and left unrestored.
     source = FakeSource()
-    fake_socket = FakeSocket(initial_timeout=30.0)
+    fake_socket = FakeSocket()
 
     app = Flask(__name__)
     app.register_blueprint(create_stream_blueprint(lambda: source, interval_seconds=0.1))

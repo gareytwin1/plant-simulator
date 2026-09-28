@@ -15,9 +15,10 @@ An acknowledgement is its own `AcknowledgeRecord`, not folded into the
 `Event` that first raised the alarm, so a debrief can read both timestamps
 rather than one overwriting the other. `AlarmHistory` does not decide
 whether an acknowledgement is redundant - that answer lives in
-`AlarmManager`'s own `Alarm` state (`AlarmManager.is_acknowledged`), never in a flag
-reconstructed here from what happened to have been recorded; same reasoning
-as "a device does not own solved plant state" (AGENTS.md), one level up.
+`AlarmManager`'s own `Alarm` state (`AlarmManager.is_acknowledged`), never
+in a flag reconstructed here from what happened to have been recorded; same
+reasoning as "a device does not own solved plant state" (AGENTS.md), one
+level up.
 
 `record_events`/`record_acknowledge`/`entries` share one lock, same as
 `Historian` (T17-1): nothing calls `record_events` from the engine's step

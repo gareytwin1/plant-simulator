@@ -154,9 +154,10 @@ def test_post_acknowledge_of_an_alarm_that_cleared_before_being_acked_still_reco
 
     assert response.get_json() == {"ok": True, "recorded": True}
     assert len(history) == 2
-    # RTN_UNACK's only transition on acknowledge() is to NORMAL, so reading
-    # True here confirms that specific transition happened.
     assert manager.is_acknowledged(alarm_id) is True
+    # acknowledged is also True for ACKED (still active); active() is what
+    # tells NORMAL apart from a stuck, still-active alarm.
+    assert manager.active() == []
 
 
 def test_post_acknowledge_after_the_raising_event_has_been_evicted_still_works():

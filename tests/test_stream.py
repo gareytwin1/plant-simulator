@@ -528,7 +528,7 @@ def test_a_transient_error_at_connect_ends_the_stream_without_a_204():
         response.close()
 
 
-# ---- the socket timeout is set and restored together, in generate() ----
+# ---- the socket timeout is set in generate(), restored on response close ----
 
 
 class FakeSocket:

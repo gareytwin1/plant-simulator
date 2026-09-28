@@ -139,6 +139,30 @@ def test_format_event_maps_a_non_finite_reading_to_null_instead_of_invalid_json(
     assert reading["inf_reading"] is None
 
 
+def test_format_event_maps_a_non_finite_value_inside_a_tuple_to_null():
+    # _finite_or_none's dict/list recursion would silently skip a tuple, so
+    # this needs its own case, not just a dict of bare floats.
+    snapshot = build_snapshot(
+        sim_time=0.0,
+        speed=1.0,
+        running=True,
+        equipment={"K-101": {"readings": (float("nan"), 1.0)}},
+    )
+
+    event = format_event(snapshot)
+    data_line = next(line for line in event.split("\n") if line.startswith("data: "))
+
+    def _reject_constant(token):
+        raise AssertionError(f"non-finite JSON constant leaked through: {token}")
+
+    # parse_constant=... makes even a *valid* bare NaN/Infinity token raise,
+    # where plain json.loads would silently accept one - a strict check
+    # json.loads() alone would not give.
+    payload = json.loads(data_line[len("data: "):], parse_constant=_reject_constant)
+
+    assert payload["equipment"]["K-101"]["readings"] == [None, 1.0]
+
+
 # ---- stream_events: the pure core, no Flask involved ----
 
 

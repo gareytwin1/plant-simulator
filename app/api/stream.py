@@ -84,13 +84,9 @@ class SnapshotSource(Protocol):
 # ordinary jitter so an occasional slow tick never trips it.
 DROPOUT_INTERVALS = 5.0
 
-# EventSource remembers the last retry: value it was given across every
-# later reconnect, including ones that hit an empty response - so tying it
-# to a fast push interval would let a source that goes from healthy to
-# merely erroring turn into every open console hammering the server once
-# per interval until someone notices. A floor near the browser's own
-# built-in default keeps a persistent error from becoming a self-inflicted
-# reconnect storm.
+# EventSource keeps the last retry: it was given across every later
+# reconnect; floored well above a fast push interval so a persistent
+# source error cannot turn into a reconnect storm.
 MIN_RETRY_MS = 1000
 
 

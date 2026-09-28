@@ -279,7 +279,9 @@ def test_stream_events_ends_when_a_write_alone_exceeds_the_dropout_budget():
 def test_stream_events_floors_the_dropout_budget_for_a_fast_interval():
     # dropout_intervals * interval_seconds alone would give a 50ms budget
     # here - tight enough that ordinary WAN jitter, not a wedged client,
-    # would end the stream. MIN_DROPOUT_SECONDS keeps that from happening.
+    # would end the stream. MIN_DROPOUT_SECONDS keeps that from happening,
+    # without raising the budget so high that a write past the floor is
+    # never caught either - checked on both sides of it below.
     source = FakeSource()
     clock, sleep = _clocked()
 
@@ -287,10 +289,11 @@ def test_stream_events_floors_the_dropout_budget_for_a_fast_interval():
 
     next(gen)
     clock.advance(0.3)  # a real jitter spike, far past the raw 50ms budget
+    next(gen)  # still inside the 2s floor - must not have ended
 
-    second = next(gen)  # still inside the 2s floor - must not have ended
-
-    assert second is not None
+    clock.advance(2.5)  # past the floor itself now - a genuinely wedged client
+    with pytest.raises(StopIteration):
+        next(gen)
 
 
 def test_stream_events_dropout_ignores_time_spent_sleeping():

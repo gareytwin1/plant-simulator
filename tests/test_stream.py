@@ -155,9 +155,8 @@ def test_format_event_maps_a_non_finite_value_inside_a_tuple_to_null():
     def _reject_constant(token):
         raise AssertionError(f"non-finite JSON constant leaked through: {token}")
 
-    # parse_constant=... makes even a *valid* bare NaN/Infinity token raise,
-    # where plain json.loads would silently accept one - a strict check
-    # json.loads() alone would not give.
+    # parse_constant makes a bare NaN/Infinity token raise; plain
+    # json.loads would accept it.
     payload = json.loads(data_line[len("data: "):], parse_constant=_reject_constant)
 
     assert payload["equipment"]["K-101"]["readings"] == [None, 1.0]

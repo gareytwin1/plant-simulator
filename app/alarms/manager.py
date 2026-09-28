@@ -152,22 +152,19 @@ class AlarmManager:
     def active(self) -> list[Alarm]:
         return [alarm for alarm in self._alarms.values() if alarm.active]
 
-    def get(self, alarm_id: str) -> Alarm | None:
-        """The `Alarm` bound to `alarm_id`, or `None` if this manager has
-        never seen it. Additive read accessor (T10-3): a caller deciding
-        whether `acknowledge()` would actually change anything needs the
-        real state, not a guess reconstructed from emitted events - `evaluate()`
-        binds an `Alarm` to every monitored point on first sight (via
-        `setdefault`), including one that has never left NORMAL and so has
-        never emitted an `Event` a caller could have observed.
-
-        Returns this manager's own live `Alarm`, the same reference `active()`
-        already hands out - read its state freely, but call its `activate()`/
-        `clear()`/`acknowledge()` only through this manager (`evaluate()`,
-        `acknowledge()`), never directly: this manager's own `_band` map
-        tracks each alarm's classification and would silently disagree with
-        an `Alarm` transitioned by any other path."""
-        return self._alarms.get(alarm_id)
+    def is_acknowledged(self, alarm_id: str) -> bool | None:
+        """Whether the `Alarm` bound to `alarm_id` currently reads as
+        acknowledged, or `None` if this manager has never seen the id.
+        Additive read accessor (T10-3, narrowed to the one query a caller
+        actually needs rather than handing out the manager's live `Alarm`):
+        a caller deciding whether `acknowledge()` would actually change
+        anything needs the real state, not a guess reconstructed from
+        emitted events - `evaluate()` binds an `Alarm` to every monitored
+        point on first sight (via `setdefault`), including one that has
+        never left NORMAL and so has never emitted an `Event` a caller
+        could have observed."""
+        alarm = self._alarms.get(alarm_id)
+        return None if alarm is None else alarm.acknowledged
 
     def _event(self, alarm_id: str, envelope_event: EnvelopeEvent, sim_time: float) -> Event:
         assert envelope_event.side is not None  # enforced by EnvelopeEvent.__post_init__

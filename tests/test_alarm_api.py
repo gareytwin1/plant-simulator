@@ -6,7 +6,6 @@ from flask import Flask
 
 from app.alarms.history import AcknowledgeRecord, AlarmHistory
 from app.alarms.manager import AlarmManager, EnvelopeEvent, _alarm_id
-from app.alarms.state import AlarmState
 from app.api.alarms import create_alarm_blueprint
 from app.envelope.evaluator import Severity
 
@@ -155,7 +154,9 @@ def test_post_acknowledge_of_an_alarm_that_cleared_before_being_acked_still_reco
 
     assert response.get_json() == {"ok": True, "recorded": True}
     assert len(history) == 2
-    assert manager.get(alarm_id).state is AlarmState.NORMAL
+    # RTN_UNACK's only transition on acknowledge() is to NORMAL, so reading
+    # True here confirms that specific transition happened.
+    assert manager.is_acknowledged(alarm_id) is True
 
 
 def test_post_acknowledge_after_the_raising_event_has_been_evicted_still_works():
@@ -182,7 +183,7 @@ def test_post_acknowledge_after_the_raising_event_has_been_evicted_still_works()
     response = client.post("/api/alarms/acknowledge", json={"alarm_id": alarm_id})
 
     assert response.get_json() == {"ok": True, "recorded": True}
-    assert manager.get(alarm_id).acknowledged is True
+    assert manager.is_acknowledged(alarm_id) is True
     ack = history.entries()[-1]
     assert isinstance(ack, AcknowledgeRecord)
     assert ack.alarm_id == alarm_id
@@ -206,7 +207,7 @@ def test_post_acknowledge_of_an_id_missing_from_history_is_a_409_and_leaves_stat
     assert response.status_code == 409
     assert "error" in response.get_json()
     assert len(history) == 0
-    assert manager.get(alarm_id).acknowledged is False
+    assert manager.is_acknowledged(alarm_id) is False
 
 
 def test_post_acknowledge_concurrent_requests_record_exactly_once():
@@ -269,7 +270,7 @@ def test_post_acknowledge_concurrent_requests_record_exactly_once():
             time.sleep(0.01)
 
         assert call_count["value"] == 1  # second never reached get_sim_time
-        assert manager.get(alarm_id).acknowledged is False  # ...nor manager.acknowledge()
+        assert manager.is_acknowledged(alarm_id) is False  # ...nor manager.acknowledge()
         assert second.is_alive()  # ...so it is still blocked on the lock
         assert len(history) == 1  # only the original raise; neither ack recorded yet
     finally:

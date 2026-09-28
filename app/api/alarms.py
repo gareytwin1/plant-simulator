@@ -12,12 +12,12 @@ whoever wires this blueprint into `app/main.py` decides that.
 Acknowledging runs three checks in sequence, all under one lock so two
 concurrent requests for the same id cannot both act:
 
-- `manager.get()` resolves the real `Alarm`; `None` means an unknown id, 400.
-- `alarm.acknowledged` is the redundancy check - already ACKED, cleared to
-  NORMAL, or never raised (`AlarmManager.evaluate`'s `setdefault` binds an
-  `Alarm` even to a point that has never left NORMAL) all read `True` here,
-  per `Alarm`'s own state machine. `True` reports `recorded: false` without
-  writing a second `AcknowledgeRecord`.
+- `manager.is_acknowledged()` is `None` for an unknown id, 400.
+- Otherwise it's the redundancy check - already ACKED, cleared to NORMAL, or
+  never raised (`AlarmManager.evaluate`'s `setdefault` binds an `Alarm` even
+  to a point that has never left NORMAL) all read `True` here, per `Alarm`'s
+  own state machine. `True` reports `recorded: false` without writing a
+  second `AcknowledgeRecord`.
 - `history.tag_of()` is checked before `manager.acknowledge()` runs: a
   history that has drifted from the manager (fresh history, reused manager;
   a missed `record_events` call) has no tag for the id. `None` is a 409
@@ -94,11 +94,11 @@ def create_alarm_blueprint(
         history = get_history()
 
         with lock:
-            alarm = manager.get(alarm_id)
-            if alarm is None:
+            acknowledged = manager.is_acknowledged(alarm_id)
+            if acknowledged is None:
                 return jsonify({"error": f"unknown alarm_id: {alarm_id!r}"}), 400
 
-            if alarm.acknowledged:
+            if acknowledged:
                 return jsonify({"ok": True, "recorded": False}), 200
 
             tag = history.tag_of(alarm_id)

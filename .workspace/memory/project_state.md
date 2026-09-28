@@ -8,12 +8,12 @@ regrowth rule is in [.claude/rules/docs.md](../../.claude/rules/docs.md).
 
 ## Right now
 
-**Last state refresh:** 28 September 2026, at `bc27240` (Merge T10-3: Add
-bounded alarm history with acknowledge, PR #109) - **this is a snapshot,
-not a live pointer.** Run `git log bc27240..HEAD --oneline` to see what has
+**Last state refresh:** 28 September 2026, at `beccacbd` (Merge T16-2: Add
+SSE snapshot push transport, PR #110) - **this is a snapshot,
+not a live pointer.** Run `git log beccacbd..HEAD --oneline` to see what has
 merged since.
-**Full suite as of this refresh:** **2127 passed** · `python -m mypy` clean over 58 source files · no golden trace movement
-**In flight:** T16-2 is Ready for Review in the live artifact; no PR yet.
+**Full suite as of this refresh:** **2155 passed** · `python -m mypy` clean over 59 source files · no golden trace movement
+**In flight:** nothing.
 **No spine lock is held.** No task is Blocked. CI runs on every PR, and `main` requires its
 `test` check before a merge.
 
@@ -22,12 +22,12 @@ merged since.
 
 | Task | SHA | What landed |
 |---|---|---|
+| **T16-2** | `beccacbd` | SSE snapshot push, `app/api/stream.py`'s `GET /api/stream`; not yet wired into `app/main.py` - same open question T15-1's action endpoint left (PR #110) |
 | **T10-3** | `bc27240` | Bounded alarm history + acknowledge API, `app/alarms/history.py`, `app/api/alarms.py`; additive `AlarmManager.is_acknowledged()` landed in `app/alarms/manager.py`, outside this task's declared files - coordinate with T10-4 (PR #109) |
 | **T11-2** | `868f484` | Trip actions, `app/safety/actions.py`: `TripSystem` posts interlock demands on the arbiter; not yet called from `Session`/`Scheduler` (PR #108) |
 | **T14-2** | `eb195c0` | Trigger evaluator, `app/scenarios/triggers.py` (PR #106) |
 | **T11-1** | `994b30e` | Interlock definitions and evaluator, `app/safety/interlocks.py`; 3 interlocks in `olefins_lite.yaml` (PR #105) |
 | **T17-1** | `b36af0d` | Ring-buffer historian, `app/historian/buffer.py` (PR #101) |
-| **T13-5** | `65458ee` | Physics/disturbance layer isolation guard, `tests/test_layer_isolation.py` (PR #100) |
 
 **ADRs on `main`:** [0001](../../docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md)
 (+ Amendment 1) and [0002](../../docs/ADR_0002_TYPED_PORTS.md) (+ Amendments
@@ -45,19 +45,22 @@ Complete: **M0-M7, M9, MR**. Open:
 | **M13** Malfunctions | 3/5 | T13-1, T13-2, T13-5; T13-3, T13-4 startable |
 | **M14** Scenario Engine | 2/6 | T14-1, T14-2; T14-3 startable |
 | **M15** Action Log and Scoring | 1/4 | T15-1; T15-4 startable (V1.1-deferred) |
+| **M16** Operator Console | 1/5 | T16-2; T16-1 startable, T16-5 startable; T16-3 needs T16-1 first |
 | **M17** Historian and Trends | 1/4 | T17-1; T17-2 startable (V1.1-deferred) |
 | **M18** Deployment | 1/5 | T18-2 |
-| M12, M16, M19 | 0 | - |
+| M12, M19 | 0 | - |
 
-**82 of 115 tasks Complete.** Checkpoints A-C reached. Checkpoint **D** (M8)
+**83 of 115 tasks Complete.** Checkpoints A-C reached. Checkpoint **D** (M8)
 needs only its "loops reject an injected disturbance" gate: PIC-101 switched to
 AUTO in `olefins_lite.yaml`, which T8-6 enabled but no task owns yet.
 
 ## The next task
 
-**17 tasks are startable** - list them from
+**19 tasks are startable** - list them from
 [BUILD_PLAN_STATUS.json](../../docs/BUILD_PLAN_STATUS.json) (`startable`
-field). All are Sonnet. T8-5, T10-4, T11-4, T15-4 and T17-2 are V1.1-deferred. No startable task needs the spine lock;
+field). All are Sonnet. T8-5, T10-4, T11-4, T15-4 and T17-2 are V1.1-deferred;
+T19-2 (now startable - its other dependency, T13-1, was already Complete) is
+deferred further still, to **V2**. No startable task needs the spine lock;
 T12-1 and T18-5 add new isolated modules under `app/engine/` (satellite work).
 
 **Scheduling notes.** The spine lock is one global lock

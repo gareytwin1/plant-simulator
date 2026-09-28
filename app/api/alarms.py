@@ -9,20 +9,23 @@ operator to acknowledge (`POST /api/alarms/acknowledge`). Same shape as
 once per request, so this module makes no assumption about where they live -
 whoever wires this blueprint into `app/main.py` decides that.
 
-Acknowledging checks three things in sequence, all under one lock so two
-concurrent requests for the same id cannot both act: `manager.get()` resolves
-the real `Alarm` (`None` is an unknown id, 400); `alarm.acknowledged` is the
-redundancy check (already ACKED, cleared to NORMAL, or never raised all read
-as `True`, per `Alarm`'s own state machine - including a point that has
-never left NORMAL, since `AlarmManager.evaluate`'s `setdefault` still binds
-it an `Alarm`) - `True` reports `recorded: false` without writing a second
-`AcknowledgeRecord`; and `history.tag_of()` is checked before
-`manager.acknowledge()` runs, since a history that has drifted from the
-manager (fresh history, reused manager; a missed `record_events` call) has
-no tag for the id - `None` is a 409 with the alarm's state left untouched,
-rather than acknowledging first and having nothing to record. The fetched
-tag passes straight to `record_acknowledge()`, which trusts it rather than
-looking it up again.
+Acknowledging runs three checks in sequence, all under one lock so two
+concurrent requests for the same id cannot both act:
+
+- `manager.get()` resolves the real `Alarm`; `None` means an unknown id, 400.
+- `alarm.acknowledged` is the redundancy check - already ACKED, cleared to
+  NORMAL, or never raised (`AlarmManager.evaluate`'s `setdefault` binds an
+  `Alarm` even to a point that has never left NORMAL) all read `True` here,
+  per `Alarm`'s own state machine. `True` reports `recorded: false` without
+  writing a second `AcknowledgeRecord`.
+- `history.tag_of()` is checked before `manager.acknowledge()` runs: a
+  history that has drifted from the manager (fresh history, reused manager;
+  a missed `record_events` call) has no tag for the id. `None` is a 409
+  with the alarm's state left untouched, rather than acknowledging first
+  and having nothing to record.
+
+The fetched tag passes straight to `record_acknowledge()`, which trusts it
+rather than looking it up again.
 """
 
 from __future__ import annotations

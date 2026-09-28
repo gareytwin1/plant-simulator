@@ -23,10 +23,10 @@ as "a device does not own solved plant state" (AGENTS.md), one level up.
 `Historian` (T17-1): nothing calls `record_events` from the engine's step
 loop yet (a later task wires that), but once something does, that producer
 thread can run concurrently with a Flask request thread. The lock guards
-only this instance's own data structures - ordering an `Event` against a
-later `AcknowledgeRecord` for the same id, across threads, is whichever
-caller wires `record_events` and `record_acknowledge` together's problem to
-solve, not something bounded here.
+only this instance's own data structures; ordering an `Event` against a
+later `AcknowledgeRecord` for the same id across threads is left to
+whichever caller wires `record_events` and `record_acknowledge` together,
+not something bounded here.
 """
 
 from __future__ import annotations

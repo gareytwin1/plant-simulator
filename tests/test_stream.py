@@ -453,7 +453,11 @@ def test_a_client_that_never_reads_is_dropped_by_the_transport_backstop(monkeypa
     # stream_events here) rather than by racing a fixed sleep against
     # however long this host's real TCP buffers take to fill: a client
     # that drains anything to check for closure would itself relieve the
-    # backpressure under test.
+    # backpressure under test. The client's own receive buffer is shrunk
+    # before connecting for the same reason a padded payload is used -
+    # filling it in milliseconds keeps this test's runtime set by
+    # MIN_DROPOUT_SECONDS, not by whatever tcp_rmem/tcp_wmem this host
+    # happens to be tuned to.
     closed = threading.Event()
     real_stream_events = stream_module.stream_events
 
@@ -476,7 +480,10 @@ def test_a_client_that_never_reads_is_dropped_by_the_transport_backstop(monkeypa
 
     try:
         port = server.socket.getsockname()[1]
-        client = socket.create_connection(("127.0.0.1", port), timeout=5.0)
+        client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        client.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 4096)
+        client.settimeout(5.0)
+        client.connect(("127.0.0.1", port))
         try:
             client.sendall(
                 b"GET /api/stream HTTP/1.1\r\nHost: localhost\r\nConnection: keep-alive\r\n\r\n"

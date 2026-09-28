@@ -8,12 +8,12 @@ regrowth rule is in [.claude/rules/docs.md](../../.claude/rules/docs.md).
 
 ## Right now
 
-**Last state refresh:** 28 September 2026, at `868f484` (Merge T11-2: Trip
-actions on equipment, PR #108) - **this is a snapshot,
-not a live pointer.** Run `git log 868f484..HEAD --oneline` to see what has
+**Last state refresh:** 28 September 2026, at `bc27240` (Merge T10-3: Add
+bounded alarm history with acknowledge, PR #109) - **this is a snapshot,
+not a live pointer.** Run `git log bc27240..HEAD --oneline` to see what has
 merged since.
-**Full suite as of this refresh:** **2094 passed** · `python -m mypy` clean over 56 source files · no golden trace movement
-**In flight:** T10-3 (PR #109) and T16-2 are Ready for Review in the live artifact; T16-2 has no PR yet.
+**Full suite as of this refresh:** **2127 passed** · `python -m mypy` clean over 58 source files · no golden trace movement
+**In flight:** T16-2 is Ready for Review in the live artifact; no PR yet.
 **No spine lock is held.** No task is Blocked. CI runs on every PR, and `main` requires its
 `test` check before a merge.
 
@@ -22,12 +22,12 @@ merged since.
 
 | Task | SHA | What landed |
 |---|---|---|
+| **T10-3** | `bc27240` | Bounded alarm history + acknowledge API, `app/alarms/history.py`, `app/api/alarms.py`; additive `AlarmManager.is_acknowledged()` landed in `app/alarms/manager.py`, outside this task's declared files - coordinate with T10-4 (PR #109) |
 | **T11-2** | `868f484` | Trip actions, `app/safety/actions.py`: `TripSystem` posts interlock demands on the arbiter; not yet called from `Session`/`Scheduler` (PR #108) |
 | **T14-2** | `eb195c0` | Trigger evaluator, `app/scenarios/triggers.py` (PR #106) |
 | **T11-1** | `994b30e` | Interlock definitions and evaluator, `app/safety/interlocks.py`; 3 interlocks in `olefins_lite.yaml` (PR #105) |
 | **T17-1** | `b36af0d` | Ring-buffer historian, `app/historian/buffer.py` (PR #101) |
 | **T13-5** | `65458ee` | Physics/disturbance layer isolation guard, `tests/test_layer_isolation.py` (PR #100) |
-| **T15-1** | `6cafbd2` | Operator action log and C5 `/api/action`; not yet wired into `app/main.py` (PR #103) |
 
 **ADRs on `main`:** [0001](../../docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md)
 (+ Amendment 1) and [0002](../../docs/ADR_0002_TYPED_PORTS.md) (+ Amendments
@@ -40,24 +40,24 @@ Complete: **M0-M7, M9, MR**. Open:
 | Milestone | Done | Complete / startable |
 |---|---|---|
 | **M8** PID Controllers | 5/6 | T8-5 startable (V1.1-deferred) |
-| **M10** Alarms | 2/5 | T10-1, T10-2; T10-3 Ready for Review (PR #109) |
+| **M10** Alarms | 3/5 | T10-1, T10-2, T10-3; T10-4 startable (V1.1-deferred), T10-5 startable |
 | **M11** Interlocks and Trips | 2/4 | T11-1, T11-2; T11-3 startable, T11-4 startable (V1.1-deferred) |
 | **M13** Malfunctions | 3/5 | T13-1, T13-2, T13-5; T13-3, T13-4 startable |
 | **M14** Scenario Engine | 2/6 | T14-1, T14-2; T14-3 startable |
-| **M15** Action Log and Scoring | 1/4 | T15-1; T15-4 startable |
+| **M15** Action Log and Scoring | 1/4 | T15-1; T15-4 startable (V1.1-deferred) |
 | **M17** Historian and Trends | 1/4 | T17-1; T17-2 startable (V1.1-deferred) |
 | **M18** Deployment | 1/5 | T18-2 |
 | M12, M16, M19 | 0 | - |
 
-**81 of 115 tasks Complete.** Checkpoints A-C reached. Checkpoint **D** (M8)
+**82 of 115 tasks Complete.** Checkpoints A-C reached. Checkpoint **D** (M8)
 needs only its "loops reject an injected disturbance" gate: PIC-101 switched to
 AUTO in `olefins_lite.yaml`, which T8-6 enabled but no task owns yet.
 
 ## The next task
 
-**15 tasks are startable** - list them from
+**17 tasks are startable** - list them from
 [BUILD_PLAN_STATUS.json](../../docs/BUILD_PLAN_STATUS.json) (`startable`
-field). All are Sonnet. T8-5, T10-4, T11-4 and T17-2 are V1.1-deferred. No startable task needs the spine lock;
+field). All are Sonnet. T8-5, T10-4, T11-4, T15-4 and T17-2 are V1.1-deferred. No startable task needs the spine lock;
 T12-1 and T18-5 add new isolated modules under `app/engine/` (satellite work).
 
 **Scheduling notes.** The spine lock is one global lock

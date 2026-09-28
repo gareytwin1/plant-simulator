@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "28 September 2026",
-  "main_sha": "868f484830f2e3ab4f1ded7a6bc63d2ac9d63d3c",
-  "tests_passing_on_main": 2094,
+  "main_sha": "bc27240f6342da1142a5680a315d5e2c1eb6295e",
+  "tests_passing_on_main": 2127,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -68,7 +68,7 @@
     },
     "M10": {
       "name": "Alarm System",
-      "complete": 2,
+      "complete": 3,
       "total": 5
     },
     "M11": {
@@ -119,8 +119,8 @@
   },
   "totals": {
     "tasks": 115,
-    "complete": 81,
-    "startable_now": 15
+    "complete": 82,
+    "startable_now": 17
   },
   "tasks": [
     {
@@ -1385,10 +1385,9 @@
         "app/alarms/history.py",
         "app/api/alarms.py"
       ],
-      "status": "Ready for Review",
-      "status_key": "review",
-      "startable": true,
-      "note": "PR #109 opened. 2083 passed, mypy clean. Note: adds AlarmManager.is_acknowledged() to app/alarms/manager.py, outside this task's declared files - flagged in the PR for a merge-time decision (also touches T10-4's file)."
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged bc27240 (PR #109). 2127 passed on main, mypy clean. AlarmManager.is_acknowledged() landed in app/alarms/manager.py, outside this task's declared files - coordinate with whoever starts T10-4, which also touches manager.py."
     },
     {
       "id": "T10-4",
@@ -1422,10 +1421,7 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "T10-3"
-      ],
+      "startable": true,
       "note": ""
     },
     {
@@ -1813,10 +1809,7 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "T10-3"
-      ],
+      "startable": true,
       "note": ""
     },
     {

@@ -259,20 +259,25 @@ def test_post_acknowledge_concurrent_requests_record_exactly_once():
     # because we didn't wait long enough for it to. Reaching get_sim_time
     # takes microseconds when unblocked, so 0.5s is a large margin without
     # taxing every passing run by seconds.
-    deadline = time.monotonic() + 0.5
-    while time.monotonic() < deadline:
-        with call_count_lock:
-            reached = call_count["value"]
-        if reached >= 2 or not second.is_alive():
-            break
-        time.sleep(0.01)
+    try:
+        deadline = time.monotonic() + 0.5
+        while time.monotonic() < deadline:
+            with call_count_lock:
+                reached = call_count["value"]
+            if reached >= 2 or not second.is_alive():
+                break
+            time.sleep(0.01)
 
-    assert call_count["value"] == 1  # second never reached get_sim_time
-    assert manager.get(alarm_id).acknowledged is False  # ...nor manager.acknowledge()
-    assert second.is_alive()  # ...so it is still blocked on the lock
-    assert len(history) == 1  # only the original raise; neither ack recorded yet
+        assert call_count["value"] == 1  # second never reached get_sim_time
+        assert manager.get(alarm_id).acknowledged is False  # ...nor manager.acknowledge()
+        assert second.is_alive()  # ...so it is still blocked on the lock
+        assert len(history) == 1  # only the original raise; neither ack recorded yet
+    finally:
+        # However the assertions above came out, the first thread is stuck
+        # in get_sim_time until this fires - release it unconditionally so a
+        # failed assertion can't strand a non-daemon thread past the test.
+        release_first_thread.set()
 
-    release_first_thread.set()
     first.join(timeout=5.0)
     second.join(timeout=5.0)
     assert not first.is_alive()

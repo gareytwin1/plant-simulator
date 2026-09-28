@@ -9,31 +9,20 @@ operator to acknowledge (`POST /api/alarms/acknowledge`). Same shape as
 once per request, so this module makes no assumption about where they live -
 whoever wires this blueprint into `app/main.py` decides that.
 
-Acknowledging here does two things in sequence, both against the same
-`sim_time`: `AlarmManager.acknowledge()` transitions the alarm's own state
-machine, and `AlarmHistory.record_acknowledge()` records that it happened -
-matching how `AlarmManager.acknowledge`'s docstring already flags `sim_time`
-as "part of C7's frozen signature; T10-3 records it in history".
-
-Whether an acknowledge is a no-op is read from `Alarm.acknowledged` itself
-(via `AlarmManager.get`, T10-3's own additive accessor), never guessed from
-what `AlarmHistory` happens to have recorded - a point that has never left
-NORMAL still gets an `Alarm` bound to it (`AlarmManager.evaluate`'s
-`setdefault`), so its id is real and already "acknowledged" (trivially, per
-`Alarm`'s own state machine) despite never appearing in history at all. A
-request for an alarm that is already acknowledged - already ACKED, cleared to
-NORMAL, or never raised - reports `recorded: false` rather than writing a
-second `AcknowledgeRecord`; the read-check-act-record sequence runs under one
-lock so two concurrent requests for the same id cannot both see "not yet
-acknowledged" and both record.
-
-`AlarmHistory.tag_of` is checked before `manager.acknowledge()` runs, not
-after: a history that has drifted from the manager (a fresh history for a
-reused manager; a missed `record_events` call) has no tag for the id, and
-checking first reports that as a 409 without changing the alarm's state -
-rather than acknowledging first and having nothing to record. The tag this
-check fetches is passed straight through to `record_acknowledge()`, which
-trusts it rather than looking it up a second time.
+Acknowledging checks three things in sequence, all under one lock so two
+concurrent requests for the same id cannot both act: `manager.get()` resolves
+the real `Alarm` (`None` is an unknown id, 400); `alarm.acknowledged` is the
+redundancy check (already ACKED, cleared to NORMAL, or never raised all read
+as `True`, per `Alarm`'s own state machine - including a point that has
+never left NORMAL, since `AlarmManager.evaluate`'s `setdefault` still binds
+it an `Alarm`) - `True` reports `recorded: false` without writing a second
+`AcknowledgeRecord`; and `history.tag_of()` is checked before
+`manager.acknowledge()` runs, since a history that has drifted from the
+manager (fresh history, reused manager; a missed `record_events` call) has
+no tag for the id - `None` is a 409 with the alarm's state left untouched,
+rather than acknowledging first and having nothing to record. The fetched
+tag passes straight to `record_acknowledge()`, which trusts it rather than
+looking it up again.
 """
 
 from __future__ import annotations

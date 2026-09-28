@@ -33,8 +33,10 @@ that never regains control cannot run any check written after it:
 - A dropout check inside `stream_events` measures how long each `yield`
   took to return control - in production, exactly how long the client's
   socket write took to drain - and ends the stream once that alone
-  exceeds `dropout_intervals` worth of `interval_seconds`. This catches a
-  write that is slow but still completes.
+  exceeds `_dropout_seconds` (`dropout_intervals` worth of
+  `interval_seconds`, floored at `MIN_DROPOUT_SECONDS` so a fast push rate
+  cannot turn ordinary network jitter into a dropped legitimate client).
+  This catches a write that is slow but still completes.
 - `create_stream_blueprint` additionally sets a send timeout on the raw
   socket, when the WSGI server hands one through (Werkzeug's development
   server does, under `environ["werkzeug.socket"]`). A write that never
@@ -59,6 +61,7 @@ from flask import Blueprint, Response, request
 
 from app.engine.scheduler import Cadence
 from app.engine.snapshot import Snapshot
+from app.statetypes import JSONValue
 
 
 class SnapshotSource(Protocol):
@@ -84,10 +87,22 @@ class SnapshotSource(Protocol):
 # ordinary jitter so an occasional slow tick never trips it.
 DROPOUT_INTERVALS = 5.0
 
+# Floor on the dropout budget: unlike DROPOUT_INTERVALS's multiple, an
+# absolute floor keeps a fast push interval from turning ordinary WAN
+# jitter into a dropped legitimate client.
+MIN_DROPOUT_SECONDS = 2.0
+
 # EventSource keeps the last retry: it was given across every later
 # reconnect; floored well above a fast push interval so a persistent
 # source error cannot turn into a reconnect storm.
 MIN_RETRY_MS = 1000
+
+
+def _dropout_seconds(interval_seconds: float, dropout_intervals: float = DROPOUT_INTERVALS) -> float:
+    """The one dropout budget both the write-duration check inside
+    `stream_events` and `create_stream_blueprint`'s socket timeout use -
+    computed once so the two can never quietly drift apart."""
+    return max(interval_seconds * dropout_intervals, MIN_DROPOUT_SECONDS)
 
 
 def format_event(snapshot: Snapshot, retry_ms: int | None = None) -> str:
@@ -118,7 +133,7 @@ def format_event(snapshot: Snapshot, retry_ms: int | None = None) -> str:
     return f"{retry_line}data: {body}\n\n"
 
 
-def _finite_or_none(value: Any) -> Any:
+def _finite_or_none(value: JSONValue) -> JSONValue:
     if isinstance(value, float):
         return value if math.isfinite(value) else None
     if isinstance(value, dict):
@@ -174,13 +189,13 @@ def stream_events(
     test) and does not resume until that caller comes back for the next
     one - in production, that is exactly as long as the client's socket
     write took to drain. When that gap alone - not the wait before it -
-    exceeds `dropout_intervals` worth of `interval_seconds`, the client is
-    wedged rather than momentarily slow, and this generator returns,
+    exceeds `_dropout_seconds(interval_seconds, dropout_intervals)`, the
+    client is wedged rather than momentarily slow, and this generator returns,
     ending the stream from the server side. A write that never returns
     control at all cannot be caught here; see the module docstring for the
     transport-level backstop that covers it.
     """
-    dropout_seconds = interval_seconds * dropout_intervals
+    dropout_seconds = _dropout_seconds(interval_seconds, dropout_intervals)
     retry_ms = max(MIN_RETRY_MS, round(interval_seconds * 1000))
     cadence = Cadence(interval_seconds, monotonic())
     first = True
@@ -265,16 +280,16 @@ def create_stream_blueprint(
                 # itself make. A socket timeout bounds *any* blocking
                 # operation on it, including the write this module never
                 # sees.
-                sock.settimeout(interval_seconds * DROPOUT_INTERVALS)
+                sock.settimeout(_dropout_seconds(interval_seconds))
 
             try:
                 yield from stream_events(source, interval_seconds)
             finally:
-                # This connection may be kept alive past this stream
-                # (HTTP/1.1 keep-alive) and reused for something else
-                # entirely - restore what was there before so a later
-                # request or idle read on the same socket does not inherit
-                # a push-rate-scaled timeout that has nothing to do with it.
+                # Werkzeug's own development server - the only server
+                # confirmed to expose this socket - closes every
+                # connection itself and never reuses one; restoring the
+                # prior timeout here is defensive for a server that might
+                # do otherwise, not a fix for an observed leak on this one.
                 if sock is not None:
                     sock.settimeout(previous_timeout)
 

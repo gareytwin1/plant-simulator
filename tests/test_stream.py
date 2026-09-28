@@ -162,6 +162,14 @@ def test_format_event_maps_a_non_finite_value_inside_a_tuple_to_null():
     assert payload["equipment"]["K-101"]["readings"] == [None, 1.0]
 
 
+# ---- _dropout_seconds ----
+
+
+def test_dropout_seconds_floors_a_fast_interval_but_leaves_a_slow_one_alone():
+    assert stream_module._dropout_seconds(0.01) == pytest.approx(stream_module.MIN_DROPOUT_SECONDS)
+    assert stream_module._dropout_seconds(10.0) == pytest.approx(10.0 * stream_module.DROPOUT_INTERVALS)
+
+
 # ---- stream_events: the pure core, no Flask involved ----
 
 
@@ -266,6 +274,23 @@ def test_stream_events_ends_when_a_write_alone_exceeds_the_dropout_budget():
 
     with pytest.raises(StopIteration):
         next(gen)
+
+
+def test_stream_events_floors_the_dropout_budget_for_a_fast_interval():
+    # dropout_intervals * interval_seconds alone would give a 50ms budget
+    # here - tight enough that ordinary WAN jitter, not a wedged client,
+    # would end the stream. MIN_DROPOUT_SECONDS keeps that from happening.
+    source = FakeSource()
+    clock, sleep = _clocked()
+
+    gen = stream_events(source, interval_seconds=0.01, sleep=sleep, monotonic=clock, dropout_intervals=5.0)
+
+    next(gen)
+    clock.advance(0.3)  # a real jitter spike, far past the raw 50ms budget
+
+    second = next(gen)  # still inside the 2s floor - must not have ended
+
+    assert second is not None
 
 
 def test_stream_events_dropout_ignores_time_spent_sleeping():
@@ -537,7 +562,7 @@ def test_the_sockets_previous_timeout_is_set_then_restored_once_the_stream_ends(
     finally:
         response.close()
 
-    assert fake_socket.calls == [0.1 * stream_module.DROPOUT_INTERVALS, 30.0]
+    assert fake_socket.calls == [stream_module._dropout_seconds(0.1), 30.0]
 
 
 def test_a_head_request_never_touches_the_sockets_timeout():

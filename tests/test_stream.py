@@ -563,6 +563,12 @@ def test_the_sockets_previous_timeout_is_set_then_restored_once_the_stream_ends(
 
         source.closed = True
         assert list(events) == []  # drains stream_events to its own end
+
+        # Not restored yet: Werkzeug still has its own chunked-encoding
+        # terminator to write on this same socket after generate()
+        # exhausts, and that write needs the same backstop, not the
+        # client's original (dev-server: unbounded) timeout back already.
+        assert fake_socket.calls == [stream_module._dropout_seconds(0.1)]
     finally:
         response.close()
 

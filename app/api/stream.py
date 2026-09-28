@@ -257,34 +257,45 @@ def create_stream_blueprint(
         if _is_closed(source):
             return Response(status=204)
 
-        # Only the lookup needs the real request context; set and restored
-        # together inside generate(), so a response that is never iterated
-        # (HEAD, for one) never touches the socket.
+        # Only the lookup needs the real request context; the set itself
+        # waits inside generate(), so a body that is never iterated (HEAD,
+        # for one - Werkzeug swaps its iterable for `()` before ever
+        # touching this generator) never touches the socket either.
         sock = _socket_of(request.environ)
+        previous_timeout: list[float | None] = []
 
         def generate() -> Iterator[str]:
-            previous_timeout = sock.gettimeout() if sock is not None else None
-
             if sock is not None:
                 # Bounds a write that never completes at all; see the
                 # module docstring's second backstop bullet.
+                previous_timeout.append(sock.gettimeout())
                 sock.settimeout(_dropout_seconds(interval_seconds))
 
-            try:
-                yield from stream_events(source, interval_seconds)
-            finally:
-                # Werkzeug's own development server - the only server
-                # confirmed to expose this socket - closes every
-                # connection itself and never reuses one; restoring the
-                # prior timeout here is defensive for a server that might
-                # do otherwise, not a fix for an observed leak on this one.
-                if sock is not None:
-                    sock.settimeout(previous_timeout)
+            yield from stream_events(source, interval_seconds)
 
-        return Response(
+        response = Response(
             generate(),
             mimetype="text/event-stream",
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
+
+        if sock is not None:
+            # Not generate()'s own `finally`: Werkzeug still has its own
+            # chunked-encoding terminator to write on this same socket
+            # after generate() exhausts, and that write needs the same
+            # backstop generate() just set - restoring here first would
+            # hand it back the client's original (dev-server: unbounded)
+            # timeout for exactly the write most likely to block, on the
+            # client that just proved slow enough to end the stream.
+            # call_on_close runs only once Werkzeug is done writing
+            # entirely; the list stays empty for a body generate() never
+            # ran (HEAD), so this is a no-op rather than restoring a
+            # timeout that was never set.
+            @response.call_on_close
+            def _restore_socket_timeout() -> None:
+                if previous_timeout:
+                    sock.settimeout(previous_timeout[0])
+
+        return response
 
     return blueprint

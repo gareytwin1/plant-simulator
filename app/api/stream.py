@@ -250,14 +250,10 @@ def create_stream_blueprint(
     def get_stream() -> Response:
         # Resolved here, under the real request context, and captured by
         # generate()'s closure - stream_events never touches flask.g or
-        # flask.request itself, so it needs no stream_with_context. Only a
-        # *permanently* dead source gets a 204 here: EventSource treats
-        # that as "stop reconnecting for good", which would strand a
-        # client that happened to connect during a transient `error` -
-        # `stream_events` still ends that stream (via the broader
-        # `_is_dead`), but leaves the client free to retry once whatever
-        # restarted the source clears it. See _is_closed vs. _is_dead.
+        # flask.request itself, so it needs no stream_with_context.
         source = get_source()
+
+        # Only a permanent close gets 204; see _is_closed vs. _is_dead.
 
         if _is_closed(source):
             return Response(status=204)
@@ -271,15 +267,8 @@ def create_stream_blueprint(
             previous_timeout = sock.gettimeout() if sock is not None else None
 
             if sock is not None:
-                # Best-effort transport-level backstop for a write that
-                # never completes at all: `stream_events`'s own dropout
-                # check only runs once a write returns control to it, so a
-                # client whose socket is simply never drained parks this
-                # thread on that write forever otherwise; nothing in a
-                # generator can interrupt a blocking call it does not
-                # itself make. A socket timeout bounds *any* blocking
-                # operation on it, including the write this module never
-                # sees.
+                # Bounds a write that never completes at all; see the
+                # module docstring's second backstop bullet.
                 sock.settimeout(_dropout_seconds(interval_seconds))
 
             try:

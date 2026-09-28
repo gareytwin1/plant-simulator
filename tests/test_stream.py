@@ -533,7 +533,8 @@ def test_a_transient_error_at_connect_ends_the_stream_without_a_204():
 
 class FakeSocket:
     """A werkzeug.socket stand-in that only records what was asked of it -
-    real enough for `_socket_of`'s two calls, nothing more."""
+    real enough for the gettimeout()/settimeout() calls generate() makes,
+    nothing more."""
 
     def __init__(self, initial_timeout):
         self._timeout = initial_timeout

@@ -262,40 +262,24 @@ def create_stream_blueprint(
         # for one - Werkzeug swaps its iterable for `()` before ever
         # touching this generator) never touches the socket either.
         sock = _socket_of(request.environ)
-        previous_timeout: list[float | None] = []
 
         def generate() -> Iterator[str]:
             if sock is not None:
                 # Bounds a write that never completes at all; see the
-                # module docstring's second backstop bullet.
-                previous_timeout.append(sock.gettimeout())
+                # module docstring's second backstop bullet. Set, never
+                # restored: Werkzeug's development server - the only
+                # server confirmed to expose this socket - sends
+                # `Connection: close` on every response and never reuses
+                # one, so nothing ever reads this socket again once this
+                # stream (and Werkzeug's own trailing writes on it) ends.
                 sock.settimeout(_dropout_seconds(interval_seconds))
 
             yield from stream_events(source, interval_seconds)
 
-        response = Response(
+        return Response(
             generate(),
             mimetype="text/event-stream",
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
-
-        if sock is not None:
-            # Not generate()'s own `finally`: Werkzeug still has its own
-            # chunked-encoding terminator to write on this same socket
-            # after generate() exhausts, and that write needs the same
-            # backstop generate() just set - restoring here first would
-            # hand it back the client's original (dev-server: unbounded)
-            # timeout for exactly the write most likely to block, on the
-            # client that just proved slow enough to end the stream.
-            # call_on_close runs only once Werkzeug is done writing
-            # entirely; the list stays empty for a body generate() never
-            # ran (HEAD), so this is a no-op rather than restoring a
-            # timeout that was never set.
-            @response.call_on_close
-            def _restore_socket_timeout() -> None:
-                if previous_timeout:
-                    sock.settimeout(previous_timeout[0])
-
-        return response
 
     return blueprint

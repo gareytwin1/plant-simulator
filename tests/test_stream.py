@@ -536,7 +536,7 @@ def test_a_transient_error_at_connect_ends_the_stream_without_a_204():
         response.close()
 
 
-# ---- the socket timeout is set in generate(), restored on response close ----
+# ---- the socket timeout: set once, lazily, inside generate() ----
 
 
 class FakeSocket:
@@ -556,7 +556,13 @@ class FakeSocket:
         self._timeout = value
 
 
-def test_the_sockets_previous_timeout_is_set_then_restored_once_the_stream_ends():
+def test_the_sockets_timeout_is_set_once_generate_starts_and_never_restored():
+    # Werkzeug's development server - the only server confirmed to expose
+    # this socket - sends Connection: close on every response and never
+    # reuses one, including for its own trailing chunked-encoding
+    # terminator write after generate() exhausts - so there is nothing
+    # for a later read or write on this socket to observe, and nothing
+    # here restores the value gettimeout() would have returned before.
     source = FakeSource()
     fake_socket = FakeSocket(initial_timeout=30.0)
 
@@ -566,21 +572,11 @@ def test_the_sockets_previous_timeout_is_set_then_restored_once_the_stream_ends(
 
     response = client.get("/api/stream", environ_overrides={"werkzeug.socket": fake_socket})
     try:
-        events = iter(response.response)
-        next(events)
-
-        source.closed = True
-        assert list(events) == []  # drains stream_events to its own end
-
-        # Not restored yet: Werkzeug still has its own chunked-encoding
-        # terminator to write on this same socket after generate()
-        # exhausts, and that write needs the same backstop, not the
-        # client's original (dev-server: unbounded) timeout back already.
-        assert fake_socket.calls == [stream_module._dropout_seconds(0.1)]
+        next(iter(response.response))
     finally:
         response.close()
 
-    assert fake_socket.calls == [stream_module._dropout_seconds(0.1), 30.0]
+    assert fake_socket.calls == [stream_module._dropout_seconds(0.1)]
 
 
 def test_a_head_request_never_touches_the_sockets_timeout():

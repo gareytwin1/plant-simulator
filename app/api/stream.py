@@ -254,7 +254,6 @@ def create_stream_blueprint(
         source = get_source()
 
         # Only a permanent close gets 204; see _is_closed vs. _is_dead.
-
         if _is_closed(source):
             return Response(status=204)
 

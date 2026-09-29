@@ -278,3 +278,28 @@ def test_gate_refuses_an_unknown_interlock_or_permissive_device():
             engine.snapshot(),
             permissives=[Permissive.parse("V-9.position >= 0.5")],
         )
+
+
+def test_gate_reports_every_construction_problem_together():
+    engine, *_ = build()
+
+    with pytest.raises(ValueError, match=r"2 problem\(s\)") as raised:
+        RestartGate(
+            "M-1",
+            engine.equipment,
+            engine.arbiter,
+            {},
+            engine.snapshot(),
+            permissives=[Permissive.parse("V-9.position >= 0.5")],
+            resets=["XS-9"],
+        )
+
+    assert "unknown interlock" in str(raised.value)
+    assert "unknown device 'V-9'" in str(raised.value)
+
+
+def test_gate_refuses_an_unknown_machine_tag_and_lists_the_devices():
+    engine, *_ = build()
+
+    with pytest.raises(ValueError, match=r"unknown device 'P-9', only \["):
+        RestartGate("P-9", engine.equipment, engine.arbiter, {}, engine.snapshot())

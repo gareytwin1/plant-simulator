@@ -64,7 +64,7 @@ from app.engine.snapshot import Snapshot
 from app.equipment.base import Equipment
 from app.equipment.compressor import GasCompressor
 from app.equipment.pump import CentrifugalPump
-from app.safety.actions import TRIP_ACTIONS, resolve_action
+from app.safety.actions import TRIP_ACTIONS, number, resolve_action
 from app.safety.interlocks import Condition, Interlock
 
 
@@ -88,12 +88,15 @@ class Permissive:
         if condition.variable not in row:
             return f"permissive {wanted} not satisfied: {point} is not published"
 
-        value = row[condition.variable]
+        value = number(row[condition.variable])
 
-        if isinstance(value, bool) or not isinstance(value, (int, float)):
-            return f"permissive {wanted} not satisfied: {point} is {value!r}, not a number"
+        if value is None:
+            return (
+                f"permissive {wanted} not satisfied: "
+                f"{point} is {row[condition.variable]!r}, not a number"
+            )
 
-        if not math.isfinite(value) or not condition.is_met(float(value)):
+        if not math.isfinite(value) or not condition.is_met(value):
             return f"permissive {wanted} not satisfied: {point} reads {value:g}"
 
         return None
@@ -110,7 +113,12 @@ class RestartGate:
         permissives: Sequence[Permissive] = (),
         resets: Sequence[str] = (),
     ) -> None:
-        machine = equipment.get(tag)
+        if tag not in equipment:
+            raise ValueError(
+                f"restart gate names unknown device {tag!r}, only {sorted(equipment)}",
+            )
+
+        machine = equipment[tag]
 
         if not isinstance(machine, (CentrifugalPump, GasCompressor)):
             raise ValueError(f"restart gate {tag!r} must name a pump or compressor")
@@ -146,10 +154,8 @@ class RestartGate:
                 )
                 continue
 
-            value = row[condition.variable]
-
-            if isinstance(value, bool) or not isinstance(value, (int, float)):
-                errors.append(f"permissive {point} is {value!r}, not a number")
+            if number(row[condition.variable]) is None:
+                errors.append(f"permissive {point} is {row[condition.variable]!r}, not a number")
 
         if errors:
             raise ValueError(

@@ -303,7 +303,7 @@ class TripSystem:
             interlock = self.interlocks[tag]
             condition = interlock.definition.condition
             row = snapshot.equipment.get(condition.tag, {})
-            value = _number(row.get(condition.variable))
+            value = number(row.get(condition.variable))
             interlock.evaluate(math.nan if value is None else value, dt)
 
         for tag, interlock in self.interlocks.items():
@@ -370,7 +370,7 @@ class TripSystem:
                 )
                 continue
 
-            if _number(row[condition.variable]) is None:
+            if number(row[condition.variable]) is None:
                 errors.append(
                     f"interlock {tag}: condition {point} is "
                     f"{row[condition.variable]!r}, not a number",
@@ -382,7 +382,7 @@ class TripSystem:
         return tuple(evaluated)
 
 
-def _number(value: JSONValue) -> float | None:
+def number(value: JSONValue) -> float | None:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return None
 

@@ -44,7 +44,9 @@ from the interlock's state after the previous update, so it must be updated
 at least once while the interlock is TRIPPED, which any per-step caller does.
 
 Like a trip condition, a permissive resolves only against a field a device's
-own `get_state()` publishes. Unlike one, a reading that is missing, not a
+own `get_state()` publishes, and one that names an existing device's
+unpublished variable is warned about once, at construction, against the
+snapshot the gate is built on. Unlike a trip condition, a reading that is missing, not a
 number or not finite is **unsatisfied**: a lost transmitter must not permit a
 start.
 """
@@ -52,6 +54,7 @@ start.
 from __future__ import annotations
 
 import math
+import warnings
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
@@ -97,6 +100,7 @@ class RestartGate:
         equipment: Mapping[str, Equipment],
         arbiter: CommandArbiter,
         interlocks: Mapping[str, Interlock],
+        snapshot: Snapshot,
         permissives: Sequence[Permissive] = (),
         resets: Sequence[str] = (),
     ) -> None:
@@ -118,6 +122,17 @@ class RestartGate:
                 raise ValueError(
                     f"restart gate {tag}: permissive names unknown device "
                     f"{permissive.condition.tag!r}, only {sorted(equipment)}",
+                )
+
+        for permissive in permissives:
+            condition = permissive.condition
+
+            if condition.variable not in snapshot.equipment.get(condition.tag, {}):
+                warnings.warn(
+                    f"restart gate {tag} permissive {condition.tag}.{condition.variable} "
+                    f"does not resolve against the equipment section the snapshot "
+                    f"publishes and will always block a start",
+                    stacklevel=2,
                 )
 
         stop = resolve_action(f"{tag}.stop", equipment)

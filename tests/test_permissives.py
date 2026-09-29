@@ -7,6 +7,8 @@ decides exactly when each changes. Every run advances the way `RestartGate`'s
 module docstring requires: gate first, then the trip system, then the step.
 """
 
+import warnings
+
 import pytest
 
 from app.controls.arbitration import Source
@@ -47,6 +49,7 @@ def build(machine_type=CentrifugalPump, permissives=(), reset="auto", gated_rese
         engine.equipment,
         engine.arbiter,
         interlocks,
+        engine.snapshot(),
         permissives=permissives,
         resets=["XS-1"] if gated_reset else [],
     )
@@ -124,15 +127,23 @@ def test_losing_a_permissive_after_start_does_not_stop_the_machine():
 
 
 def test_an_unpublished_reading_does_not_permit_a_start():
-    engine, trips, gate, *_, machine, _ = build(
-        permissives=[Permissive.parse(f"{ENABLE}.no_such_variable >= 0.0")],
-    )
+    with pytest.warns(UserWarning, match="no_such_variable"):
+        engine, trips, gate, *_, machine, _ = build(
+            permissives=[Permissive.parse(f"{ENABLE}.no_such_variable >= 0.0")],
+        )
+
     operator_run(engine)
 
     run(engine, trips, gate, 5.0)
 
     assert not machine.running
     assert "not published" in gate.blocked[0]
+
+
+def test_a_published_permissive_variable_does_not_warn():
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        build(permissives=[PERMIT])
 
 
 # Reset required after a trip
@@ -237,14 +248,21 @@ def test_gate_refuses_a_device_that_is_not_a_machine():
     engine, _, _, _, _, _, _ = build()
 
     with pytest.raises(ValueError, match="pump or compressor"):
-        RestartGate(ENABLE, engine.equipment, engine.arbiter, {})
+        RestartGate(ENABLE, engine.equipment, engine.arbiter, {}, engine.snapshot())
 
 
 def test_gate_refuses_an_unknown_interlock_or_permissive_device():
     engine, *_ = build()
 
     with pytest.raises(ValueError, match="unknown interlock"):
-        RestartGate("M-1", engine.equipment, engine.arbiter, {}, resets=["XS-9"])
+        RestartGate(
+            "M-1",
+            engine.equipment,
+            engine.arbiter,
+            {},
+            engine.snapshot(),
+            resets=["XS-9"],
+        )
 
     with pytest.raises(ValueError, match="unknown device"):
         RestartGate(
@@ -252,5 +270,6 @@ def test_gate_refuses_an_unknown_interlock_or_permissive_device():
             engine.equipment,
             engine.arbiter,
             {},
+            engine.snapshot(),
             permissives=[Permissive.parse("V-9.position >= 0.5")],
         )

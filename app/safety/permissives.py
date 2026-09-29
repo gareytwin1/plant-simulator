@@ -44,11 +44,12 @@ from the interlock's state after the previous update, so it must be updated
 at least once while the interlock is TRIPPED, which any per-step caller does.
 
 Like a trip condition, a permissive resolves only against a field a device's
-own `get_state()` publishes, and one that names an existing device's
-unpublished variable is warned about once, at construction, against the
-snapshot the gate is built on. Unlike a trip condition, a reading that is missing, not a
-number or not finite is **unsatisfied**: a lost transmitter must not permit a
-start.
+own `get_state()` publishes, checked once at construction against the
+snapshot the gate is built on: an unknown device, or a published field that is
+not a number, is refused with every such problem reported together, and an
+existing device's unpublished variable is warned about. Unlike a trip
+condition, a reading that later goes missing, non-numeric or non-finite is
+**unsatisfied**: a lost transmitter must not permit a start.
 """
 
 from __future__ import annotations
@@ -114,12 +115,13 @@ class RestartGate:
         if not isinstance(machine, (CentrifugalPump, GasCompressor)):
             raise ValueError(f"restart gate {tag!r} must name a pump or compressor")
 
+        errors: list[str] = []
         unknown = sorted(set(resets) - set(interlocks))
 
         if unknown:
-            raise ValueError(
-                f"restart gate {tag} requires reset of unknown interlock(s) "
-                f"{unknown}, only {sorted(interlocks)}",
+            errors.append(
+                f"requires reset of unknown interlock(s) {unknown}, "
+                f"only {sorted(interlocks)}",
             )
 
         for permissive in permissives:
@@ -127,10 +129,11 @@ class RestartGate:
             point = f"{condition.tag}.{condition.variable}"
 
             if condition.tag not in equipment:
-                raise ValueError(
-                    f"restart gate {tag}: permissive names unknown device "
-                    f"{condition.tag!r}, only {sorted(equipment)}",
+                errors.append(
+                    f"permissive names unknown device {condition.tag!r}, "
+                    f"only {sorted(equipment)}",
                 )
+                continue
 
             row = snapshot.equipment.get(condition.tag, {})
 
@@ -141,14 +144,18 @@ class RestartGate:
                     f"and will always block a start",
                     stacklevel=2,
                 )
-            elif isinstance(row[condition.variable], bool) or not isinstance(
-                row[condition.variable],
-                (int, float),
-            ):
-                raise ValueError(
-                    f"restart gate {tag}: permissive {point} is "
-                    f"{row[condition.variable]!r}, not a number",
-                )
+                continue
+
+            value = row[condition.variable]
+
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                errors.append(f"permissive {point} is {value!r}, not a number")
+
+        if errors:
+            raise ValueError(
+                f"restart gate {tag} rejected, {len(errors)} problem(s):\n"
+                + "\n".join(f"  {error}" for error in errors),
+            )
 
         stop = resolve_action(f"{tag}.stop", equipment)
         self.tag = tag

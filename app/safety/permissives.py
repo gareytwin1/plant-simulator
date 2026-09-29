@@ -80,12 +80,17 @@ class Permissive:
     def reason(self, snapshot: Snapshot) -> str | None:
         """Why this permissive is not satisfied, or None when it is."""
         condition = self.condition
-        value = snapshot.equipment.get(condition.tag, {}).get(condition.variable)
+        row = snapshot.equipment.get(condition.tag, {})
         point = f"{condition.tag}.{condition.variable}"
         wanted = f"{point} {condition.operator} {condition.threshold:g}"
 
-        if isinstance(value, bool) or not isinstance(value, (int, float)):
+        if condition.variable not in row:
             return f"permissive {wanted} not satisfied: {point} is not published"
+
+        value = row[condition.variable]
+
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            return f"permissive {wanted} not satisfied: {point} is {value!r}, not a number"
 
         if not math.isfinite(value) or not condition.is_met(float(value)):
             return f"permissive {wanted} not satisfied: {point} reads {value:g}"
@@ -118,21 +123,31 @@ class RestartGate:
             )
 
         for permissive in permissives:
-            if permissive.condition.tag not in equipment:
+            condition = permissive.condition
+            point = f"{condition.tag}.{condition.variable}"
+
+            if condition.tag not in equipment:
                 raise ValueError(
                     f"restart gate {tag}: permissive names unknown device "
-                    f"{permissive.condition.tag!r}, only {sorted(equipment)}",
+                    f"{condition.tag!r}, only {sorted(equipment)}",
                 )
 
-        for permissive in permissives:
-            condition = permissive.condition
+            row = snapshot.equipment.get(condition.tag, {})
 
-            if condition.variable not in snapshot.equipment.get(condition.tag, {}):
+            if condition.variable not in row:
                 warnings.warn(
-                    f"restart gate {tag} permissive {condition.tag}.{condition.variable} "
-                    f"does not resolve against the equipment section the snapshot "
-                    f"publishes and will always block a start",
+                    f"restart gate {tag} permissive {point} does not resolve "
+                    f"against the equipment section the snapshot publishes "
+                    f"and will always block a start",
                     stacklevel=2,
+                )
+            elif isinstance(row[condition.variable], bool) or not isinstance(
+                row[condition.variable],
+                (int, float),
+            ):
+                raise ValueError(
+                    f"restart gate {tag}: permissive {point} is "
+                    f"{row[condition.variable]!r}, not a number",
                 )
 
         stop = resolve_action(f"{tag}.stop", equipment)

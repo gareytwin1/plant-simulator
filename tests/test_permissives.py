@@ -140,6 +140,11 @@ def test_an_unpublished_reading_does_not_permit_a_start():
     assert "not published" in gate.blocked[0]
 
 
+def test_a_permissive_on_a_published_non_numeric_field_is_refused():
+    with pytest.raises(ValueError, match="M-1.running is False, not a number"):
+        build(permissives=[Permissive.parse("M-1.running <= 0.5")])
+
+
 def test_a_published_permissive_variable_does_not_warn():
     with warnings.catch_warnings():
         warnings.simplefilter("error")

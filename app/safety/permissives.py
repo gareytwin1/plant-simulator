@@ -88,13 +88,11 @@ class Permissive:
         if condition.variable not in row:
             return f"permissive {wanted} not satisfied: {point} is not published"
 
-        value = number(row[condition.variable])
+        raw = row[condition.variable]
+        value = number(raw)
 
         if value is None:
-            return (
-                f"permissive {wanted} not satisfied: "
-                f"{point} is {row[condition.variable]!r}, not a number"
-            )
+            return f"permissive {wanted} not satisfied: {point} is {raw!r}, not a number"
 
         if not math.isfinite(value) or not condition.is_met(value):
             return f"permissive {wanted} not satisfied: {point} reads {value:g}"
@@ -154,8 +152,10 @@ class RestartGate:
                 )
                 continue
 
-            if number(row[condition.variable]) is None:
-                errors.append(f"permissive {point} is {row[condition.variable]!r}, not a number")
+            raw = row[condition.variable]
+
+            if number(raw) is None:
+                errors.append(f"permissive {point} is {raw!r}, not a number")
 
         if errors:
             raise ValueError(

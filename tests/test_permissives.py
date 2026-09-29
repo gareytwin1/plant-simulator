@@ -7,7 +7,9 @@ decides exactly when each changes. Every run advances the way `RestartGate`'s
 module docstring requires: gate first, then the trip system, then the step.
 """
 
+import dataclasses
 import warnings
+from types import MappingProxyType
 
 import pytest
 
@@ -143,6 +145,61 @@ def test_an_unpublished_reading_does_not_permit_a_start():
 def test_a_permissive_on_a_published_non_numeric_field_is_refused():
     with pytest.raises(ValueError, match="M-1.running is False, not a number"):
         build(permissives=[Permissive.parse("M-1.running <= 0.5")])
+
+
+def reading_not_a_number(monkeypatch, engine, enable):
+    monkeypatch.setattr(
+        enable,
+        "get_state",
+        lambda: {**ControlValve.get_state(enable), "position": None},
+    )
+
+
+def reading_infinite(monkeypatch, engine, enable):
+    monkeypatch.setattr(
+        enable,
+        "get_state",
+        lambda: {**ControlValve.get_state(enable), "position": float("inf")},
+    )
+
+
+def reading_not_published(monkeypatch, engine, enable):
+    def state():
+        row = ControlValve.get_state(enable)
+        del row["position"]
+
+        return row
+
+    monkeypatch.setattr(enable, "get_state", state)
+
+
+def row_not_published(monkeypatch, engine, enable):
+    published = engine.snapshot
+
+    def snapshot():
+        full = published()
+        equipment = {tag: row for tag, row in full.equipment.items() if tag != ENABLE}
+
+        return dataclasses.replace(full, equipment=MappingProxyType(equipment))
+
+    monkeypatch.setattr(engine, "snapshot", snapshot)
+
+
+@pytest.mark.parametrize(
+    "lose_reading",
+    [reading_not_a_number, reading_infinite, reading_not_published, row_not_published],
+)
+def test_a_permissive_that_loses_its_reading_blocks_a_start(monkeypatch, lose_reading):
+    engine, trips, gate, _, enable, machine, _ = build(permissives=[PERMIT])
+    run(engine, trips, gate, 2.0)
+    assert gate.blocked == ()
+
+    lose_reading(monkeypatch, engine, enable)
+    operator_run(engine)
+    run(engine, trips, gate, 2.0)
+
+    assert len(gate.blocked) == 1
+    assert not machine.running
 
 
 def test_a_published_permissive_variable_does_not_warn():

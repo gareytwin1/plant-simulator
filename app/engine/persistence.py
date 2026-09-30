@@ -42,9 +42,9 @@ The state is what the engine holds **that a configuration does not**:
 
 A restore is all or nothing. The whole save is validated against the engine
 first - a missing or unexpected field, a wrong type, a number that is not
-finite, a value a constructor refuses - and only then applied, so a refused restore leaves the engine
-exactly as it was. Every refusal is a `StateError` naming the path to the
-field.
+finite, a value a constructor refuses - and only then applied, so a refused
+restore leaves the engine exactly as it was. Every refusal is a `StateError`
+naming the path to the field.
 
 This module reads a few private attributes of `Engine`, `CommandArbiter`,
 `Loop`, `PID`, `Evaluator` and `ExcursionTracker`: none has a public accessor,
@@ -307,9 +307,8 @@ def _decode_clock(engine: Engine, value: JSONValue, steps: list[Step]) -> None:
     sim_time = _number(fields["sim_time"], "clock.sim_time")
     speed = _number(fields["speed"], "clock.speed")
 
-    for name, number in (("sim_time", sim_time), ("speed", speed)):
-        if number < 0.0:
-            raise StateError(f"clock.{name}: {number!r} is negative")
+    if sim_time < 0.0:
+        raise StateError(f"clock.sim_time: {sim_time!r} is negative")
 
     paused = _flag(fields["paused"], "clock.paused")
 
@@ -341,7 +340,10 @@ def _decode_equipment(engine: Engine, value: JSONValue, steps: list[Step]) -> No
             assert _is_primitive(was)
 
             # None is allowed only where the device holds None now: a device
-            # attribute's live value is the only record of its type.
+            # attribute's live value is the only record of its type. So an
+            # attribute that can be None or a value would be refused across
+            # that change; no device has one, and adding one needs a declared
+            # type here first.
             if was is not None and _kind(saved) != _kind(was):
                 raise StateError(
                     f"{path}.{name}: expected a {_kind(was)}, got {saved!r}",

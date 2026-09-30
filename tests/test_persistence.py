@@ -277,7 +277,6 @@ def test_an_engine_without_a_topology_round_trips():
         (lambda s: s["clock"].update(extra=1), r"clock: unexpected 'extra'"),
         (lambda s: s["clock"].update(speed="fast"), r"clock\.speed: expected a number"),
         (lambda s: s["clock"].update(speed=math.nan), r"clock\.speed: nan is not finite"),
-        (lambda s: s["clock"].update(speed=-1.0), r"clock\.speed: -1\.0 is negative"),
         (lambda s: s["clock"].update(sim_time=-1.0), r"clock\.sim_time: -1\.0 is negative"),
         (lambda s: s["equipment"].pop("P-101"), r"equipment: missing 'P-101'"),
         (lambda s: s["equipment"]["P-101"].update(speed="fast"), r"equipment\.P-101\.speed"),

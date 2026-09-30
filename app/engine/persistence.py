@@ -371,15 +371,18 @@ def _check_setters(device: Equipment, row: Mapping[str, JSONValue], path: str) -
     """Run each property setter a device guards a `_name` attribute with,
     on a copy holding the whole saved row, so a range check and a check
     across two fields (a relief valve's set pressure and blowdown) both see
-    the values they will be restored beside."""
+    the values they will be restored beside. The row is reloaded before each
+    setter, because one may write a second field (Vessel.initial_pressure
+    resets _pressure) that a later check would otherwise read."""
     probe = copy.copy(device)
-    probe.__dict__.update(row)
 
     for name, saved in row.items():
         guard = getattr(type(device), name.removeprefix("_"), None)
 
         if not name.startswith("_") or not isinstance(guard, property) or guard.fset is None:
             continue
+
+        probe.__dict__.update(row)
 
         try:
             guard.fset(probe, saved)

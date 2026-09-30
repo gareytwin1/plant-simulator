@@ -222,13 +222,17 @@ def test_act_applies_and_logs_an_action_on_the_live_run():
     assert [event.tag for event in runner.actions] == ["P-101"]
 
 
-def test_act_reaches_the_rebuilt_engine_after_an_abort():
-    runner = started()
-    runner.abort()
+def test_act_is_refused_once_the_run_is_over_so_its_result_stays_final():
+    finished = started(scenario(objectives=[], time_limit_s=3))
+    run_out(finished)
+    aborted = started()
+    aborted.abort()
 
-    runner.act("P-101", "start", None)
+    for runner in (finished, aborted):
+        with pytest.raises(ScenarioStateError, match="final"):
+            runner.act("P-101", "start", None)
 
-    assert runner.engine.equipment["P-101"].running is True
+        assert len(runner.result().actions) == 0
 
 
 def test_act_refuses_with_nothing_loaded():

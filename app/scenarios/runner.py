@@ -347,9 +347,15 @@ class ScenarioRunner:
     def act(self, target: str, action: str, value: float | None) -> None:
         """Apply one operator action to the live run and log it, under the
         lock that `step` and `abort` take, so it can never interleave with
-        either. Same refusals as `app.api.action.apply_action`."""
+        either, and refused once the run is over so its result stays final.
+        Otherwise the same refusals as `app.api.action.apply_action`."""
         with self._lock:
             run = self._loaded()
+
+            if run.phase not in (Phase.LOADED, Phase.RUNNING):
+                raise ScenarioStateError(
+                    f"cannot act on a scenario that is {run.phase.value}; its result is final",
+                )
 
             apply_action(
                 run.engine.equipment,

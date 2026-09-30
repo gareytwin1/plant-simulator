@@ -12,6 +12,7 @@ the result, never `approx` - a replay that is merely close is a different run.
 import ast
 import dataclasses
 import json
+import shutil
 import time
 from pathlib import Path
 
@@ -22,11 +23,12 @@ from app.disturbances.malfunction import MalfunctionRegistry
 from app.engine.engine import Engine
 from app.engine.persistence import capture_state
 from app.scenarios.replay import Act, Recording, RecordingFormatError, ReplayDivergence, replay
-from app.scenarios.runner import Outcome, Phase, ScenarioRunner, Tick, TickKind
+from app.scenarios.runner import Outcome, Phase, ScenarioLibrary, ScenarioRunner, Tick, TickKind
 
 
 pytestmark = pytest.mark.filterwarnings("ignore:envelope limit")
 
+CONFIG = Path(__file__).resolve().parent.parent / "config"
 DT = 1.0
 
 
@@ -397,34 +399,39 @@ CLOCK = {"speed": 1.0, "paused": False}
     [
         [],
         {"scenario": {}, "inputs": []},
-        {"scenario": {}, "inputs": {}, "clock": CLOCK},
+        {"scenario": {}, "inputs": {}, "clock": CLOCK, "fingerprint": None},
         {"scenario": {}, "inputs": [], "clock": {"speed": 1.0}},
         {"scenario": {}, "inputs": [], "clock": {"speed": "fast", "paused": False}},
         {"scenario": {}, "inputs": [], "clock": {"speed": 1.0, "paused": 0}},
-        {"scenario": {}, "inputs": [{"type": "jump"}], "clock": CLOCK},
-        {"scenario": {}, "inputs": [{"type": "start"}], "clock": CLOCK},
-        {"scenario": {}, "inputs": [{"type": "start", "actions": -1, "error": None}], "clock": CLOCK},
-        {"scenario": {}, "inputs": [{"type": "start", "actions": True, "error": None}], "clock": CLOCK},
-        {"scenario": {}, "inputs": [{"type": "start", "actions": 0, "error": 1}], "clock": CLOCK},
+        {"scenario": {}, "inputs": [], "clock": CLOCK, "fingerprint": 7},
+        {"scenario": {}, "inputs": [{"type": "jump"}], "clock": CLOCK, "fingerprint": None},
+        {"scenario": {}, "inputs": [{"type": "start"}], "clock": CLOCK, "fingerprint": None},
+        {"scenario": {}, "inputs": [{"type": "start", "actions": -1, "error": None}], "clock": CLOCK, "fingerprint": None},
+        {"scenario": {}, "inputs": [{"type": "start", "actions": True, "error": None}], "clock": CLOCK, "fingerprint": None},
+        {"scenario": {}, "inputs": [{"type": "start", "actions": 0, "error": 1}], "clock": CLOCK, "fingerprint": None},
         {
             "scenario": {},
             "inputs": [{"type": "step", "actions": 0, "error": None, "dt": "1", "speed": 1, "paused": False}],
             "clock": CLOCK,
+            "fingerprint": None,
         },
         {
             "scenario": {},
             "inputs": [{"type": "step", "actions": 0, "error": None, "dt": 1, "speed": 1, "paused": 0}],
             "clock": CLOCK,
+            "fingerprint": None,
         },
         {
             "scenario": {},
             "inputs": [{"type": "act", "target": 1, "action": "start", "value": None, "sim_time": 0}],
             "clock": CLOCK,
+            "fingerprint": None,
         },
         {
             "scenario": {},
             "inputs": [{"type": "act", "target": "P-101", "action": "start", "value": None}],
             "clock": CLOCK,
+            "fingerprint": None,
         },
     ],
 )
@@ -443,12 +450,54 @@ def test_a_well_formed_recording_document_is_accepted():
             {"type": "abort", "actions": 1, "error": None},
         ],
         "clock": CLOCK,
+            "fingerprint": None,
     }
 
     assert len(Recording.from_dict(document).inputs) == 4
 
 
 # ---- a replay that stops reproducing says so ----
+
+
+def copied_library(tmp_path):
+    for name in ("plants", "initial_conditions"):
+        shutil.copytree(CONFIG / name, tmp_path / name)
+
+    return ScenarioLibrary(
+        scenarios=tmp_path / "scenarios",
+        plants=tmp_path / "plants",
+        conditions=tmp_path / "initial_conditions",
+    )
+
+
+def test_a_replay_against_a_changed_initial_condition_is_refused(tmp_path):
+    library = copied_library(tmp_path)
+    live = ScenarioRunner(library)
+    live.load_config(scenario())
+    live.start()
+    steps(live, 5)
+    recording = Recording.of(live)
+
+    condition = tmp_path / "initial_conditions" / "feed_pump_trip.json"
+    state = json.loads(condition.read_text())
+    state["equipment"]["V-101"]["_level"] += 0.01
+    condition.write_text(json.dumps(state))
+
+    with pytest.raises(ReplayDivergence, match="has changed since this run was recorded"):
+        replay(recording, library)
+
+
+def test_a_replay_against_a_changed_plant_file_is_refused(tmp_path):
+    library = copied_library(tmp_path)
+    live = ScenarioRunner(library)
+    live.load_config(scenario())
+    recording = Recording.of(live)
+
+    plant = tmp_path / "plants" / "olefins_lite.yaml"
+    plant.write_text(plant.read_text() + "\n# edited\n")
+
+    with pytest.raises(ReplayDivergence, match="has changed since this run was recorded"):
+        replay(recording, library)
 
 
 def edited(recording, index, **changes):

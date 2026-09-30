@@ -70,6 +70,7 @@ from __future__ import annotations
 import copy
 import dataclasses
 import functools
+import hashlib
 import json
 import math
 import re
@@ -347,9 +348,14 @@ class RunInputs:
     """Everything a run has taken as input, at one instant: its scenario
     document, its journal, its actions (as `ScenarioResult.actions` has
     them, on scenario time) and the clock's speed and pause as they stand
-    now, which a change after the last step leaves no tick to carry."""
+    now, which a change after the last step leaves no tick to carry.
+
+    `fingerprint` digests what the document names but does not contain -
+    the plant file and the initial condition with its overrides applied -
+    so a replay can tell when either has changed under it."""
 
     config: Any  # Any: a scenario document, of the shape the scenario schema allows
+    fingerprint: str
     journal: tuple[Tick, ...]
     actions: tuple[Mapping[str, Any], ...]
     speed: float
@@ -361,6 +367,7 @@ class _Run:
     """Everything one loaded scenario owns."""
 
     config: Any  # Any: the scenario document as loaded, validated by the schema
+    fingerprint: str
     scenario_id: str
     difficulty: str
     seed: int
@@ -428,6 +435,7 @@ class ScenarioRunner:
 
             return RunInputs(
                 config=copy.deepcopy(run.config),
+                fingerprint=run.fingerprint,
                 journal=tuple(run.journal),
                 actions=_actions(run),
                 speed=clock.speed,
@@ -568,6 +576,7 @@ class ScenarioRunner:
 
         return _Run(
             config=copy.deepcopy(config),
+            fingerprint=_fingerprint(plant_path, state),
             scenario_id=scenario_id,
             difficulty=config["difficulty"],
             seed=config["seed"],
@@ -634,6 +643,13 @@ class ScenarioRunner:
             triggers_fired=dict(run.fired),
             actions=_actions(run),
         )
+
+
+def _fingerprint(plant_path: Path, state: Mapping[str, JSONValue]) -> str:
+    digest = hashlib.sha256(plant_path.read_bytes())
+    digest.update(json.dumps(state, sort_keys=True).encode())
+
+    return digest.hexdigest()
 
 
 def _actions(run: _Run) -> tuple[Mapping[str, Any], ...]:

@@ -30,8 +30,9 @@ elapsed time is identical too. Replay drives the runner directly, with no
 than real time.
 
 What a recording does not carry: the plant file and the initial condition
-are read by name from the `ScenarioLibrary`, as on load, so a replay is only
-as faithful as those files are unchanged. Nor does it carry random-number
+are read by name from the `ScenarioLibrary`, as on load. It carries their
+fingerprint instead, and a replay that finds either changed refuses to run
+rather than reproduce a different plant. Nor does it carry random-number
 state - nothing in the plant draws one yet (see `app/engine/rng.py`), and
 `tests/test_scenario_replay.py` fails the build if something starts to, since
 replay would then need that state too. Anything done to `runner.engine`
@@ -88,6 +89,7 @@ class Recording:
     inputs: tuple[Input, ...]
     speed: float = 1.0
     paused: bool = False
+    fingerprint: str | None = None  # `RunInputs.fingerprint`; None replays unchecked
 
     @classmethod
     def of(cls, runner: ScenarioRunner) -> Recording:
@@ -121,7 +123,13 @@ class Recording:
 
         catch_up(len(actions))
 
-        return cls(scenario=run.config, inputs=tuple(inputs), speed=run.speed, paused=run.paused)
+        return cls(
+            scenario=run.config,
+            inputs=tuple(inputs),
+            speed=run.speed,
+            paused=run.paused,
+            fingerprint=run.fingerprint,
+        )
 
     def as_dict(self) -> dict[str, Any]:
         # Any: a JSON document; the scenario is whatever its file decoded to.
@@ -129,13 +137,20 @@ class Recording:
             "scenario": self.scenario,
             "inputs": [_encode(item) for item in self.inputs],
             "clock": {"speed": self.speed, "paused": self.paused},
+            "fingerprint": self.fingerprint,
         }
 
     @classmethod
     def from_dict(cls, document: Mapping[str, Any]) -> Recording:
         # Any: a decoded JSON document, checked here field by field.
-        if not isinstance(document, Mapping) or set(document) != {"scenario", "inputs", "clock"}:
-            raise RecordingFormatError("a recording is an object with exactly 'scenario', 'inputs' and 'clock'")
+        if not isinstance(document, Mapping) or set(document) != {"scenario", "inputs", "clock", "fingerprint"}:
+            raise RecordingFormatError(
+                "a recording is an object with exactly 'scenario', 'inputs', 'clock' and 'fingerprint'",
+            )
+
+        fingerprint = document["fingerprint"]
+        if fingerprint is not None and not isinstance(fingerprint, str):
+            raise RecordingFormatError(f"recording 'fingerprint' must be text or null, got {fingerprint!r}")
 
         inputs = document["inputs"]
         if not isinstance(inputs, list):
@@ -153,6 +168,7 @@ class Recording:
             inputs=tuple(_decode(item, f"inputs[{index}]") for index, item in enumerate(inputs)),
             speed=_float(clock["speed"], "clock.speed"),
             paused=clock["paused"],
+            fingerprint=fingerprint,
         )
 
 
@@ -164,6 +180,12 @@ def replay(recording: Recording, library: ScenarioLibrary | None = None) -> Scen
     """
     runner = ScenarioRunner(library)
     runner.load_config(recording.scenario)
+
+    armed = runner.inputs().fingerprint
+    if recording.fingerprint is not None and armed != recording.fingerprint:
+        raise ReplayDivergence(
+            "the plant file or initial condition has changed since this run was recorded",
+        )
 
     for index, item in enumerate(recording.inputs):
         try:

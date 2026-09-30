@@ -32,8 +32,10 @@ as faithful as those files are unchanged. Nor does it carry random-number
 state - nothing in the plant draws one yet (see `app/engine/rng.py`), and
 `tests/test_scenario_replay.py` fails the build if something starts to, since
 replay would then need that state too. Anything done to `runner.engine`
-behind the runner's back, other than changing the clock's speed or pause,
-is not an input the runner sees and is not replayed.
+behind the runner's back is not an input the runner sees and is not
+replayed - except the clock's speed and pause, which each step records and
+the recording carries as they stood when it was taken, so a change made
+after the last step is replayed too.
 """
 
 from __future__ import annotations
@@ -42,7 +44,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
-from app.scenarios.runner import Phase, ScenarioLibrary, ScenarioRunner, Tick, TickKind
+from app.scenarios.runner import Phase, ScenarioLibrary, ScenarioRunner, ScenarioStateError, Tick, TickKind
 
 
 class ReplayDivergence(RuntimeError):
@@ -68,20 +70,27 @@ type Input = Act | Tick
 
 @dataclass(frozen=True)
 class Recording:
-    """A run's inputs: its scenario document, then every action and tick."""
+    """A run's inputs: its scenario document, then every action and tick,
+    then the clock's speed and pause as they stood when it was taken."""
 
     scenario: Any  # Any: a scenario document, of the shape the scenario schema allows
     inputs: tuple[Input, ...]
+    speed: float = 1.0
+    paused: bool = False
 
     @classmethod
     def of(cls, runner: ScenarioRunner) -> Recording:
         """The loaded run so far, as a recording."""
-        actions = runner.result().actions
+        run = runner.inputs()
+        actions = run.actions
         inputs: list[Input] = []
         taken = 0
 
         def catch_up(count: int) -> None:
             nonlocal taken
+
+            # `inputs()` reads journal and log under one lock, so they agree.
+            assert count <= len(actions), f"a tick follows {count} actions, but the log holds {len(actions)}"
 
             for action in actions[taken:count]:
                 inputs.append(
@@ -95,34 +104,44 @@ class Recording:
 
             taken = max(taken, count)
 
-        for tick in runner.journal:
+        for tick in run.journal:
             catch_up(tick.actions)
             inputs.append(tick)
 
         catch_up(len(actions))
 
-        return cls(scenario=runner.config, inputs=tuple(inputs))
+        return cls(scenario=run.config, inputs=tuple(inputs), speed=run.speed, paused=run.paused)
 
     def as_dict(self) -> dict[str, Any]:
         # Any: a JSON document; the scenario is whatever its file decoded to.
         return {
             "scenario": self.scenario,
             "inputs": [_encode(item) for item in self.inputs],
+            "clock": {"speed": self.speed, "paused": self.paused},
         }
 
     @classmethod
     def from_dict(cls, document: Mapping[str, Any]) -> Recording:
         # Any: a decoded JSON document, checked here field by field.
-        if not isinstance(document, Mapping) or set(document) != {"scenario", "inputs"}:
-            raise RecordingFormatError("a recording is an object with exactly 'scenario' and 'inputs'")
+        if not isinstance(document, Mapping) or set(document) != {"scenario", "inputs", "clock"}:
+            raise RecordingFormatError("a recording is an object with exactly 'scenario', 'inputs' and 'clock'")
 
         inputs = document["inputs"]
         if not isinstance(inputs, list):
             raise RecordingFormatError("recording 'inputs' must be a list")
 
+        clock = document["clock"]
+        if not isinstance(clock, dict) or set(clock) != {"speed", "paused"}:
+            raise RecordingFormatError("recording 'clock' must be an object with exactly 'speed' and 'paused'")
+
+        if not isinstance(clock["paused"], bool):
+            raise RecordingFormatError("clock.paused must be true or false")
+
         return cls(
             scenario=document["scenario"],
             inputs=tuple(_decode(item, f"inputs[{index}]") for index, item in enumerate(inputs)),
+            speed=_float(clock["speed"], "clock.speed"),
+            paused=clock["paused"],
         )
 
 
@@ -143,15 +162,17 @@ def replay(recording: Recording, library: ScenarioLibrary | None = None) -> Scen
                 _tick(runner, item)
         except ReplayDivergence as divergence:
             raise ReplayDivergence(f"inputs[{index}]: {divergence}") from divergence
-        except (KeyError, ValueError) as error:
-            # What `act`, `start` and `abort` raise for an input they refuse.
-            raise ReplayDivergence(f"inputs[{index}]: the runner refused {item}: {error}") from error
+
+    _set_clock(runner, recording.speed, recording.paused)
 
     return runner
 
 
 def _act(runner: ScenarioRunner, item: Act) -> None:
-    runner.act(item.target, item.action, item.value)
+    try:
+        runner.act(item.target, item.action, item.value)
+    except (KeyError, ValueError) as error:
+        raise ReplayDivergence(f"the runner refused {item}: {error}") from error
 
     replayed = runner.result().actions[-1]["sim_time"]
     if replayed != item.sim_time:
@@ -166,12 +187,19 @@ def _tick(runner: ScenarioRunner, tick: Tick) -> None:
     if taken != tick.actions:
         raise ReplayDivergence(f"{tick.kind.value} was recorded after {tick.actions} actions, reached after {taken}")
 
-    if tick.kind is TickKind.START:
-        runner.start()
-    elif tick.kind is TickKind.ABORT:
-        runner.abort()
-    else:
+    if tick.kind is TickKind.STEP:
         _step(runner, tick)
+        return
+
+    # A step's own errors are the plant's, and propagate as they are; a
+    # lifecycle call refused is the replay's.
+    try:
+        if tick.kind is TickKind.START:
+            runner.start()
+        else:
+            runner.abort()
+    except ScenarioStateError as error:
+        raise ReplayDivergence(f"the runner refused {tick.kind.value}: {error}") from error
 
 
 def _step(runner: ScenarioRunner, tick: Tick) -> None:
@@ -181,14 +209,19 @@ def _step(runner: ScenarioRunner, tick: Tick) -> None:
     if phase is not Phase.RUNNING:
         raise ReplayDivergence(f"a step was recorded while running, but the replay is {phase.value}")
 
+    _set_clock(runner, tick.speed, tick.paused)
+
+    runner.step(tick.dt)
+
+
+def _set_clock(runner: ScenarioRunner, speed: float, paused: bool) -> None:
     clock = runner.engine.clock
-    clock.set_speed(tick.speed)
-    if tick.paused:
+    clock.set_speed(speed)
+
+    if paused:
         clock.pause()
     else:
         clock.resume()
-
-    runner.step(tick.dt)
 
 
 def _encode(item: Input) -> dict[str, Any]:

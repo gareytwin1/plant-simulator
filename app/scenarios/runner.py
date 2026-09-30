@@ -48,9 +48,9 @@ actions a person has (`app.api.action`, against `runner.engine` and
 condition, since trips are not evaluated in a live session yet (see
 project_state.md).
 
-**Every input that moves a run is journaled** (`journal`), so
+**Every input that moves a run is journaled** (`inputs()`), so
 `app.scenarios.replay` can play it back: a `Tick` for each `start`, advancing
-`step` and `abort`, carrying how many logged actions preceded it, and for a
+`step` and `abort` that completed, carrying how many logged actions preceded it, and for a
 step the dt and the clock's speed and pause it ran with. The actions
 themselves are the `ActionLog`'s, not copied here - the log stays the single
 record of intent, and the count is what orders each action against the
@@ -315,6 +315,20 @@ class Tick:
     paused: bool | None = None
 
 
+@dataclass(frozen=True)
+class RunInputs:
+    """Everything a run has taken as input, at one instant: its scenario
+    document, its journal, its actions (as `ScenarioResult.actions` has
+    them, on scenario time) and the clock's speed and pause as they stand
+    now, which a change after the last step leaves no tick to carry."""
+
+    config: Any  # Any: a scenario document, of the shape the scenario schema allows
+    journal: tuple[Tick, ...]
+    actions: tuple[Mapping[str, Any], ...]
+    speed: float
+    paused: bool
+
+
 @dataclass
 class _Run:
     """Everything one loaded scenario owns."""
@@ -378,18 +392,20 @@ class ScenarioRunner:
         with self._lock:
             return self._loaded().actions
 
-    @property
-    def config(self) -> Any:
-        """A copy of the scenario document the loaded run was armed from."""
-        # Any: a decoded scenario file, of the shape the scenario schema allows.
+    def inputs(self) -> RunInputs:
+        """Every input the loaded run has taken, read under one lock so no
+        step or action can land between its parts."""
         with self._lock:
-            return copy.deepcopy(self._loaded().config)
+            run = self._loaded()
+            clock = run.engine.clock
 
-    @property
-    def journal(self) -> tuple[Tick, ...]:
-        """Every lifecycle input of the loaded run, in the order taken."""
-        with self._lock:
-            return tuple(self._loaded().journal)
+            return RunInputs(
+                config=copy.deepcopy(run.config),
+                journal=tuple(run.journal),
+                actions=_actions(run),
+                speed=clock.speed,
+                paused=clock.paused,
+            )
 
     def act(self, target: str, action: str, value: float | None) -> None:
         """Apply one operator action to the live run and log it, under the
@@ -433,11 +449,11 @@ class ScenarioRunner:
             if run.phase is not Phase.LOADED:
                 raise ScenarioStateError(f"cannot start a scenario that is {run.phase.value}; load one first")
 
-            run.journal.append(Tick(TickKind.START, len(run.actions)))
             run.phase = Phase.RUNNING
             # A malfunction due at time zero takes effect now rather than a
             # step late, so the first step already runs the disturbed plant.
             run.malfunctions.update(run.view(run.engine.snapshot()))
+            run.journal.append(Tick(TickKind.START, len(run.actions)))
 
             return self._result(run)
 
@@ -449,12 +465,11 @@ class ScenarioRunner:
                 return run.engine.snapshot()
 
             clock = run.engine.clock
-            run.journal.append(
-                Tick(TickKind.STEP, len(run.actions), dt=dt, speed=clock.speed, paused=clock.paused),
-            )
+            tick = Tick(TickKind.STEP, len(run.actions), dt=dt, speed=clock.speed, paused=clock.paused)
 
             snapshot = run.engine.step(dt)
             self._observe(run, snapshot)
+            run.journal.append(tick)
 
             return snapshot
 
@@ -471,12 +486,12 @@ class ScenarioRunner:
 
             elapsed = run.engine.snapshot().sim_time - run.origin
 
-            run.journal.append(Tick(TickKind.ABORT, len(run.actions)))
             run.malfunctions.revert_all()
             run.engine = self._restored(run.build, run.armed_state)
             run.phase = Phase.ABORTED
             run.outcome = Outcome.ABORTED
             run.ended_at = elapsed
+            run.journal.append(Tick(TickKind.ABORT, len(run.actions)))
 
             return self._result(run)
 
@@ -589,16 +604,21 @@ class ScenarioRunner:
             seed=run.seed,
             objectives=run.results,
             triggers_fired=dict(run.fired),
-            actions=tuple(
-                {
-                    "sim_time": event.sim_time - run.origin,
-                    "tag": event.tag,
-                    "action": event.data["action"],
-                    "value": event.data["value"],
-                }
-                for event in run.actions
-            ),
+            actions=_actions(run),
         )
+
+
+def _actions(run: _Run) -> tuple[Mapping[str, Any], ...]:
+    # Any: a JSON-safe action row, as `ScenarioResult.as_dict` sends it.
+    return tuple(
+        {
+            "sim_time": event.sim_time - run.origin,
+            "tag": event.tag,
+            "action": event.data["action"],
+            "value": event.data["value"],
+        }
+        for event in run.actions
+    )
 
 
 def _outcome(results: tuple[ObjectiveResult, ...]) -> Outcome:

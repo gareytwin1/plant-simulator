@@ -10,6 +10,7 @@ the result, never `approx` - a replay that is merely close is a different run.
 """
 
 import ast
+import dataclasses
 import json
 import time
 from pathlib import Path
@@ -17,6 +18,7 @@ from pathlib import Path
 import pytest
 
 from app.api.action import apply_action
+from app.engine.engine import Engine
 from app.engine.persistence import capture_state
 from app.scenarios.replay import Act, Recording, RecordingFormatError, ReplayDivergence, replay
 from app.scenarios.runner import Outcome, Phase, ScenarioRunner, Tick, TickKind
@@ -231,6 +233,49 @@ def test_triggers_fire_at_the_same_times_in_a_replay():
     assert_identical(live, replayed)
 
 
+def test_a_pause_and_speed_change_after_the_last_step_are_replayed():
+    live = started()
+    steps(live, 5)
+    live.engine.clock.set_speed(3.0)
+    live.engine.clock.pause()
+
+    replayed = replay(Recording.of(live))
+
+    assert replayed.engine.clock.paused
+    assert_identical(live, replayed)
+
+
+def test_a_step_that_raised_is_not_an_input(monkeypatch):
+    live = started()
+    steps(live, 2)
+
+    def broken(self, dt):
+        raise ValueError("solver blew up")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(Engine, "step", broken)
+        with pytest.raises(ValueError):
+            live.step(DT)
+
+    assert [tick.kind for tick in live.inputs().journal] == [TickKind.START, TickKind.STEP, TickKind.STEP]
+
+
+def test_a_plant_error_during_replay_propagates_as_itself(monkeypatch):
+    live = started()
+    steps(live, 2)
+    recording = Recording.of(live)
+
+    def broken(self, dt):
+        raise ValueError("solver blew up")
+
+    monkeypatch.setattr(Engine, "step", broken)
+
+    with pytest.raises(ValueError, match="solver blew up") as raised:
+        replay(recording)
+
+    assert not isinstance(raised.value, ReplayDivergence)
+
+
 def test_the_recording_does_not_share_the_scenario_document_it_was_loaded_from():
     config = scenario()
     live = ScenarioRunner()
@@ -261,20 +306,42 @@ def test_a_recording_survives_a_json_round_trip_and_still_replays_exactly():
     assert_identical(live, replay(restored))
 
 
+CLOCK = {"speed": 1.0, "paused": False}
+
+
 @pytest.mark.parametrize(
     "document",
     [
         [],
-        {"scenario": {}},
-        {"scenario": {}, "inputs": {}},
-        {"scenario": {}, "inputs": [{"type": "jump"}]},
-        {"scenario": {}, "inputs": [{"type": "start"}]},
-        {"scenario": {}, "inputs": [{"type": "start", "actions": -1}]},
-        {"scenario": {}, "inputs": [{"type": "start", "actions": True}]},
-        {"scenario": {}, "inputs": [{"type": "step", "actions": 0, "dt": "1", "speed": 1, "paused": False}]},
-        {"scenario": {}, "inputs": [{"type": "step", "actions": 0, "dt": 1, "speed": 1, "paused": 0}]},
-        {"scenario": {}, "inputs": [{"type": "act", "target": 1, "action": "start", "value": None, "sim_time": 0}]},
-        {"scenario": {}, "inputs": [{"type": "act", "target": "P-101", "action": "start", "value": None}]},
+        {"scenario": {}, "inputs": []},
+        {"scenario": {}, "inputs": {}, "clock": CLOCK},
+        {"scenario": {}, "inputs": [], "clock": {"speed": 1.0}},
+        {"scenario": {}, "inputs": [], "clock": {"speed": "fast", "paused": False}},
+        {"scenario": {}, "inputs": [], "clock": {"speed": 1.0, "paused": 0}},
+        {"scenario": {}, "inputs": [{"type": "jump"}], "clock": CLOCK},
+        {"scenario": {}, "inputs": [{"type": "start"}], "clock": CLOCK},
+        {"scenario": {}, "inputs": [{"type": "start", "actions": -1}], "clock": CLOCK},
+        {"scenario": {}, "inputs": [{"type": "start", "actions": True}], "clock": CLOCK},
+        {
+            "scenario": {},
+            "inputs": [{"type": "step", "actions": 0, "dt": "1", "speed": 1, "paused": False}],
+            "clock": CLOCK,
+        },
+        {
+            "scenario": {},
+            "inputs": [{"type": "step", "actions": 0, "dt": 1, "speed": 1, "paused": 0}],
+            "clock": CLOCK,
+        },
+        {
+            "scenario": {},
+            "inputs": [{"type": "act", "target": 1, "action": "start", "value": None, "sim_time": 0}],
+            "clock": CLOCK,
+        },
+        {
+            "scenario": {},
+            "inputs": [{"type": "act", "target": "P-101", "action": "start", "value": None}],
+            "clock": CLOCK,
+        },
     ],
 )
 def test_a_malformed_recording_is_refused(document):
@@ -282,16 +349,29 @@ def test_a_malformed_recording_is_refused(document):
         Recording.from_dict(document)
 
 
+def test_a_well_formed_recording_document_is_accepted():
+    document = {
+        "scenario": {},
+        "inputs": [
+            {"type": "act", "target": "P-101", "action": "start", "value": None, "sim_time": 0},
+            {"type": "start", "actions": 1},
+            {"type": "step", "actions": 1, "dt": 1, "speed": 1, "paused": False},
+            {"type": "abort", "actions": 1},
+        ],
+        "clock": CLOCK,
+    }
+
+    assert len(Recording.from_dict(document).inputs) == 4
+
+
 # ---- a replay that stops reproducing says so ----
 
 
 def edited(recording, index, **changes):
-    item = recording.inputs[index]
-    row = {**{field: getattr(item, field) for field in item.__dataclass_fields__}, **changes}
     inputs = list(recording.inputs)
-    inputs[index] = type(item)(**row)
+    inputs[index] = dataclasses.replace(inputs[index], **changes)
 
-    return Recording(recording.scenario, tuple(inputs))
+    return dataclasses.replace(recording, inputs=tuple(inputs))
 
 
 def test_an_action_replayed_at_another_time_is_a_divergence():
@@ -321,7 +401,7 @@ def test_a_step_past_the_end_of_the_run_is_a_divergence():
     extra = Tick(TickKind.STEP, 0, dt=DT, speed=1.0, paused=False)
 
     with pytest.raises(ReplayDivergence, match="replay is complete"):
-        replay(Recording(recording.scenario, recording.inputs + (extra,)))
+        replay(dataclasses.replace(recording, inputs=recording.inputs + (extra,)))
 
 
 def test_a_tick_reached_with_a_different_action_count_is_a_divergence():
@@ -348,19 +428,40 @@ APP = Path(__file__).resolve().parent.parent / "app"
 RNG = APP / "engine" / "rng.py"
 
 
-def imports_rng(path):
+RNG_MODULE = "app.engine.rng"
+
+
+def imported_modules(path, package):
+    """Every module `path` imports, relative imports resolved against
+    `package`, and `from X import Y` counted as both X and X.Y."""
     for node in ast.walk(ast.parse(path.read_text())):
-        if isinstance(node, ast.ImportFrom) and node.module == "app.engine.rng":
-            return True
+        if isinstance(node, ast.Import):
+            yield from (alias.name for alias in node.names)
 
-        if isinstance(node, ast.Import) and any(alias.name == "app.engine.rng" for alias in node.names):
-            return True
+        if isinstance(node, ast.ImportFrom):
+            base = package.split(".")[: len(package.split(".")) - node.level + 1] if node.level else []
+            module = ".".join([*base, *([node.module] if node.module else [])])
+            yield module
+            yield from (f"{module}.{alias.name}" for alias in node.names)
 
-    return False
+
+def imports_rng(path, package="app"):
+    return any(
+        name == RNG_MODULE or name.startswith(f"{RNG_MODULE}.")
+        for name in imported_modules(path, package)
+    )
+
+
+def package_of(path):
+    return ".".join(path.relative_to(APP.parent).parent.parts)
 
 
 def test_nothing_in_the_plant_draws_a_random_number_a_recording_would_miss():
-    users = [str(path.relative_to(APP)) for path in sorted(APP.rglob("*.py")) if path != RNG and imports_rng(path)]
+    users = [
+        str(path.relative_to(APP))
+        for path in sorted(APP.rglob("*.py"))
+        if path != RNG and imports_rng(path, package_of(path))
+    ]
 
     assert users == [], (
         f"{users} use a SeededRNG: a recording carries no generator state, so "
@@ -372,9 +473,28 @@ def test_nothing_in_the_plant_draws_a_random_number_a_recording_would_miss():
 def test_the_rng_guard_catches_each_way_of_importing_the_generator(tmp_path):
     module = tmp_path / "m.py"
 
-    for source in ("from app.engine.rng import SeededRNG", "import app.engine.rng"):
+    for source, package in (
+        ("from app.engine.rng import SeededRNG", "app.scenarios"),
+        ("import app.engine.rng", "app.scenarios"),
+        ("import app.engine.rng as generator", "app.scenarios"),
+        ("from app.engine import rng", "app.scenarios"),
+        ("from .rng import SeededRNG", "app.engine"),
+        ("from . import rng", "app.engine"),
+        ("from ..engine.rng import SeededRNG", "app.scenarios"),
+        ("from ..engine import rng", "app.scenarios"),
+    ):
         module.write_text(source)
-        assert imports_rng(module), source
+        assert imports_rng(module, package), source
 
-    module.write_text("from app.engine.rngs import other\n")
-    assert not imports_rng(module)
+    for source, package in (
+        ("from app.engine.rngs import other", "app.scenarios"),
+        ("from app.engine import clock", "app.scenarios"),
+        ("from .rng import SeededRNG", "app.scenarios"),
+    ):
+        module.write_text(source)
+        assert not imports_rng(module, package), source
+
+
+def test_the_rng_guard_names_each_module_by_its_package():
+    assert package_of(APP / "engine" / "engine.py") == "app.engine"
+    assert package_of(APP / "scenarios" / "replay.py") == "app.scenarios"

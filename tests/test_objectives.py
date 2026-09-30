@@ -276,3 +276,10 @@ def test_malformed_objective_config_is_rejected_specifically(config, message):
 def test_malformed_condition_string_raises_a_syntax_error():
     with pytest.raises(ConditionSyntaxError):
         Objective.from_config({"id": "x", "success": {"condition": "not a condition"}})
+
+
+def test_a_scenario_with_no_objectives_is_vacuously_resolved():
+    ev = ObjectiveEvaluator.from_config([], time_limit_s=10)
+
+    assert ev.resolved
+    assert ev.evaluate(compressor_snapshot(0.0)) == ()

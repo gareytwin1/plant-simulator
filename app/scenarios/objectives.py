@@ -182,7 +182,10 @@ class ObjectiveEvaluator:
 
     @property
     def resolved(self) -> bool:
-        """True once every objective has ended, so a runner may stop asking."""
+        """True once every objective has ended, so a runner may stop asking.
+
+        Vacuously true for a scenario with no objectives: there is nothing left to wait for.
+        """
         return len(self._ended) == len(self._objectives)
 
     def validate(self, snapshot: Snapshot) -> None:

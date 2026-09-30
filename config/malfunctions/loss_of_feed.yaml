@@ -1,0 +1,25 @@
+# Loss of feed: the supply to P-101 starves it.
+#
+# The supply header (N-101) is a boundary, which a malfunction cannot write,
+# so starvation is modelled as P-101's own resistance rising steeply
+# (pump_resistance 0.002 -> 0.5). Unlike pump_trip the pump still develops its
+# head, so flow collapses toward zero without reversing.
+id: loss_of_feed
+name: Loss of feed
+summary: Flow into V-101 collapses to a trickle while the pump keeps running.
+malfunction:
+  target_tag: P-101
+  parameter: pump_resistance
+  value: 0.5
+plant: olefins_lite
+expected_response:
+  - {section: streams, source: B-P-101, variable: flow, direction: falls}
+  - {section: equipment, source: V-101, variable: level, direction: falls}
+symptoms:
+  - P-101 flow falls from about 51 GPM to about 4 GPM and stays forward.
+  - V-101 level falls at roughly the drain rate, because the inflow no longer covers it.
+  - P-101 is still running and its speed indication is unchanged, which is what separates this from a pump trip.
+diagnosis: >
+  Feed flow near zero with the pump healthy and running means the problem is
+  upstream of it. Check the supply, and throttle LV-101 to hold level while
+  it is found.

@@ -1,0 +1,25 @@
+# Pump trip: P-101 stops developing head.
+#
+# Modelled as a total loss of shutoff head (shutoff_pressure_rise -> 0), the
+# same reasoning as compressor_trip. The plant has no check valve, so the
+# 20 psi gap between N-102 and N-101 drives liquid backwards through the pump.
+id: pump_trip
+name: Feed pump trip
+summary: P-101 stops developing head; V-101 drains back through it.
+malfunction:
+  target_tag: P-101
+  parameter: shutoff_pressure_rise
+  value: 0.0
+plant: olefins_lite
+expected_response:
+  - {section: streams, source: B-P-101, variable: flow, direction: falls}
+  - {section: equipment, source: V-101, variable: level, direction: falls}
+  - {section: nodes, source: N-102, variable: pressure, direction: falls}
+symptoms:
+  - P-101 flow collapses from about +51 GPM and reverses to about -87 GPM.
+  - V-101 level falls steadily, losing feed and draining backwards while LV-101 still drains it forward.
+  - N-102 pressure drops as the vessel head falls with the level.
+diagnosis: >
+  A falling level with feed flow at or below zero points at the pump, not the
+  drain valve. Stop the drain (close LV-101) to protect the level before
+  anything else; the backflow path bypasses LV-101 entirely.

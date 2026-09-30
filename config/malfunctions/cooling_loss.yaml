@@ -1,0 +1,22 @@
+# Cooling loss: E-101's cooling medium warms up.
+#
+# The exchanger models its utility as a fixed temperature (cold_temperature),
+# so loss of cooling is that temperature rising from 90 to 160 F. No shipped
+# plant carries a heat exchanger yet; `requires` says what one needs.
+id: cooling_loss
+name: Cooling loss
+summary: E-101's cooling medium warms to 160 F; the process outlet runs hotter.
+malfunction:
+  target_tag: E-101
+  parameter: cold_temperature
+  value: 160.0
+plant: null
+requires: A liquid-domain HeatExchanger tagged E-101 whose outlet node is internal, with its inlet_temperature written by the caller.
+expected_response:
+  - {section: nodes, source: N-103, variable: temperature, direction: rises}
+symptoms:
+  - The temperature downstream of E-101 climbs with flow and UA unchanged.
+  - The outlet can no longer reach its normal approach to the coolant, which is itself warmer.
+diagnosis: >
+  Hotter outlet with nothing wrong on the process side points at the
+  utility. Check the cooling medium's supply temperature before the exchanger.

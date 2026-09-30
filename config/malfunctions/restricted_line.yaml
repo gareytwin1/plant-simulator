@@ -1,0 +1,24 @@
+# Restricted line: the K-101 discharge line chokes.
+#
+# FV-201 sits in K-101's discharge; cutting its capacity to a tenth is a
+# restriction (partial blockage) rather than a closure. FV-201's travel is not
+# touched, so the valve still reads the position the operator left it at.
+id: restricted_line
+name: Restricted discharge line
+summary: FV-201 capacity falls to a tenth; K-101's discharge line is choked.
+malfunction:
+  target_tag: FV-201
+  parameter: capacity
+  value: 2.0
+plant: olefins_lite
+expected_response:
+  - {section: streams, source: B-FV-201, variable: flow, direction: rises}
+  - {section: nodes, source: N-204, variable: pressure, direction: falls}
+symptoms:
+  - Flow through the discharge line shrinks toward zero (signed flow rises from about -10 to about -2 SCFM).
+  - N-204 pressure settles lower because less reverse draw passes through FV-201 and its drop shrinks.
+  - FV-201 still reports the position the operator set; only its effective capacity has fallen.
+diagnosis: >
+  Line flow falling with the valve position unchanged means the valve is
+  not passing what its position says it should. Compare position with
+  effective capacity, not with the demand.

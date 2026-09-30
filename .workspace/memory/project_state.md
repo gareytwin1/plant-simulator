@@ -8,11 +8,11 @@ regrowth rule is in [.claude/rules/docs.md](../../.claude/rules/docs.md).
 
 ## Right now
 
-**Last state refresh:** 30 September 2026, at `0c16162` (Merge T12-2:
-Named initial conditions library, PR #114) - **this is a snapshot,
-not a live pointer.** Run `git log 0c16162..HEAD --oneline` to see what has
+**Last state refresh:** 30 September 2026, at `8a8f7f6` (Merge T14-4:
+Scenario lifecycle and API, PR #115) - **this is a snapshot,
+not a live pointer.** Run `git log 8a8f7f6..HEAD --oneline` to see what has
 merged since.
-**Full suite as of this refresh:** **2318 passed** · `python -m mypy` clean over 62 source files · no golden trace movement
+**Full suite as of this refresh:** **2380 passed** · `python -m mypy` clean over 62 source files · no golden trace movement
 **In flight:** nothing.
 **No spine lock is held.** No task is Blocked. CI runs on every PR, and `main` requires its
 `test` check before a merge.
@@ -22,12 +22,12 @@ merged since.
 
 | Task | SHA | What landed |
 |---|---|---|
+| **T14-4** | `8a8f7f6` | Scenario lifecycle, `app/scenarios/runner.py` (`ScenarioRunner`: load arms with no state change, start, step, complete, abort; scenario time rebased from the condition's clock) and the C5 scenario routes `app/api/scenario.py`; `ScenarioRunner.act` plus an optional `apply` on `create_action_blueprint` (`app/api/action.py`); not wired into `app/main.py`; `seed` drives nothing (T14-5) (PR #115) |
 | **T12-2** | `0c16162` | Named initial conditions, `config/initial_conditions/*.json` (cold shutdown, hot standby, normal operation, feed-pump-trip upset) built by `scripts/initial_conditions.py` on `capture_state`/`restore_state`; no loader yet (T14-4) (PR #114) |
 | **T12-1** | `b9432ac` | Plant state save and restore, `app/engine/persistence.py`: `capture_state`/`restore_state`, validated whole before applied; excludes RNG state and configuration; reads private attributes of six classes (PR #113) |
 | **T14-3** | `bc8bcb2` | Objective evaluator, `app/scenarios/objectives.py`: success (with hold duration), failure and timeout paths; no runner calls it yet (T14-4) (PR #112) |
 | **T11-3** | `543ac7a` | Restart permissives and trip reset, `app/safety/permissives.py`: `RestartGate` holds a STOP demand on `<tag>.run` until permissives hold and tripped interlocks are reset; not yet called from `Session`/`Scheduler` (PR #111) |
 | **T16-2** | `beccacbd` | SSE snapshot push, `app/api/stream.py`'s `GET /api/stream`; not yet wired into `app/main.py` - same open question T15-1's action endpoint left (PR #110) |
-| **T10-3** | `bc27240` | Bounded alarm history + acknowledge API, `app/alarms/history.py`, `app/api/alarms.py`; additive `AlarmManager.is_acknowledged()` landed in `app/alarms/manager.py`, outside this task's declared files - coordinate with T10-4 (PR #109) |
 
 **ADRs on `main`:** [0001](../../docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md)
 (+ Amendment 1) and [0002](../../docs/ADR_0002_TYPED_PORTS.md) (+ Amendments
@@ -44,14 +44,14 @@ Complete: **M0-M7, M9, MR**. Open:
 | **M11** Interlocks and Trips | 3/4 | T11-1, T11-2, T11-3; T11-4 startable (V1.1-deferred) |
 | **M12** Startup and Shutdown Sequences | 2/6 | T12-1, T12-2; T12-3, T12-5, T12-6 startable; T12-4 needs T12-3 |
 | **M13** Malfunctions | 3/5 | T13-1, T13-2, T13-5; T13-3, T13-4 startable |
-| **M14** Scenario Engine | 3/6 | T14-1, T14-2, T14-3; T14-4 startable |
+| **M14** Scenario Engine | 4/6 | T14-1 to T14-4; T14-5 startable |
 | **M15** Action Log and Scoring | 1/4 | T15-1; T15-4 startable (V1.1-deferred) |
 | **M16** Operator Console | 1/5 | T16-2; T16-1 startable, T16-5 startable; T16-3 needs T16-1 first |
 | **M17** Historian and Trends | 1/4 | T17-1; T17-2 startable (V1.1-deferred) |
 | **M18** Deployment | 1/5 | T18-2 |
 | M19 | 0 | - |
 
-**87 of 117 tasks Complete.** Checkpoints A-C reached. Checkpoint **D** (M8)
+**88 of 117 tasks Complete.** Checkpoints A-C reached. Checkpoint **D** (M8)
 needs only its "loops reject an injected disturbance" gate: PIC-101 switched to
 AUTO in `olefins_lite.yaml`, which T8-6 enabled but no task owns yet.
 

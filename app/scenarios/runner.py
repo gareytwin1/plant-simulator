@@ -90,7 +90,7 @@ from app.engine.engine import Engine
 from app.engine.persistence import restore_state
 from app.engine.snapshot import Snapshot
 from app.equipment.registry import EquipmentRegistry
-from app.plant.loader import CONFIG_SUFFIXES, load_plant
+from app.plant.loader import CONFIG_SUFFIXES, load_plant, read_plant_config
 from app.plant.validate import validate
 from app.scenarios.objectives import ObjectiveEvaluator, ObjectiveResult, ObjectiveStatus
 from app.scenarios.triggers import TriggerEvaluator
@@ -177,16 +177,12 @@ def _find(directory: Path, name: str, suffixes: tuple[str, ...], kind: str) -> P
 
 
 def _read_document(path: Path) -> Any:
-    return _decode_document(path, path.read_bytes())
-
-
-def _decode_document(path: Path, data: bytes) -> Any:
-    # Any: decoded YAML or JSON, of a shape only its own schema knows.
     try:
-        if path.suffix.lower() == ".json":
-            return json.loads(data)
+        with open(path) as f:
+            if path.suffix.lower() == ".json":
+                return json.load(f)
 
-        return yaml.safe_load(data)
+            return yaml.safe_load(f)
     except (json.JSONDecodeError, yaml.YAMLError) as error:
         raise ScenarioConfigError(f"{path}: not parseable: {error}") from error
 
@@ -551,16 +547,10 @@ class ScenarioRunner:
             raise ScenarioConfigError("; ".join(errors))
 
         scenario_id = config["id"]
-        plant_path = self._library.plant_path(config["plant"])
-        condition = config["initial_condition"]
-
-        state = self._library.condition(condition["condition"])
-        apply_overrides(state, condition.get("overrides", {}))
-
         # Read once: arming, every abort and the fingerprint all see the
         # plant as it was at load, whatever happens to the file afterwards.
-        plant_bytes = plant_path.read_bytes()
-        plant_config = _decode_document(plant_path, plant_bytes)
+        plant_path, plant_bytes, state = self._sources(config)
+        plant_config = read_plant_config(plant_path, plant_bytes)
 
         def build() -> Engine:
             return Engine.from_plant(load_plant(copy.deepcopy(plant_config)))
@@ -600,6 +590,29 @@ class ScenarioRunner:
             objectives=objectives,
             objective_ids=tuple(entry["id"] for entry in config.get("objectives", [])),
         )
+
+    def fingerprint(self, config: Any) -> str:
+        """What `RunInputs.fingerprint` would be for a run of `config` armed
+        now, read from the library without arming anything."""
+        # Any: a decoded scenario document; one the schema refuses raises here
+        # as it would on load.
+        errors = validate(config, _schema())
+        if errors:
+            raise ScenarioConfigError("; ".join(errors))
+
+        _, plant_bytes, state = self._sources(config)
+
+        return _fingerprint(plant_bytes, state)
+
+    def _sources(self, config: Any) -> tuple[Path, bytes, dict[str, JSONValue]]:
+        # Any: a schema-valid scenario document.
+        plant_path = self._library.plant_path(config["plant"])
+        condition = config["initial_condition"]
+
+        state = self._library.condition(condition["condition"])
+        apply_overrides(state, condition.get("overrides", {}))
+
+        return plant_path, plant_path.read_bytes(), state
 
     @staticmethod
     def _restored(build: Callable[[], Engine], state: dict[str, JSONValue]) -> Engine:

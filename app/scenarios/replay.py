@@ -178,21 +178,14 @@ def replay(recording: Recording, library: ScenarioLibrary | None = None) -> Scen
 
     Raises `ReplayDivergence` at the first input that does not reproduce.
     """
-    changed = "the plant file or initial condition has changed since this run was recorded"
     runner = ScenarioRunner(library)
 
-    try:
-        runner.load_config(recording.scenario)
-    except (LookupError, ValueError) as error:
-        # The run armed once, so a recording that no longer arms is one whose
-        # files moved under it - when it carries a fingerprint to say so.
-        if recording.fingerprint is None:
-            raise
+    # Checked before arming, so a file that changed is named as the cause
+    # even when the change is one that would stop the run arming at all.
+    if recording.fingerprint is not None and runner.fingerprint(recording.scenario) != recording.fingerprint:
+        raise ReplayDivergence("the plant file or initial condition has changed since this run was recorded")
 
-        raise ReplayDivergence(f"{changed}: it no longer loads: {error}") from error
-
-    if recording.fingerprint is not None and runner.inputs().fingerprint != recording.fingerprint:
-        raise ReplayDivergence(changed)
+    runner.load_config(recording.scenario)
 
     for index, item in enumerate(recording.inputs):
         try:

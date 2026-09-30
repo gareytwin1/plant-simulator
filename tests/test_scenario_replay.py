@@ -23,7 +23,15 @@ from app.disturbances.malfunction import MalfunctionRegistry
 from app.engine.engine import Engine
 from app.engine.persistence import capture_state
 from app.scenarios.replay import Act, Recording, RecordingFormatError, ReplayDivergence, replay
-from app.scenarios.runner import Outcome, Phase, ScenarioLibrary, ScenarioRunner, Tick, TickKind
+from app.scenarios.runner import (
+    Outcome,
+    Phase,
+    ScenarioLibrary,
+    ScenarioNotFound,
+    ScenarioRunner,
+    Tick,
+    TickKind,
+)
 
 
 pytestmark = pytest.mark.filterwarnings("ignore:envelope limit")
@@ -492,7 +500,7 @@ def test_a_replay_against_a_changed_initial_condition_is_refused(tmp_path):
         replay(recording, library)
 
 
-def test_an_initial_condition_changed_so_it_no_longer_loads_is_a_divergence(tmp_path):
+def test_an_initial_condition_changed_so_it_no_longer_loads_is_named_as_the_cause(tmp_path):
     library = copied_library(tmp_path)
     live = ScenarioRunner(library)
     live.load_config(scenario())
@@ -500,7 +508,7 @@ def test_an_initial_condition_changed_so_it_no_longer_loads_is_a_divergence(tmp_
 
     edit_condition(tmp_path, lambda row: row.pop("_level"))
 
-    with pytest.raises(ReplayDivergence, match="has changed since this run was recorded: it no longer loads"):
+    with pytest.raises(ReplayDivergence, match="has changed since this run was recorded"):
         replay(recording, library)
 
 
@@ -508,15 +516,23 @@ def test_an_abort_rebuilds_the_plant_as_it_was_loaded_not_as_the_file_now_reads(
     library = copied_library(tmp_path)
     live = ScenarioRunner(library)
     live.load_config(scenario())
+    armed = capture_state(live.engine)
     live.start()
     steps(live, 5)
-    armed = Recording.of(live).fingerprint
 
     (tmp_path / "plants" / "olefins_lite.yaml").write_text("not a plant: [")
     live.abort()
 
-    assert live.phase is Phase.ABORTED
-    assert Recording.of(live).fingerprint == armed
+    assert capture_state(live.engine) == armed
+
+
+def test_a_scenario_document_that_no_longer_loads_fails_as_itself(tmp_path):
+    live = started()
+    recording = Recording.of(live)
+    broken = dataclasses.replace(recording, scenario={**recording.scenario, "plant": "no-such-plant"})
+
+    with pytest.raises(ScenarioNotFound, match="no-such-plant"):
+        replay(broken)
 
 
 def test_a_replay_against_a_changed_plant_file_is_refused(tmp_path):

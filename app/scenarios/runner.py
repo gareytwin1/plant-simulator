@@ -48,14 +48,24 @@ actions a person has (`app.api.action`, against `runner.engine` and
 condition, since trips are not evaluated in a live session yet (see
 project_state.md).
 
+**Every input that moves a run is journaled** (`journal`), so
+`app.scenarios.replay` can play it back: a `Tick` for each `start`, advancing
+`step` and `abort`, carrying how many logged actions preceded it, and for a
+step the dt and the clock's speed and pause it ran with. The actions
+themselves are the `ActionLog`'s, not copied here - the log stays the single
+record of intent, and the count is what orders each action against the
+ticks around it. A step that advances nothing (before `start`, after
+completion) is not an input and is not journaled.
+
 Not here: `seed` is carried into the result and drives nothing - the plant
-has no random source yet, and deterministic replay is T14-5. Objective and
-trigger results are as `ObjectiveEvaluator` and `TriggerEvaluator` report
-them; scoring and the debrief text are M15.
+has no random source yet. Objective and trigger results are as
+`ObjectiveEvaluator` and `TriggerEvaluator` report them; scoring and the
+debrief text are M15.
 """
 
 from __future__ import annotations
 
+import copy
 import dataclasses
 import functools
 import json
@@ -283,10 +293,33 @@ class ScenarioResult:
         }
 
 
+class TickKind(str, Enum):
+    START = "start"
+    STEP = "step"
+    ABORT = "abort"
+
+
+@dataclass(frozen=True)
+class Tick:
+    """One lifecycle input of a run, after `actions` logged actions.
+
+    `dt`, `speed` and `paused` are a step's: the dt it was called with and
+    the clock state it ran under, which together fix the elapsed time the
+    clock applied bit for bit. They are None on a start or an abort.
+    """
+
+    kind: TickKind
+    actions: int
+    dt: float | None = None
+    speed: float | None = None
+    paused: bool | None = None
+
+
 @dataclass
 class _Run:
     """Everything one loaded scenario owns."""
 
+    config: Any  # Any: the scenario document as loaded, validated by the schema
     scenario_id: str
     difficulty: str
     seed: int
@@ -305,6 +338,7 @@ class _Run:
     ended_at: float | None = None
     results: tuple[ObjectiveResult, ...] = ()
     fired: dict[str, float] = field(default_factory=dict)
+    journal: list[Tick] = field(default_factory=list)
 
     def view(self, snapshot: Snapshot) -> Snapshot:
         """`snapshot` on the scenario's own clock."""
@@ -343,6 +377,19 @@ class ScenarioRunner:
         """Every operator action taken in the loaded run."""
         with self._lock:
             return self._loaded().actions
+
+    @property
+    def config(self) -> Any:
+        """A copy of the scenario document the loaded run was armed from."""
+        # Any: a decoded scenario file, of the shape the scenario schema allows.
+        with self._lock:
+            return copy.deepcopy(self._loaded().config)
+
+    @property
+    def journal(self) -> tuple[Tick, ...]:
+        """Every lifecycle input of the loaded run, in the order taken."""
+        with self._lock:
+            return tuple(self._loaded().journal)
 
     def act(self, target: str, action: str, value: float | None) -> None:
         """Apply one operator action to the live run and log it, under the
@@ -386,6 +433,7 @@ class ScenarioRunner:
             if run.phase is not Phase.LOADED:
                 raise ScenarioStateError(f"cannot start a scenario that is {run.phase.value}; load one first")
 
+            run.journal.append(Tick(TickKind.START, len(run.actions)))
             run.phase = Phase.RUNNING
             # A malfunction due at time zero takes effect now rather than a
             # step late, so the first step already runs the disturbed plant.
@@ -399,6 +447,11 @@ class ScenarioRunner:
 
             if run.phase is not Phase.RUNNING:
                 return run.engine.snapshot()
+
+            clock = run.engine.clock
+            run.journal.append(
+                Tick(TickKind.STEP, len(run.actions), dt=dt, speed=clock.speed, paused=clock.paused),
+            )
 
             snapshot = run.engine.step(dt)
             self._observe(run, snapshot)
@@ -418,6 +471,7 @@ class ScenarioRunner:
 
             elapsed = run.engine.snapshot().sim_time - run.origin
 
+            run.journal.append(Tick(TickKind.ABORT, len(run.actions)))
             run.malfunctions.revert_all()
             run.engine = self._restored(run.build, run.armed_state)
             run.phase = Phase.ABORTED
@@ -470,6 +524,7 @@ class ScenarioRunner:
         objectives.validate(armed)
 
         return _Run(
+            config=copy.deepcopy(config),
             scenario_id=scenario_id,
             difficulty=config["difficulty"],
             seed=config["seed"],

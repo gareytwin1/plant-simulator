@@ -63,7 +63,7 @@ from app.controls.modes import Mode
 from app.controls.pid import Action
 from app.engine.engine import Engine
 from app.engine.network import SolverResult
-from app.envelope.evaluator import Severity, Side, _Band
+from app.envelope.evaluator import Limits, Severity, Side, _Band
 from app.envelope.tracker import Excursion
 from app.equipment.base import PRESERVED_ON_RESET, Equipment
 from app.plant.topology import Stream
@@ -647,9 +647,15 @@ def _decode_envelope(engine: Engine, value: JSONValue, steps: list[Step]) -> Non
                 ("band", "pending", "pending_elapsed"),
                 f"{path}.evaluator",
             )
-            held_band = _decode_band(evaluator_fields["band"], f"{path}.evaluator.band")
+            limits = engine.limits[key].limits
+            held_band = _decode_band(
+                evaluator_fields["band"],
+                limits,
+                f"{path}.evaluator.band",
+            )
             pending_band = _decode_band(
                 evaluator_fields["pending"],
+                limits,
                 f"{path}.evaluator.pending",
             )
             pending_elapsed = _non_negative(
@@ -725,7 +731,7 @@ def _decode_envelope(engine: Engine, value: JSONValue, steps: list[Step]) -> Non
             steps.append(apply)
 
 
-def _decode_band(value: JSONValue, path: str) -> _Band | None:
+def _decode_band(value: JSONValue, limits: Limits, path: str) -> _Band | None:
     if value is None:
         return None
 
@@ -740,7 +746,19 @@ def _decode_band(value: JSONValue, path: str) -> _Band | None:
     if severity is Severity.NORMAL:
         raise StateError(f"{path}.severity: a held band is never NORMAL")
 
-    return _Band(severity, side, _number(fields["threshold"], f"{path}.threshold"))
+    # A band only ever holds the configured limit it crossed, and the
+    # evaluator de-escalates against that threshold.
+    threshold = _number(fields["threshold"], f"{path}.threshold")
+    limit = f"{severity.name.lower()}_{side}"
+    configured: float | None = getattr(limits, limit)
+
+    if configured != threshold:
+        raise StateError(
+            f"{path}.threshold: {threshold!r} is not the configured {limit} "
+            f"({configured!r})",
+        )
+
+    return _Band(severity, side, threshold)
 
 
 def _decode_peak(value: JSONValue, path: str) -> Excursion | None:

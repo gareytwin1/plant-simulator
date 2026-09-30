@@ -301,6 +301,8 @@ def test_an_engine_without_a_topology_round_trips():
         (lambda s: s["envelope"]["V-101"]["level"]["evaluator"].update(pending={"severity": "NORMAL", "side": "hi", "threshold": 1.0}), r"evaluator\.pending\.severity: a held band is never NORMAL"),
         (lambda s: s["envelope"]["V-101"]["level"].update(band={"severity": "ALARM", "side": None}), r"level\.band: ALARM/None does not match"),
         (lambda s: s["envelope"]["V-101"]["level"]["evaluator"].update(band={"severity": "NORMAL", "side": "hi", "threshold": 1.0}), r"evaluator\.band\.severity: a held band is never NORMAL"),
+        (lambda s: s["envelope"]["V-101"]["level"]["evaluator"]["band"].update(threshold=0.7), r"evaluator\.band\.threshold: 0\.7 is not the configured warning_hi \(0\.8\)"),
+        (lambda s: s["envelope"]["V-101"]["level"]["evaluator"].update(pending={"severity": "ALARM", "side": "hi", "threshold": 0.85}), r"evaluator\.pending\.threshold: 0\.85 is not the configured alarm_hi \(None\)"),
         (lambda s: s["envelope"]["V-101"].pop("level"), r"envelope\.V-101: missing 'level'"),
         (lambda s: s["arbiter"]["PV-101"].pop("operator"), r"arbiter\.PV-101: missing 'operator'"),
     ],

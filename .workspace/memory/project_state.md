@@ -8,11 +8,11 @@ regrowth rule is in [.claude/rules/docs.md](../../.claude/rules/docs.md).
 
 ## Right now
 
-**Last state refresh:** 30 September 2026, at `bc8bcb2` (Merge T14-3:
-Objective evaluator, PR #112) - **this is a snapshot,
-not a live pointer.** Run `git log bc8bcb2..HEAD --oneline` to see what has
+**Last state refresh:** 30 September 2026, at `b9432ac` (Merge T12-1:
+Plant snapshot save and restore, PR #113) - **this is a snapshot,
+not a live pointer.** Run `git log b9432ac..HEAD --oneline` to see what has
 merged since.
-**Full suite as of this refresh:** **2225 passed** · `python -m mypy` clean over 60 source files · no golden trace movement
+**Full suite as of this refresh:** **2294 passed** · `python -m mypy` clean over 62 source files · no golden trace movement
 **In flight:** nothing.
 **No spine lock is held.** No task is Blocked. CI runs on every PR, and `main` requires its
 `test` check before a merge.
@@ -22,12 +22,12 @@ merged since.
 
 | Task | SHA | What landed |
 |---|---|---|
+| **T12-1** | `b9432ac` | Plant state save and restore, `app/engine/persistence.py`: `capture_state`/`restore_state`, validated whole before applied; excludes RNG state and configuration; reads private attributes of six classes (PR #113) |
 | **T14-3** | `bc8bcb2` | Objective evaluator, `app/scenarios/objectives.py`: success (with hold duration), failure and timeout paths; no runner calls it yet (T14-4) (PR #112) |
 | **T11-3** | `543ac7a` | Restart permissives and trip reset, `app/safety/permissives.py`: `RestartGate` holds a STOP demand on `<tag>.run` until permissives hold and tripped interlocks are reset; not yet called from `Session`/`Scheduler` (PR #111) |
 | **T16-2** | `beccacbd` | SSE snapshot push, `app/api/stream.py`'s `GET /api/stream`; not yet wired into `app/main.py` - same open question T15-1's action endpoint left (PR #110) |
 | **T10-3** | `bc27240` | Bounded alarm history + acknowledge API, `app/alarms/history.py`, `app/api/alarms.py`; additive `AlarmManager.is_acknowledged()` landed in `app/alarms/manager.py`, outside this task's declared files - coordinate with T10-4 (PR #109) |
 | **T11-2** | `868f484` | Trip actions, `app/safety/actions.py`: `TripSystem` posts interlock demands on the arbiter; not yet called from `Session`/`Scheduler` (PR #108) |
-| **T14-2** | `eb195c0` | Trigger evaluator, `app/scenarios/triggers.py` (PR #106) |
 
 **ADRs on `main`:** [0001](../../docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md)
 (+ Amendment 1) and [0002](../../docs/ADR_0002_TYPED_PORTS.md) (+ Amendments
@@ -42,7 +42,7 @@ Complete: **M0-M7, M9, MR**. Open:
 | **M8** PID Controllers | 5/6 | T8-5 startable (V1.1-deferred) |
 | **M10** Alarms | 3/5 | T10-1, T10-2, T10-3; T10-4 startable (V1.1-deferred), T10-5 startable |
 | **M11** Interlocks and Trips | 3/4 | T11-1, T11-2, T11-3; T11-4 startable (V1.1-deferred) |
-| **M12** Startup and Shutdown Sequences | 0/4 | T12-1, T12-3 startable |
+| **M12** Startup and Shutdown Sequences | 1/4 | T12-1; T12-2, T12-3 startable |
 | **M13** Malfunctions | 3/5 | T13-1, T13-2, T13-5; T13-3, T13-4 startable |
 | **M14** Scenario Engine | 3/6 | T14-1, T14-2, T14-3 |
 | **M15** Action Log and Scoring | 1/4 | T15-1; T15-4 startable (V1.1-deferred) |
@@ -51,7 +51,7 @@ Complete: **M0-M7, M9, MR**. Open:
 | **M18** Deployment | 1/5 | T18-2 |
 | M19 | 0 | - |
 
-**85 of 115 tasks Complete.** Checkpoints A-C reached. Checkpoint **D** (M8)
+**86 of 115 tasks Complete.** Checkpoints A-C reached. Checkpoint **D** (M8)
 needs only its "loops reject an injected disturbance" gate: PIC-101 switched to
 AUTO in `olefins_lite.yaml`, which T8-6 enabled but no task owns yet.
 
@@ -62,11 +62,11 @@ AUTO in `olefins_lite.yaml`, which T8-6 enabled but no task owns yet.
 field). All are Sonnet. T8-5, T10-4, T11-4, T15-4 and T17-2 are V1.1-deferred;
 T19-2 (now startable - its other dependency, T13-1, was already Complete) is
 deferred further still, to **V2**. No startable task needs the spine lock;
-T12-1 and T18-5 add new isolated modules under `app/engine/` (satellite work).
+T18-5 adds a new isolated module under `app/engine/` (satellite work).
 
 **Scheduling notes.** The spine lock is one global lock
 ([DEVELOPMENT.md](../../DEVELOPMENT.md#file-ownership)); it is free. `rng.py` is
-spine, so RNG state save/restore (T12-1 or T14-5) takes it. **T18-1 must run
+spine, so RNG state save/restore (T14-5) takes it. **T18-1 must run
 exactly one Gunicorn worker** - `SessionRegistry` is per-process (R7).
 **Trips do not run in a live session yet**: nothing in `Session`/`Scheduler`
 calls `TripSystem.update`, and wiring it in is a spine change no task owns.
@@ -132,6 +132,13 @@ scope, and item 1 in particular reads like a bug and is not.
   resistance)` of flow. It reaches vessel level unclamped (3.3 gal/hour against
   1000 gal). Decided behaviour: **do not retune the tolerance, and do not assert
   an idle flow of exactly zero.**
+- **`app/engine/persistence.py` reads private attributes** of `Engine`,
+  `CommandArbiter`, `Loop`, `PID`, `Evaluator` and `ExcursionTracker`. Public
+  save/restore accessors on those classes are an agreed follow-up (Opus decides
+  the shape; touches spine `engine.py`); **no build-plan task owns it yet.**
+- **`SimulationClock` accepts a negative speed**, so sim time can run backwards;
+  `restore_state` accepts any finite speed and sim time to match. Refusing it
+  is a small spine change no task owns.
 - **The `Equipment.characteristic` docstring overstates the Jacobian**; `base.py`
   is frozen. See [.claude/rules/engine.md](../../.claude/rules/engine.md).
 - **A resistance-only valve cannot stop reverse flow and absorbs most of the
@@ -150,13 +157,14 @@ scope, and item 1 in particular reads like a bug and is not.
    `SeededRNG` requires a seed and there is deliberately no global stream,
    because a process-wide generator would leak draws between browser sessions.
    **It belongs to the first task that needs randomness.** `SeededRNG` also has
-   no state save/restore, which T12-1 and T14-5 will need.
+   no state save/restore, so `capture_state` (T12-1) does not save RNG state; T14-5 needs it.
 2. **`Equipment.reset()` drops design values.** The loader applies a config's
    `design` by setting attributes after construction, but `reset()` restores
    state captured at the end of `__init__` — so a reset device returns to class
    defaults, not its configured design. Fixing it needs a design/configure hook
    on C1, a **spine change**, before anything relies on `reset()` for a loaded
-   plant. Also relevant to T12-1. Needs an Opus decision.
+   plant. `restore_state` (T12-1) does not use `reset()`, so it is unaffected.
+   Needs an Opus decision.
 
 ## Traps for the next tasks
 

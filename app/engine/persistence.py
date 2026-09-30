@@ -333,6 +333,7 @@ def _decode_equipment(engine: Engine, value: JSONValue, steps: list[Step]) -> No
         path = f"equipment.{tag}"
         current = _device_state(device)
         row = _keyed(rows[tag], current, path)
+        restored: dict[str, JSONValue] = {}
 
         for name, saved in row.items():
             if not _is_primitive(saved):
@@ -354,8 +355,17 @@ def _decode_equipment(engine: Engine, value: JSONValue, steps: list[Step]) -> No
             if isinstance(saved, float) and not math.isfinite(saved):
                 raise StateError(f"{path}.{name}: {saved!r} is not finite")
 
-        _check_setters(device, row, path)
-        steps.append(partial(device.__dict__.update, row))
+            # JSON does not keep 5.0 apart from 5: a float attribute is
+            # restored as a float, and an int one refuses a fraction.
+            if isinstance(was, float) and isinstance(saved, int) and not isinstance(saved, bool):
+                saved = float(saved)
+            elif type(was) is int and isinstance(saved, float):
+                raise StateError(f"{path}.{name}: expected an integer, got {saved!r}")
+
+            restored[name] = saved
+
+        _check_setters(device, restored, path)
+        steps.append(partial(device.__dict__.update, restored))
 
 
 def _check_setters(device: Equipment, row: Mapping[str, JSONValue], path: str) -> None:

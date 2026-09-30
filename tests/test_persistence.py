@@ -334,6 +334,16 @@ def test_any_clock_speed_a_live_clock_holds_round_trips(speed):
     assert restored.clock.sim_time == -5.0
 
 
+def test_a_whole_number_restores_a_float_attribute_as_a_float():
+    state = capture_state(perturbed())
+    state["equipment"]["P-101"]["max_flow"] = 150
+
+    restored = build()
+    restore_state(restored, state)
+
+    assert type(restored.equipment["P-101"].max_flow) is float
+
+
 def test_a_refused_restore_changes_nothing():
     target = perturbed()
     before = capture_state(target)

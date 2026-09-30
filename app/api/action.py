@@ -159,11 +159,13 @@ def create_action_blueprint(
         if not isinstance(target, str) or not isinstance(action, str):
             return jsonify({"error": "target and action must be strings"}), 400
 
+        engine = get_engine() if apply is None else None
+
         try:
             if apply is not None:
                 apply(target, action, value)
             else:
-                engine = get_engine()
+                assert engine is not None
                 apply_action(engine.equipment, get_log(), engine.clock.sim_time, target, action, value)
         except (KeyError, UnknownAction, ValueError) as error:
             return jsonify({"error": str(error)}), 400

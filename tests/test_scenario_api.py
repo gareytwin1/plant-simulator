@@ -30,6 +30,10 @@ def api(tmp_path):
     (tmp_path / "bad-tag.yaml").write_text(
         SCENARIO.replace("V-101.level >= 0.25", "X-999.level >= 0.25").replace("pump-trip", "bad-tag"),
     )
+    (tmp_path / "bad-malfunction.yaml").write_text(
+        SCENARIO.replace("pump-trip", "bad-malfunction")
+        + "malfunctions:\n  - {target_tag: X-999, parameter: capacity, value: 1}\n",
+    )
     runner = ScenarioRunner(ScenarioLibrary(scenarios=tmp_path))
 
     app = Flask(__name__)
@@ -140,3 +144,12 @@ def test_an_action_with_nothing_loaded_is_a_400_not_a_500(api):
 
     assert response.status_code == 400
     assert "no scenario" in response.get_json()["error"]
+
+
+def test_a_malfunction_naming_a_tag_the_plant_lacks_is_a_400_with_an_unquoted_message(api):
+    client, _ = api
+
+    response = client.post("/api/scenario/load", json={"scenario": "bad-malfunction"})
+
+    assert response.status_code == 400
+    assert response.get_json()["error"].startswith("no device registered under tag 'X-999'")

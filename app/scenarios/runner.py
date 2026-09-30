@@ -115,6 +115,10 @@ class ScenarioConfigError(ValueError):
     """A scenario file that cannot be loaded, named for what is wrong."""
 
 
+class ScenarioChanged(ScenarioConfigError):
+    """A scenario's plant file or initial condition is not the one expected."""
+
+
 class ScenarioStateError(ValueError):
     """A lifecycle call the runner's current phase does not allow.
 
@@ -153,14 +157,26 @@ class ScenarioLibrary:
     def plant_path(self, name: str) -> Path:
         return _find(self.plants, name, CONFIG_SUFFIXES, "plant")
 
+    def condition_path(self, name: str) -> Path:
+        return _find(self.conditions, name, (".json",), "initial condition")
+
     def condition(self, name: str) -> dict[str, JSONValue]:
         """The named initial condition, as `capture_state` saved it."""
-        document = _read_document(_find(self.conditions, name, (".json",), "initial condition"))
+        path = self.condition_path(name)
 
-        if not isinstance(document, dict):
-            raise ScenarioConfigError(f"initial condition {name!r} is not a JSON object")
+        return _decode_condition(path, path.read_bytes())
 
-        return document
+
+def _decode_condition(path: Path, data: bytes) -> dict[str, JSONValue]:
+    try:
+        document = json.loads(data)
+    except json.JSONDecodeError as error:
+        raise ScenarioConfigError(f"{path}: not parseable: {error}") from error
+
+    if not isinstance(document, dict):
+        raise ScenarioConfigError(f"initial condition {path.stem!r} is not a JSON object")
+
+    return document
 
 
 def _find(directory: Path, name: str, suffixes: tuple[str, ...], kind: str) -> Path:
@@ -351,8 +367,8 @@ class RunInputs:
     now, which a change after the last step leaves no tick to carry.
 
     `fingerprint` digests what the document names but does not contain -
-    the plant file and the initial condition with its overrides applied -
-    so a replay can tell when either has changed under it."""
+    the plant file and the initial condition file, as read at load - so a
+    replay can tell when either has changed under it."""
 
     config: Any  # Any: a scenario document, of the shape the scenario schema allows
     fingerprint: str
@@ -467,13 +483,17 @@ class ScenarioRunner:
     def load(self, scenario_id: str) -> ScenarioResult:
         return self.load_config(self._library.scenario(scenario_id))
 
-    def load_config(self, config: Any) -> ScenarioResult:
+    def load_config(self, config: Any, fingerprint: str | None = None) -> ScenarioResult:
+        """Arm `config`. With `fingerprint`, refuse (`ScenarioChanged`) unless
+        its plant file and initial condition are the ones a run with that
+        `RunInputs.fingerprint` was armed from - checked on the very bytes
+        the run is then built from, before anything is parsed."""
         # Any: a decoded scenario file, validated against the schema below.
         with self._lock:
             if self._run is not None and self._run.phase is Phase.RUNNING:
                 raise ScenarioStateError("a scenario is running; abort it before loading another")
 
-            self._run = self._arm(config)
+            self._run = self._arm(config, fingerprint)
 
             return self._result(self._run)
 
@@ -541,16 +561,30 @@ class ScenarioRunner:
 
         return self._run
 
-    def _arm(self, config: Any) -> _Run:
+    def _arm(self, config: Any, expected: str | None) -> _Run:
         errors = validate(config, _schema())
         if errors:
             raise ScenarioConfigError("; ".join(errors))
 
         scenario_id = config["id"]
+        plant_path = self._library.plant_path(config["plant"])
+        condition = config["initial_condition"]
+        condition_path = self._library.condition_path(condition["condition"])
+
         # Read once: arming, every abort and the fingerprint all see the
-        # plant as it was at load, whatever happens to the file afterwards.
-        plant_path, plant_bytes, state = self._sources(config)
+        # files as they were at load, whatever happens to them afterwards.
+        plant_bytes = plant_path.read_bytes()
+        condition_bytes = condition_path.read_bytes()
+        fingerprint = _fingerprint(plant_bytes, condition_bytes)
+
+        if expected is not None and fingerprint != expected:
+            raise ScenarioChanged(
+                f"plant {config['plant']!r} or initial condition {condition['condition']!r} "
+                f"has changed since the run was armed",
+            )
+
         plant_config = read_plant_config(plant_path, plant_bytes)
+        state = apply_overrides(_decode_condition(condition_path, condition_bytes), condition.get("overrides", {}))
 
         def build() -> Engine:
             return Engine.from_plant(load_plant(copy.deepcopy(plant_config)))
@@ -575,7 +609,7 @@ class ScenarioRunner:
 
         return _Run(
             config=copy.deepcopy(config),
-            fingerprint=_fingerprint(plant_bytes, state),
+            fingerprint=fingerprint,
             scenario_id=scenario_id,
             difficulty=config["difficulty"],
             seed=config["seed"],
@@ -590,29 +624,6 @@ class ScenarioRunner:
             objectives=objectives,
             objective_ids=tuple(entry["id"] for entry in config.get("objectives", [])),
         )
-
-    def fingerprint(self, config: Any) -> str:
-        """What `RunInputs.fingerprint` would be for a run of `config` armed
-        now, read from the library without arming anything."""
-        # Any: a decoded scenario document; one the schema refuses raises here
-        # as it would on load.
-        errors = validate(config, _schema())
-        if errors:
-            raise ScenarioConfigError("; ".join(errors))
-
-        _, plant_bytes, state = self._sources(config)
-
-        return _fingerprint(plant_bytes, state)
-
-    def _sources(self, config: Any) -> tuple[Path, bytes, dict[str, JSONValue]]:
-        # Any: a schema-valid scenario document.
-        plant_path = self._library.plant_path(config["plant"])
-        condition = config["initial_condition"]
-
-        state = self._library.condition(condition["condition"])
-        apply_overrides(state, condition.get("overrides", {}))
-
-        return plant_path, plant_path.read_bytes(), state
 
     @staticmethod
     def _restored(build: Callable[[], Engine], state: dict[str, JSONValue]) -> Engine:
@@ -667,9 +678,11 @@ class ScenarioRunner:
         )
 
 
-def _fingerprint(plant: bytes, state: Mapping[str, JSONValue]) -> str:
-    digest = hashlib.sha256(plant)
-    digest.update(json.dumps(state, sort_keys=True).encode())
+def _fingerprint(plant: bytes, condition: bytes) -> str:
+    digest = hashlib.sha256()
+
+    for content in (plant, condition):
+        digest.update(hashlib.sha256(content).digest())
 
     return digest.hexdigest()
 

@@ -496,19 +496,21 @@ def test_a_replay_against_a_changed_initial_condition_is_refused(tmp_path):
 
     edit_condition(tmp_path, lambda row: row.update(_level=row["_level"] + 0.01))
 
-    with pytest.raises(ReplayDivergence, match="has changed since this run was recorded"):
+    with pytest.raises(ReplayDivergence, match="has changed since the run was armed"):
         replay(recording, library)
 
 
 def test_an_initial_condition_changed_so_it_no_longer_loads_is_named_as_the_cause(tmp_path):
     library = copied_library(tmp_path)
     live = ScenarioRunner(library)
-    live.load_config(scenario())
+    # The override names V-101's level, so removing it from the file would
+    # also fail the override - the changed file must be named first.
+    live.load_config(scenario(initial_condition={"condition": "feed_pump_trip", "overrides": {"V-101._level": 0.2}}))
     recording = Recording.of(live)
 
     edit_condition(tmp_path, lambda row: row.pop("_level"))
 
-    with pytest.raises(ReplayDivergence, match="has changed since this run was recorded"):
+    with pytest.raises(ReplayDivergence, match="has changed since the run was armed"):
         replay(recording, library)
 
 
@@ -544,7 +546,7 @@ def test_a_replay_against_a_changed_plant_file_is_refused(tmp_path):
     plant = tmp_path / "plants" / "olefins_lite.yaml"
     plant.write_text(plant.read_text() + "\n# edited\n")
 
-    with pytest.raises(ReplayDivergence, match="has changed since this run was recorded"):
+    with pytest.raises(ReplayDivergence, match="has changed since the run was armed"):
         replay(recording, library)
 
 

@@ -50,6 +50,7 @@ from typing import Any
 
 from app.scenarios.runner import (
     Phase,
+    ScenarioChanged,
     ScenarioLibrary,
     ScenarioRunner,
     ScenarioStateError,
@@ -180,12 +181,10 @@ def replay(recording: Recording, library: ScenarioLibrary | None = None) -> Scen
     """
     runner = ScenarioRunner(library)
 
-    # Checked before arming, so a file that changed is named as the cause
-    # even when the change is one that would stop the run arming at all.
-    if recording.fingerprint is not None and runner.fingerprint(recording.scenario) != recording.fingerprint:
-        raise ReplayDivergence("the plant file or initial condition has changed since this run was recorded")
-
-    runner.load_config(recording.scenario)
+    try:
+        runner.load_config(recording.scenario, fingerprint=recording.fingerprint)
+    except ScenarioChanged as error:
+        raise ReplayDivergence(f"{error}; this recording no longer describes it") from error
 
     for index, item in enumerate(recording.inputs):
         try:

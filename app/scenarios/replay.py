@@ -184,7 +184,7 @@ def replay(recording: Recording, library: ScenarioLibrary | None = None) -> Scen
     try:
         runner.load_config(recording.scenario, fingerprint=recording.fingerprint)
     except ScenarioChanged as error:
-        raise ReplayDivergence(f"{error}; this recording no longer describes it") from error
+        raise ReplayDivergence(f"{error}; the recording no longer describes the files it names") from error
 
     for index, item in enumerate(recording.inputs):
         try:

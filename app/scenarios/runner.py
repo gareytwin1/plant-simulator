@@ -567,9 +567,17 @@ class ScenarioRunner:
             raise ScenarioConfigError("; ".join(errors))
 
         scenario_id = config["id"]
-        plant_path = self._library.plant_path(config["plant"])
         condition = config["initial_condition"]
-        condition_path = self._library.condition_path(condition["condition"])
+
+        try:
+            plant_path = self._library.plant_path(config["plant"])
+            condition_path = self._library.condition_path(condition["condition"])
+        except ScenarioNotFound as error:
+            # A file a fingerprinted run was armed from, gone, has changed.
+            if expected is None:
+                raise
+
+            raise ScenarioChanged(f"{error}, but the run was armed from it") from error
 
         # Read once: arming, every abort and the fingerprint all see the
         # files as they were at load, whatever happens to them afterwards.

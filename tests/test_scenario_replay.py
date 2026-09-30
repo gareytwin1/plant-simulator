@@ -26,8 +26,8 @@ from app.scenarios.replay import Act, Recording, RecordingFormatError, ReplayDiv
 from app.scenarios.runner import (
     Outcome,
     Phase,
+    ScenarioConfigError,
     ScenarioLibrary,
-    ScenarioNotFound,
     ScenarioRunner,
     Tick,
     TickKind,
@@ -514,6 +514,18 @@ def test_an_initial_condition_changed_so_it_no_longer_loads_is_named_as_the_caus
         replay(recording, library)
 
 
+def test_a_replay_whose_initial_condition_file_is_gone_is_a_divergence(tmp_path):
+    library = copied_library(tmp_path)
+    live = ScenarioRunner(library)
+    live.load_config(scenario())
+    recording = Recording.of(live)
+
+    (tmp_path / "initial_conditions" / "feed_pump_trip.json").unlink()
+
+    with pytest.raises(ReplayDivergence, match="no initial condition named 'feed_pump_trip'.*armed from it"):
+        replay(recording, library)
+
+
 def test_an_abort_rebuilds_the_plant_as_it_was_loaded_not_as_the_file_now_reads(tmp_path):
     library = copied_library(tmp_path)
     live = ScenarioRunner(library)
@@ -531,9 +543,9 @@ def test_an_abort_rebuilds_the_plant_as_it_was_loaded_not_as_the_file_now_reads(
 def test_a_scenario_document_that_no_longer_loads_fails_as_itself(tmp_path):
     live = started()
     recording = Recording.of(live)
-    broken = dataclasses.replace(recording, scenario={**recording.scenario, "plant": "no-such-plant"})
+    broken = dataclasses.replace(recording, scenario={**recording.scenario, "difficulty": "impossible"})
 
-    with pytest.raises(ScenarioNotFound, match="no-such-plant"):
+    with pytest.raises(ScenarioConfigError, match="impossible"):
         replay(broken)
 
 

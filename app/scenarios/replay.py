@@ -252,13 +252,14 @@ def _tick(runner: ScenarioRunner, tick: Tick) -> None:
 def _step(runner: ScenarioRunner, tick: Tick) -> None:
     assert tick.dt is not None and tick.speed is not None and tick.paused is not None  # a step's fields
 
-    phase = runner.phase
-    if phase is not Phase.RUNNING:
-        raise ReplayDivergence(f"a step was recorded while running, but the replay is {phase.value}")
+    for _ in range(tick.repeat):
+        phase = runner.phase
+        if phase is not Phase.RUNNING:
+            raise ReplayDivergence(f"a step was recorded while running, but the replay is {phase.value}")
 
-    _set_clock(runner, tick.speed, tick.paused)
+        _set_clock(runner, tick.speed, tick.paused)
 
-    runner.step(tick.dt)
+        runner.step(tick.dt)
 
 
 def _set_clock(runner: ScenarioRunner, speed: float, paused: bool) -> None:
@@ -284,7 +285,7 @@ def _encode(item: Input) -> dict[str, Any]:
 
     row: dict[str, Any] = {"type": item.kind.value, "actions": item.actions, "error": item.error}
     if item.kind is TickKind.STEP:
-        row.update(dt=item.dt, speed=item.speed, paused=item.paused)
+        row.update(dt=item.dt, speed=item.speed, paused=item.paused, repeat=item.repeat)
 
     return row
 
@@ -293,7 +294,7 @@ _FIELDS = {
     "act": {"type", "target", "action", "value", "sim_time"},
     TickKind.START.value: {"type", "actions", "error"},
     TickKind.ABORT.value: {"type", "actions", "error"},
-    TickKind.STEP.value: {"type", "actions", "error", "dt", "speed", "paused"},
+    TickKind.STEP.value: {"type", "actions", "error", "dt", "speed", "paused", "repeat"},
 }
 
 
@@ -332,6 +333,10 @@ def _decode(row: Any, path: str) -> Input:
     if not isinstance(row["paused"], bool):
         raise RecordingFormatError(f"{path}.paused must be true or false")
 
+    repeat = row["repeat"]
+    if isinstance(repeat, bool) or not isinstance(repeat, int) or repeat < 1:
+        raise RecordingFormatError(f"{path}.repeat must be a count of 1 or more, got {repeat!r}")
+
     return Tick(
         TickKind.STEP,
         actions,
@@ -339,6 +344,7 @@ def _decode(row: Any, path: str) -> Input:
         speed=_float(row["speed"], f"{path}.speed"),
         paused=row["paused"],
         error=error,
+        repeat=repeat,
     )
 
 

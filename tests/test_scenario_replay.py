@@ -153,16 +153,49 @@ def test_the_recording_interleaves_actions_with_the_ticks_they_fell_between():
     steps(live, 2)
     live.act("P-101", "start", None)
     live.step(DT)
+    live.step(0.5)
 
     inputs = Recording.of(live).inputs
 
     assert inputs == (
         Tick(TickKind.START, 0),
-        Tick(TickKind.STEP, 0, dt=DT, speed=1.0, paused=False),
-        Tick(TickKind.STEP, 0, dt=DT, speed=1.0, paused=False),
+        Tick(TickKind.STEP, 0, dt=DT, speed=1.0, paused=False, repeat=2),
         Act("P-101", "start", None, sim_time=pytest.approx(2.0)),
         Tick(TickKind.STEP, 1, dt=DT, speed=1.0, paused=False),
+        Tick(TickKind.STEP, 1, dt=0.5, speed=1.0, paused=False),
     )
+
+
+def test_a_long_pause_grows_the_journal_by_one_tick():
+    live = started()
+    steps(live, 3)
+    live.engine.clock.pause()
+    steps(live, 500)
+    live.engine.clock.resume()
+    steps(live, 3)
+
+    runs = [(tick.paused, tick.repeat) for tick in live.inputs().journal[1:]]
+
+    assert runs == [(False, 3), (True, 500), (False, 3)]
+
+
+def test_an_action_taken_while_paused_fires_its_trigger_at_the_same_time_in_a_replay():
+    # The paused steps after the action still evaluate triggers, so the
+    # trigger fires during the pause; collapsing them must not move it.
+    config = scenario(triggers=[{"id": "restarted", "type": "operator_action", "action": "P-101.start"}])
+    live = started(config)
+    steps(live, 4)
+    live.engine.clock.pause()
+    steps(live, 10)
+    live.act("P-101", "start", None)
+    steps(live, 10)
+    live.engine.clock.resume()
+    steps(live, 5)
+
+    replayed = replay(Recording.of(live))
+
+    assert live.result().triggers_fired == {"restarted": pytest.approx(4.0)}
+    assert_identical(live, replayed)
 
 
 def test_an_action_returns_the_scenario_time_the_result_reports_it_at():
@@ -351,7 +384,7 @@ def test_a_recorded_error_that_does_not_recur_is_a_divergence(monkeypatch):
     recording = Recording.of(run_through_a_failed_step(monkeypatch))
     monkeypatch.undo()
 
-    with pytest.raises(ReplayDivergence, match=r"inputs\[3\]: step was recorded raising .* but did not"):
+    with pytest.raises(ReplayDivergence, match=r"inputs\[2\]: step was recorded raising .* but did not"):
         replay(recording)
 
 
@@ -413,46 +446,47 @@ def test_a_recording_survives_a_json_round_trip_and_still_replays_exactly():
 CLOCK = {"speed": 1.0, "paused": False}
 
 
+def document(*inputs, **changes):
+    """A recording document holding `inputs`, well formed but for `changes`."""
+    return {"scenario": {}, "inputs": list(inputs), "clock": CLOCK, "fingerprint": None, **changes}
+
+
+def row(kind, **changes):
+    """An input row of `kind`, well formed but for `changes`."""
+    rows = {
+        "act": {"type": "act", "target": "P-101", "action": "start", "value": None, "sim_time": 0},
+        "start": {"type": "start", "actions": 0, "error": None},
+        "abort": {"type": "abort", "actions": 0, "error": None},
+        "step": {"type": "step", "actions": 0, "error": None, "dt": 1, "speed": 1, "paused": False, "repeat": 1},
+    }
+
+    return {key: value for key, value in {**rows[kind], **changes}.items() if value is not MISSING}
+
+
+MISSING = object()
+
+
 @pytest.mark.parametrize(
     "document",
     [
         [],
         {"scenario": {}, "inputs": []},
-        {"scenario": {}, "inputs": {}, "clock": CLOCK, "fingerprint": None},
-        {"scenario": {}, "inputs": [], "clock": {"speed": 1.0}},
-        {"scenario": {}, "inputs": [], "clock": {"speed": "fast", "paused": False}},
-        {"scenario": {}, "inputs": [], "clock": {"speed": 1.0, "paused": 0}},
-        {"scenario": {}, "inputs": [], "clock": CLOCK, "fingerprint": 7},
-        {"scenario": {}, "inputs": [{"type": "jump"}], "clock": CLOCK, "fingerprint": None},
-        {"scenario": {}, "inputs": [{"type": []}], "clock": CLOCK, "fingerprint": None},
-        {"scenario": {}, "inputs": [{"type": "start"}], "clock": CLOCK, "fingerprint": None},
-        {"scenario": {}, "inputs": [{"type": "start", "actions": -1, "error": None}], "clock": CLOCK, "fingerprint": None},
-        {"scenario": {}, "inputs": [{"type": "start", "actions": True, "error": None}], "clock": CLOCK, "fingerprint": None},
-        {"scenario": {}, "inputs": [{"type": "start", "actions": 0, "error": 1}], "clock": CLOCK, "fingerprint": None},
-        {
-            "scenario": {},
-            "inputs": [{"type": "step", "actions": 0, "error": None, "dt": "1", "speed": 1, "paused": False}],
-            "clock": CLOCK,
-            "fingerprint": None,
-        },
-        {
-            "scenario": {},
-            "inputs": [{"type": "step", "actions": 0, "error": None, "dt": 1, "speed": 1, "paused": 0}],
-            "clock": CLOCK,
-            "fingerprint": None,
-        },
-        {
-            "scenario": {},
-            "inputs": [{"type": "act", "target": 1, "action": "start", "value": None, "sim_time": 0}],
-            "clock": CLOCK,
-            "fingerprint": None,
-        },
-        {
-            "scenario": {},
-            "inputs": [{"type": "act", "target": "P-101", "action": "start", "value": None}],
-            "clock": CLOCK,
-            "fingerprint": None,
-        },
+        document(inputs={}),
+        document(clock={"speed": 1.0}),
+        document(clock={"speed": "fast", "paused": False}),
+        document(clock={"speed": 1.0, "paused": 0}),
+        document(fingerprint=7),
+        document({"type": "jump"}),
+        document({"type": []}),
+        document(row("start", actions=MISSING)),
+        document(row("start", actions=-1)),
+        document(row("start", actions=True)),
+        document(row("start", error=1)),
+        document(row("step", dt="1")),
+        document(row("step", paused=0)),
+        document(row("step", repeat=0)),
+        document(row("act", target=1)),
+        document(row("act", sim_time=MISSING)),
     ],
 )
 def test_a_malformed_recording_is_refused(document):
@@ -461,22 +495,23 @@ def test_a_malformed_recording_is_refused(document):
 
 
 def test_a_well_formed_recording_document_is_accepted():
-    document = {
-        "scenario": {},
-        "inputs": [
-            {"type": "act", "target": "P-101", "action": "start", "value": None, "sim_time": 0},
-            {"type": "start", "actions": 1, "error": None},
-            {"type": "step", "actions": 1, "error": "ValueError: boom", "dt": 1, "speed": 1, "paused": False},
-            {"type": "abort", "actions": 1, "error": None},
-        ],
-        "clock": CLOCK,
-        "fingerprint": None,
-    }
+    well_formed = document(
+        row("act"),
+        row("start", actions=1),
+        row("step", actions=1, error="ValueError: boom", repeat=3),
+        row("abort", actions=1),
+    )
 
-    assert len(Recording.from_dict(document).inputs) == 4
+    inputs = Recording.from_dict(well_formed).inputs
+
+    assert len(inputs) == 4
+    assert inputs[2] == Tick(TickKind.STEP, 1, dt=1.0, speed=1.0, paused=False, error="ValueError: boom", repeat=3)
 
 
 # ---- a replay that stops reproducing says so ----
+
+
+UNMATCHABLE = "cannot match the expected fingerprint"
 
 
 def copied_library(tmp_path):
@@ -517,7 +552,8 @@ def test_an_initial_condition_changed_so_it_no_longer_loads_is_named_as_the_caus
     live = ScenarioRunner(library)
     # The override names V-101's level, so removing it from the file would
     # also fail the override - the changed file must be named first.
-    live.load_config(scenario(initial_condition={"condition": "feed_pump_trip", "overrides": {"V-101._level": 0.2}}))
+    overridden = {"condition": "feed_pump_trip", "overrides": {"V-101._level": 0.2}}
+    live.load_config(scenario(initial_condition=overridden))
     recording = Recording.of(live)
 
     edit_condition(tmp_path, lambda row: row.pop("_level"))
@@ -534,7 +570,7 @@ def test_a_replay_whose_initial_condition_file_is_gone_is_a_divergence(tmp_path)
 
     (tmp_path / "initial_conditions" / "feed_pump_trip.json").unlink()
 
-    with pytest.raises(ReplayDivergence, match="no initial condition named 'feed_pump_trip'.*cannot match the expected fingerprint"):
+    with pytest.raises(ReplayDivergence, match=f"no initial condition named 'feed_pump_trip'.*{UNMATCHABLE}"):
         replay(recording, library)
 
 
@@ -546,7 +582,7 @@ def test_a_replay_whose_plant_file_is_gone_is_a_divergence(tmp_path):
 
     (tmp_path / "plants" / "olefins_lite.yaml").unlink()
 
-    with pytest.raises(ReplayDivergence, match="no plant named 'olefins_lite'.*cannot match the expected fingerprint"):
+    with pytest.raises(ReplayDivergence, match=f"no plant named 'olefins_lite'.*{UNMATCHABLE}"):
         replay(recording, library)
 
 
@@ -580,7 +616,7 @@ def test_a_recording_edited_to_name_a_missing_plant_is_a_divergence():
     recording = Recording.of(started())
     edited_plant = dataclasses.replace(recording, scenario={**recording.scenario, "plant": "no_such_plant"})
 
-    with pytest.raises(ReplayDivergence, match="no plant named 'no_such_plant'.*cannot match the expected fingerprint"):
+    with pytest.raises(ReplayDivergence, match=f"no plant named 'no_such_plant'.*{UNMATCHABLE}"):
         replay(edited_plant)
 
 
@@ -651,7 +687,7 @@ def test_a_step_cut_differently_is_a_divergence():
     steps(live, 4)
     live.act("P-101", "start", None)
 
-    with pytest.raises(ReplayDivergence, match="replayed at t=5"):
+    with pytest.raises(ReplayDivergence, match="replayed at t=8"):
         replay(edited(Recording.of(live), 1, dt=2.0))
 
 

@@ -57,7 +57,10 @@ record of intent, and the count is what orders each action against the
 ticks around it. A step that advances nothing (before `start`, after
 completion) is not an input and is not journaled. One that raises is, with
 its error: it may already have moved the plant and the run stays live, so a
-replay runs it too, expects the same error there, and carries on.
+replay runs it too, expects the same error there, and carries on. Identical
+steps in a row - same dt, clock state and action count, none raising - are
+one tick with a `repeat` count, so a clock left paused under a `Scheduler`,
+which never reaches the time limit, grows the journal by nothing.
 
 Not here: `seed` is carried into the result and drives nothing - the plant
 has no random source yet. Objective and trigger results are as
@@ -333,6 +336,8 @@ class Tick:
 
     `error` is set when the call raised (`error_text`): it may already have
     moved the plant, and the run stays live, so it is still an input.
+
+    `repeat` is how many identical steps in a row this one tick stands for.
     """
 
     kind: TickKind
@@ -341,6 +346,7 @@ class Tick:
     speed: float | None = None
     paused: bool | None = None
     error: str | None = None
+    repeat: int = 1
 
 
 def error_text(error: Exception) -> str:
@@ -360,7 +366,12 @@ def _journaling(run: _Run, tick: Tick) -> Iterator[None]:
         run.journal.append(dataclasses.replace(tick, error=error_text(error)))
         raise
 
-    run.journal.append(tick)
+    last = run.journal[-1] if run.journal else None
+
+    if tick.kind is TickKind.STEP and last is not None and dataclasses.replace(last, repeat=1) == tick:
+        run.journal[-1] = dataclasses.replace(last, repeat=last.repeat + 1)
+    else:
+        run.journal.append(tick)
 
 
 @dataclass(frozen=True)

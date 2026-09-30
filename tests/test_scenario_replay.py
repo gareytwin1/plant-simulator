@@ -450,7 +450,7 @@ def test_a_well_formed_recording_document_is_accepted():
             {"type": "abort", "actions": 1, "error": None},
         ],
         "clock": CLOCK,
-            "fingerprint": None,
+        "fingerprint": None,
     }
 
     assert len(Recording.from_dict(document).inputs) == 4
@@ -470,6 +470,13 @@ def copied_library(tmp_path):
     )
 
 
+def edit_condition(tmp_path, change):
+    condition = tmp_path / "initial_conditions" / "feed_pump_trip.json"
+    state = json.loads(condition.read_text())
+    change(state["equipment"]["V-101"])
+    condition.write_text(json.dumps(state))
+
+
 def test_a_replay_against_a_changed_initial_condition_is_refused(tmp_path):
     library = copied_library(tmp_path)
     live = ScenarioRunner(library)
@@ -477,14 +484,39 @@ def test_a_replay_against_a_changed_initial_condition_is_refused(tmp_path):
     live.start()
     steps(live, 5)
     recording = Recording.of(live)
+    assert_identical(live, replay(recording, library))
 
-    condition = tmp_path / "initial_conditions" / "feed_pump_trip.json"
-    state = json.loads(condition.read_text())
-    state["equipment"]["V-101"]["_level"] += 0.01
-    condition.write_text(json.dumps(state))
+    edit_condition(tmp_path, lambda row: row.update(_level=row["_level"] + 0.01))
 
     with pytest.raises(ReplayDivergence, match="has changed since this run was recorded"):
         replay(recording, library)
+
+
+def test_an_initial_condition_changed_so_it_no_longer_loads_is_a_divergence(tmp_path):
+    library = copied_library(tmp_path)
+    live = ScenarioRunner(library)
+    live.load_config(scenario())
+    recording = Recording.of(live)
+
+    edit_condition(tmp_path, lambda row: row.pop("_level"))
+
+    with pytest.raises(ReplayDivergence, match="has changed since this run was recorded: it no longer loads"):
+        replay(recording, library)
+
+
+def test_an_abort_rebuilds_the_plant_as_it_was_loaded_not_as_the_file_now_reads(tmp_path):
+    library = copied_library(tmp_path)
+    live = ScenarioRunner(library)
+    live.load_config(scenario())
+    live.start()
+    steps(live, 5)
+    armed = Recording.of(live).fingerprint
+
+    (tmp_path / "plants" / "olefins_lite.yaml").write_text("not a plant: [")
+    live.abort()
+
+    assert live.phase is Phase.ABORTED
+    assert Recording.of(live).fingerprint == armed
 
 
 def test_a_replay_against_a_changed_plant_file_is_refused(tmp_path):

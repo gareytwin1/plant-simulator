@@ -90,7 +90,7 @@ from app.engine.engine import Engine
 from app.engine.persistence import restore_state
 from app.engine.snapshot import Snapshot
 from app.equipment.registry import EquipmentRegistry
-from app.plant.loader import CONFIG_SUFFIXES, load_plant_file
+from app.plant.loader import CONFIG_SUFFIXES, load_plant
 from app.plant.validate import validate
 from app.scenarios.objectives import ObjectiveEvaluator, ObjectiveResult, ObjectiveStatus
 from app.scenarios.triggers import TriggerEvaluator
@@ -177,12 +177,16 @@ def _find(directory: Path, name: str, suffixes: tuple[str, ...], kind: str) -> P
 
 
 def _read_document(path: Path) -> Any:
-    try:
-        with open(path) as f:
-            if path.suffix.lower() == ".json":
-                return json.load(f)
+    return _decode_document(path, path.read_bytes())
 
-            return yaml.safe_load(f)
+
+def _decode_document(path: Path, data: bytes) -> Any:
+    # Any: decoded YAML or JSON, of a shape only its own schema knows.
+    try:
+        if path.suffix.lower() == ".json":
+            return json.loads(data)
+
+        return yaml.safe_load(data)
     except (json.JSONDecodeError, yaml.YAMLError) as error:
         raise ScenarioConfigError(f"{path}: not parseable: {error}") from error
 
@@ -553,8 +557,13 @@ class ScenarioRunner:
         state = self._library.condition(condition["condition"])
         apply_overrides(state, condition.get("overrides", {}))
 
+        # Read once: arming, every abort and the fingerprint all see the
+        # plant as it was at load, whatever happens to the file afterwards.
+        plant_bytes = plant_path.read_bytes()
+        plant_config = _decode_document(plant_path, plant_bytes)
+
         def build() -> Engine:
-            return Engine.from_plant(load_plant_file(plant_path))
+            return Engine.from_plant(load_plant(copy.deepcopy(plant_config)))
 
         engine = self._restored(build, state)
         armed = engine.snapshot()
@@ -576,7 +585,7 @@ class ScenarioRunner:
 
         return _Run(
             config=copy.deepcopy(config),
-            fingerprint=_fingerprint(plant_path, state),
+            fingerprint=_fingerprint(plant_bytes, state),
             scenario_id=scenario_id,
             difficulty=config["difficulty"],
             seed=config["seed"],
@@ -645,8 +654,8 @@ class ScenarioRunner:
         )
 
 
-def _fingerprint(plant_path: Path, state: Mapping[str, JSONValue]) -> str:
-    digest = hashlib.sha256(plant_path.read_bytes())
+def _fingerprint(plant: bytes, state: Mapping[str, JSONValue]) -> str:
+    digest = hashlib.sha256(plant)
     digest.update(json.dumps(state, sort_keys=True).encode())
 
     return digest.hexdigest()

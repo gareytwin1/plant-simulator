@@ -42,8 +42,10 @@ The state is what the engine holds **that a configuration does not**:
 
 A restore is all or nothing. The whole save is validated against the engine
 first - a missing or unexpected field, a wrong type, a number that is not
-finite, a value a constructor refuses - and only then applied, so a refused
-restore leaves the engine exactly as it was. Every refusal is a `StateError`
+finite, a value a constructor or the engine refuses - and only then applied,
+so a refused restore leaves the engine exactly as it was. A device attribute
+is checked for type and finiteness only: no device can yet validate its own
+state. Every refusal is a `StateError`
 naming the path to the field.
 
 This module reads a few private attributes of `Engine`, `CommandArbiter`,
@@ -304,11 +306,8 @@ def _kind(value: bool | int | float | str | None) -> str:
 
 def _decode_clock(engine: Engine, value: JSONValue, steps: list[Step]) -> None:
     fields = _keyed(value, ("sim_time", "speed", "paused"), "clock")
-    sim_time = _number(fields["sim_time"], "clock.sim_time")
+    sim_time = _non_negative(fields["sim_time"], "clock.sim_time")
     speed = _number(fields["speed"], "clock.speed")
-
-    if sim_time < 0.0:
-        raise StateError(f"clock.sim_time: {sim_time!r} is negative")
 
     paused = _flag(fields["paused"], "clock.paused")
 
@@ -513,6 +512,11 @@ def _decode_loops(engine: Engine, value: JSONValue, steps: list[Step]) -> None:
 
         primed = _flag(fields["primed"], f"{path}.primed")
         mode = _enum(Mode, fields["mode"], f"{path}.mode")
+
+        # Engine never hands a loop a master, so a CASCADE loop could not step.
+        if mode is Mode.CASCADE:
+            raise StateError(f"{path}.mode: the engine cannot run a cascade loop")
+
         output = _number(fields["output"], f"{path}.output")
         manual_output = _number(fields["manual_output"], f"{path}.manual_output")
         entering = _flag(fields["entering"], f"{path}.entering")
@@ -521,6 +525,16 @@ def _decode_loops(engine: Engine, value: JSONValue, steps: list[Step]) -> None:
             for name in ("kp", "ki", "kd", "output_min", "output_max", "setpoint", "integral")
         }
         action = _enum(Action, pid["action"], f"{path}.pid.action")
+
+        if gains["output_min"] > gains["output_max"]:
+            raise StateError(
+                f"{path}.pid: output_min {gains['output_min']!r} exceeds "
+                f"output_max {gains['output_max']!r}",
+            )
+
+        if gains["ki"] < 0.0:
+            raise StateError(f"{path}.pid.ki: {gains['ki']!r} is negative")
+
         previous = pid["prev_measurement"]
         prev_measurement = (
             None
@@ -635,7 +649,7 @@ def _decode_envelope(engine: Engine, value: JSONValue, steps: list[Step]) -> Non
                 evaluator_fields["pending"],
                 f"{path}.evaluator.pending",
             )
-            pending_elapsed = _number(
+            pending_elapsed = _non_negative(
                 evaluator_fields["pending_elapsed"],
                 f"{path}.evaluator.pending_elapsed",
             )
@@ -646,14 +660,17 @@ def _decode_envelope(engine: Engine, value: JSONValue, steps: list[Step]) -> Non
                 ("elapsed", "time_in_band", "peak"),
                 f"{path}.tracker",
             )
-            elapsed = _number(tracker_fields["elapsed"], f"{path}.tracker.elapsed")
+            elapsed = _non_negative(tracker_fields["elapsed"], f"{path}.tracker.elapsed")
             saved_times = _keyed(
                 tracker_fields["time_in_band"],
                 [band.name for band in tracker._time_in_band],
                 f"{path}.tracker.time_in_band",
             )
             time_in_band = {
-                band: _number(saved_times[band.name], f"{path}.tracker.time_in_band.{band.name}")
+                band: _non_negative(
+                    saved_times[band.name],
+                    f"{path}.tracker.time_in_band.{band.name}",
+                )
                 for band in tracker._time_in_band
             }
             peak = _decode_peak(tracker_fields["peak"], f"{path}.tracker.peak")
@@ -661,7 +678,21 @@ def _decode_envelope(engine: Engine, value: JSONValue, steps: list[Step]) -> Non
             engine_band = _keyed(fields["band"], ("severity", "side"), f"{path}.band")
             severity = _severity(engine_band["severity"], f"{path}.band.severity")
             side = _optional_side(engine_band["side"], f"{path}.band.side")
-            since = _number(fields["since"], f"{path}.since")
+            since = _non_negative(fields["since"], f"{path}.since")
+
+            # The engine's band is always its evaluator's held band, re-read
+            # after every evaluate - a save where they differ never stepped.
+            held = (
+                (held_band.severity, held_band.side)
+                if held_band is not None
+                else (Severity.NORMAL, None)
+            )
+
+            if (severity, side) != held:
+                raise StateError(
+                    f"{path}.band: {severity.name}/{side} does not match the "
+                    f"evaluator's held band {held[0].name}/{held[1]}",
+                )
 
             def apply(
                 key: tuple[str, str] = key,
@@ -701,11 +732,12 @@ def _decode_band(value: JSONValue, path: str) -> _Band | None:
     if side is None:
         raise StateError(f"{path}.side: a held band has a side")
 
-    return _Band(
-        _severity(fields["severity"], f"{path}.severity"),
-        side,
-        _number(fields["threshold"], f"{path}.threshold"),
-    )
+    severity = _severity(fields["severity"], f"{path}.severity")
+
+    if severity is Severity.NORMAL:
+        raise StateError(f"{path}.severity: a held band is never NORMAL")
+
+    return _Band(severity, side, _number(fields["threshold"], f"{path}.threshold"))
 
 
 def _decode_peak(value: JSONValue, path: str) -> Excursion | None:
@@ -716,8 +748,8 @@ def _decode_peak(value: JSONValue, path: str) -> Excursion | None:
 
     return Excursion(
         _severity(fields["severity"], f"{path}.severity"),
-        _number(fields["magnitude"], f"{path}.magnitude"),
-        _number(fields["timestamp"], f"{path}.timestamp"),
+        _non_negative(fields["magnitude"], f"{path}.magnitude"),
+        _non_negative(fields["timestamp"], f"{path}.timestamp"),
     )
 
 
@@ -764,6 +796,16 @@ def _number(value: object, path: str) -> float:
         raise StateError(f"{path}: {value!r} is not finite")
 
     return float(value)
+
+
+def _non_negative(value: object, path: str) -> float:
+    """A finite number no step can drive below zero - a time or a magnitude."""
+    number = _number(value, path)
+
+    if number < 0.0:
+        raise StateError(f"{path}: {number!r} is negative")
+
+    return number
 
 
 def _flag(value: object, path: str) -> bool:

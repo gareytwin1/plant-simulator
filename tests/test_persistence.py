@@ -281,6 +281,8 @@ def test_an_engine_without_a_topology_round_trips():
         (lambda s: s["equipment"]["P-101"].update(speed="fast"), r"equipment\.P-101\.speed"),
         (lambda s: s["equipment"]["P-101"].update(speed=None), r"equipment\.P-101\.speed: expected a number"),
         (lambda s: s["equipment"]["P-101"].update(speed=math.inf), r"equipment\.P-101\.speed: inf is not finite"),
+        (lambda s: s["equipment"]["P-101"].update(_pump_resistance=-1.0), r"equipment\.P-101\._pump_resistance: P-101\.pump_resistance must be"),
+        (lambda s: s["equipment"]["V-101"].update(_level=1.5), r"equipment\.V-101\._level: V-101\.level must be"),
         (lambda s: s["instruments"]["PT-201"].update(bias=math.nan), r"instruments\.PT-201\.bias: nan is not finite"),
         (lambda s: s["domains"]["gas"]["nodes"].update({"N-204": math.inf}), r"nodes\.N-204: inf is not finite"),
         (lambda s: s["loops"]["PIC-101"]["pid"].update(integral=math.nan), r"pid\.integral: nan is not finite"),

@@ -42,17 +42,17 @@ The state is what the engine holds **that a configuration does not**:
 
 A restore is all or nothing. The whole save is validated against the engine
 first - a missing or unexpected field, a wrong type, a number that is not
-finite, a value a constructor or the engine refuses - and only then applied,
-so a refused restore leaves the engine exactly as it was. A device attribute
-is checked for type and finiteness only: no device can yet validate its own
-state. Every refusal is a `StateError`
-naming the path to the field.
+finite, a value a constructor, a device's property setter or the engine
+refuses - and only then applied, so a refused restore leaves the engine
+exactly as it was. A device attribute with no setter is checked for type and
+finiteness only. Every refusal is a `StateError` naming the path to the field.
 
 This module reads a few private attributes of `Engine`, `CommandArbiter`,
 `Loop`, `PID`, `Evaluator` and `ExcursionTracker`: none has a public accessor,
 and adding one is a spine or contract change this task does not make.
 """
 
+import copy
 import math
 from collections.abc import Callable, Iterable, Mapping
 from functools import partial
@@ -354,7 +354,28 @@ def _decode_equipment(engine: Engine, value: JSONValue, steps: list[Step]) -> No
             if isinstance(saved, float) and not math.isfinite(saved):
                 raise StateError(f"{path}.{name}: {saved!r} is not finite")
 
+        _check_setters(device, row, path)
         steps.append(partial(device.__dict__.update, row))
+
+
+def _check_setters(device: Equipment, row: Mapping[str, JSONValue], path: str) -> None:
+    """Run each property setter a device guards a `_name` attribute with,
+    on a copy holding the whole saved row, so a range check and a check
+    across two fields (a relief valve's set pressure and blowdown) both see
+    the values they will be restored beside."""
+    probe = copy.copy(device)
+    probe.__dict__.update(row)
+
+    for name, saved in row.items():
+        guard = getattr(type(device), name.removeprefix("_"), None)
+
+        if not name.startswith("_") or not isinstance(guard, property) or guard.fset is None:
+            continue
+
+        try:
+            guard.fset(probe, saved)
+        except ValueError as error:
+            raise StateError(f"{path}.{name}: {error}") from error
 
 
 def _decode_instruments(engine: Engine, value: JSONValue, steps: list[Step]) -> None:

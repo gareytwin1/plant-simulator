@@ -41,8 +41,8 @@ The state is what the engine holds **that a configuration does not**:
     refused, rather than half-applied.
 
 A restore is all or nothing. The whole save is validated against the engine
-first - a missing or unexpected field, a wrong type, a value a constructor
-refuses - and only then applied, so a refused restore leaves the engine
+first - a missing or unexpected field, a wrong type, a number that is not
+finite, a value a constructor refuses - and only then applied, so a refused restore leaves the engine
 exactly as it was. Every refusal is a `StateError` naming the path to the
 field.
 
@@ -306,6 +306,11 @@ def _decode_clock(engine: Engine, value: JSONValue, steps: list[Step]) -> None:
     fields = _keyed(value, ("sim_time", "speed", "paused"), "clock")
     sim_time = _number(fields["sim_time"], "clock.sim_time")
     speed = _number(fields["speed"], "clock.speed")
+
+    for name, number in (("sim_time", sim_time), ("speed", speed)):
+        if number < 0.0:
+            raise StateError(f"clock.{name}: {number!r} is negative")
+
     paused = _flag(fields["paused"], "clock.paused")
 
     def apply() -> None:
@@ -335,10 +340,15 @@ def _decode_equipment(engine: Engine, value: JSONValue, steps: list[Step]) -> No
             was = current[name]
             assert _is_primitive(was)
 
-            if _kind(saved) != _kind(was) and None not in (saved, was):
+            # None is allowed only where the device holds None now: a device
+            # attribute's live value is the only record of its type.
+            if was is not None and _kind(saved) != _kind(was):
                 raise StateError(
                     f"{path}.{name}: expected a {_kind(was)}, got {saved!r}",
                 )
+
+            if isinstance(saved, float) and not math.isfinite(saved):
+                raise StateError(f"{path}.{name}: {saved!r} is not finite")
 
         steps.append(partial(device.__dict__.update, row))
 
@@ -349,10 +359,6 @@ def _decode_instruments(engine: Engine, value: JSONValue, steps: list[Step]) -> 
     for tag, instrument in engine.instruments.items():
         path = f"instruments.{tag}"
         bias = _number(_keyed(rows[tag], ("bias",), path)["bias"], f"{path}.bias")
-
-        if not math.isfinite(bias):
-            raise StateError(f"{path}.bias: {bias!r} is not finite")
-
         steps.append(partial(setattr, instrument, "bias", bias))
 
 
@@ -374,10 +380,9 @@ def _decode_domains(engine: Engine, value: JSONValue, steps: list[Step]) -> None
             node_path = f"{path}.nodes.{node_id}"
             pressure = _number(nodes[node_id], node_path)
 
-            if node.is_boundary and not (math.isfinite(pressure) and pressure > 0.0):
+            if node.is_boundary and pressure <= 0.0:
                 raise StateError(
-                    f"{node_path}: boundary pressure {pressure!r} is not a "
-                    f"finite positive pressure",
+                    f"{node_path}: boundary pressure {pressure!r} is not positive",
                 )
 
             setter = node.set_boundary_pressure if node.is_boundary else node.set_pressure
@@ -748,8 +753,13 @@ def _keyed(value: object, expected: Iterable[str], path: str) -> Mapping[str, JS
 
 
 def _number(value: object, path: str) -> float:
+    """A finite number: `json.loads` accepts NaN and Infinity, and no saved
+    number is one on a plant that stepped there."""
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise StateError(f"{path}: expected a number, got {value!r}")
+
+    if not math.isfinite(value):
+        raise StateError(f"{path}: {value!r} is not finite")
 
     return float(value)
 

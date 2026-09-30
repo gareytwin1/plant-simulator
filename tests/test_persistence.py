@@ -14,6 +14,7 @@ non-default value that a restore that dropped it would visibly lose.
 
 import copy
 import json
+import math
 from pathlib import Path
 
 import pytest
@@ -275,8 +276,16 @@ def test_an_engine_without_a_topology_round_trips():
         (lambda s: s["clock"].pop("paused"), r"clock: missing 'paused'"),
         (lambda s: s["clock"].update(extra=1), r"clock: unexpected 'extra'"),
         (lambda s: s["clock"].update(speed="fast"), r"clock\.speed: expected a number"),
+        (lambda s: s["clock"].update(speed=math.nan), r"clock\.speed: nan is not finite"),
+        (lambda s: s["clock"].update(speed=-1.0), r"clock\.speed: -1\.0 is negative"),
+        (lambda s: s["clock"].update(sim_time=-1.0), r"clock\.sim_time: -1\.0 is negative"),
         (lambda s: s["equipment"].pop("P-101"), r"equipment: missing 'P-101'"),
         (lambda s: s["equipment"]["P-101"].update(speed="fast"), r"equipment\.P-101\.speed"),
+        (lambda s: s["equipment"]["P-101"].update(speed=None), r"equipment\.P-101\.speed: expected a number"),
+        (lambda s: s["equipment"]["P-101"].update(speed=math.inf), r"equipment\.P-101\.speed: inf is not finite"),
+        (lambda s: s["instruments"]["PT-201"].update(bias=math.nan), r"instruments\.PT-201\.bias: nan is not finite"),
+        (lambda s: s["domains"]["gas"]["nodes"].update({"N-204": math.inf}), r"nodes\.N-204: inf is not finite"),
+        (lambda s: s["loops"]["PIC-101"]["pid"].update(integral=math.nan), r"pid\.integral: nan is not finite"),
         (lambda s: s["equipment"]["P-101"].update(ghost=1.0), r"equipment\.P-101: unexpected 'ghost'"),
         (lambda s: s["domains"]["gas"]["nodes"].pop("N-204"), r"nodes: missing 'N-204'"),
         (lambda s: s["domains"]["gas"]["nodes"].update({"N-201": -5.0}), r"boundary pressure"),

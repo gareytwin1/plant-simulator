@@ -143,6 +143,11 @@ def test_hot_standby_circulates_a_small_flow_with_the_machines_running():
     assert row["outlet_flow"] == pytest.approx(row["inlet_flow"], abs=1e-2)
     assert 0.2 < vessel(engine).level < 0.8
 
+    for tag in ("LV-101", "PV-101"):
+        valve = engine.equipment[tag]
+        assert valve.position == pytest.approx(valve.min_position, abs=1e-6)
+        assert valve.position_target == pytest.approx(valve.min_position, abs=1e-6)
+
 
 def test_the_pump_trip_upset_is_still_moving_and_getting_worse():
     engine = load("feed_pump_trip")

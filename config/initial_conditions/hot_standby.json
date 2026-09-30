@@ -1,7 +1,7 @@
 {
  "version": 1,
  "clock": {
-  "sim_time": 14500.0,
+  "sim_time": 6500.0,
   "speed": 1.0,
   "paused": false
  },
@@ -59,8 +59,8 @@
    "_stroke_rate": 0.05
   },
   "PV-101": {
-   "position": 0.5,
-   "position_target": 0.5,
+   "position": 0.1,
+   "position_target": 0.1,
    "signal_ok": true,
    "stuck": false,
    "action_reversed": false,
@@ -75,14 +75,14 @@
    "_capacity": 2000.0,
    "_head_at_full": 20.0,
    "_carryover_level": 0.9,
-   "_level": 0.5024801587031211,
-   "inlet_flow": 10.00991451237431,
-   "outlet_flow": 10.009915728498402,
+   "_level": 0.5024801598113686,
+   "inlet_flow": 10.00991701027163,
+   "outlet_flow": 10.009915708515226,
    "_gas_volume": 400.0,
    "_initial_pressure": 200.0,
-   "_pressure": 200.00000190606443,
+   "_pressure": 204.79041894342257,
    "gas_inlet_flow": 0.0,
-   "gas_outlet_flow": 2.067844171449451e-06,
+   "gas_outlet_flow": -1.433264680716917e-06,
    "_gas_active": true
   }
  },
@@ -91,18 +91,18 @@
   "liquid": {
    "nodes": {
     "N-101": 40.0,
-    "N-102": 60.049603174062426,
+    "N-102": 60.04960319622737,
     "N-103": 35.0
    },
    "streams": {
     "B-P-101": {
-     "flow": 10.00991451237431,
+     "flow": 10.00991701027163,
      "pressure": 40.0,
      "temperature": 60.0,
      "composition": {}
     },
     "B-LV-101": {
-     "flow": 10.009915728498402,
+     "flow": 10.009915708515226,
      "pressure": 50.0,
      "temperature": 60.0,
      "composition": {}
@@ -118,34 +118,34 @@
    "solver": {
     "converged": true,
     "iterations": 0,
-    "residual": 0.4884749671418831,
-    "pressure_residual": 4.884749671418831e-08,
+    "residual": 0.7333242280083141,
+    "pressure_residual": 7.333242280083141e-08,
     "flow_residual": 0.0,
     "failure": null
    }
   },
   "gas": {
    "nodes": {
-    "N-201": 200.00000190606443,
+    "N-201": 204.79041894342257,
     "N-202": 305.0,
     "N-203": 100.0,
-    "N-204": 304.00000039387504
+    "N-204": 304.95808377376477
    },
    "streams": {
     "B-K-101": {
-     "flow": -9.999998030624589,
+     "flow": -2.047345262413304,
      "pressure": 200.0,
      "temperature": 60.0,
      "composition": {}
     },
     "B-FV-201": {
-     "flow": -9.999998030624589,
+     "flow": -2.047345262413304,
      "pressure": 304.0,
      "temperature": 60.0,
      "composition": {}
     },
     "B-PV-101": {
-     "flow": 10.00000009846876,
+     "flow": 2.0473438291486232,
      "pressure": 200.0,
      "temperature": 60.0,
      "composition": {}
@@ -162,8 +162,8 @@
    "solver": {
     "converged": true,
     "iterations": 0,
-    "residual": 0.6331079305255116,
-    "pressure_residual": 6.331079305255116e-08,
+    "residual": 0.7459891548933228,
+    "pressure_residual": 7.459891548933228e-08,
     "flow_residual": 0.0,
     "failure": null
    }
@@ -173,8 +173,8 @@
   "PIC-101": {
    "primed": true,
    "mode": "manual",
-   "output": 0.5,
-   "manual_output": 0.5,
+   "output": 0.1,
+   "manual_output": 0.1,
    "entering": false,
    "pid": {
     "kp": 0.01,
@@ -184,8 +184,8 @@
     "output_max": 1.0,
     "setpoint": 200.0,
     "action": "direct",
-    "integral": 99.99999427800807,
-    "prev_measurement": 200.00000190733064
+    "integral": 5.628743172365205,
+    "prev_measurement": 204.79041894254493
    }
   }
  },
@@ -194,7 +194,7 @@
    "interlock": {},
    "operator": {},
    "controller": {
-    "PIC-101": 0.5
+    "PIC-101": 0.1
    }
   }
  },
@@ -207,7 +207,7 @@
      "pending_elapsed": 0.0
     },
     "tracker": {
-     "elapsed": 14500.0,
+     "elapsed": 6500.0,
      "time_in_band": {
       "WARNING": 0.0,
       "ALARM": 0.0,

@@ -118,9 +118,11 @@ def hot_standby() -> Engine:
     _design_point(engine)
     engine.equipment["P-101"].speed_target = 0.9
 
-    for tag in ("LV-101", "PV-101"):
-        valve = engine.equipment[tag]
-        valve.set_position_target(valve.min_position)
+    lv, pv = engine.equipment["LV-101"], engine.equipment["PV-101"]
+    lv.set_position_target(lv.min_position)
+    # PV-101 is PIC-101's output, and the engine re-posts a MANUAL loop's
+    # output every step, so the valve only moves if the loop is told to.
+    engine.loops["PIC-101"].loop.manual_output = pv.min_position
 
     _settle(engine)
 

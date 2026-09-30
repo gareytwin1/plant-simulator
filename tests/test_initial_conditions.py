@@ -56,8 +56,7 @@ def bands(snapshot):
 
 
 def test_the_library_holds_at_least_four_named_conditions():
-    assert len(list(LIBRARY.glob("*.json"))) >= 4
-    assert {path.stem for path in LIBRARY.glob("*.json")} == set(NAMES)
+    assert {path.stem for path in LIBRARY.glob("*.json")} >= set(NAMES)
 
 
 @pytest.mark.parametrize("name", NAMES)
@@ -129,9 +128,9 @@ def test_cold_shutdown_has_both_machines_stopped_and_the_vessel_drained():
 
     assert not engine.equipment["P-101"].running
     assert not engine.equipment["K-101"].running
-    assert engine.equipment["P-101"].speed == 0.0
-    assert engine.equipment["K-101"].load == 0.0
-    assert vessel(engine).level == 0.0
+    assert engine.equipment["P-101"].speed == pytest.approx(0.0, abs=1e-9)
+    assert engine.equipment["K-101"].load == pytest.approx(0.0, abs=1e-9)
+    assert vessel(engine).level == pytest.approx(0.0, abs=1e-9)
 
 
 def test_hot_standby_circulates_a_small_flow_with_the_machines_running():

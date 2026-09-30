@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "30 September 2026",
-  "main_sha": "b9432ac",
-  "tests_passing_on_main": 2294,
+  "main_sha": "0c16162",
+  "tests_passing_on_main": 2318,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -78,8 +78,8 @@
     },
     "M12": {
       "name": "Startup and Shutdown Sequences",
-      "complete": 1,
-      "total": 4
+      "complete": 2,
+      "total": 6
     },
     "M13": {
       "name": "Disturbance and Malfunction Layer",
@@ -118,9 +118,9 @@
     }
   },
   "totals": {
-    "tasks": 115,
-    "complete": 86,
-    "startable_now": 18
+    "tasks": 117,
+    "complete": 87,
+    "startable_now": 20
   },
   "tasks": [
     {
@@ -1521,10 +1521,9 @@
       "files": [
         "config/initial_conditions/*.json"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true,
-      "note": ""
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged to main as 0c16162 (PR #114). Suite 2318 passed post-merge, mypy clean, no golden movement."
     },
     {
       "id": "T12-3",
@@ -1561,9 +1560,53 @@
       "status_key": "todo",
       "startable": false,
       "blocked_by": [
-        "T12-3",
-        "T12-2"
+        "T12-3"
       ],
+      "note": ""
+    },
+    {
+      "id": "T12-5",
+      "milestone": "M12",
+      "name": "Public state accessors for save and restore",
+      "category": "core",
+      "branch": "refactor/state-accessors",
+      "depends_on": [
+        "T12-1"
+      ],
+      "files": [
+        "app/engine/engine.py",
+        "app/engine/persistence.py",
+        "app/controls/arbitration.py",
+        "app/controls/modes.py",
+        "app/controls/pid.py",
+        "app/envelope/evaluator.py",
+        "app/envelope/tracker.py",
+        "tests/test_persistence.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": true,
+      "note": ""
+    },
+    {
+      "id": "T12-6",
+      "milestone": "M12",
+      "name": "Refuse a negative clock speed and step",
+      "category": "core",
+      "branch": "fix/clock-speed-validation",
+      "depends_on": [
+        "T12-1"
+      ],
+      "files": [
+        "app/engine/clock.py",
+        "app/engine/engine.py",
+        "app/engine/persistence.py",
+        "tests/test_clock.py",
+        "tests/test_persistence.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": true,
       "note": ""
     },
     {
@@ -1716,10 +1759,7 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "T12-2"
-      ],
+      "startable": true,
       "note": ""
     },
     {

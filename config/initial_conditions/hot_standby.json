@@ -1,0 +1,226 @@
+{
+ "version": 1,
+ "clock": {
+  "sim_time": 6500.0,
+  "speed": 1.0,
+  "paused": false
+ },
+ "equipment": {
+  "P-101": {
+   "running": true,
+   "speed": 0.9,
+   "speed_target": 0.9,
+   "speed_rate": 0.1,
+   "max_flow": 150.0,
+   "_shutoff_pressure_rise": 25.0,
+   "_pump_resistance": 0.002
+  },
+  "LV-101": {
+   "position": 0.1,
+   "position_target": 0.1,
+   "signal_ok": true,
+   "stuck": false,
+   "action_reversed": false,
+   "_capacity": 20.0,
+   "_rangeability": 50.0,
+   "_min_position": 0.1,
+   "_flow_characteristic": "linear",
+   "_fail_action": "closed",
+   "_stroke_rate": 0.05
+  },
+  "K-101": {
+   "running": true,
+   "suction_pressure_target": 675.0,
+   "discharge_pressure_target": 875.0,
+   "load": 1.0,
+   "load_target": 1.0,
+   "load_rate": 0.05,
+   "flow_target": 100.0,
+   "max_flow": 60.0,
+   "_shutoff_pressure_rise": 100.0,
+   "_compressor_resistance": 0.04,
+   "_base_temperature": 75.0,
+   "max_temperature": 120.0,
+   "max_spread": 220.0,
+   "_isentropic_exponent": 1.3,
+   "_polytropic_efficiency": 0.75
+  },
+  "FV-201": {
+   "position": 0.5,
+   "position_target": 0.5,
+   "signal_ok": true,
+   "stuck": false,
+   "action_reversed": false,
+   "_capacity": 20.0,
+   "_rangeability": 50.0,
+   "_min_position": 0.1,
+   "_flow_characteristic": "linear",
+   "_fail_action": "closed",
+   "_stroke_rate": 0.05
+  },
+  "PV-101": {
+   "position": 0.1,
+   "position_target": 0.1,
+   "signal_ok": true,
+   "stuck": false,
+   "action_reversed": false,
+   "_capacity": 2.0,
+   "_rangeability": 50.0,
+   "_min_position": 0.1,
+   "_flow_characteristic": "linear",
+   "_fail_action": "closed",
+   "_stroke_rate": 0.05
+  },
+  "V-101": {
+   "_capacity": 2000.0,
+   "_head_at_full": 20.0,
+   "_carryover_level": 0.9,
+   "_level": 0.5024801598113686,
+   "inlet_flow": 10.00991701027163,
+   "outlet_flow": 10.009915708515226,
+   "_gas_volume": 400.0,
+   "_initial_pressure": 200.0,
+   "_pressure": 204.79041894342257,
+   "gas_inlet_flow": 0.0,
+   "gas_outlet_flow": -1.433264680716917e-06,
+   "_gas_active": true
+  }
+ },
+ "instruments": {},
+ "domains": {
+  "liquid": {
+   "nodes": {
+    "N-101": 40.0,
+    "N-102": 60.04960319622737,
+    "N-103": 35.0
+   },
+   "streams": {
+    "B-P-101": {
+     "flow": 10.00991701027163,
+     "pressure": 40.0,
+     "temperature": 60.0,
+     "composition": {}
+    },
+    "B-LV-101": {
+     "flow": 10.009915708515226,
+     "pressure": 50.0,
+     "temperature": 60.0,
+     "composition": {}
+    }
+   },
+   "temperatures": {
+    "N-101": 60.0,
+    "N-102": 60.0,
+    "N-103": 60.0
+   },
+   "settled": true,
+   "failure": null,
+   "solver": {
+    "converged": true,
+    "iterations": 0,
+    "residual": 0.7333242280083141,
+    "pressure_residual": 7.333242280083141e-08,
+    "flow_residual": 0.0,
+    "failure": null
+   }
+  },
+  "gas": {
+   "nodes": {
+    "N-201": 204.79041894342257,
+    "N-202": 305.0,
+    "N-203": 100.0,
+    "N-204": 304.95808377376477
+   },
+   "streams": {
+    "B-K-101": {
+     "flow": -2.047345262413304,
+     "pressure": 200.0,
+     "temperature": 60.0,
+     "composition": {}
+    },
+    "B-FV-201": {
+     "flow": -2.047345262413304,
+     "pressure": 304.0,
+     "temperature": 60.0,
+     "composition": {}
+    },
+    "B-PV-101": {
+     "flow": 2.0473438291486232,
+     "pressure": 200.0,
+     "temperature": 60.0,
+     "composition": {}
+    }
+   },
+   "temperatures": {
+    "N-201": 60.0,
+    "N-202": 60.0,
+    "N-203": 60.0,
+    "N-204": 60.0
+   },
+   "settled": true,
+   "failure": null,
+   "solver": {
+    "converged": true,
+    "iterations": 0,
+    "residual": 0.7459891548933228,
+    "pressure_residual": 7.459891548933228e-08,
+    "flow_residual": 0.0,
+    "failure": null
+   }
+  }
+ },
+ "loops": {
+  "PIC-101": {
+   "primed": true,
+   "mode": "manual",
+   "output": 0.1,
+   "manual_output": 0.1,
+   "entering": false,
+   "pid": {
+    "kp": 0.01,
+    "ki": 0.005,
+    "kd": 0.0,
+    "output_min": 0.0,
+    "output_max": 1.0,
+    "setpoint": 200.0,
+    "action": "direct",
+    "integral": 5.628743172365205,
+    "prev_measurement": 204.79041894254493
+   }
+  }
+ },
+ "arbiter": {
+  "PV-101": {
+   "interlock": {},
+   "operator": {},
+   "controller": {
+    "PIC-101": 0.1
+   }
+  }
+ },
+ "envelope": {
+  "V-101": {
+   "level": {
+    "evaluator": {
+     "band": null,
+     "pending": null,
+     "pending_elapsed": 0.0
+    },
+    "tracker": {
+     "elapsed": 6500.0,
+     "time_in_band": {
+      "WARNING": 0.0,
+      "ALARM": 0.0,
+      "TRIP": 0.0
+     },
+     "peak": null
+    },
+    "band": {
+     "severity": "NORMAL",
+     "side": null
+    },
+    "since": 0.0
+   }
+  }
+ }
+}

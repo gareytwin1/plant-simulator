@@ -48,21 +48,38 @@ actions a person has (`app.api.action`, against `runner.engine` and
 condition, since trips are not evaluated in a live session yet (see
 project_state.md).
 
+**Every input that moves a run is journaled** (`inputs()`), so
+`app.scenarios.replay` can play it back: a `Tick` for each `start`, advancing
+`step` and `abort`, carrying how many logged actions preceded it, and for a
+step the dt and the clock's speed and pause it ran with. The actions
+themselves are the `ActionLog`'s, not copied here - the log stays the single
+record of intent, and the count is what orders each action against the
+ticks around it. A step that advances nothing (before `start`, after
+completion) is not an input and is not journaled. One that raises is, with
+its error: it may already have moved the plant and the run stays live, so a
+replay runs it too, expects the same error there, and carries on. Identical
+steps in a row - same dt, clock state and action count, none raising - are
+one tick with a `repeat` count, so a clock left paused under a `Scheduler`,
+which never reaches the time limit, grows the journal by nothing.
+
 Not here: `seed` is carried into the result and drives nothing - the plant
-has no random source yet, and deterministic replay is T14-5. Objective and
-trigger results are as `ObjectiveEvaluator` and `TriggerEvaluator` report
-them; scoring and the debrief text are M15.
+has no random source yet. Objective and trigger results are as
+`ObjectiveEvaluator` and `TriggerEvaluator` report them; scoring and the
+debrief text are M15.
 """
 
 from __future__ import annotations
 
+import copy
 import dataclasses
 import functools
+import hashlib
 import json
 import math
 import re
 import threading
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterator, Mapping
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -73,10 +90,10 @@ import yaml
 from app.api.action import apply_action
 from app.disturbances.malfunction import AtTime, Malfunction, MalfunctionRegistry, Step
 from app.engine.engine import Engine
-from app.engine.persistence import restore_state
+from app.engine.persistence import capture_state, restore_state
 from app.engine.snapshot import Snapshot
 from app.equipment.registry import EquipmentRegistry
-from app.plant.loader import CONFIG_SUFFIXES, load_plant_file
+from app.plant.loader import CONFIG_SUFFIXES, load_plant, read_plant_config
 from app.plant.validate import validate
 from app.scenarios.objectives import ObjectiveEvaluator, ObjectiveResult, ObjectiveStatus
 from app.scenarios.triggers import TriggerEvaluator
@@ -99,6 +116,10 @@ class ScenarioNotFound(LookupError):
 
 class ScenarioConfigError(ValueError):
     """A scenario file that cannot be loaded, named for what is wrong."""
+
+
+class ScenarioChanged(ScenarioConfigError):
+    """A scenario's plant file or initial condition is not the one expected."""
 
 
 class ScenarioStateError(ValueError):
@@ -139,19 +160,35 @@ class ScenarioLibrary:
     def plant_path(self, name: str) -> Path:
         return _find(self.plants, name, CONFIG_SUFFIXES, "plant")
 
+    def condition_path(self, name: str) -> Path:
+        return _find(self.conditions, name, (".json",), "initial condition")
+
     def condition(self, name: str) -> dict[str, JSONValue]:
         """The named initial condition, as `capture_state` saved it."""
-        document = _read_document(_find(self.conditions, name, (".json",), "initial condition"))
+        path = self.condition_path(name)
 
-        if not isinstance(document, dict):
-            raise ScenarioConfigError(f"initial condition {name!r} is not a JSON object")
+        return _decode_condition(path, path.read_bytes())
 
-        return document
+
+def _decode_condition(path: Path, data: bytes) -> dict[str, JSONValue]:
+    try:
+        document = json.loads(data)
+    except json.JSONDecodeError as error:
+        raise ScenarioConfigError(f"{path}: not parseable: {error}") from error
+
+    if not isinstance(document, dict):
+        raise ScenarioConfigError(f"initial condition {path.stem!r} is not a JSON object")
+
+    return document
+
+
+def _plain(name: str, kind: str) -> None:
+    if not isinstance(name, str) or not _NAME.match(name):
+        raise ScenarioNotFound(f"{kind} name {name!r} is not a plain name (letters, digits, - and _)")
 
 
 def _find(directory: Path, name: str, suffixes: tuple[str, ...], kind: str) -> Path:
-    if not isinstance(name, str) or not _NAME.match(name):
-        raise ScenarioNotFound(f"{kind} name {name!r} is not a plain name (letters, digits, - and _)")
+    _plain(name, kind)
 
     for suffix in suffixes:
         path = directory / f"{name}{suffix}"
@@ -283,10 +320,92 @@ class ScenarioResult:
         }
 
 
+class TickKind(str, Enum):
+    START = "start"
+    STEP = "step"
+    ABORT = "abort"
+
+
+@dataclass(frozen=True)
+class Tick:
+    """One lifecycle input of a run, after `actions` logged actions.
+
+    `dt`, `speed` and `paused` are a step's: the dt it was called with and
+    the clock state it ran under, which together fix the elapsed time the
+    clock applied bit for bit. They are None on a start or an abort.
+
+    `error` is set when the call raised (`error_text`): it may already have
+    moved the plant, and the run stays live, so it is still an input.
+
+    `repeat` is how many identical steps in a row this one tick stands for.
+    """
+
+    kind: TickKind
+    actions: int
+    dt: float | None = None
+    speed: float | None = None
+    paused: bool | None = None
+    error: str | None = None
+    repeat: int = 1
+
+
+def error_text(error: Exception) -> str:
+    """How a `Tick` records the error its call raised. Replay compares it as
+    text, so it relies on the determinism rule reaching error messages too:
+    one built from anything but the plant's own values (an object's id, a
+    wall-clock time) would make a faithful replay read as a divergence."""
+    return f"{type(error).__name__}: {error}"
+
+
+@contextmanager
+def _journaling(run: _Run, tick: Tick) -> Iterator[None]:
+    """Journal `tick` once its call returns, or with its error once it raises."""
+    try:
+        yield
+    except Exception as error:
+        run.journal.append(dataclasses.replace(tick, error=error_text(error)))
+        raise
+
+    last = run.journal[-1] if run.journal else None
+
+    if tick.kind is TickKind.STEP and last is not None and dataclasses.replace(last, repeat=1) == tick:
+        run.journal[-1] = dataclasses.replace(last, repeat=last.repeat + 1)
+    else:
+        run.journal.append(tick)
+
+
+@dataclass(frozen=True)
+class RunInputs:
+    """Everything a run has taken as input, at one instant: its scenario
+    document, its journal, its actions (as `ScenarioResult.actions` has
+    them, on scenario time) and the clock's speed and pause as they stand
+    now, which a change after the last step leaves no tick to carry.
+
+    `fingerprint` digests what the document names but does not contain -
+    the name the document gives the plant file and the initial condition,
+    and each file's content as read at load - so a replay can tell when
+    either has changed under it, or been swapped for another.
+
+    `end_state` digests where those inputs led: the plant's captured state
+    and the run's result. It is what a replay has to reach, so a change in
+    the physics or the evaluation code, which no input records, still
+    shows."""
+
+    config: Any  # Any: a scenario document, of the shape the scenario schema allows
+    fingerprint: str
+    journal: tuple[Tick, ...]
+    actions: tuple[Mapping[str, Any], ...]
+    speed: float
+    paused: bool
+    end_state: str
+
+
 @dataclass
 class _Run:
     """Everything one loaded scenario owns."""
 
+    config: Any  # Any: the scenario document as loaded, validated by the schema
+    fingerprint: str
     scenario_id: str
     difficulty: str
     seed: int
@@ -305,6 +424,7 @@ class _Run:
     ended_at: float | None = None
     results: tuple[ObjectiveResult, ...] = ()
     fired: dict[str, float] = field(default_factory=dict)
+    journal: list[Tick] = field(default_factory=list)
 
     def view(self, snapshot: Snapshot) -> Snapshot:
         """`snapshot` on the scenario's own clock."""
@@ -344,11 +464,31 @@ class ScenarioRunner:
         with self._lock:
             return self._loaded().actions
 
-    def act(self, target: str, action: str, value: float | None) -> None:
+    def inputs(self) -> RunInputs:
+        """Every input the loaded run has taken, read under one lock so no
+        step or action can land between its parts."""
+        with self._lock:
+            run = self._loaded()
+            clock = run.engine.clock
+
+            return RunInputs(
+                config=copy.deepcopy(run.config),
+                fingerprint=run.fingerprint,
+                journal=tuple(run.journal),
+                actions=_actions(run),
+                speed=clock.speed,
+                paused=clock.paused,
+                end_state=self._end_state(run),
+            )
+
+    def act(self, target: str, action: str, value: float | None) -> float:
         """Apply one operator action to the live run and log it, under the
         lock that `step` and `abort` take, so it can never interleave with
         either, and refused once the run is over so its result stays final.
-        Otherwise the same refusals as `app.api.action.apply_action`."""
+        Otherwise the same refusals as `app.api.action.apply_action`.
+
+        Returns the scenario time the action was logged at, as
+        `ScenarioResult.actions` reports it."""
         with self._lock:
             run = self._loaded()
 
@@ -357,25 +497,25 @@ class ScenarioRunner:
                     f"cannot act on a scenario that is {run.phase.value}; its result is final",
                 )
 
-            apply_action(
-                run.engine.equipment,
-                run.actions,
-                run.engine.clock.sim_time,
-                target,
-                action,
-                value,
-            )
+            sim_time = run.engine.clock.sim_time
+            apply_action(run.engine.equipment, run.actions, sim_time, target, action, value)
+
+            return sim_time - run.origin
 
     def load(self, scenario_id: str) -> ScenarioResult:
         return self.load_config(self._library.scenario(scenario_id))
 
-    def load_config(self, config: Any) -> ScenarioResult:
+    def load_config(self, config: Any, fingerprint: str | None = None) -> ScenarioResult:
+        """Arm `config`. With `fingerprint`, refuse (`ScenarioChanged`) unless
+        its plant file and initial condition are the ones a run with that
+        `RunInputs.fingerprint` was armed from - checked on the very bytes
+        the run is then built from, before anything is parsed."""
         # Any: a decoded scenario file, validated against the schema below.
         with self._lock:
             if self._run is not None and self._run.phase is Phase.RUNNING:
                 raise ScenarioStateError("a scenario is running; abort it before loading another")
 
-            self._run = self._arm(config)
+            self._run = self._arm(config, fingerprint)
 
             return self._result(self._run)
 
@@ -387,9 +527,11 @@ class ScenarioRunner:
                 raise ScenarioStateError(f"cannot start a scenario that is {run.phase.value}; load one first")
 
             run.phase = Phase.RUNNING
-            # A malfunction due at time zero takes effect now rather than a
-            # step late, so the first step already runs the disturbed plant.
-            run.malfunctions.update(run.view(run.engine.snapshot()))
+
+            with _journaling(run, Tick(TickKind.START, len(run.actions))):
+                # A malfunction due at time zero takes effect now rather than
+                # a step late, so the first step already runs the disturbed plant.
+                run.malfunctions.update(run.view(run.engine.snapshot()))
 
             return self._result(run)
 
@@ -400,8 +542,12 @@ class ScenarioRunner:
             if run.phase is not Phase.RUNNING:
                 return run.engine.snapshot()
 
-            snapshot = run.engine.step(dt)
-            self._observe(run, snapshot)
+            clock = run.engine.clock
+            tick = Tick(TickKind.STEP, len(run.actions), dt=dt, speed=clock.speed, paused=clock.paused)
+
+            with _journaling(run, tick):
+                snapshot = run.engine.step(dt)
+                self._observe(run, snapshot)
 
             return snapshot
 
@@ -418,11 +564,12 @@ class ScenarioRunner:
 
             elapsed = run.engine.snapshot().sim_time - run.origin
 
-            run.malfunctions.revert_all()
-            run.engine = self._restored(run.build, run.armed_state)
-            run.phase = Phase.ABORTED
-            run.outcome = Outcome.ABORTED
-            run.ended_at = elapsed
+            with _journaling(run, Tick(TickKind.ABORT, len(run.actions))):
+                run.malfunctions.revert_all()
+                run.engine = self._restored(run.build, run.armed_state)
+                run.phase = Phase.ABORTED
+                run.outcome = Outcome.ABORTED
+                run.ended_at = elapsed
 
             return self._result(run)
 
@@ -436,20 +583,48 @@ class ScenarioRunner:
 
         return self._run
 
-    def _arm(self, config: Any) -> _Run:
+    def _arm(self, config: Any, expected: str | None) -> _Run:
         errors = validate(config, _schema())
         if errors:
             raise ScenarioConfigError("; ".join(errors))
 
         scenario_id = config["id"]
-        plant_path = self._library.plant_path(config["plant"])
         condition = config["initial_condition"]
+        _plain(config["plant"], "plant")
+        _plain(condition["condition"], "initial condition")
 
-        state = self._library.condition(condition["condition"])
-        apply_overrides(state, condition.get("overrides", {}))
+        try:
+            plant_path = self._library.plant_path(config["plant"])
+            condition_path = self._library.condition_path(condition["condition"])
+        except ScenarioNotFound as error:
+            # Under a fingerprint, a plainly named file that is missing -
+            # deleted, or renamed in the document - cannot match; a name that
+            # could never resolve is the document's own error.
+            if expected is None:
+                raise
+
+            raise ScenarioChanged(f"{error}, so the run cannot match the expected fingerprint") from error
+
+        # Read once: arming, every abort and the fingerprint all see the
+        # files as they were at load, whatever happens to them afterwards.
+        plant_bytes = plant_path.read_bytes()
+        condition_bytes = condition_path.read_bytes()
+        fingerprint = _fingerprint(
+            (config["plant"], plant_bytes),
+            (condition["condition"], condition_bytes),
+        )
+
+        if expected is not None and fingerprint != expected:
+            raise ScenarioChanged(
+                f"plant {config['plant']!r} or initial condition {condition['condition']!r} "
+                f"has changed since the run was armed",
+            )
+
+        plant_config = read_plant_config(plant_path, plant_bytes)
+        state = apply_overrides(_decode_condition(condition_path, condition_bytes), condition.get("overrides", {}))
 
         def build() -> Engine:
-            return Engine.from_plant(load_plant_file(plant_path))
+            return Engine.from_plant(load_plant(copy.deepcopy(plant_config)))
 
         engine = self._restored(build, state)
         armed = engine.snapshot()
@@ -470,6 +645,8 @@ class ScenarioRunner:
         objectives.validate(armed)
 
         return _Run(
+            config=copy.deepcopy(config),
+            fingerprint=fingerprint,
             scenario_id=scenario_id,
             difficulty=config["difficulty"],
             seed=config["seed"],
@@ -484,6 +661,11 @@ class ScenarioRunner:
             objectives=objectives,
             objective_ids=tuple(entry["id"] for entry in config.get("objectives", [])),
         )
+
+    def _end_state(self, run: _Run) -> str:
+        where = {"state": capture_state(run.engine), "result": self._result(run).as_dict()}
+
+        return hashlib.sha256(json.dumps(where, sort_keys=True).encode()).hexdigest()
 
     @staticmethod
     def _restored(build: Callable[[], Engine], state: dict[str, JSONValue]) -> Engine:
@@ -534,16 +716,33 @@ class ScenarioRunner:
             seed=run.seed,
             objectives=run.results,
             triggers_fired=dict(run.fired),
-            actions=tuple(
-                {
-                    "sim_time": event.sim_time - run.origin,
-                    "tag": event.tag,
-                    "action": event.data["action"],
-                    "value": event.data["value"],
-                }
-                for event in run.actions
-            ),
+            actions=_actions(run),
         )
+
+
+def _fingerprint(*files: tuple[str, bytes]) -> str:
+    """Each file's name and content, so a document renamed to another file
+    with the same bytes is a different run too."""
+    digest = hashlib.sha256()
+
+    for name, content in files:
+        digest.update(hashlib.sha256(name.encode()).digest())
+        digest.update(hashlib.sha256(content).digest())
+
+    return digest.hexdigest()
+
+
+def _actions(run: _Run) -> tuple[Mapping[str, Any], ...]:
+    # Any: a JSON-safe action row, as `ScenarioResult.as_dict` sends it.
+    return tuple(
+        {
+            "sim_time": event.sim_time - run.origin,
+            "tag": event.tag,
+            "action": event.data["action"],
+            "value": event.data["value"],
+        }
+        for event in run.actions
+    )
 
 
 def _outcome(results: tuple[ObjectiveResult, ...]) -> Outcome:

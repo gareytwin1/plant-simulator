@@ -15,7 +15,10 @@ process-wide stream would be shared by every browser session, and each session
 owns its own plant. Nothing in `app/` draws random numbers yet. **Open
 decision:** which object owns a plant's RNG (session, engine or plant) — it
 belongs to the first task that needs randomness. `SeededRNG` also has no state
-save/restore, which T12-1 and T14-5 will need.
+save/restore, so neither `capture_state` (T12-1) nor a replay recording
+(T14-5) carries RNG state; that task must add it to both.
+`tests/test_scenario_replay.py` fails the build once any module imports
+`app.engine.rng`, so that task cannot miss it.
 
 ## Spine vs. satellite in `app/engine/`
 

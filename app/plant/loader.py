@@ -413,12 +413,16 @@ def load_plant_file(
     path: str | Path,
     device_types: Mapping[str, type[Equipment]] | None = None,
 ) -> Plant:
-    return load_plant(_read_config(Path(path)), device_types)
+    return load_plant(read_plant_config(path), device_types)
 
 
-def _read_config(path: Path) -> Any:
-    # Decoded JSON or YAML of a shape only the C3 validator knows. Both formats
-    # feed the same load_plant(), so there is one set of semantics.
+def read_plant_config(path: str | Path, data: bytes | None = None) -> Any:
+    """A plant file decoded, not yet validated or built. `data` is the file's
+    content when the caller has already read it - to hash exactly the bytes
+    it builds from - and `path` then only names the file and its format."""
+    # Any: decoded JSON or YAML of a shape only the C3 validator knows. Both
+    # formats feed the same load_plant(), so there is one set of semantics.
+    path = Path(path)
     suffix = path.suffix.lower()
 
     if suffix not in CONFIG_SUFFIXES:
@@ -429,16 +433,18 @@ def _read_config(path: Path) -> Any:
             ],
         )
 
-    with open(path) as f:
-        try:
-            if suffix == ".json":
-                return json.load(f)
+    if data is None:
+        data = path.read_bytes()
 
-            document = yaml.safe_load(f)
-        except (json.JSONDecodeError, yaml.YAMLError) as error:
-            raise PlantConfigError(
-                [f"{path}: not parseable as {suffix[1:].upper()}: {error}"],
-            ) from error
+    try:
+        if suffix == ".json":
+            return json.loads(data)
+
+        document = yaml.safe_load(data)
+    except (json.JSONDecodeError, yaml.YAMLError) as error:
+        raise PlantConfigError(
+            [f"{path}: not parseable as {suffix[1:].upper()}: {error}"],
+        ) from error
 
     if document is None:
         raise PlantConfigError([f"{path}: plant file is empty"])

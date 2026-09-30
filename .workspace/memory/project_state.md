@@ -135,10 +135,10 @@ scope, and item 1 in particular reads like a bug and is not.
 - **`app/engine/persistence.py` reads private attributes** of `Engine`,
   `CommandArbiter`, `Loop`, `PID`, `Evaluator` and `ExcursionTracker`. Public
   save/restore accessors on those classes are an agreed follow-up (Opus decides
-  the shape; touches spine `engine.py`); **no build-plan task owns it yet.**
+  the shape; touches spine `engine.py`); owned by **T12-5**.
 - **`SimulationClock` accepts a negative speed**, so sim time can run backwards;
   `restore_state` accepts any finite speed and sim time to match. Refusing it
-  is a small spine change no task owns.
+  is a small spine change owned by **T12-6**.
 - **The `Equipment.characteristic` docstring overstates the Jacobian**; `base.py`
   is frozen. See [.claude/rules/engine.md](../../.claude/rules/engine.md).
 - **A resistance-only valve cannot stop reverse flow and absorbs most of the

@@ -8,11 +8,11 @@ regrowth rule is in [.claude/rules/docs.md](../../.claude/rules/docs.md).
 
 ## Right now
 
-**Last state refresh:** 28 September 2026, at `beccacbd` (Merge T16-2: Add
-SSE snapshot push transport, PR #110) - **this is a snapshot,
-not a live pointer.** Run `git log beccacbd..HEAD --oneline` to see what has
+**Last state refresh:** 29 September 2026, at `543ac7a` (Merge T11-3:
+Restart permissives and trip reset, PR #111) - **this is a snapshot,
+not a live pointer.** Run `git log 543ac7a..HEAD --oneline` to see what has
 merged since.
-**Full suite as of this refresh:** **2155 passed** · `python -m mypy` clean over 59 source files · no golden trace movement
+**Full suite as of this refresh:** **2184 passed** · `python -m mypy` clean over 60 source files · no golden trace movement
 **In flight:** nothing.
 **No spine lock is held.** No task is Blocked. CI runs on every PR, and `main` requires its
 `test` check before a merge.
@@ -22,12 +22,12 @@ merged since.
 
 | Task | SHA | What landed |
 |---|---|---|
+| **T11-3** | `543ac7a` | Restart permissives and trip reset, `app/safety/permissives.py`: `RestartGate` holds a STOP demand on `<tag>.run` until permissives hold and tripped interlocks are reset; not yet called from `Session`/`Scheduler` (PR #111) |
 | **T16-2** | `beccacbd` | SSE snapshot push, `app/api/stream.py`'s `GET /api/stream`; not yet wired into `app/main.py` - same open question T15-1's action endpoint left (PR #110) |
 | **T10-3** | `bc27240` | Bounded alarm history + acknowledge API, `app/alarms/history.py`, `app/api/alarms.py`; additive `AlarmManager.is_acknowledged()` landed in `app/alarms/manager.py`, outside this task's declared files - coordinate with T10-4 (PR #109) |
 | **T11-2** | `868f484` | Trip actions, `app/safety/actions.py`: `TripSystem` posts interlock demands on the arbiter; not yet called from `Session`/`Scheduler` (PR #108) |
 | **T14-2** | `eb195c0` | Trigger evaluator, `app/scenarios/triggers.py` (PR #106) |
 | **T11-1** | `994b30e` | Interlock definitions and evaluator, `app/safety/interlocks.py`; 3 interlocks in `olefins_lite.yaml` (PR #105) |
-| **T17-1** | `b36af0d` | Ring-buffer historian, `app/historian/buffer.py` (PR #101) |
 
 **ADRs on `main`:** [0001](../../docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md)
 (+ Amendment 1) and [0002](../../docs/ADR_0002_TYPED_PORTS.md) (+ Amendments
@@ -41,16 +41,17 @@ Complete: **M0-M7, M9, MR**. Open:
 |---|---|---|
 | **M8** PID Controllers | 5/6 | T8-5 startable (V1.1-deferred) |
 | **M10** Alarms | 3/5 | T10-1, T10-2, T10-3; T10-4 startable (V1.1-deferred), T10-5 startable |
-| **M11** Interlocks and Trips | 2/4 | T11-1, T11-2; T11-3 startable, T11-4 startable (V1.1-deferred) |
+| **M11** Interlocks and Trips | 3/4 | T11-1, T11-2, T11-3; T11-4 startable (V1.1-deferred) |
 | **M13** Malfunctions | 3/5 | T13-1, T13-2, T13-5; T13-3, T13-4 startable |
 | **M14** Scenario Engine | 2/6 | T14-1, T14-2; T14-3 startable |
 | **M15** Action Log and Scoring | 1/4 | T15-1; T15-4 startable (V1.1-deferred) |
 | **M16** Operator Console | 1/5 | T16-2; T16-1 startable, T16-5 startable; T16-3 needs T16-1 first |
 | **M17** Historian and Trends | 1/4 | T17-1; T17-2 startable (V1.1-deferred) |
 | **M18** Deployment | 1/5 | T18-2 |
-| M12, M19 | 0 | - |
+| **M12** Startup and Shutdown Sequences | 0/4 | T12-1, T12-3 startable |
+| M19 | 0 | - |
 
-**83 of 115 tasks Complete.** Checkpoints A-C reached. Checkpoint **D** (M8)
+**84 of 115 tasks Complete.** Checkpoints A-C reached. Checkpoint **D** (M8)
 needs only its "loops reject an injected disturbance" gate: PIC-101 switched to
 AUTO in `olefins_lite.yaml`, which T8-6 enabled but no task owns yet.
 
@@ -69,9 +70,10 @@ spine, so RNG state save/restore (T12-1 or T14-5) takes it. **T18-1 must run
 exactly one Gunicorn worker** - `SessionRegistry` is per-process (R7).
 **Trips do not run in a live session yet**: nothing in `Session`/`Scheduler`
 calls `TripSystem.update`, and wiring it in is a spine change no task owns.
-T11-3 (permissives) builds on T11-2's `"<tag>.run"` arbiter output; a standing
-lower-precedence RUN demand restarts a machine the moment its trip releases
-(see `app/safety/actions.py`). A loop overridden by a trip is not tracked, so
+`RestartGate` (T11-3) must be updated before `TripSystem.update`, and only
+blocks a restart for a trip listed in its `resets`; an ungated trip still lets a
+standing lower-precedence RUN demand restart a machine the moment it releases.
+Permissives have no C3 config key yet. A loop overridden by a trip is not tracked, so
 its handback is not bumpless - also an unowned `Engine._control` change.
 
 ## Known interim behaviour — do not "fix" these in passing

@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
-  "refreshed": "28 September 2026",
-  "main_sha": "beccacbdc016ac02bdcc28570a2fb1712a951633",
-  "tests_passing_on_main": 2155,
+  "refreshed": "29 September 2026",
+  "main_sha": "543ac7a",
+  "tests_passing_on_main": 2184,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -73,7 +73,7 @@
     },
     "M11": {
       "name": "Interlocks, Trips and Shutdown",
-      "complete": 2,
+      "complete": 3,
       "total": 4
     },
     "M12": {
@@ -119,7 +119,7 @@
   },
   "totals": {
     "tasks": 115,
-    "complete": 83,
+    "complete": 84,
     "startable_now": 19
   },
   "tasks": [
@@ -1472,10 +1472,9 @@
       "files": [
         "app/safety/permissives.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true,
-      "note": ""
+      "status": "Complete",
+      "status_key": "done",
+      "note": "COMPLETE - merged to main as 543ac7a (Merge T11-3, PR #111), 29 Sep 2026. 2184 passed on main post-merge, mypy clean, no golden trace moved. Adds app/safety/permissives.py: RestartGate holds an interlock-precedence STOP demand on '<tag>.run' while a permissive is unsatisfied or a tripped interlock awaits reset(); reset() clears only trips whose condition has cleared, so a reset with the condition still present changes nothing. Never stops a running machine; a missing, non-numeric or non-finite reading is unsatisfied. Construction refuses unknown devices/interlocks and non-numeric fields (all reported together) and warns on an unpublished variable. gate.update must run before TripSystem.update. Not wired into Session/Scheduler (spine follow-up, unowned); no C3 config key for permissives. actions._number renamed to public number. /roborev-refine ran to a clean branch review."
     },
     {
       "id": "T11-4",
@@ -1545,10 +1544,7 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "T11-3"
-      ],
+      "startable": true,
       "note": ""
     },
     {

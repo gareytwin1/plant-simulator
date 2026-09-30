@@ -523,7 +523,7 @@ def test_a_replay_whose_initial_condition_file_is_gone_is_a_divergence(tmp_path)
 
     (tmp_path / "initial_conditions" / "feed_pump_trip.json").unlink()
 
-    with pytest.raises(ReplayDivergence, match="no initial condition named 'feed_pump_trip'.*armed from it"):
+    with pytest.raises(ReplayDivergence, match="no initial condition named 'feed_pump_trip'.*expected fingerprint covers"):
         replay(recording, library)
 
 
@@ -535,7 +535,7 @@ def test_a_replay_whose_plant_file_is_gone_is_a_divergence(tmp_path):
 
     (tmp_path / "plants" / "olefins_lite.yaml").unlink()
 
-    with pytest.raises(ReplayDivergence, match="no plant named 'olefins_lite'.*armed from it"):
+    with pytest.raises(ReplayDivergence, match="no plant named 'olefins_lite'.*expected fingerprint covers"):
         replay(recording, library)
 
 
@@ -549,6 +549,20 @@ def test_a_missing_file_without_a_fingerprint_to_compare_fails_as_itself(tmp_pat
 
     with pytest.raises(ScenarioNotFound, match="no plant named 'olefins_lite'"):
         replay(recording, library)
+
+
+def test_a_recording_renamed_to_an_identical_copy_of_its_plant_is_a_divergence(tmp_path):
+    library = copied_library(tmp_path)
+    live = ScenarioRunner(library)
+    live.load_config(scenario())
+    recording = Recording.of(live)
+
+    plants = tmp_path / "plants"
+    shutil.copy(plants / "olefins_lite.yaml", plants / "olefins_copy.yaml")
+    renamed = dataclasses.replace(recording, scenario={**recording.scenario, "plant": "olefins_copy"})
+
+    with pytest.raises(ReplayDivergence, match="has changed since the run was armed"):
+        replay(renamed, library)
 
 
 def test_a_recording_naming_a_file_that_could_never_resolve_fails_as_itself():

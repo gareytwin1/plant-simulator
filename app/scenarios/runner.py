@@ -579,18 +579,21 @@ class ScenarioRunner:
             plant_path = self._library.plant_path(config["plant"])
             condition_path = self._library.condition_path(condition["condition"])
         except ScenarioNotFound as error:
-            # A plainly named file a fingerprinted run was armed from, gone,
-            # has changed; a name that could never resolve is the document's.
+            # A plainly named file that a fingerprint expects, gone, is a
+            # change; a name that could never resolve is the document's.
             if expected is None:
                 raise
 
-            raise ScenarioChanged(f"{error}, but the run was armed from it") from error
+            raise ScenarioChanged(f"{error}, which the expected fingerprint covers") from error
 
         # Read once: arming, every abort and the fingerprint all see the
         # files as they were at load, whatever happens to them afterwards.
         plant_bytes = plant_path.read_bytes()
         condition_bytes = condition_path.read_bytes()
-        fingerprint = _fingerprint(plant_bytes, condition_bytes)
+        fingerprint = _fingerprint(
+            (config["plant"], plant_bytes),
+            (condition["condition"], condition_bytes),
+        )
 
         if expected is not None and fingerprint != expected:
             raise ScenarioChanged(
@@ -693,10 +696,13 @@ class ScenarioRunner:
         )
 
 
-def _fingerprint(plant: bytes, condition: bytes) -> str:
+def _fingerprint(*files: tuple[str, bytes]) -> str:
+    """Each file's name and content, so a document renamed to another file
+    with the same bytes is a different run too."""
     digest = hashlib.sha256()
 
-    for content in (plant, condition):
+    for name, content in files:
+        digest.update(hashlib.sha256(name.encode()).digest())
         digest.update(hashlib.sha256(content).digest())
 
     return digest.hexdigest()

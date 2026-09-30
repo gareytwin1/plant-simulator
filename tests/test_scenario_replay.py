@@ -165,6 +165,16 @@ def test_the_recording_interleaves_actions_with_the_ticks_they_fell_between():
     )
 
 
+def test_an_action_returns_the_scenario_time_the_result_reports_it_at():
+    live = started()
+    steps(live, 3, dt=0.7)
+
+    logged = live.act("P-101", "start", None)
+
+    assert logged == live.result().actions[-1]["sim_time"]
+    assert logged == pytest.approx(2.1)
+
+
 def test_an_action_before_start_replays_before_the_time_zero_malfunction():
     # LV-101's capacity is written by the malfunction on start; an action
     # taken while armed lands on the undisturbed plant, at the same sim time.

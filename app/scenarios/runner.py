@@ -463,11 +463,14 @@ class ScenarioRunner:
                 paused=clock.paused,
             )
 
-    def act(self, target: str, action: str, value: float | None) -> None:
+    def act(self, target: str, action: str, value: float | None) -> float:
         """Apply one operator action to the live run and log it, under the
         lock that `step` and `abort` take, so it can never interleave with
         either, and refused once the run is over so its result stays final.
-        Otherwise the same refusals as `app.api.action.apply_action`."""
+        Otherwise the same refusals as `app.api.action.apply_action`.
+
+        Returns the scenario time the action was logged at, as
+        `ScenarioResult.actions` reports it."""
         with self._lock:
             run = self._loaded()
 
@@ -476,14 +479,10 @@ class ScenarioRunner:
                     f"cannot act on a scenario that is {run.phase.value}; its result is final",
                 )
 
-            apply_action(
-                run.engine.equipment,
-                run.actions,
-                run.engine.clock.sim_time,
-                target,
-                action,
-                value,
-            )
+            sim_time = run.engine.clock.sim_time
+            apply_action(run.engine.equipment, run.actions, sim_time, target, action, value)
+
+            return sim_time - run.origin
 
     def load(self, scenario_id: str) -> ScenarioResult:
         return self.load_config(self._library.scenario(scenario_id))

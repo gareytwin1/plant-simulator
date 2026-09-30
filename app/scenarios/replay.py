@@ -186,13 +186,10 @@ def replay(recording: Recording, library: ScenarioLibrary | None = None) -> Scen
     except ScenarioChanged as error:
         raise ReplayDivergence(f"{error}; the recording no longer describes the files it names") from error
 
-    # Arming moves no time, so the clock reads the scenario's origin now.
-    origin = runner.engine.clock.sim_time
-
     for index, item in enumerate(recording.inputs):
         try:
             if isinstance(item, Act):
-                _act(runner, item, origin)
+                _act(runner, item)
             else:
                 _tick(runner, item)
         except ReplayDivergence as divergence:
@@ -203,15 +200,12 @@ def replay(recording: Recording, library: ScenarioLibrary | None = None) -> Scen
     return runner
 
 
-def _act(runner: ScenarioRunner, item: Act, origin: float) -> None:
+def _act(runner: ScenarioRunner, item: Act) -> None:
     try:
-        runner.act(item.target, item.action, item.value)
+        replayed = runner.act(item.target, item.action, item.value)
     except (KeyError, ValueError) as error:
         raise ReplayDivergence(f"the runner refused {item}: {error}") from error
 
-    # An action is logged at the engine clock's time, and the result reports
-    # it less the origin - the same subtraction, without rebuilding a result.
-    replayed = runner.engine.clock.sim_time - origin
     if replayed != item.sim_time:
         raise ReplayDivergence(
             f"{item.target} {item.action} was recorded at t={item.sim_time!r} "

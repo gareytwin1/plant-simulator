@@ -1,0 +1,27 @@
+# Instrument drift: the V-101 level transmitter reads high.
+#
+# Bias is the only parameter an instrument fault writes, and it changes what
+# is indicated, never the process. Everything that reads the indication -
+# operator, alarms, controllers - is misled while the true level is exactly
+# where it was. No plant config declares instruments yet; `requires` names the
+# one this entry targets.
+id: instrument_drift
+name: Level transmitter drift
+summary: LT-101 reads 0.2 high; the true level does not move.
+malfunction:
+  target_tag: LT-101
+  parameter: bias
+  value: 0.2
+plant: olefins_lite
+requires: An Instrument tagged LT-101 on equipment V-101 level, added to the engine.
+expected_response:
+  - {view: indicated, section: equipment, source: V-101, variable: level, direction: rises}
+  - {view: true, section: equipment, source: V-101, variable: level, direction: unchanged}
+symptoms:
+  - LT-101 shows a level about 0.2 above the truth while every flow and pressure is unchanged.
+  - Nothing else in the plant disagrees, except an independent indication of the same level.
+  - A controller closing its loop on LT-101 would hold the wrong level.
+diagnosis: >
+  An indication that moved with nothing else in the plant moving is suspect.
+  Cross-check against a second measurement of the same variable before acting
+  on it.

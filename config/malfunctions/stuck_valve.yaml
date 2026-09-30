@@ -1,0 +1,26 @@
+# Stuck valve: LV-101 cannot close below half travel.
+#
+# A stuck stem is a travel limit, not a flow: raising min_position to 0.5
+# leaves the valve free to open but unable to throttle below where it stuck.
+# The fault is invisible until the operator tries to close it, so the
+# expected response is taken against an unfaulted twin given the same action.
+id: stuck_valve
+name: Stuck drain valve
+summary: LV-101 will not close below half travel, so level cannot be held.
+malfunction:
+  target_tag: LV-101
+  parameter: min_position
+  value: 0.5
+plant: olefins_lite
+operator_actions:
+  - {device: LV-101, call: set_position_target, args: [0.0]}
+expected_response:
+  - {section: streams, source: B-LV-101, variable: flow, direction: rises}
+  - {section: equipment, source: V-101, variable: level, direction: falls}
+symptoms:
+  - Closing LV-101 does not reduce drain flow; it stays near its design value.
+  - V-101 level does not build as it would if the valve closed.
+  - The valve's travel stays at 0.5 while the operator's demand is closed.
+diagnosis: >
+  A valve commanded closed that still passes flow is stuck. Compare target
+  with position and drain flow; isolate it and throttle with another means.

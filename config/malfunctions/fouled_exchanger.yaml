@@ -1,0 +1,23 @@
+# Fouled exchanger: E-101 loses 60% of its heat-transfer capability.
+#
+# No shipped plant carries a heat exchanger yet; `requires` says what a plant
+# needs for this entry to apply. The exchanger is a cooler, so losing UA
+# raises the temperature it delivers downstream.
+id: fouled_exchanger
+name: Fouled exchanger
+summary: E-101 fouls and delivers hotter process fluid downstream.
+malfunction:
+  target_tag: E-101
+  parameter: fouling
+  value: 0.6
+plant: null
+requires: A liquid-domain HeatExchanger tagged E-101 whose outlet node is internal, with its inlet_temperature written by the caller.
+expected_response:
+  - {section: nodes, source: N-103, variable: temperature, direction: rises}
+symptoms:
+  - The temperature downstream of E-101 creeps up while flow through it is unchanged.
+  - Duty falls in proportion to the lost UA; the outlet approaches the inlet temperature.
+diagnosis: >
+  Hotter outlet with no change in flow or coolant temperature is lost
+  transfer area, not a utility problem. Compare with cooling_loss, which
+  looks similar: there, the coolant side is the cause.

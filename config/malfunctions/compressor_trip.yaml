@@ -1,0 +1,26 @@
+# Compressor trip: K-101 stops developing head.
+#
+# A malfunction writes a design parameter, never a run state, so a trip is
+# modelled as the machine losing all of its head (shutoff_pressure_rise -> 0)
+# rather than as `running = False`. With no check valve in the plant the
+# discharge header then drives gas backwards through the stopped machine.
+id: compressor_trip
+name: Compressor trip
+summary: K-101 stops developing head; the discharge header backflows through it.
+malfunction:
+  target_tag: K-101
+  parameter: shutoff_pressure_rise
+  value: 0.0
+plant: olefins_lite
+expected_response:
+  - {section: streams, source: B-K-101, variable: flow, direction: falls}
+  - {section: nodes, source: N-204, variable: pressure, direction: falls}
+  - {section: nodes, source: N-201, variable: pressure, direction: rises}
+symptoms:
+  - K-101 flow goes from a small reverse draw to a large one (about -10 to -45 SCFM).
+  - K-101 discharge pressure (N-204) sags from its design value as the machine stops lifting it.
+  - V-101 vapor pressure (N-201) creeps up as gas backflows into the vessel, because PV-101 cannot vent it as fast.
+diagnosis: >
+  Discharge pressure falling while suction-side pressure climbs says the
+  machine has stopped doing work, not that the line is blocked. Confirm K-101
+  has no head before restarting it, and watch V-101 pressure until it does.

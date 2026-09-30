@@ -42,13 +42,13 @@ Complete: **M0-M7, M9, MR**. Open:
 | **M8** PID Controllers | 5/6 | T8-5 startable (V1.1-deferred) |
 | **M10** Alarms | 3/5 | T10-1, T10-2, T10-3; T10-4 startable (V1.1-deferred), T10-5 startable |
 | **M11** Interlocks and Trips | 3/4 | T11-1, T11-2, T11-3; T11-4 startable (V1.1-deferred) |
+| **M12** Startup and Shutdown Sequences | 0/4 | T12-1, T12-3 startable |
 | **M13** Malfunctions | 3/5 | T13-1, T13-2, T13-5; T13-3, T13-4 startable |
 | **M14** Scenario Engine | 2/6 | T14-1, T14-2; T14-3 startable |
 | **M15** Action Log and Scoring | 1/4 | T15-1; T15-4 startable (V1.1-deferred) |
 | **M16** Operator Console | 1/5 | T16-2; T16-1 startable, T16-5 startable; T16-3 needs T16-1 first |
 | **M17** Historian and Trends | 1/4 | T17-1; T17-2 startable (V1.1-deferred) |
 | **M18** Deployment | 1/5 | T18-2 |
-| **M12** Startup and Shutdown Sequences | 0/4 | T12-1, T12-3 startable |
 | M19 | 0 | - |
 
 **84 of 115 tasks Complete.** Checkpoints A-C reached. Checkpoint **D** (M8)

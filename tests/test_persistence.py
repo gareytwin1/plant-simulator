@@ -291,7 +291,7 @@ def test_an_engine_without_a_topology_round_trips():
         (lambda s: s["domains"]["gas"]["nodes"].update({"N-201": -5.0}), r"boundary pressure"),
         (lambda s: s["domains"]["gas"]["solver"].update(converged=False), r"solver"),
         (lambda s: s["domains"]["gas"]["streams"].pop("B-K-101"), r"gas\.streams: missing 'B-K-101'"),
-        (lambda s: s["domains"]["gas"]["streams"]["B-K-101"].update(composition={"CH4": 0.5}), r"gas\.streams\.B-K-101: "),
+        (lambda s: s["domains"]["gas"]["streams"]["B-K-101"].update(composition={"CH4": 0.5}), r"gas\.streams\.B-K-101: composition fractions must sum to 1\.0"),
         (lambda s: s["domains"]["gas"]["temperatures"].update({"N-201": math.nan}), r"gas\.temperatures\.N-201: nan is not finite"),
         (lambda s: s["loops"]["PIC-101"].update(mode="sideways"), r"loops\.PIC-101\.mode"),
         (lambda s: s["loops"]["PIC-101"]["pid"].pop("integral"), r"pid: missing 'integral'"),

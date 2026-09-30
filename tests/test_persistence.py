@@ -25,6 +25,7 @@ from app.engine.engine import Engine
 from app.engine.instruments import Instrument
 from app.engine.network import SolverResult
 from app.engine.persistence import STATE_VERSION, StateError, capture_state, restore_state
+from app.equipment.relief import ReliefValve
 from app.plant.loader import load_plant_file
 
 
@@ -342,6 +343,33 @@ def test_a_whole_number_restores_a_float_attribute_as_a_float():
     restore_state(restored, state)
 
     assert type(restored.equipment["P-101"].max_flow) is float
+
+
+def test_a_relief_valve_band_is_checked_across_its_saved_fields():
+    source = Engine([ReliefValve("PSV-101")])
+    state = capture_state(source)
+    state["equipment"]["PSV-101"].update(_set_pressure=5.0, _blowdown=10.0)
+
+    target = Engine([ReliefValve("PSV-101")])
+    before = capture_state(target)
+
+    with pytest.raises(StateError, match=r"equipment\.PSV-101\._\w+: PSV-101\.blowdown \(10\.0\)"):
+        restore_state(target, state)
+
+    assert capture_state(target) == before
+
+
+def test_a_relief_valve_band_valid_only_with_both_fields_is_restored():
+    source = Engine([ReliefValve("PSV-101")])
+    state = capture_state(source)
+    # A 300 blowdown is valid only beside the raised set pressure, not the live 250.
+    state["equipment"]["PSV-101"].update(_set_pressure=400.0, _blowdown=300.0)
+
+    target = Engine([ReliefValve("PSV-101")])
+    restore_state(target, state)
+
+    assert target.equipment["PSV-101"].set_pressure == 400.0
+    assert target.equipment["PSV-101"].blowdown == 300.0
 
 
 def test_a_refused_restore_changes_nothing():

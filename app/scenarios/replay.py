@@ -337,6 +337,11 @@ def _decode(row: Any, path: str) -> Input:
     if isinstance(repeat, bool) or not isinstance(repeat, int) or repeat < 1:
         raise RecordingFormatError(f"{path}.repeat must be a count of 1 or more, got {repeat!r}")
 
+    # A step that raised is never merged, and replay stops a repeat at its
+    # first error, so a raising step standing for several would lose steps.
+    if error is not None and repeat != 1:
+        raise RecordingFormatError(f"{path} records an error, so its repeat must be 1, got {repeat!r}")
+
     return Tick(
         TickKind.STEP,
         actions,

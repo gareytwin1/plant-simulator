@@ -485,6 +485,7 @@ MISSING = object()
         document(row("step", dt="1")),
         document(row("step", paused=0)),
         document(row("step", repeat=0)),
+        document(row("step", error="ValueError: boom", repeat=3)),
         document(row("act", target=1)),
         document(row("act", sim_time=MISSING)),
     ],
@@ -498,14 +499,16 @@ def test_a_well_formed_recording_document_is_accepted():
     well_formed = document(
         row("act"),
         row("start", actions=1),
-        row("step", actions=1, error="ValueError: boom", repeat=3),
+        row("step", actions=1, error="ValueError: boom"),
+        row("step", actions=1, repeat=3),
         row("abort", actions=1),
     )
 
     inputs = Recording.from_dict(well_formed).inputs
 
-    assert len(inputs) == 4
-    assert inputs[2] == Tick(TickKind.STEP, 1, dt=1.0, speed=1.0, paused=False, error="ValueError: boom", repeat=3)
+    assert len(inputs) == 5
+    assert inputs[2] == Tick(TickKind.STEP, 1, dt=1.0, speed=1.0, paused=False, error="ValueError: boom")
+    assert inputs[3] == Tick(TickKind.STEP, 1, dt=1.0, speed=1.0, paused=False, repeat=3)
 
 
 # ---- a replay that stops reproducing says so ----

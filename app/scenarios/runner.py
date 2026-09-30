@@ -167,7 +167,6 @@ class ScenarioLibrary:
         return _decode_condition(path, path.read_bytes())
 
 
-
 def _decode_condition(path: Path, data: bytes) -> dict[str, JSONValue]:
     try:
         document = json.loads(data)
@@ -581,8 +580,9 @@ class ScenarioRunner:
             plant_path = self._library.plant_path(config["plant"])
             condition_path = self._library.condition_path(condition["condition"])
         except ScenarioNotFound as error:
-            # A plainly named file that a fingerprint expects, gone, is a
-            # change; a name that could never resolve is the document's.
+            # Under a fingerprint, a plainly named file that is missing -
+            # deleted, or renamed in the document - cannot match; a name that
+            # could never resolve is the document's own error.
             if expected is None:
                 raise
 

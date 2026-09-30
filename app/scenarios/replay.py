@@ -301,7 +301,7 @@ _FIELDS = {
 def _decode(row: Any, path: str) -> Input:
     # Any: one decoded JSON row, checked against the shape `_encode` writes.
     kind = row.get("type") if isinstance(row, dict) else None
-    if kind not in _FIELDS:
+    if not isinstance(kind, str) or kind not in _FIELDS:
         raise RecordingFormatError(f"{path} must be an object whose 'type' is one of {sorted(_FIELDS)}")
 
     if set(row) != _FIELDS[kind]:

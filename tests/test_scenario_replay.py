@@ -414,6 +414,7 @@ CLOCK = {"speed": 1.0, "paused": False}
         {"scenario": {}, "inputs": [], "clock": {"speed": 1.0, "paused": 0}},
         {"scenario": {}, "inputs": [], "clock": CLOCK, "fingerprint": 7},
         {"scenario": {}, "inputs": [{"type": "jump"}], "clock": CLOCK, "fingerprint": None},
+        {"scenario": {}, "inputs": [{"type": []}], "clock": CLOCK, "fingerprint": None},
         {"scenario": {}, "inputs": [{"type": "start"}], "clock": CLOCK, "fingerprint": None},
         {"scenario": {}, "inputs": [{"type": "start", "actions": -1, "error": None}], "clock": CLOCK, "fingerprint": None},
         {"scenario": {}, "inputs": [{"type": "start", "actions": True, "error": None}], "clock": CLOCK, "fingerprint": None},

@@ -277,7 +277,6 @@ def test_an_engine_without_a_topology_round_trips():
         (lambda s: s["clock"].update(extra=1), r"clock: unexpected 'extra'"),
         (lambda s: s["clock"].update(speed="fast"), r"clock\.speed: expected a number"),
         (lambda s: s["clock"].update(speed=math.nan), r"clock\.speed: nan is not finite"),
-        (lambda s: s["clock"].update(sim_time=-1.0), r"clock\.sim_time: -1\.0 is negative"),
         (lambda s: s["equipment"].pop("P-101"), r"equipment: missing 'P-101'"),
         (lambda s: s["equipment"]["P-101"].update(speed="fast"), r"equipment\.P-101\.speed"),
         (lambda s: s["equipment"]["P-101"].update(speed=None), r"equipment\.P-101\.speed: expected a number"),
@@ -294,8 +293,12 @@ def test_an_engine_without_a_topology_round_trips():
         (lambda s: s["loops"]["PIC-101"].update(mode="cascade"), r"loops\.PIC-101\.mode: the engine cannot run a cascade loop"),
         (lambda s: s["loops"]["PIC-101"]["pid"].update(output_min=2.0, output_max=1.0), r"pid: output_min 2\.0 exceeds output_max 1\.0"),
         (lambda s: s["loops"]["PIC-101"]["pid"].update(ki=-0.1), r"pid\.ki: -0\.1 is negative"),
-        (lambda s: s["envelope"]["V-101"]["level"].update(since=-1.0), r"level\.since: -1\.0 is negative"),
         (lambda s: s["envelope"]["V-101"]["level"]["tracker"].update(elapsed=-1.0), r"tracker\.elapsed: -1\.0 is negative"),
+        (lambda s: s["envelope"]["V-101"]["level"]["tracker"]["time_in_band"].update(ALARM=-1.0), r"time_in_band\.ALARM: -1\.0 is negative"),
+        (lambda s: s["envelope"]["V-101"]["level"]["tracker"]["peak"].update(magnitude=-1.0), r"peak\.magnitude: -1\.0 is negative"),
+        (lambda s: s["envelope"]["V-101"]["level"]["tracker"]["peak"].update(timestamp=-1.0), r"peak\.timestamp: -1\.0 is negative"),
+        (lambda s: s["envelope"]["V-101"]["level"]["evaluator"].update(pending_elapsed=-1.0), r"pending_elapsed: -1\.0 is negative"),
+        (lambda s: s["envelope"]["V-101"]["level"]["evaluator"].update(pending={"severity": "NORMAL", "side": "hi", "threshold": 1.0}), r"evaluator\.pending\.severity: a held band is never NORMAL"),
         (lambda s: s["envelope"]["V-101"]["level"].update(band={"severity": "ALARM", "side": None}), r"level\.band: ALARM/None does not match"),
         (lambda s: s["envelope"]["V-101"]["level"]["evaluator"].update(band={"severity": "NORMAL", "side": "hi", "threshold": 1.0}), r"evaluator\.band\.severity: a held band is never NORMAL"),
         (lambda s: s["envelope"]["V-101"].pop("level"), r"envelope\.V-101: missing 'level'"),
@@ -309,6 +312,19 @@ def test_a_damaged_save_is_refused_naming_the_field(damage, message):
 
     with pytest.raises(StateError, match=message):
         restore_state(build(), state)
+
+
+@pytest.mark.parametrize("speed", [0.0, -1.0])
+def test_any_clock_speed_a_live_clock_holds_round_trips(speed):
+    engine = perturbed()
+    engine.clock.set_speed(speed)
+    engine.clock.sim_time = -5.0
+
+    restored = build()
+    restore_state(restored, through_json(capture_state(engine)))
+
+    assert restored.clock.speed == speed
+    assert restored.clock.sim_time == -5.0
 
 
 def test_a_refused_restore_changes_nothing():

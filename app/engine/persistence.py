@@ -306,7 +306,10 @@ def _kind(value: bool | int | float | str | None) -> str:
 
 def _decode_clock(engine: Engine, value: JSONValue, steps: list[Step]) -> None:
     fields = _keyed(value, ("sim_time", "speed", "paused"), "clock")
-    sim_time = _non_negative(fields["sim_time"], "clock.sim_time")
+    # Any finite time and speed: SimulationClock refuses neither a negative
+    # speed nor the negative sim_time one steps to, and a save must restore
+    # whatever a live clock can hold.
+    sim_time = _number(fields["sim_time"], "clock.sim_time")
     speed = _number(fields["speed"], "clock.speed")
 
     paused = _flag(fields["paused"], "clock.paused")
@@ -678,7 +681,7 @@ def _decode_envelope(engine: Engine, value: JSONValue, steps: list[Step]) -> Non
             engine_band = _keyed(fields["band"], ("severity", "side"), f"{path}.band")
             severity = _severity(engine_band["severity"], f"{path}.band.severity")
             side = _optional_side(engine_band["side"], f"{path}.band.side")
-            since = _non_negative(fields["since"], f"{path}.since")
+            since = _number(fields["since"], f"{path}.since")
 
             # The engine's band is always its evaluator's held band, re-read
             # after every evaluate - a save where they differ never stepped.
@@ -799,7 +802,8 @@ def _number(value: object, path: str) -> float:
 
 
 def _non_negative(value: object, path: str) -> float:
-    """A finite number no step can drive below zero - a time or a magnitude."""
+    """A finite number no step can drive below zero: an evaluator or tracker
+    accumulator, which refuses a negative dt before adding it."""
     number = _number(value, path)
 
     if number < 0.0:

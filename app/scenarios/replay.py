@@ -29,6 +29,12 @@ elapsed time is identical too. Replay drives the runner directly, with no
 `Scheduler` pacing it against a wall clock, which is what makes it faster
 than real time.
 
+Inputs that line up are not yet a reproduced run: a change to a device model,
+the solver or the scenario evaluation moves no input, only where they lead.
+So a recording also carries a digest of where the run ended - its captured
+plant state and its result - and a replay that reaches every input but ends
+elsewhere is a `ReplayDivergence` too.
+
 What a recording does not carry: the plant file and the initial condition
 are read by name from the `ScenarioLibrary`, as on load. It carries their
 fingerprint instead, and a replay that finds either changed refuses to run
@@ -44,6 +50,7 @@ after the last step is replayed too.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
@@ -84,13 +91,15 @@ type Input = Act | Tick
 @dataclass(frozen=True)
 class Recording:
     """A run's inputs: its scenario document, then every action and tick,
-    then the clock's speed and pause as they stood when it was taken."""
+    then the clock's speed and pause as they stood when it was taken - and,
+    to check a replay against, where the run had got to by then."""
 
     scenario: Any  # Any: a scenario document, of the shape the scenario schema allows
     inputs: tuple[Input, ...]
     speed: float = 1.0
     paused: bool = False
     fingerprint: str | None = None  # `RunInputs.fingerprint`; None replays unchecked
+    end_state: str | None = None  # `RunInputs.end_state`; None replays unchecked
 
     @classmethod
     def of(cls, runner: ScenarioRunner) -> Recording:
@@ -130,6 +139,7 @@ class Recording:
             speed=run.speed,
             paused=run.paused,
             fingerprint=run.fingerprint,
+            end_state=run.end_state,
         )
 
     def as_dict(self) -> dict[str, Any]:
@@ -139,19 +149,18 @@ class Recording:
             "inputs": [_encode(item) for item in self.inputs],
             "clock": {"speed": self.speed, "paused": self.paused},
             "fingerprint": self.fingerprint,
+            "end_state": self.end_state,
         }
 
     @classmethod
     def from_dict(cls, document: Mapping[str, Any]) -> Recording:
         # Any: a decoded JSON document, checked here field by field.
-        if not isinstance(document, Mapping) or set(document) != {"scenario", "inputs", "clock", "fingerprint"}:
-            raise RecordingFormatError(
-                "a recording is an object with exactly 'scenario', 'inputs', 'clock' and 'fingerprint'",
-            )
+        if not isinstance(document, Mapping) or set(document) != _DOCUMENT:
+            raise RecordingFormatError(f"a recording is an object with exactly {sorted(_DOCUMENT)}")
 
-        fingerprint = document["fingerprint"]
-        if fingerprint is not None and not isinstance(fingerprint, str):
-            raise RecordingFormatError(f"recording 'fingerprint' must be text or null, got {fingerprint!r}")
+        for digest in ("fingerprint", "end_state"):
+            if document[digest] is not None and not isinstance(document[digest], str):
+                raise RecordingFormatError(f"recording {digest!r} must be text or null, got {document[digest]!r}")
 
         inputs = document["inputs"]
         if not isinstance(inputs, list):
@@ -167,17 +176,22 @@ class Recording:
         return cls(
             scenario=document["scenario"],
             inputs=tuple(_decode(item, f"inputs[{index}]") for index, item in enumerate(inputs)),
-            speed=_float(clock["speed"], "clock.speed"),
+            speed=_rate(clock["speed"], "clock.speed"),
             paused=clock["paused"],
-            fingerprint=fingerprint,
+            fingerprint=document["fingerprint"],
+            end_state=document["end_state"],
         )
+
+
+_DOCUMENT = {"scenario", "inputs", "clock", "fingerprint", "end_state"}
 
 
 def replay(recording: Recording, library: ScenarioLibrary | None = None) -> ScenarioRunner:
     """A fresh runner, armed from the recording's scenario and driven through
     every one of its inputs. Read its `result()` and `engine` for the outcome.
 
-    Raises `ReplayDivergence` at the first input that does not reproduce.
+    Raises `ReplayDivergence` at the first input that does not reproduce, or,
+    once every input has, if the run did not end where the recording did.
     """
     runner = ScenarioRunner(library)
 
@@ -196,6 +210,13 @@ def replay(recording: Recording, library: ScenarioLibrary | None = None) -> Scen
             raise ReplayDivergence(f"inputs[{index}]: {divergence}") from divergence
 
     _set_clock(runner, recording.speed, recording.paused)
+
+    if recording.end_state is not None and runner.inputs().end_state != recording.end_state:
+        result = runner.result()
+        raise ReplayDivergence(
+            f"every input replayed, but the plant or result ended elsewhere (the replay is "
+            f"{result.phase.value}, outcome {result.outcome and result.outcome.value}, at t={result.elapsed_s!r})",
+        )
 
     return runner
 
@@ -345,8 +366,8 @@ def _decode(row: Any, path: str) -> Input:
     return Tick(
         TickKind.STEP,
         actions,
-        dt=_float(row["dt"], f"{path}.dt"),
-        speed=_float(row["speed"], f"{path}.speed"),
+        dt=_rate(row["dt"], f"{path}.dt"),
+        speed=_rate(row["speed"], f"{path}.speed"),
         paused=row["paused"],
         error=error,
         repeat=repeat,
@@ -355,7 +376,17 @@ def _decode(row: Any, path: str) -> Input:
 
 def _float(value: Any, path: str) -> float:
     # Any: a decoded JSON value that should be a number.
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise RecordingFormatError(f"{path} must be a number, got {value!r}")
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+        raise RecordingFormatError(f"{path} must be a finite number, got {value!r}")
 
     return float(value)
+
+
+def _rate(value: Any, path: str) -> float:
+    # Any: a decoded JSON value that should be a step's dt or a clock speed.
+    number = _float(value, path)
+
+    if number < 0:
+        raise RecordingFormatError(f"{path} must not be negative, got {value!r}")
+
+    return number

@@ -12,6 +12,7 @@ the result, never `approx` - a replay that is merely close is a different run.
 import ast
 import dataclasses
 import json
+import math
 import shutil
 import time
 from pathlib import Path
@@ -22,6 +23,7 @@ from app.api.action import apply_action
 from app.disturbances.malfunction import MalfunctionRegistry
 from app.engine.engine import Engine
 from app.engine.persistence import capture_state
+from app.equipment.valve import ControlValve
 from app.scenarios.replay import Act, Recording, RecordingFormatError, ReplayDivergence, replay
 from app.scenarios.runner import (
     Outcome,
@@ -448,7 +450,7 @@ CLOCK = {"speed": 1.0, "paused": False}
 
 def document(*inputs, **changes):
     """A recording document holding `inputs`, well formed but for `changes`."""
-    return {"scenario": {}, "inputs": list(inputs), "clock": CLOCK, "fingerprint": None, **changes}
+    return {"scenario": {}, "inputs": list(inputs), "clock": CLOCK, "fingerprint": None, "end_state": None, **changes}
 
 
 def row(kind, **changes):
@@ -476,6 +478,9 @@ MISSING = object()
         document(clock={"speed": "fast", "paused": False}),
         document(clock={"speed": 1.0, "paused": 0}),
         document(fingerprint=7),
+        document(end_state=7),
+        document(clock={"speed": -1.0, "paused": False}),
+        document(clock={"speed": math.inf, "paused": False}),
         document({"type": "jump"}),
         document({"type": []}),
         document(row("start", actions=MISSING)),
@@ -485,9 +490,13 @@ MISSING = object()
         document(row("step", dt="1")),
         document(row("step", paused=0)),
         document(row("step", repeat=0)),
+        document(row("step", dt=-1)),
+        document(row("step", dt=math.nan)),
+        document(row("step", speed=-2)),
         document(row("step", error="ValueError: boom", repeat=3)),
         document(row("act", target=1)),
         document(row("act", sim_time=MISSING)),
+        document(row("act", sim_time=math.nan)),
     ],
 )
 def test_a_malformed_recording_is_refused(document):
@@ -692,6 +701,31 @@ def test_a_step_cut_differently_is_a_divergence():
 
     with pytest.raises(ReplayDivergence, match="replayed at t=8"):
         replay(edited(Recording.of(live), 1, dt=2.0))
+
+
+def test_a_physics_change_that_moves_no_input_is_still_a_divergence(monkeypatch):
+    live = recovered_run()
+    recording = Recording.of(live)
+    characteristic = ControlValve.characteristic
+
+    def leakier(self, flow):
+        return 0.9 * characteristic(self, flow)
+
+    monkeypatch.setattr(ControlValve, "characteristic", leakier)
+
+    with pytest.raises(ReplayDivergence, match="every input replayed, but the plant or result ended elsewhere"):
+        replay(recording)
+
+
+def test_a_replay_that_has_not_completed_where_the_run_had_is_a_divergence():
+    live = started()
+    run_out(live)
+    recording = Recording.of(live)
+    ticks = [item for item in recording.inputs if isinstance(item, Tick) and item.kind is TickKind.STEP]
+    shortened = edited(recording, recording.inputs.index(ticks[-1]), repeat=ticks[-1].repeat - 1)
+
+    with pytest.raises(ReplayDivergence, match="the replay is running"):
+        replay(shortened)
 
 
 def test_a_step_past_the_end_of_the_run_is_a_divergence():

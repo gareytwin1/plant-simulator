@@ -90,7 +90,7 @@ import yaml
 from app.api.action import apply_action
 from app.disturbances.malfunction import AtTime, Malfunction, MalfunctionRegistry, Step
 from app.engine.engine import Engine
-from app.engine.persistence import restore_state
+from app.engine.persistence import capture_state, restore_state
 from app.engine.snapshot import Snapshot
 from app.equipment.registry import EquipmentRegistry
 from app.plant.loader import CONFIG_SUFFIXES, load_plant, read_plant_config
@@ -384,7 +384,12 @@ class RunInputs:
     `fingerprint` digests what the document names but does not contain -
     the name the document gives the plant file and the initial condition,
     and each file's content as read at load - so a replay can tell when
-    either has changed under it, or been swapped for another."""
+    either has changed under it, or been swapped for another.
+
+    `end_state` digests where those inputs led: the plant's captured state
+    and the run's result. It is what a replay has to reach, so a change in
+    the physics or the evaluation code, which no input records, still
+    shows."""
 
     config: Any  # Any: a scenario document, of the shape the scenario schema allows
     fingerprint: str
@@ -392,6 +397,7 @@ class RunInputs:
     actions: tuple[Mapping[str, Any], ...]
     speed: float
     paused: bool
+    end_state: str
 
 
 @dataclass
@@ -472,6 +478,7 @@ class ScenarioRunner:
                 actions=_actions(run),
                 speed=clock.speed,
                 paused=clock.paused,
+                end_state=self._end_state(run),
             )
 
     def act(self, target: str, action: str, value: float | None) -> float:
@@ -654,6 +661,11 @@ class ScenarioRunner:
             objectives=objectives,
             objective_ids=tuple(entry["id"] for entry in config.get("objectives", [])),
         )
+
+    def _end_state(self, run: _Run) -> str:
+        where = {"state": capture_state(run.engine), "result": self._result(run).as_dict()}
+
+        return hashlib.sha256(json.dumps(where, sort_keys=True).encode()).hexdigest()
 
     @staticmethod
     def _restored(build: Callable[[], Engine], state: dict[str, JSONValue]) -> Engine:

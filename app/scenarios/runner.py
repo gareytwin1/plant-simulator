@@ -167,6 +167,7 @@ class ScenarioLibrary:
         return _decode_condition(path, path.read_bytes())
 
 
+
 def _decode_condition(path: Path, data: bytes) -> dict[str, JSONValue]:
     try:
         document = json.loads(data)
@@ -371,8 +372,9 @@ class RunInputs:
     now, which a change after the last step leaves no tick to carry.
 
     `fingerprint` digests what the document names but does not contain -
-    the plant file and the initial condition file, as read at load - so a
-    replay can tell when either has changed under it."""
+    the name the document gives the plant file and the initial condition,
+    and each file's content as read at load - so a replay can tell when
+    either has changed under it, or been swapped for another."""
 
     config: Any  # Any: a scenario document, of the shape the scenario schema allows
     fingerprint: str
@@ -584,7 +586,7 @@ class ScenarioRunner:
             if expected is None:
                 raise
 
-            raise ScenarioChanged(f"{error}, which the expected fingerprint covers") from error
+            raise ScenarioChanged(f"{error}, so the run cannot match the expected fingerprint") from error
 
         # Read once: arming, every abort and the fingerprint all see the
         # files as they were at load, whatever happens to them afterwards.

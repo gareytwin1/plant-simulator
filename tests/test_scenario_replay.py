@@ -523,7 +523,7 @@ def test_a_replay_whose_initial_condition_file_is_gone_is_a_divergence(tmp_path)
 
     (tmp_path / "initial_conditions" / "feed_pump_trip.json").unlink()
 
-    with pytest.raises(ReplayDivergence, match="no initial condition named 'feed_pump_trip'.*expected fingerprint covers"):
+    with pytest.raises(ReplayDivergence, match="no initial condition named 'feed_pump_trip'.*cannot match the expected fingerprint"):
         replay(recording, library)
 
 
@@ -535,7 +535,7 @@ def test_a_replay_whose_plant_file_is_gone_is_a_divergence(tmp_path):
 
     (tmp_path / "plants" / "olefins_lite.yaml").unlink()
 
-    with pytest.raises(ReplayDivergence, match="no plant named 'olefins_lite'.*expected fingerprint covers"):
+    with pytest.raises(ReplayDivergence, match="no plant named 'olefins_lite'.*cannot match the expected fingerprint"):
         replay(recording, library)
 
 
@@ -563,6 +563,14 @@ def test_a_recording_renamed_to_an_identical_copy_of_its_plant_is_a_divergence(t
 
     with pytest.raises(ReplayDivergence, match="has changed since the run was armed"):
         replay(renamed, library)
+
+
+def test_a_recording_edited_to_name_a_missing_plant_is_a_divergence():
+    recording = Recording.of(started())
+    edited_plant = dataclasses.replace(recording, scenario={**recording.scenario, "plant": "no_such_plant"})
+
+    with pytest.raises(ReplayDivergence, match="no plant named 'no_such_plant'.*cannot match the expected fingerprint"):
+        replay(edited_plant)
 
 
 def test_a_recording_naming_a_file_that_could_never_resolve_fails_as_itself():

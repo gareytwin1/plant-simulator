@@ -11,6 +11,7 @@ tripped, V-101 draining at about 0.19 and falling. Ignored, its level reaches
 
 import copy
 import json
+import threading
 from pathlib import Path
 
 import pytest
@@ -210,6 +211,62 @@ def test_nothing_advances_before_start():
 
     assert capture_state(runner.engine) == armed
     assert runner.phase is Phase.LOADED
+
+
+def test_act_applies_and_logs_an_action_on_the_live_run():
+    runner = started()
+
+    runner.act("P-101", "set_speed_target", 0.5)
+
+    assert runner.engine.equipment["P-101"].speed_target == pytest.approx(0.5)
+    assert [event.tag for event in runner.actions] == ["P-101"]
+
+
+def test_act_reaches_the_rebuilt_engine_after_an_abort():
+    runner = started()
+    runner.abort()
+
+    runner.act("P-101", "start", None)
+
+    assert runner.engine.equipment["P-101"].running is True
+
+
+def test_act_refuses_with_nothing_loaded():
+    runner = ScenarioRunner()
+
+    with pytest.raises(ScenarioStateError, match="no scenario"):
+        runner.act("P-101", "start", None)
+
+
+def test_act_does_not_interleave_with_a_step():
+    # act and step take the runner's lock, so while one thread holds it in a
+    # step, an act waits rather than mutating a device mid-step.
+    runner = started()
+    entered, release = threading.Event(), threading.Event()
+    engine = runner.engine
+    real_step = engine.step
+
+    def slow_step(dt):
+        entered.set()
+        release.wait(timeout=5)
+
+        return real_step(dt)
+
+    engine.step = slow_step
+    stepper = threading.Thread(target=runner.step, args=(DT,))
+    stepper.start()
+    assert entered.wait(timeout=5)
+
+    actor = threading.Thread(target=runner.act, args=("P-101", "start", None))
+    actor.start()
+    actor.join(timeout=0.2)
+    assert actor.is_alive()
+    assert engine.equipment["P-101"].running is False
+
+    release.set()
+    stepper.join(timeout=5)
+    actor.join(timeout=5)
+    assert engine.equipment["P-101"].running is True
 
 
 def test_the_runner_can_be_driven_by_a_scheduler():

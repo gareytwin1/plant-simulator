@@ -34,7 +34,7 @@ def api(tmp_path):
 
     app = Flask(__name__)
     app.register_blueprint(create_scenario_blueprint(lambda: runner))
-    app.register_blueprint(create_action_blueprint(lambda: runner.engine, lambda: runner.actions))
+    app.register_blueprint(create_action_blueprint(lambda: runner.engine, lambda: runner.actions, runner.act))
 
     return app.test_client(), runner
 
@@ -131,3 +131,12 @@ def test_a_call_the_phase_does_not_allow_is_a_409(api):
 
     assert client.post("/api/scenario/start").status_code == 409
     assert client.post("/api/scenario/load", json={"scenario": "pump-trip"}).status_code == 409
+
+
+def test_an_action_with_nothing_loaded_is_a_400_not_a_500(api):
+    client, _ = api
+
+    response = client.post("/api/action", json={"target": "P-101", "action": "start"})
+
+    assert response.status_code == 400
+    assert "no scenario" in response.get_json()["error"]

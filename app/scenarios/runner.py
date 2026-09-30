@@ -70,6 +70,7 @@ from typing import Any
 
 import yaml
 
+from app.api.action import apply_action
 from app.disturbances.malfunction import AtTime, Malfunction, MalfunctionRegistry, Step
 from app.engine.engine import Engine
 from app.engine.persistence import restore_state
@@ -100,8 +101,12 @@ class ScenarioConfigError(ValueError):
     """A scenario file that cannot be loaded, named for what is wrong."""
 
 
-class ScenarioStateError(RuntimeError):
-    """A lifecycle call the runner's current phase does not allow."""
+class ScenarioStateError(ValueError):
+    """A lifecycle call the runner's current phase does not allow.
+
+    A `ValueError` so the C5 action route, which answers one for any action
+    it refuses, answers 400 for an action with no scenario loaded rather than
+    failing with a 500."""
 
 
 class Phase(str, Enum):
@@ -327,7 +332,9 @@ class ScenarioRunner:
 
     @property
     def engine(self) -> Engine:
-        """The loaded scenario's plant, for the C5 action endpoint to act on."""
+        """The loaded scenario's plant, for reading. To act on it, use `act`:
+        a reference taken here outlives the lock and the run, since an abort
+        replaces the engine."""
         with self._lock:
             return self._loaded().engine
 
@@ -336,6 +343,22 @@ class ScenarioRunner:
         """Every operator action taken in the loaded run."""
         with self._lock:
             return self._loaded().actions
+
+    def act(self, target: str, action: str, value: float | None) -> None:
+        """Apply one operator action to the live run and log it, under the
+        lock that `step` and `abort` take, so it can never interleave with
+        either. Same refusals as `app.api.action.apply_action`."""
+        with self._lock:
+            run = self._loaded()
+
+            apply_action(
+                run.engine.equipment,
+                run.actions,
+                run.engine.clock.sim_time,
+                target,
+                action,
+                value,
+            )
 
     def load(self, scenario_id: str) -> ScenarioResult:
         return self.load_config(self._library.scenario(scenario_id))

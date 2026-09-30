@@ -130,11 +130,18 @@ def apply_action(
 def create_action_blueprint(
     get_engine: Callable[[], Engine],
     get_log: Callable[[], ActionLog],
+    apply: Callable[[str, str, float | None], None] | None = None,
 ) -> Blueprint:
     """Build the `/api/action` blueprint against an `Engine` and `ActionLog`
     resolved on demand - once per request, so each call to `get_engine` and
     `get_log` reaches whichever plant and log the caller's own session
     machinery has already resolved for this request.
+
+    `apply`, when given, replaces the default `apply_action` on that engine
+    and log: a caller whose plant can be swapped or stepped on another thread
+    (`ScenarioRunner.act`) supplies one that holds its own lock across the
+    whole action, which two per-request getters cannot. It raises the same
+    `KeyError`, `UnknownAction` and `ValueError` `apply_action` does.
     """
     blueprint = Blueprint("action", __name__)
 
@@ -152,10 +159,12 @@ def create_action_blueprint(
         if not isinstance(target, str) or not isinstance(action, str):
             return jsonify({"error": "target and action must be strings"}), 400
 
-        engine = get_engine()
-
         try:
-            apply_action(engine.equipment, get_log(), engine.clock.sim_time, target, action, value)
+            if apply is not None:
+                apply(target, action, value)
+            else:
+                engine = get_engine()
+                apply_action(engine.equipment, get_log(), engine.clock.sim_time, target, action, value)
         except (KeyError, UnknownAction, ValueError) as error:
             return jsonify({"error": str(error)}), 400
 

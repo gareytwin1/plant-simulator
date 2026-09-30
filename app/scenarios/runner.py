@@ -179,9 +179,13 @@ def _decode_condition(path: Path, data: bytes) -> dict[str, JSONValue]:
     return document
 
 
-def _find(directory: Path, name: str, suffixes: tuple[str, ...], kind: str) -> Path:
+def _plain(name: str, kind: str) -> None:
     if not isinstance(name, str) or not _NAME.match(name):
         raise ScenarioNotFound(f"{kind} name {name!r} is not a plain name (letters, digits, - and _)")
+
+
+def _find(directory: Path, name: str, suffixes: tuple[str, ...], kind: str) -> Path:
+    _plain(name, kind)
 
     for suffix in suffixes:
         path = directory / f"{name}{suffix}"
@@ -568,12 +572,15 @@ class ScenarioRunner:
 
         scenario_id = config["id"]
         condition = config["initial_condition"]
+        _plain(config["plant"], "plant")
+        _plain(condition["condition"], "initial condition")
 
         try:
             plant_path = self._library.plant_path(config["plant"])
             condition_path = self._library.condition_path(condition["condition"])
         except ScenarioNotFound as error:
-            # A file a fingerprinted run was armed from, gone, has changed.
+            # A plainly named file a fingerprinted run was armed from, gone,
+            # has changed; a name that could never resolve is the document's.
             if expected is None:
                 raise
 

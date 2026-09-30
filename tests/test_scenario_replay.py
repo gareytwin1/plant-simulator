@@ -28,6 +28,7 @@ from app.scenarios.runner import (
     Phase,
     ScenarioConfigError,
     ScenarioLibrary,
+    ScenarioNotFound,
     ScenarioRunner,
     Tick,
     TickKind,
@@ -524,6 +525,38 @@ def test_a_replay_whose_initial_condition_file_is_gone_is_a_divergence(tmp_path)
 
     with pytest.raises(ReplayDivergence, match="no initial condition named 'feed_pump_trip'.*armed from it"):
         replay(recording, library)
+
+
+def test_a_replay_whose_plant_file_is_gone_is_a_divergence(tmp_path):
+    library = copied_library(tmp_path)
+    live = ScenarioRunner(library)
+    live.load_config(scenario())
+    recording = Recording.of(live)
+
+    (tmp_path / "plants" / "olefins_lite.yaml").unlink()
+
+    with pytest.raises(ReplayDivergence, match="no plant named 'olefins_lite'.*armed from it"):
+        replay(recording, library)
+
+
+def test_a_missing_file_without_a_fingerprint_to_compare_fails_as_itself(tmp_path):
+    library = copied_library(tmp_path)
+    live = ScenarioRunner(library)
+    live.load_config(scenario())
+    recording = dataclasses.replace(Recording.of(live), fingerprint=None)
+
+    (tmp_path / "plants" / "olefins_lite.yaml").unlink()
+
+    with pytest.raises(ScenarioNotFound, match="no plant named 'olefins_lite'"):
+        replay(recording, library)
+
+
+def test_a_recording_naming_a_file_that_could_never_resolve_fails_as_itself():
+    recording = Recording.of(started())
+    broken = dataclasses.replace(recording, scenario={**recording.scenario, "plant": "../olefins_lite"})
+
+    with pytest.raises(ScenarioNotFound, match="not a plain name"):
+        replay(broken)
 
 
 def test_an_abort_rebuilds_the_plant_as_it_was_loaded_not_as_the_file_now_reads(tmp_path):

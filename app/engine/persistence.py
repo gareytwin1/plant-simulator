@@ -355,12 +355,11 @@ def _decode_equipment(engine: Engine, value: JSONValue, steps: list[Step]) -> No
             if isinstance(saved, float) and not math.isfinite(saved):
                 raise StateError(f"{path}.{name}: {saved!r} is not finite")
 
-            # JSON does not keep 5.0 apart from 5: a float attribute is
-            # restored as a float, and an int one refuses a fraction.
+            # JSON does not keep 5.0 apart from 5, so a float attribute is
+            # restored as a float. No device declares an int attribute; one a
+            # config set from a whole number is any number, as the loader has it.
             if isinstance(was, float) and isinstance(saved, int) and not isinstance(saved, bool):
                 saved = float(saved)
-            elif type(was) is int and isinstance(saved, float):
-                raise StateError(f"{path}.{name}: expected an integer, got {saved!r}")
 
             restored[name] = saved
 

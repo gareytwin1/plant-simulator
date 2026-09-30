@@ -323,7 +323,10 @@ class Tick:
 
 
 def error_text(error: Exception) -> str:
-    """How a `Tick` records the error its call raised."""
+    """How a `Tick` records the error its call raised. Replay compares it as
+    text, so it relies on the determinism rule reaching error messages too:
+    one built from anything but the plant's own values (an object's id, a
+    wall-clock time) would make a faithful replay read as a divergence."""
     return f"{type(error).__name__}: {error}"
 
 

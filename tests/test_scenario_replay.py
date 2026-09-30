@@ -18,6 +18,7 @@ from pathlib import Path
 import pytest
 
 from app.api.action import apply_action
+from app.disturbances.malfunction import MalfunctionRegistry
 from app.engine.engine import Engine
 from app.engine.persistence import capture_state
 from app.scenarios.replay import Act, Recording, RecordingFormatError, ReplayDivergence, replay
@@ -284,6 +285,44 @@ def test_a_run_that_carried_on_past_a_failed_step_replays_exactly(monkeypatch):
     failed = [item for item in recording.inputs if isinstance(item, Tick) and item.error is not None]
     assert failed == [Tick(TickKind.STEP, 0, dt=DT, speed=1.0, paused=False, error="ValueError: coupling failed")]
     assert replayed.phase is Phase.ABORTED
+    assert_identical(live, replayed)
+
+
+def test_a_failed_step_survives_a_json_round_trip_and_still_replays_exactly(monkeypatch):
+    live = run_through_a_failed_step(monkeypatch)
+    steps(live, 4)
+
+    recording = Recording.from_dict(json.loads(json.dumps(Recording.of(live).as_dict())))
+
+    assert any(isinstance(item, Tick) and item.error for item in recording.inputs)
+    assert_identical(live, replay(recording))
+
+
+def test_a_run_that_carried_on_past_a_failed_start_replays_exactly(monkeypatch):
+    # The start's malfunction update fails after the run is already RUNNING,
+    # so the run carries on without its time-zero malfunction.
+    update = MalfunctionRegistry.update
+
+    def update_unless_at_zero(self, snapshot):
+        if snapshot.sim_time == 0.0:
+            raise ValueError("malfunction update failed")
+
+        update(self, snapshot)
+
+    monkeypatch.setattr(MalfunctionRegistry, "update", update_unless_at_zero)
+    live = ScenarioRunner()
+    live.load_config(scenario(malfunctions=[{"target_tag": "LV-101", "parameter": "capacity", "value": 10.0}]))
+
+    with pytest.raises(ValueError, match="malfunction update failed"):
+        live.start()
+
+    live.act("P-101", "start", None)
+    steps(live, 10)
+
+    recording = Recording.of(live)
+    replayed = replay(recording)
+
+    assert recording.inputs[0] == Tick(TickKind.START, 0, error="ValueError: malfunction update failed")
     assert_identical(live, replayed)
 
 

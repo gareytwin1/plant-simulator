@@ -245,30 +245,62 @@ def test_a_pause_and_speed_change_after_the_last_step_are_replayed():
     assert_identical(live, replayed)
 
 
-def test_a_step_that_raised_after_moving_the_plant_replays_to_the_same_error(monkeypatch):
-    # The coupling fails once the clock has advanced and every device has
-    # integrated, so the failed step has already moved the plant. Leaving it
-    # out of the recording would let a replay drift silently.
+def fail_coupling_at(monkeypatch, sim_time, message="coupling failed"):
+    """Make the coupling raise on the step that reaches `sim_time` - after the
+    clock has advanced and every device has integrated, so the failed step
+    has already moved the plant."""
     couple = Engine._couple
-    fail_at = 14770.0 + 3 * DT
 
-    def couple_until(self):
-        if self.clock.sim_time == fail_at:
-            raise ValueError(f"coupling failed at t={self.clock.sim_time}")
+    def couple_unless(self):
+        if self.clock.sim_time == sim_time:
+            raise ValueError(message)
 
         couple(self)
 
-    monkeypatch.setattr(Engine, "_couple", couple_until)
+    monkeypatch.setattr(Engine, "_couple", couple_unless)
+
+
+def run_through_a_failed_step(monkeypatch):
     live = started()
     steps(live, 2)
+    fail_coupling_at(monkeypatch, live.engine.clock.sim_time + DT)
 
     with pytest.raises(ValueError, match="coupling failed"):
         live.step(DT)
 
-    recording = Recording.of(live)
-    assert [item.kind for item in recording.inputs] == [TickKind.START] + [TickKind.STEP] * 3
+    return live
 
-    with pytest.raises(ValueError, match=f"coupling failed at t={fail_at}"):
+
+def test_a_run_that_carried_on_past_a_failed_step_replays_exactly(monkeypatch):
+    live = run_through_a_failed_step(monkeypatch)
+    steps(live, 4)
+    live.act("P-101", "start", None)
+    steps(live, 4)
+    live.abort()
+
+    recording = Recording.of(live)
+    replayed = replay(recording)
+
+    failed = [item for item in recording.inputs if isinstance(item, Tick) and item.error is not None]
+    assert failed == [Tick(TickKind.STEP, 0, dt=DT, speed=1.0, paused=False, error="ValueError: coupling failed")]
+    assert replayed.phase is Phase.ABORTED
+    assert_identical(live, replayed)
+
+
+def test_a_recorded_error_that_does_not_recur_is_a_divergence(monkeypatch):
+    recording = Recording.of(run_through_a_failed_step(monkeypatch))
+    monkeypatch.undo()
+
+    with pytest.raises(ReplayDivergence, match=r"inputs\[3\]: step was recorded raising .* but did not"):
+        replay(recording)
+
+
+def test_a_different_error_where_one_was_recorded_is_a_divergence(monkeypatch):
+    live = run_through_a_failed_step(monkeypatch)
+    recording = Recording.of(live)
+    fail_coupling_at(monkeypatch, live.engine.clock.sim_time, message="something else")
+
+    with pytest.raises(ReplayDivergence, match="but raised 'ValueError: something else'"):
         replay(recording)
 
 
@@ -332,16 +364,17 @@ CLOCK = {"speed": 1.0, "paused": False}
         {"scenario": {}, "inputs": [], "clock": {"speed": 1.0, "paused": 0}},
         {"scenario": {}, "inputs": [{"type": "jump"}], "clock": CLOCK},
         {"scenario": {}, "inputs": [{"type": "start"}], "clock": CLOCK},
-        {"scenario": {}, "inputs": [{"type": "start", "actions": -1}], "clock": CLOCK},
-        {"scenario": {}, "inputs": [{"type": "start", "actions": True}], "clock": CLOCK},
+        {"scenario": {}, "inputs": [{"type": "start", "actions": -1, "error": None}], "clock": CLOCK},
+        {"scenario": {}, "inputs": [{"type": "start", "actions": True, "error": None}], "clock": CLOCK},
+        {"scenario": {}, "inputs": [{"type": "start", "actions": 0, "error": 1}], "clock": CLOCK},
         {
             "scenario": {},
-            "inputs": [{"type": "step", "actions": 0, "dt": "1", "speed": 1, "paused": False}],
+            "inputs": [{"type": "step", "actions": 0, "error": None, "dt": "1", "speed": 1, "paused": False}],
             "clock": CLOCK,
         },
         {
             "scenario": {},
-            "inputs": [{"type": "step", "actions": 0, "dt": 1, "speed": 1, "paused": 0}],
+            "inputs": [{"type": "step", "actions": 0, "error": None, "dt": 1, "speed": 1, "paused": 0}],
             "clock": CLOCK,
         },
         {
@@ -366,9 +399,9 @@ def test_a_well_formed_recording_document_is_accepted():
         "scenario": {},
         "inputs": [
             {"type": "act", "target": "P-101", "action": "start", "value": None, "sim_time": 0},
-            {"type": "start", "actions": 1},
-            {"type": "step", "actions": 1, "dt": 1, "speed": 1, "paused": False},
-            {"type": "abort", "actions": 1},
+            {"type": "start", "actions": 1, "error": None},
+            {"type": "step", "actions": 1, "error": "ValueError: boom", "dt": 1, "speed": 1, "paused": False},
+            {"type": "abort", "actions": 1, "error": None},
         ],
         "clock": CLOCK,
     }

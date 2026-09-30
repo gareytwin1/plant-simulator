@@ -13,10 +13,13 @@ plant, since `start` writes any time-zero malfunction; a paused step moves no
 time at all. So actions are placed among the ticks by the action log's own
 count at each tick, never by their timestamps. The timestamps are checked
 instead: an action that replays at a different scenario time than it was
-recorded at, a tick reached with a different number of actions behind it, or
-an input the runner refuses is a `ReplayDivergence` - a replay that has
-stopped reproducing the run says so, where it happened, rather than carrying
-on to a plausible but different result.
+recorded at, a tick reached with a different number of actions behind it, a
+tick that raises other than as recorded, or an input the runner refuses is a
+`ReplayDivergence` - a replay that has stopped reproducing the run says so,
+where it happened, rather than carrying on to a plausible but different
+result. A step that raised is still in the recording, with its error: it may
+already have moved the plant and the run stayed live, so replay runs it,
+expects that same error, and carries on.
 
 A step replays with the dt, speed and pause it was recorded with, because
 explicit integration makes the path depend on how time was cut into steps:
@@ -44,7 +47,15 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
-from app.scenarios.runner import Phase, ScenarioLibrary, ScenarioRunner, ScenarioStateError, Tick, TickKind
+from app.scenarios.runner import (
+    Phase,
+    ScenarioLibrary,
+    ScenarioRunner,
+    ScenarioStateError,
+    Tick,
+    TickKind,
+    error_text,
+)
 
 
 class ReplayDivergence(RuntimeError):
@@ -187,19 +198,35 @@ def _tick(runner: ScenarioRunner, tick: Tick) -> None:
     if taken != tick.actions:
         raise ReplayDivergence(f"{tick.kind.value} was recorded after {tick.actions} actions, reached after {taken}")
 
-    if tick.kind is TickKind.STEP:
-        _step(runner, tick)
-        return
-
-    # A step's own errors are the plant's, and propagate as they are; a
-    # lifecycle call refused is the replay's.
     try:
-        if tick.kind is TickKind.START:
+        if tick.kind is TickKind.STEP:
+            _step(runner, tick)
+        elif tick.kind is TickKind.START:
             runner.start()
         else:
             runner.abort()
-    except ScenarioStateError as error:
-        raise ReplayDivergence(f"the runner refused {tick.kind.value}: {error}") from error
+    except ReplayDivergence:
+        raise
+    except Exception as error:
+        raised = error_text(error)
+
+        if tick.error is None:
+            # Refusing a start or an abort the run took is the replay's
+            # failure; any other error is the plant's, and is left as it is.
+            if isinstance(error, ScenarioStateError):
+                raise ReplayDivergence(f"the runner refused {tick.kind.value}: {error}") from error
+
+            raise
+
+        if raised != tick.error:
+            raise ReplayDivergence(
+                f"{tick.kind.value} was recorded raising {tick.error!r} but raised {raised!r}",
+            ) from error
+
+        return
+
+    if tick.error is not None:
+        raise ReplayDivergence(f"{tick.kind.value} was recorded raising {tick.error!r} but did not")
 
 
 def _step(runner: ScenarioRunner, tick: Tick) -> None:
@@ -235,7 +262,7 @@ def _encode(item: Input) -> dict[str, Any]:
             "sim_time": item.sim_time,
         }
 
-    row: dict[str, Any] = {"type": item.kind.value, "actions": item.actions}
+    row: dict[str, Any] = {"type": item.kind.value, "actions": item.actions, "error": item.error}
     if item.kind is TickKind.STEP:
         row.update(dt=item.dt, speed=item.speed, paused=item.paused)
 
@@ -244,9 +271,9 @@ def _encode(item: Input) -> dict[str, Any]:
 
 _FIELDS = {
     "act": {"type", "target", "action", "value", "sim_time"},
-    TickKind.START.value: {"type", "actions"},
-    TickKind.ABORT.value: {"type", "actions"},
-    TickKind.STEP.value: {"type", "actions", "dt", "speed", "paused"},
+    TickKind.START.value: {"type", "actions", "error"},
+    TickKind.ABORT.value: {"type", "actions", "error"},
+    TickKind.STEP.value: {"type", "actions", "error", "dt", "speed", "paused"},
 }
 
 
@@ -275,8 +302,12 @@ def _decode(row: Any, path: str) -> Input:
     if isinstance(actions, bool) or not isinstance(actions, int) or actions < 0:
         raise RecordingFormatError(f"{path}.actions must be a count of 0 or more, got {actions!r}")
 
+    error = row["error"]
+    if error is not None and not isinstance(error, str):
+        raise RecordingFormatError(f"{path}.error must be text or null, got {error!r}")
+
     if kind != TickKind.STEP.value:
-        return Tick(TickKind(kind), actions)
+        return Tick(TickKind(kind), actions, error=error)
 
     if not isinstance(row["paused"], bool):
         raise RecordingFormatError(f"{path}.paused must be true or false")
@@ -287,6 +318,7 @@ def _decode(row: Any, path: str) -> Input:
         dt=_float(row["dt"], f"{path}.dt"),
         speed=_float(row["speed"], f"{path}.speed"),
         paused=row["paused"],
+        error=error,
     )
 
 

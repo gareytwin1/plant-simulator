@@ -245,19 +245,31 @@ def test_a_pause_and_speed_change_after_the_last_step_are_replayed():
     assert_identical(live, replayed)
 
 
-def test_a_step_that_raised_is_not_an_input(monkeypatch):
+def test_a_step_that_raised_after_moving_the_plant_replays_to_the_same_error(monkeypatch):
+    # The coupling fails once the clock has advanced and every device has
+    # integrated, so the failed step has already moved the plant. Leaving it
+    # out of the recording would let a replay drift silently.
+    couple = Engine._couple
+    fail_at = 14770.0 + 3 * DT
+
+    def couple_until(self):
+        if self.clock.sim_time == fail_at:
+            raise ValueError(f"coupling failed at t={self.clock.sim_time}")
+
+        couple(self)
+
+    monkeypatch.setattr(Engine, "_couple", couple_until)
     live = started()
     steps(live, 2)
 
-    def broken(self, dt):
-        raise ValueError("solver blew up")
+    with pytest.raises(ValueError, match="coupling failed"):
+        live.step(DT)
 
-    with monkeypatch.context() as patch:
-        patch.setattr(Engine, "step", broken)
-        with pytest.raises(ValueError):
-            live.step(DT)
+    recording = Recording.of(live)
+    assert [item.kind for item in recording.inputs] == [TickKind.START] + [TickKind.STEP] * 3
 
-    assert [tick.kind for tick in live.inputs().journal] == [TickKind.START, TickKind.STEP, TickKind.STEP]
+    with pytest.raises(ValueError, match=f"coupling failed at t={fail_at}"):
+        replay(recording)
 
 
 def test_a_plant_error_during_replay_propagates_as_itself(monkeypatch):

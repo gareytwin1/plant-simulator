@@ -50,12 +50,14 @@ project_state.md).
 
 **Every input that moves a run is journaled** (`inputs()`), so
 `app.scenarios.replay` can play it back: a `Tick` for each `start`, advancing
-`step` and `abort` that completed, carrying how many logged actions preceded it, and for a
+`step` and `abort`, carrying how many logged actions preceded it, and for a
 step the dt and the clock's speed and pause it ran with. The actions
 themselves are the `ActionLog`'s, not copied here - the log stays the single
 record of intent, and the count is what orders each action against the
 ticks around it. A step that advances nothing (before `start`, after
-completion) is not an input and is not journaled.
+completion) is not an input and is not journaled. One that raises is: it may
+already have moved the plant, so a replay has to run it too, and reach the
+same error at the same input.
 
 Not here: `seed` is carried into the result and drives nothing - the plant
 has no random source yet. Objective and trigger results are as
@@ -450,10 +452,13 @@ class ScenarioRunner:
                 raise ScenarioStateError(f"cannot start a scenario that is {run.phase.value}; load one first")
 
             run.phase = Phase.RUNNING
-            # A malfunction due at time zero takes effect now rather than a
-            # step late, so the first step already runs the disturbed plant.
-            run.malfunctions.update(run.view(run.engine.snapshot()))
-            run.journal.append(Tick(TickKind.START, len(run.actions)))
+
+            try:
+                # A malfunction due at time zero takes effect now rather than
+                # a step late, so the first step already runs the disturbed plant.
+                run.malfunctions.update(run.view(run.engine.snapshot()))
+            finally:
+                run.journal.append(Tick(TickKind.START, len(run.actions)))
 
             return self._result(run)
 
@@ -467,9 +472,11 @@ class ScenarioRunner:
             clock = run.engine.clock
             tick = Tick(TickKind.STEP, len(run.actions), dt=dt, speed=clock.speed, paused=clock.paused)
 
-            snapshot = run.engine.step(dt)
-            self._observe(run, snapshot)
-            run.journal.append(tick)
+            try:
+                snapshot = run.engine.step(dt)
+                self._observe(run, snapshot)
+            finally:
+                run.journal.append(tick)
 
             return snapshot
 
@@ -486,12 +493,14 @@ class ScenarioRunner:
 
             elapsed = run.engine.snapshot().sim_time - run.origin
 
-            run.malfunctions.revert_all()
-            run.engine = self._restored(run.build, run.armed_state)
-            run.phase = Phase.ABORTED
-            run.outcome = Outcome.ABORTED
-            run.ended_at = elapsed
-            run.journal.append(Tick(TickKind.ABORT, len(run.actions)))
+            try:
+                run.malfunctions.revert_all()
+                run.engine = self._restored(run.build, run.armed_state)
+                run.phase = Phase.ABORTED
+                run.outcome = Outcome.ABORTED
+                run.ended_at = elapsed
+            finally:
+                run.journal.append(Tick(TickKind.ABORT, len(run.actions)))
 
             return self._result(run)
 

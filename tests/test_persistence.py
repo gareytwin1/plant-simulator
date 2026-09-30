@@ -345,6 +345,17 @@ def test_a_whole_number_restores_a_float_attribute_as_a_float():
     assert type(restored.equipment["P-101"].max_flow) is float
 
 
+def test_a_fraction_restores_onto_an_attribute_a_config_set_from_a_whole_number():
+    state = capture_state(perturbed())
+    state["equipment"]["P-101"]["max_flow"] = 150.5
+
+    restored = build()
+    restored.equipment["P-101"].max_flow = 150
+    restore_state(restored, state)
+
+    assert restored.equipment["P-101"].max_flow == 150.5
+
+
 def test_a_relief_valve_band_is_checked_across_its_saved_fields():
     source = Engine([ReliefValve("PSV-101")])
     state = capture_state(source)

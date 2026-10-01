@@ -1,0 +1,27 @@
+# Restricted discharge line: FV-201 passes half what its position says.
+id: restricted_discharge
+description: >
+  At 30 s FV-201's capacity halves, as if the line downstream of K-101 were
+  partly choked. Its position indication is unchanged, but less flows through
+  it and the discharge header pressure drifts down. Restore the line flow.
+  Diagnosis path - B-FV-201 flow shrinks from about -10 SCFM to about -8
+  and N-204 settles below 303 psia with V-101 pressure drifting down
+  after it, while FV-201 still reports the position
+  the operator set and K-101 is running normally, so the machine is healthy
+  and the fault is in the line. Compare position with effective capacity,
+  not with demand: open FV-201 fully to make up the lost capacity.
+plant: olefins_lite
+initial_condition:
+  condition: normal_operation
+malfunctions:
+  - target_tag: FV-201
+    parameter: capacity
+    value: 10.0
+    start_condition: {type: at_time, sim_time: 30}
+objectives:
+  - id: restore-line-flow
+    success: {condition: B-FV-201.flow <= -9.5, hold_duration_s: 120}
+    failure: {condition: V-101.pressure <= 199.6}
+time_limit_s: 600
+difficulty: medium
+seed: 105

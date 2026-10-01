@@ -1,0 +1,26 @@
+# Blocked drain: LV-101 passes half the flow its position says it should.
+id: blocked_drain
+description: >
+  At 30 s LV-101's capacity halves, as if its trim were partly plugged. At
+  the half-open position it was holding, it now drains only about half what
+  it did, while P-101 keeps feeding V-101, so the level climbs towards high.
+  Diagnosis path - V-101 level rises with feed flow healthy and the drain
+  position unchanged at 0.5, but LV-101 flow has dropped to about 25 GPM
+  from about 50. The valve is passing less than its position says, so open
+  it further: at full travel it passes what half travel used to, and the
+  level levels off at the setpoint.
+plant: olefins_lite
+initial_condition:
+  condition: normal_operation
+malfunctions:
+  - target_tag: LV-101
+    parameter: capacity
+    value: 10.0
+    start_condition: {type: at_time, sim_time: 30}
+objectives:
+  - id: stop-the-rise
+    success: {condition: V-101.level <= 0.55, hold_duration_s: 900}
+    failure: {condition: V-101.level >= 0.6}
+time_limit_s: 1200
+difficulty: medium
+seed: 104

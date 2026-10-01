@@ -1,0 +1,27 @@
+# Loss of feed: the pump runs but delivers a trickle.
+id: loss_of_feed
+description: >
+  At 30 s the flow into V-101 collapses to a trickle while P-101 keeps
+  running. The drain, LV-101, still passes its full flow, so the level
+  starts to fall steadily. The supply cannot be repaired from the console;
+  the exercise is to hold the vessel while it is found.
+  Diagnosis path - P-101 flow falls from about 51 GPM to about 4 GPM but
+  stays forward, and P-101 still reads running at full speed, which is what
+  separates this from a pump trip (negative flow, zero speed). V-101 level
+  falls at roughly the drain rate. Throttle LV-101 to its minimum to stop the
+  vessel emptying faster than feed can be restored.
+plant: olefins_lite
+initial_condition:
+  condition: normal_operation
+malfunctions:
+  - target_tag: P-101
+    parameter: pump_resistance
+    value: 0.5
+    start_condition: {type: at_time, sim_time: 30}
+objectives:
+  - id: protect-level
+    success: {condition: V-101.level >= 0.4, hold_duration_s: 900}
+    failure: {condition: V-101.level <= 0.3}
+time_limit_s: 1200
+difficulty: medium
+seed: 103

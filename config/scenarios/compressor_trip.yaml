@@ -1,0 +1,25 @@
+# Gas compressor trip: K-101 has stopped and the discharge header backflows.
+id: compressor_trip
+description: >
+  K-101 has just tripped. With no check valve its discharge header backflows
+  through the stopped machine into V-101, so the vessel gas pressure creeps up
+  and the header sags. Restart K-101 before V-101 pressure runs away.
+  Diagnosis path - K-101 flow has jumped from a small reverse draw (about -10
+  SCFM) to a large one (about -45), N-204 has fallen well below its 304 psia
+  design value and V-101 pressure is rising while its level is untouched, so
+  the machine has stopped doing work rather than a line being blocked. Start
+  K-101 and give it a load target; N-204 returns to about 304 and V-101
+  pressure turns over.
+plant: olefins_lite
+initial_condition:
+  condition: normal_operation
+  overrides:
+    K-101.running: false
+    K-101.load: 0.0
+objectives:
+  - id: restore-discharge
+    success: {condition: N-204.pressure >= 300.0, hold_duration_s: 120}
+    failure: {condition: V-101.pressure >= 215.0}
+time_limit_s: 1200
+difficulty: easy
+seed: 102

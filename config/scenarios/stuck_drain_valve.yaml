@@ -1,0 +1,24 @@
+# Stuck drain valve: LV-101 will not move while V-101 is low after a pump trip.
+id: stuck_drain_valve
+description: >
+  P-101 has tripped and V-101 is already low and falling. The usual first move
+  is to close LV-101 to protect the level, but LV-101 is stuck at half travel
+  and ignores every position demand, so the vessel keeps draining at full
+  rate and only restoring feed can save it.
+  Diagnosis path - commanding LV-101 closed changes nothing: its position
+  stays at 0.5 and its drain flow stays near its design value even though
+  the demand is closed. A valve that will not follow its demand is stuck, so
+  stop relying on it and restart P-101 (start, then a speed target) to refill
+  V-101 against the drain.
+plant: olefins_lite
+initial_condition:
+  condition: feed_pump_trip
+  overrides:
+    LV-101.stuck: true
+objectives:
+  - id: refill-vessel
+    success: {condition: V-101.level >= 0.25, hold_duration_s: 20}
+    failure: {condition: V-101.level <= 0.1}
+time_limit_s: 600
+difficulty: hard
+seed: 106

@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "2 October 2026",
-  "main_sha": "fc7305c",
-  "tests_passing_on_main": 2666,
+  "main_sha": "abb9615",
+  "tests_passing_on_main": 2683,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -93,7 +93,7 @@
     },
     "M15": {
       "name": "Action Log and Scoring",
-      "complete": 3,
+      "complete": 4,
       "total": 4
     },
     "M16": {
@@ -119,8 +119,8 @@
   },
   "totals": {
     "tasks": 117,
-    "complete": 96,
-    "startable_now": 15
+    "complete": 97,
+    "startable_now": 14
   },
   "tasks": [
     {
@@ -1555,10 +1555,10 @@
         "config/sequences/*.yaml",
         "app/plant/sequences.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
+      "status": "Ready for Review",
+      "status_key": "review",
       "startable": true,
-      "note": ""
+      "note": "Ready for Review - PR #125 (feature/startup-sequence), not merged. config/sequences/olefins_lite.yaml + app/plant/sequences.py: gates and cold start / normal shutdown / emergency shutdown for the reference plant, SequenceRun (strict step order, holds as time-held conditions on snapshot sim_time) and Sequencer (one procedure at a time, emergency replaces any run). 2742 passed, mypy clean, roborev-refine passed, no golden movement. NOT WIRED: no session or API loads a sequence; trips not live. Follow-up: PlantStateMachine.gated(target) query (states.py, T12-3 file)."
     },
     {
       "id": "T12-5",
@@ -1851,10 +1851,9 @@
       "files": [
         "app/scoring/store.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true,
-      "note": ""
+      "status": "Complete",
+      "status_key": "done",
+      "note": "COMPLETE - merged to main as abb9615 (PR #124). 2683 passed post-merge, mypy clean over 71 files, no golden movement. app/scoring/store.py: ScoreStore, SQLite, stdlib only. Indexed operator/scenario/total/recorded_at plus JSON score and metrics; None times and label mappings round-trip. Personal best = highest total per (operator, scenario), ties to earliest recorded_at then insertion order; recorded_at is caller-supplied (no clock). Schema versioned by PRAGMA user_version; migrations run in one BEGIN IMMEDIATE transaction with the version re-read under the lock; a newer database raises SchemaVersionError. NOT WIRED: nothing in a live run produces or stores a Score yet."
     },
     {
       "id": "T16-1",
@@ -2127,10 +2126,7 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "T15-4"
-      ],
+      "startable": true,
       "note": ""
     },
     {

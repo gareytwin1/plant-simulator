@@ -8,12 +8,12 @@ regrowth rule is in [.claude/rules/docs.md](../../.claude/rules/docs.md).
 
 ## Right now
 
-**Last state refresh:** 2 October 2026, at `fc7305c` (Merge T15-3:
-Weighted scoring, PR #123) - **this is a snapshot,
-not a live pointer.** Run `git log fc7305c..HEAD --oneline` to see what has
+**Last state refresh:** 2 October 2026, at `abb9615` (Merge T15-4:
+Score persistence, PR #124) - **this is a snapshot,
+not a live pointer.** Run `git log abb9615..HEAD --oneline` to see what has
 merged since.
-**Full suite as of this refresh:** **2666 passed** · `python -m mypy` clean over 70 source files · no golden trace movement
-**In flight:** nothing.
+**Full suite as of this refresh:** **2683 passed** · `python -m mypy` clean over 71 source files · no golden trace movement
+**In flight:** T12-4 (PR #125, Ready for Review).
 **No spine lock is held.** No task is Blocked. CI runs on every PR, and `main` requires its
 `test` check before a merge.
 
@@ -22,12 +22,12 @@ merged since.
 
 | Task | SHA | What landed |
 |---|---|---|
+| **T15-4** | `abb9615` | Score persistence, `app/scoring/store.py` (`ScoreStore`, SQLite, stdlib only: indexed operator/scenario/total/recorded_at plus JSON `Score` and `RunMetrics`; personal best is the highest total per operator and scenario, ties to the earliest; `recorded_at` is caller-supplied; schema versioned by `PRAGMA user_version`, migrated in one `BEGIN IMMEDIATE` transaction, a newer database raises `SchemaVersionError`). Not wired: nothing in a live run produces or stores a `Score` (PR #124) |
 | **T15-3** | `fc7305c` | Weighted scoring, `app/scoring/score.py` (`score_run(RunMetrics, ScoringConfig)` -> 0-100 `Score` with per-criterion penalties; weights, scales, peak-severity penalties and per-label production-lost scales in `config/scoring.yaml`; a trip outweighs slow recovery; `None` times are free when nothing alarmed, full penalty otherwise). `production_lost_scales` ships empty, so a label with no scale raises. Not wired: nothing in a live run produces a `Score` (PR #123) |
 | **T12-3** | `098d17e` | Plant state machine, `app/plant/states.py` (`PlantStateMachine`: cold, purged, pressurised, circulating, on-spec, shutting down; `advance` moves only when the edge's `Permissive` conditions hold on a `Snapshot`, illegal moves raise `IllegalTransition`; gates are constructor input, edges into shutting down take none). Not wired: no sequence or config drives it until T12-4; nothing enters shutting down on its own (PR #122) |
 | **T15-2** | `2dbe7fa` | Result metrics, `app/scoring/metrics.py` (`compute_metrics` -> immutable `RunMetrics`; relevance is a caller-supplied predicate); `AlarmManager.last_cleared()`, `ClearRecord` and `AlarmHistory.record_clears` record a return to NORMAL; `app/scoring/throughput.py` integrates shortfall below a target. Not wired: nothing calls `record_clears` or feeds a `ThroughputTracker`, and no scenario config names a throughput variable (PR #121) |
 | **T12-6** | `cab96f4` | Clock refuses bad input: `SimulationClock.set_speed` and `step` raise `ValueError` for a negative or non-finite value before changing anything (zero speed stays valid), so a refused `Engine.step` changes nothing; `restore_state` refuses a negative clock speed or sim_time (PR #120) |
 | **T13-3** | `60e3079` | Injection profiles, `app/disturbances/profiles.py`: `Ramp` and `WhenCondition` fit the `Profile` and `StartCondition` protocols; `malfunction_from_config` decodes them, `MalfunctionRegistry.validate` refuses an unanswerable condition at load; a condition onset latches once fired (PR #119) |
-| **T13-4** | `022446b` | Malfunction catalogue, `config/malfunctions/*.yaml`: eight faults with scenario-ready entries, checked response directions and diagnosis paths; controller-left-in-manual not catalogued (loop mode not writable); exchanger faults need a plant with E-101, instrument drift needs LT-101 in code (PR #117) |
 
 **ADRs on `main`:** [0001](../../docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md)
 (+ Amendment 1) and [0002](../../docs/ADR_0002_TYPED_PORTS.md) (+ Amendments
@@ -35,30 +35,29 @@ merged since.
 
 ## Milestone progress
 
-Complete: **M0-M7, M9, M13, M14, MR**. Open:
+Complete: **M0-M7, M9, M13, M14, M15, MR**. Open:
 
 | Milestone | Done | Complete / startable |
 |---|---|---|
 | **M8** PID Controllers | 5/6 | T8-5 startable (V1.1-deferred) |
 | **M10** Alarms | 3/5 | T10-1, T10-2, T10-3; T10-4 startable (V1.1-deferred), T10-5 startable |
 | **M11** Interlocks and Trips | 3/4 | T11-1, T11-2, T11-3; T11-4 startable (V1.1-deferred) |
-| **M12** Startup and Shutdown Sequences | 4/6 | T12-1, T12-2, T12-3, T12-6; T12-4, T12-5 startable |
-| **M15** Action Log and Scoring | 3/4 | T15-1, T15-2, T15-3; T15-4 startable (V1.1-deferred) |
+| **M12** Startup and Shutdown Sequences | 4/6 | T12-1, T12-2, T12-3, T12-6; T12-4 in review (PR #125); T12-5 startable |
 | **M16** Operator Console | 1/5 | T16-2; T16-1 startable, T16-5 startable; T16-3 needs T16-1 first |
 | **M17** Historian and Trends | 1/4 | T17-1; T17-2 startable (V1.1-deferred) |
 | **M18** Deployment | 1/5 | T18-2 |
 | M19 | 0 | - |
 
-**96 of 117 tasks Complete.** Checkpoints A-C reached. Checkpoint **D** (M8)
+**97 of 117 tasks Complete.** Checkpoints A-C reached. Checkpoint **D** (M8)
 needs only its "loops reject an injected disturbance" gate: PIC-101 switched to
 AUTO in `olefins_lite.yaml`, which T8-6 enabled but no task owns yet.
 
 ## The next task
 
-**15 tasks are startable** - list them from
+**14 tasks are startable** - list them from
 [BUILD_PLAN_STATUS.json](../../docs/BUILD_PLAN_STATUS.json) (`startable`
 field). All are Sonnet except T12-5, which needs an Opus decision on the
-accessor shape first. T8-5, T10-4, T11-4, T15-4 and T17-2 are V1.1-deferred;
+accessor shape first. T8-5, T10-4, T11-4 and T17-2 are V1.1-deferred;
 T19-2 (now startable - its other dependency, T13-1, was already Complete) is
 deferred further still, to **V2**. T12-5 needs the spine lock;
 T18-5 adds a new isolated module under `app/engine/` (satellite work).

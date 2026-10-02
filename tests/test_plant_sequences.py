@@ -31,7 +31,7 @@ from app.api.action import ACTIONS, apply_action
 from app.engine.engine import Engine
 from app.engine.persistence import capture_state, restore_state
 from app.plant.loader import load_plant_file
-from app.plant.sequences import SequenceRun, load_sequences
+from app.plant.sequences import Sequencer, SequenceRun, load_sequences
 from app.plant.states import PlantState as S
 from app.safety.interlocks import Condition
 from app.scoring.actionlog import ActionLog
@@ -72,11 +72,12 @@ class Plant:
         return SequenceRun(self.sequences.procedures[name], machine, self.act)
 
     def drive(self, run, watch=None):
-        """Scan `run` and step the engine until it is done."""
+        """Scan `run` (or a `Sequencer`'s current run) and step the engine
+        until it is done."""
         for _ in range(HORIZON):
             run.update(self.snapshot)
 
-            if run.done:
+            if (run.run if isinstance(run, Sequencer) else run).done:
                 return
 
             self.snapshot = self.engine.step(DT)
@@ -84,7 +85,7 @@ class Plant:
             if watch is not None:
                 watch(self.snapshot)
 
-        pytest.fail(f"sequence still at step {run.active!r} after {HORIZON} steps")
+        pytest.fail(f"sequence still running after {HORIZON} steps")
 
     def actions(self):
         return [(event.sim_time, event.message) for event in self.log.events]
@@ -290,42 +291,59 @@ def test_a_normal_shutdown_does_not_run_from_a_plant_still_starting(on_spec):
 
 def test_an_emergency_shutdown_overrides_a_normal_one_part_way_through(on_spec):
     plant = Plant(on_spec)
-    machine = plant.sequences.machine(plant.snapshot, state=S.ON_SPEC)
-    normal = plant.run("normal_shutdown", machine)
+    sequencer = Sequencer(plant.sequences, plant.sequences.machine(plant.snapshot, state=S.ON_SPEC), plant.act)
+    normal = sequencer.start("normal_shutdown")
 
-    normal.update(plant.snapshot)
-    plant.snapshot = plant.engine.step(DT)
+    for _ in range(5):
+        sequencer.update(plant.snapshot)
+        plant.snapshot = plant.engine.step(DT)
 
-    assert machine.state is S.SHUTTING_DOWN
+    assert sequencer.machine.state is S.SHUTTING_DOWN
     assert plant.engine.equipment["P-101"].running
 
-    emergency = plant.run("emergency_shutdown", machine)
+    sequencer.start("emergency_shutdown")
+    before = len(plant.log)
 
-    assert emergency.update(plant.snapshot) == ()
-    assert not plant.engine.equipment["P-101"].running
+    plant.drive(sequencer)
 
-    normal.abort()
-    plant.drive(emergency)
-
-    assert machine.state is S.COLD
     assert normal.aborted
+    assert sequencer.machine.state is S.COLD
+    assert [message for _, message in plant.actions()[before:]] == [
+        "K-101 stop",
+        "P-101 stop",
+        "LV-101 set_position_target 0.1",
+    ]
 
 
-def test_a_start_overtaken_by_an_emergency_shutdown_abandons_its_step():
+def test_a_start_cut_off_by_an_emergency_shutdown_takes_no_further_action():
     plant = Plant(condition("cold_shutdown"))
-    machine = plant.sequences.machine(plant.snapshot, state=S.PURGED)
-    start = plant.run("cold_start", machine)
+    sequencer = Sequencer(plant.sequences, plant.sequences.machine(plant.snapshot), plant.act)
+    start = sequencer.start("cold_start")
 
-    lined_up = with_reading(plant.snapshot, "LV-101", "position", 0.1, plant.snapshot.sim_time)
+    while sequencer.machine.state is not S.PRESSURISED:
+        sequencer.update(plant.snapshot)
+        plant.snapshot = plant.engine.step(DT)
 
-    assert start.request("fill", lined_up) == ()
-    plant.snapshot = plant.engine.step(DT)
-    plant.run("emergency_shutdown", machine).update(plant.snapshot)
+    sequencer.start("emergency_shutdown")
+    before = len(plant.log)
+    plant.drive(sequencer)
 
-    assert start.update(plant.snapshot) == ("step 'fill' abandoned, the plant moved to shutting_down",)
-    assert start.done
     assert start.aborted
-    assert machine.state is S.SHUTTING_DOWN
+    assert sequencer.machine.state is S.COLD
+    assert len(plant.log) == before + 3
+
+    for _ in range(100):
+        start.update(plant.snapshot)
+        plant.snapshot = plant.engine.step(DT)
+
+    assert len(plant.log) == before + 3
+
+
+def test_a_sequencer_refuses_an_unknown_procedure(cold):
+    sequencer = Sequencer(cold.sequences, cold.sequences.machine(cold.snapshot), cold.act)
+
+    with pytest.raises(KeyError, match="no procedure 'warm_start'"):
+        sequencer.start("warm_start")
 
 
 def test_an_action_that_raises_is_never_retried_with_the_ones_before_it():
@@ -346,8 +364,7 @@ def test_an_action_that_raises_is_never_retried_with_the_ones_before_it():
     with pytest.raises(RuntimeError):
         run.request("fill", lined_up)
 
-    run.update(lined_up)
-
+    assert run.request("fill", lined_up) == ("step 'fill' is still running",)
     assert taken == ["P-101.set_speed_target", "P-101.start"]
 
 
@@ -467,6 +484,13 @@ def test_a_refused_gate_is_not_also_reported_as_ungated(tmp_path, cold):
         load_text(tmp_path, cold, text)
 
     assert "cold -> purged has no condition" not in str(error.value)
+
+
+def test_a_gate_naming_no_valid_edge_is_not_followed_by_ungated_reports(tmp_path, cold):
+    text = VALID.replace("{from: purged, to: pressurised", "{from: purgd, to: pressurised", 1)
+
+    with pytest.raises(ValueError, match=r"rejected, 1 problem\(s\):\n  gate 2: 'purgd' is not a plant state"):
+        load_text(tmp_path, cold, text)
 
 
 def test_a_bad_gate_condition_does_not_hide_the_shape_checks(tmp_path, cold):

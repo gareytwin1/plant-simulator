@@ -43,9 +43,14 @@ runs from a running plant through staged steps that each wait for the one
 before (the compressor is unloaded before it is stopped). An emergency
 shutdown takes every stopping action in one step, with no permissives, from any
 running state, including part way through a normal shutdown, and moves
-straight to SHUTTING_DOWN, which the machine never refuses. A run overtaken
-that way, a start mid-hold for instance, abandons its step on its next scan.
-Both end in COLD once the machines have run down.
+straight to SHUTTING_DOWN, which the machine never refuses. Both end in COLD
+once the machines have run down.
+
+**One procedure drives a plant at a time.** A `Sequencer` holds the plant's
+machine and its one current run; starting a procedure aborts the run before
+it, so an emergency shutdown cuts a start or a normal shutdown off where it
+stands and the run it replaced takes no further action. A `SequenceRun` on its
+own assumes nothing else moves its machine.
 
 Not wired: no session or API endpoint loads a sequence yet, and trips are not
 live in a session (nothing calls `TripSystem.update`), so an emergency
@@ -125,7 +130,7 @@ def load_sequences(
 
     errors: list[str] = []
     _keys(raw, _FILE_KEYS, "sequences file", errors, required=_FILE_KEYS)
-    gates, rejected = _gates(raw.get("gates") or [], errors)
+    gates, rejected, complete = _gates(raw.get("gates") or [], errors)
     procedures: dict[str, tuple[Step, ...]] = {}
     sequences = raw.get("sequences") or {}
 
@@ -166,12 +171,15 @@ def load_sequences(
             rejected.add((source, target))
             errors.extend(problems)
 
-    errors.extend(_structure(gates, rejected))
+    errors.extend(_structure(gates, rejected, complete))
 
     if errors:
         _reject(path, errors)
 
-    PlantStateMachine(snapshot, gates)
+    try:
+        PlantStateMachine(snapshot, gates)
+    except ValueError as error:
+        _reject(path, [str(error)])
 
     return Sequences(gates=MappingProxyType(gates), procedures=MappingProxyType(procedures))
 
@@ -183,9 +191,15 @@ def _reject(path: Path | str, errors: Sequence[str]) -> NoReturn:
     )
 
 
-def _structure(gates: Mapping[Edge, tuple[str, ...]], rejected: set[Edge]) -> list[str]:
+def _structure(
+    gates: Mapping[Edge, tuple[str, ...]],
+    rejected: set[Edge],
+    complete: bool,
+) -> list[str]:
     """The machine's own shape rules, applied here so that an edge already
-    rejected for a bad condition is not reported again as ungated."""
+    refused is not reported again as ungated. When a gate entry named no valid
+    edge at all (`complete` false), which edge it meant is unknown, so no edge
+    is reported as ungated."""
     errors: list[str] = []
 
     for source, target in gates:
@@ -197,17 +211,15 @@ def _structure(gates: Mapping[Edge, tuple[str, ...]], rejected: set[Edge]) -> li
     for edge in sorted(TRANSITIONS):
         source, target = edge
 
-        if target is not PlantState.SHUTTING_DOWN and not gates.get(edge) and edge not in rejected:
+        if complete and target is not PlantState.SHUTTING_DOWN and not gates.get(edge) and edge not in rejected:
             errors.append(f"{source} -> {target} has no condition to gate it")
 
     return errors
 
 
 class SequenceRun:
-    """One procedure being run against a plant state machine. Runs may share
-    a machine: a run whose step is overtaken, because another run moved the
-    plant out of the states that step runs from, abandons itself rather than
-    acting on a plant that is no longer where it left it."""
+    """One procedure being run against a plant state machine, which nothing
+    else moves while it runs (`Sequencer` sees to that)."""
 
     def __init__(
         self,
@@ -301,12 +313,6 @@ class SequenceRun:
         return ()
 
     def _progress(self, step: Step, snapshot: Snapshot) -> tuple[str, ...]:
-        state = self._machine.state
-
-        if state not in step.states and state is not step.advance:
-            self.abort()
-            return (f"step {step.name!r} abandoned, the plant moved to {state}",)
-
         reasons = _reasons(step.hold, snapshot)
 
         if reasons:
@@ -334,6 +340,50 @@ class SequenceRun:
         self._held_since = None
 
         return ()
+
+
+class Sequencer:
+    """The one procedure driving a plant. Starting a procedure aborts the
+    run before it, whatever step that run had reached."""
+
+    def __init__(
+        self,
+        sequences: Sequences,
+        machine: PlantStateMachine,
+        act: Act,
+    ) -> None:
+        self._sequences = sequences
+        self._machine = machine
+        self._act = act
+        self._procedure: str | None = None
+        self._run: SequenceRun | None = None
+
+    @property
+    def machine(self) -> PlantStateMachine:
+        return self._machine
+
+    @property
+    def procedure(self) -> str | None:
+        return self._procedure
+
+    @property
+    def run(self) -> SequenceRun | None:
+        return self._run
+
+    def start(self, procedure: str) -> SequenceRun:
+        if procedure not in self._sequences.procedures:
+            raise KeyError(f"no procedure {procedure!r}, only {sorted(self._sequences.procedures)}")
+
+        if self._run is not None and not self._run.done:
+            self._run.abort()
+
+        self._procedure = procedure
+        self._run = SequenceRun(self._sequences.procedures[procedure], self._machine, self._act)
+
+        return self._run
+
+    def update(self, snapshot: Snapshot) -> tuple[str, ...]:
+        return () if self._run is None else self._run.update(snapshot)
 
 
 def _reasons(permissives: Sequence[Permissive], snapshot: Snapshot) -> tuple[str, ...]:
@@ -385,21 +435,23 @@ def _conditions(value: Any, where: str, errors: list[str]) -> tuple[Permissive, 
     return tuple(parsed)
 
 
-def _gates(entries: Any, errors: list[str]) -> tuple[dict[Edge, tuple[str, ...]], set[Edge]]:
-    """The gates that parsed, and the edges of entries that named their
-    states but were refused, so the shape check does not call them ungated."""
+def _gates(entries: Any, errors: list[str]) -> tuple[dict[Edge, tuple[str, ...]], set[Edge], bool]:
+    """The gates that parsed; the edges of entries that named their states but
+    were refused; and whether every entry named an edge at all."""
     gates: dict[Edge, tuple[str, ...]] = {}
     rejected: set[Edge] = set()
+    complete = True
 
     if not isinstance(entries, list):
         errors.append("gates must be a list")
-        return gates, rejected
+        return gates, rejected, False
 
     for index, entry in enumerate(entries):
         where = f"gate {index + 1}"
 
         if not isinstance(entry, dict):
             errors.append(f"{where} must be a mapping")
+            complete = False
             continue
 
         _keys(entry, _GATE_KEYS, where, errors, required={"from", "to"})
@@ -408,6 +460,7 @@ def _gates(entries: Any, errors: list[str]) -> tuple[dict[Edge, tuple[str, ...]]
         when = entry.get("when") or []
 
         if source is None or target is None:
+            complete = False
             continue
 
         if not isinstance(when, list) or not all(isinstance(text, str) for text in when):
@@ -421,7 +474,7 @@ def _gates(entries: Any, errors: list[str]) -> tuple[dict[Edge, tuple[str, ...]]
 
         gates[(source, target)] = tuple(when)
 
-    return gates, rejected
+    return gates, rejected, complete
 
 
 def _step(

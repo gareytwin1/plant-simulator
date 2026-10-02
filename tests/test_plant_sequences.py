@@ -18,6 +18,7 @@ published, so it cannot be checked here.
 """
 
 import dataclasses
+import itertools
 import json
 import textwrap
 import warnings
@@ -47,6 +48,9 @@ LIBRARY = CONFIG / "initial_conditions"
 DT = 1.0
 HORIZON = 10_000
 COLD_READINGS = {"V-101.level": "lololo", "LSLL-101": "met"}
+# Only the low side of the vessel's level, easing off as it fills: a high band
+# is not in this table and fails the lookup.
+SEVERITY = {"lololo": 3, "lolo": 2, "lo": 1, "met": 1}
 INTERLOCKS = {
     entry["tag"]: Condition.parse(entry["condition"])
     for entry in yaml.safe_load(OLEFINS.read_text())["interlocks"]
@@ -158,8 +162,11 @@ def test_a_cold_start_raises_no_alarm_or_trip(cold_start):
 
     assert seen[0] == COLD_READINGS
     assert cleared is not None
-    assert all(set(reading) <= set(COLD_READINGS) for reading in seen)
     assert all(not reading for reading in seen[cleared:])
+
+    for before, after in itertools.pairwise(seen):
+        assert set(after) <= set(COLD_READINGS)
+        assert all(SEVERITY[after[key]] <= SEVERITY[before[key]] for key in after)
 
 
 def test_a_cold_start_takes_its_steps_in_order(cold_start):
@@ -191,15 +198,32 @@ def test_a_step_out_of_order_is_blocked_and_does_nothing():
 
     reasons = run.request("start_compressor", plant.snapshot)
 
-    assert reasons == ("step 'start_compressor' runs from ['pressurised'], the plant is cold",)
+    assert reasons == ("step 'start_compressor' is not next, 'line_up' is",)
     assert run.active is None
     assert not plant.log.events
+
+
+def test_a_shutdown_step_cannot_be_skipped_even_when_its_permissives_hold(on_spec):
+    plant = Plant(on_spec)
+    machine = plant.sequences.machine(plant.snapshot, state=S.ON_SPEC)
+    run = plant.run("normal_shutdown", machine)
+    run.update(plant.snapshot)
+
+    for _ in range(HORIZON):
+        if plant.snapshot.equipment["K-101"]["load"] <= 0.0:
+            break
+
+        plant.snapshot = plant.engine.step(DT)
+
+    assert run.request("stop_feed", plant.snapshot) == ("step 'stop_feed' is not next, 'stop_compressor' is",)
+    assert plant.engine.equipment["P-101"].running
+    assert machine.state is S.SHUTTING_DOWN
 
 
 def test_a_step_whose_permissives_fail_is_blocked_with_every_reason():
     plant = Plant(condition("cold_shutdown"))
     machine = plant.sequences.machine(plant.snapshot, state=S.PRESSURISED)
-    run = plant.run("cold_start", machine)
+    run = SequenceRun(plant.sequences.procedures["cold_start"][2:], machine, plant.act)
 
     reasons = run.request("start_compressor", plant.snapshot)
 
@@ -300,7 +324,7 @@ def test_a_normal_shutdown_does_not_run_from_a_plant_still_starting(on_spec):
 def test_an_emergency_shutdown_overrides_a_normal_one_part_way_through(on_spec):
     plant = Plant(on_spec)
     sequencer = Sequencer(plant.sequences, plant.sequences.machine(plant.snapshot, state=S.ON_SPEC), plant.act)
-    sequencer.start("normal_shutdown")
+    sequencer.start("normal_shutdown", plant.snapshot)
     normal = sequencer.run
 
     for _ in range(5):
@@ -310,7 +334,7 @@ def test_an_emergency_shutdown_overrides_a_normal_one_part_way_through(on_spec):
     assert sequencer.machine.state is S.SHUTTING_DOWN
     assert plant.engine.equipment["P-101"].running
 
-    sequencer.start("emergency_shutdown")
+    sequencer.start("emergency_shutdown", plant.snapshot)
     before = len(plant.log)
 
     plant.drive(sequencer)
@@ -329,7 +353,7 @@ def starting(state):
     the start running."""
     plant = Plant(condition("cold_shutdown"))
     sequencer = Sequencer(plant.sequences, plant.sequences.machine(plant.snapshot), plant.act)
-    sequencer.start("cold_start")
+    sequencer.start("cold_start", plant.snapshot)
 
     for _ in range(HORIZON):
         if sequencer.machine.state is state and sequencer.run.active is not None:
@@ -345,7 +369,7 @@ def test_a_start_cut_off_by_an_emergency_shutdown_takes_no_further_action():
     plant, sequencer = starting(S.PRESSURISED)
     start = sequencer.run
 
-    assert sequencer.start("emergency_shutdown") == ()
+    assert sequencer.start("emergency_shutdown", plant.snapshot) == ()
 
     before = len(plant.log)
     plant.drive(sequencer)
@@ -364,15 +388,15 @@ def test_a_start_cut_off_by_an_emergency_shutdown_takes_no_further_action():
 @pytest.mark.parametrize(
     ("state", "procedure", "reason"),
     [
-        (S.PRESSURISED, "normal_shutdown", "starts from ['circulating', 'on_spec'], the plant is pressurised"),
+        (S.PRESSURISED, "normal_shutdown", "runs from ['circulating', 'on_spec'], the plant is pressurised"),
         (S.COLD, "emergency_shutdown", "the plant is cold"),
     ],
 )
 def test_a_procedure_that_cannot_start_leaves_the_current_run_in_place(state, procedure, reason):
-    _, sequencer = starting(state)
+    plant, sequencer = starting(state)
     current = sequencer.run
 
-    (refusal,) = sequencer.start(procedure)
+    (refusal,) = sequencer.start(procedure, plant.snapshot)
 
     assert reason in refusal
     assert sequencer.run is current
@@ -384,12 +408,12 @@ def test_a_procedure_that_cannot_start_leaves_the_current_run_in_place(state, pr
 def test_a_procedure_already_running_is_not_started_again(on_spec):
     plant = Plant(on_spec)
     sequencer = Sequencer(plant.sequences, plant.sequences.machine(plant.snapshot, state=S.ON_SPEC), plant.act)
-    sequencer.start("emergency_shutdown")
+    sequencer.start("emergency_shutdown", plant.snapshot)
     sequencer.update(plant.snapshot)
     plant.snapshot = plant.engine.step(DT)
     current = sequencer.run
 
-    assert sequencer.start("emergency_shutdown") == ("procedure 'emergency_shutdown' is already running",)
+    assert sequencer.start("emergency_shutdown", plant.snapshot) == ("procedure 'emergency_shutdown' is already running",)
 
     plant.drive(sequencer)
 
@@ -401,11 +425,23 @@ def test_a_procedure_already_running_is_not_started_again(on_spec):
     ]
 
 
+def test_a_procedure_whose_first_permissives_fail_is_not_started(on_spec):
+    plant = Plant(on_spec)
+    sequencer = Sequencer(plant.sequences, plant.sequences.machine(plant.snapshot), plant.act)
+
+    assert sequencer.start("cold_start", plant.snapshot) == (
+        "permissive K-101.load <= 0 not satisfied: K-101.load reads 1",
+        "permissive P-101.speed <= 0 not satisfied: P-101.speed reads 1",
+    )
+    assert sequencer.run is None
+    assert not plant.log.events
+
+
 def test_a_sequencer_refuses_an_unknown_procedure(cold):
     sequencer = Sequencer(cold.sequences, cold.sequences.machine(cold.snapshot), cold.act)
 
     with pytest.raises(KeyError, match="no procedure 'warm_start'"):
-        sequencer.start("warm_start")
+        sequencer.start("warm_start", cold.snapshot)
 
 
 def test_an_action_that_raises_is_never_retried_with_the_ones_before_it():
@@ -419,7 +455,7 @@ def test_an_action_that_raises_is_never_retried_with_the_ones_before_it():
         if action == "start":
             raise RuntimeError("refused")
 
-    run = SequenceRun(plant.sequences.procedures["cold_start"], machine, act)
+    run = SequenceRun(plant.sequences.procedures["cold_start"][1:], machine, act)
 
     lined_up = with_reading(plant.snapshot, "LV-101", "position", 0.1, plant.snapshot.sim_time)
 

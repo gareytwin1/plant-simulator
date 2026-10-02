@@ -23,10 +23,12 @@ is the `sim_time` of the snapshots a run is given, so a run has no clock of its
 own and is as deterministic as the engine stepping it. A hold restarts from
 zero whenever any of its conditions stops holding.
 
-**A step out of order is blocked, not reordered.** `SequenceRun.request` starts
-any step by name, and it is refused with every reason when the plant is not in
-one of the step's `in` states or a permissive does not hold. `update` runs the
-procedure in order on its own, waiting at a step until its permissives hold.
+**A step out of order is blocked, not reordered.** A run takes its steps in
+order. `update` runs the procedure on its own, waiting at a step until its
+permissives hold; `SequenceRun.request` starts a step by name, as an operator
+stepping through by hand would, and is refused with every reason when the
+step is not the next one, the plant is not in one of its `in` states, or a
+permissive does not hold.
 Advancing to the state the plant is already in is no move at all, so a step
 may run from SHUTTING_DOWN and still name it as its `advance`.
 
@@ -47,10 +49,11 @@ straight to SHUTTING_DOWN, which the machine never refuses. Both end in COLD
 once the machines have run down.
 
 **One procedure drives a plant at a time.** A `Sequencer` holds the plant's
-machine and its one current run; starting a procedure aborts the run before
-it, so an emergency shutdown cuts a start or a normal shutdown off where it
-stands and the run it replaced takes no further action. A `SequenceRun` on its
-own assumes nothing else moves its machine.
+machine and its one current run. Starting a procedure whose first step may
+run aborts the run before it, so an emergency shutdown cuts a start or a
+normal shutdown off where it stands and the run it replaced takes no further
+action; a procedure that may not start yet is refused and the current run
+carries on. A `SequenceRun` on its own assumes nothing else moves its machine.
 
 Not wired: no session or API endpoint loads a sequence yet, and trips are not
 live in a session (nothing calls `TripSystem.update`), so an emergency
@@ -275,7 +278,10 @@ class SequenceRun:
         if self._running is not None:
             return (f"step {self._running.name!r} is still running",)
 
-        return self._start(names.index(name), snapshot)
+        if names.index(name) != self._next:
+            return (f"step {name!r} is not next, {names[self._next]!r} is",)
+
+        return self._start(self._next, snapshot)
 
     def update(self, snapshot: Snapshot) -> tuple[str, ...]:
         """Run the procedure one scan: start the next step when it may, or
@@ -297,12 +303,7 @@ class SequenceRun:
 
     def _start(self, index: int, snapshot: Snapshot) -> tuple[str, ...]:
         step = self._steps[index]
-        state = self._machine.state
-
-        if state not in step.states:
-            return (f"step {step.name!r} runs from {sorted(s.value for s in step.states)}, the plant is {state}",)
-
-        reasons = _reasons(step.permissives, snapshot)
+        reasons = _blocked(step, self._machine.state, snapshot)
 
         if reasons:
             return reasons
@@ -350,7 +351,8 @@ class SequenceRun:
 
 class Sequencer:
     """The one procedure driving a plant. Starting a procedure aborts the
-    run before it, whatever step that run had reached."""
+    run before it, whatever step that run had reached, once the new one's
+    first step may run."""
 
     def __init__(
         self,
@@ -376,12 +378,13 @@ class Sequencer:
     def run(self) -> SequenceRun | None:
         return self._run
 
-    def start(self, procedure: str) -> tuple[str, ...]:
+    def start(self, procedure: str, snapshot: Snapshot) -> tuple[str, ...]:
         """Make `procedure` the plant's run, aborting the one before it. A
-        procedure whose first step cannot run from the plant's state, or one
-        already running, is refused with the reason, and the current run
-        carries on: a refused start must never leave the plant with nothing
-        driving it, nor take a procedure's actions twice."""
+        procedure whose first step may not run now (the plant's state or a
+        permissive on `snapshot`), or one already running, is refused with
+        every reason, and the current run carries on: a refused start must
+        never leave the plant with nothing driving it, nor take a procedure's
+        actions twice. The first step itself runs on the next `update`."""
         if procedure not in self._sequences.procedures:
             raise KeyError(f"no procedure {procedure!r}, only {sorted(self._sequences.procedures)}")
 
@@ -389,11 +392,10 @@ class Sequencer:
             return (f"procedure {procedure!r} is already running",)
 
         steps = self._sequences.procedures[procedure]
-        state = self._machine.state
+        reasons = _blocked(steps[0], self._machine.state, snapshot)
 
-        if state not in steps[0].states:
-            allowed = sorted(s.value for s in steps[0].states)
-            return (f"procedure {procedure!r} starts from {allowed}, the plant is {state}",)
+        if reasons:
+            return reasons
 
         if self._run is not None and not self._run.done:
             self._run.abort()
@@ -405,6 +407,14 @@ class Sequencer:
 
     def update(self, snapshot: Snapshot) -> tuple[str, ...]:
         return () if self._run is None else self._run.update(snapshot)
+
+
+def _blocked(step: Step, state: PlantState, snapshot: Snapshot) -> tuple[str, ...]:
+    """Every reason `step` may not start with the plant in `state`."""
+    if state not in step.states:
+        return (f"step {step.name!r} runs from {sorted(s.value for s in step.states)}, the plant is {state}",)
+
+    return _reasons(step.permissives, snapshot)
 
 
 def _reasons(permissives: Sequence[Permissive], snapshot: Snapshot) -> tuple[str, ...]:

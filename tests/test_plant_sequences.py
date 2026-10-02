@@ -599,6 +599,18 @@ def test_an_abort_does_not_let_a_new_procedure_read_from_before_the_last_actions
     assert sequencer.run is None
 
 
+def test_a_wrong_state_is_reported_even_on_a_snapshot_the_last_run_just_acted_on(tmp_path):
+    plant = Plant(condition("cold_shutdown"))
+    sequences = load_text(tmp_path, plant, two_procedures().replace("check_open\n      in: [cold]", "check_open\n      in: [on_spec]"))
+    sequencer = Sequencer(sequences, sequences.machine(plant.snapshot), plant.act)
+
+    sequencer.start("close", plant.snapshot)
+
+    assert sequencer.start("check", plant.snapshot) == (
+        "step 'check_open' runs from ['on_spec'], the plant is cold",
+    )
+
+
 def test_a_sequencer_refuses_an_unknown_procedure(cold):
     sequencer = Sequencer(cold.sequences, cold.sequences.machine(cold.snapshot), cold.act)
 

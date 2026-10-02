@@ -435,10 +435,15 @@ class Sequencer:
 
         steps = self._sequences.procedures[procedure]
 
+        state = self._machine.state
+
+        if state not in steps[0].states:
+            return _blocked(steps[0], state, snapshot)
+
         if steps[0].permissives and self._last is not None and self._last.stale(snapshot):
             return (f"procedure {procedure!r} waiting for a reading taken after the last actions",)
 
-        reasons = _blocked(steps[0], self._machine.state, snapshot)
+        reasons = _blocked(steps[0], state, snapshot)
 
         if reasons:
             return reasons

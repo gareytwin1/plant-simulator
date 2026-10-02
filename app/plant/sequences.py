@@ -295,8 +295,8 @@ class SequenceRun:
     def update(self, snapshot: Snapshot) -> tuple[str, ...]:
         """Run the procedure one scan: start the next step when it may, or
         carry the running one on. Returns why it is waiting, empty when it is
-        not. A hold, or the next step's permissives, are only judged on a
-        snapshot later than the one the run last acted on, so neither passes on
+        not. A hold, a gate, or the next step's permissives are only judged on
+        a snapshot later than the one the run last acted on, so none passes on
         a reading taken before those actions, however the step was started."""
         if self._running is not None:
             return self._progress(self._running, snapshot)
@@ -306,7 +306,7 @@ class SequenceRun:
 
         reasons = self._start(self._next, snapshot)
 
-        if reasons or self._running is None or self._running.hold:
+        if reasons or self._running is None or self._waits(self._running):
             return reasons
 
         return self._finish(self._running, snapshot)
@@ -314,7 +314,7 @@ class SequenceRun:
     def _start(self, index: int, snapshot: Snapshot) -> tuple[str, ...]:
         step = self._steps[index]
 
-        if self._stale(snapshot):
+        if self.stale(snapshot):
             return (f"step {step.name!r} waiting for a reading taken after the last step's actions",)
 
         reasons = _blocked(step, self._machine.state, snapshot)
@@ -335,7 +335,7 @@ class SequenceRun:
         return ()
 
     def _progress(self, step: Step, snapshot: Snapshot) -> tuple[str, ...]:
-        if step.hold and self._stale(snapshot):
+        if self._waits(step) and self.stale(snapshot):
             return (f"step {step.name!r} waiting for a reading taken after its actions",)
 
         reasons = _reasons(step.hold, snapshot)
@@ -354,10 +354,21 @@ class SequenceRun:
 
         return self._finish(step, snapshot)
 
-    def _stale(self, snapshot: Snapshot) -> bool:
+    def stale(self, snapshot: Snapshot) -> bool:
         """Whether `snapshot` was taken before this run's latest actions took
-        effect: no hold or permissive is judged on one."""
+        effect: no hold, gate or permissive is judged on one."""
         return self._acted_at is not None and snapshot.sim_time <= self._acted_at
+
+    def _waits(self, step: Step) -> bool:
+        """Whether `step` must see a reading after its actions before it can
+        finish: it has a hold, or it advances over a gated edge. An advance
+        into SHUTTING_DOWN is never gated, so a step making one, as an
+        emergency stop does, finishes on the scan it acts."""
+        return bool(step.hold) or (
+            step.advance is not None
+            and step.advance is not self._machine.state
+            and step.advance is not PlantState.SHUTTING_DOWN
+        )
 
     def _finish(self, step: Step, snapshot: Snapshot) -> tuple[str, ...]:
         if step.advance is not None and step.advance is not self._machine.state:
@@ -420,6 +431,10 @@ class Sequencer:
             return (f"procedure {procedure!r} is already running",)
 
         steps = self._sequences.procedures[procedure]
+
+        if steps[0].permissives and self._run is not None and self._run.stale(snapshot):
+            return (f"procedure {procedure!r} waiting for a reading taken after the last actions",)
+
         reasons = _blocked(steps[0], self._machine.state, snapshot)
 
         if reasons:

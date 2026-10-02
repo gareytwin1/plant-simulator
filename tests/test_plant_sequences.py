@@ -529,6 +529,57 @@ def test_a_next_step_is_never_judged_on_a_reading_from_before_the_last_actions(t
     assert sequencer.run.active is None
 
 
+def test_a_step_without_a_hold_never_advances_on_a_reading_from_before_its_actions(tmp_path):
+    no_hold = VALID.replace('      hold: {when: ["LV-101.position <= 0.11"], for_s: 5}\n', "").replace(
+        "LV-101.position <= 0.11", "LV-101.position <= 1.0"
+    )
+    plant = Plant(condition("cold_shutdown"))
+    sequences = load_text(tmp_path, plant, no_hold)
+    sequencer = Sequencer(sequences, sequences.machine(plant.snapshot), plant.act)
+
+    assert sequencer.start("start", plant.snapshot) == ()
+    assert sequencer.machine.state is S.COLD
+    assert sequencer.update(plant.snapshot)
+    assert sequencer.machine.state is S.COLD
+
+    plant.snapshot = plant.engine.step(DT)
+    sequencer.update(plant.snapshot)
+
+    assert sequencer.machine.state is S.PURGED
+
+
+def test_a_new_procedure_is_not_judged_on_a_reading_from_before_the_last_actions(tmp_path):
+    two_procedures = VALID[: VALID.index("sequences:")] + textwrap.dedent(
+        """
+        sequences:
+          close:
+            - step: close_drain
+              in: [cold]
+              actions: ["LV-101.set_position_target 0.1"]
+              hold: {when: ["LV-101.position <= 0.11"], for_s: 5}
+          check:
+            - step: check_open
+              in: [cold]
+              permissives: ["LV-101.position >= 0.5"]
+        """
+    )
+    plant = Plant(condition("cold_shutdown"))
+    sequences = load_text(tmp_path, plant, two_procedures)
+    sequencer = Sequencer(sequences, sequences.machine(plant.snapshot), plant.act)
+
+    assert sequencer.start("close", plant.snapshot) == ()
+    assert sequencer.start("check", plant.snapshot) == (
+        "procedure 'check' waiting for a reading taken after the last actions",
+    )
+
+    plant.snapshot = plant.engine.step(DT)
+
+    assert sequencer.start("check", plant.snapshot) == (
+        "permissive LV-101.position >= 0.5 not satisfied: LV-101.position reads 0.45",
+    )
+    assert sequencer.procedure == "close"
+
+
 def test_a_sequencer_refuses_an_unknown_procedure(cold):
     sequencer = Sequencer(cold.sequences, cold.sequences.machine(cold.snapshot), cold.act)
 
@@ -710,24 +761,35 @@ def test_a_bad_gate_condition_does_not_hide_the_shape_checks(tmp_path, cold):
 
 
 @pytest.mark.parametrize(
-    ("old", "new"),
+    ("old", "new", "message"),
     [
-        ("{from: cold, to: purged, ", "{to: purged, "),
-        ('hold: {when: ["LV-101.position <= 0.11"], for_s', "hold: {when: null, for_s"),
-        ('hold: {when: ["LV-101.position <= 0.11"], for_s: 5}', "hold: []"),
-        (VALID[VALID.index("gates:"):VALID.index("sequences:")], ""),
-        ('{from: cold, to: purged, when: ["LV-101.position <= 0.11"]}', "{from: cold, to: purged, when: {}}"),
-        (VALID[VALID.index("sequences:"):], "sequences: []\n"),
-        (VALID[VALID.index("sequences:"):], "sequences:\n"),
-        ("sequences:\n  start:", "sequences:\n  1: [{step: x, in: [cold]}]\n  start:"),
-        (VALID[VALID.index("gates:"):VALID.index("sequences:")], "gates:\n"),
+        ("{from: cold, to: purged, ", "{to: purged, ", "missing ['from']"),
+        ('hold: {when: ["LV-101.position <= 0.11"], for_s', "hold: {when: null, for_s", "must be a list"),
+        ('hold: {when: ["LV-101.position <= 0.11"], for_s: 5}', "hold: []", "hold must be a mapping"),
+        (VALID[VALID.index("gates:"):VALID.index("sequences:")], "", "missing ['gates']"),
+        (
+            '{from: cold, to: purged, when: ["LV-101.position <= 0.11"]}',
+            "{from: cold, to: purged, when: {}}",
+            "when must be a list",
+        ),
+        (VALID[VALID.index("sequences:"):], "sequences: []\n", "mapping of name to steps"),
+        (VALID[VALID.index("sequences:"):], "sequences:\n", "mapping of name to steps"),
+        (
+            "sequences:\n  start:",
+            "sequences:\n  1: [{step: x, in: [cold]}]\n  start:",
+            "named by a non-empty string",
+        ),
+        (VALID[VALID.index("gates:"):VALID.index("sequences:")], "gates:\n", "gates must be a list"),
     ],
 )
-def test_a_single_fault_is_reported_once(tmp_path, cold, old, new):
+def test_a_single_fault_is_reported_once(tmp_path, cold, old, new, message):
     assert old in VALID
 
-    with pytest.raises(ValueError, match=r"rejected, 1 problem\(s\)"):
+    with pytest.raises(ValueError, match=r"rejected, 1 problem\(s\)") as error:
         load_text(tmp_path, cold, VALID.replace(old, new, 1))
+
+    assert message in str(error.value)
+    assert "has no condition to gate it" not in str(error.value)
 
 
 def test_every_problem_is_reported_together(tmp_path, cold):

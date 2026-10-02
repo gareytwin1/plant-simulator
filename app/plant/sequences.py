@@ -378,11 +378,15 @@ class Sequencer:
 
     def start(self, procedure: str) -> tuple[str, ...]:
         """Make `procedure` the plant's run, aborting the one before it. A
-        procedure whose first step cannot run from the plant's state is
-        refused with the reason, and the current run carries on: a refused
-        start must never leave the plant with nothing driving it."""
+        procedure whose first step cannot run from the plant's state, or one
+        already running, is refused with the reason, and the current run
+        carries on: a refused start must never leave the plant with nothing
+        driving it, nor take a procedure's actions twice."""
         if procedure not in self._sequences.procedures:
             raise KeyError(f"no procedure {procedure!r}, only {sorted(self._sequences.procedures)}")
+
+        if procedure == self._procedure and self._run is not None and not self._run.done:
+            return (f"procedure {procedure!r} is already running",)
 
         steps = self._sequences.procedures[procedure]
         state = self._machine.state
@@ -475,8 +479,8 @@ def _gates(entries: Any, errors: list[str]) -> tuple[dict[Edge, tuple[str, ...]]
             continue
 
         _keys(entry, _GATE_KEYS, where, errors, required={"from", "to"})
-        source = _state(entry.get("from"), where, errors)
-        target = _state(entry.get("to"), where, errors)
+        source = _state(entry["from"], where, errors) if "from" in entry else None
+        target = _state(entry["to"], where, errors) if "to" in entry else None
         when = entry.get("when") or []
 
         if source is None or target is None:
@@ -547,7 +551,7 @@ def _step(
         _keys(hold, _HOLD_KEYS, f"{where} hold", errors)
         hold_when = _conditions(hold.get("when", []), f"{where} hold when", errors)
 
-        if hold and not hold.get("when"):
+        if hold and hold.get("when", []) == []:
             errors.append(f"{where} hold needs at least one condition in when")
         raw_s = hold.get("for_s", 0.0)
         seconds = number(raw_s)

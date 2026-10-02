@@ -33,6 +33,7 @@ from app.engine.persistence import capture_state, restore_state
 from app.plant.loader import load_plant_file
 from app.plant.sequences import Sequencer, SequenceRun, load_sequences
 from app.plant.states import PlantState as S
+from app.safety.actions import number
 from app.safety.interlocks import Condition
 from app.scoring.actionlog import ActionLog
 
@@ -104,12 +105,19 @@ def condition(name):
 
 def readings(snapshot):
     """Every envelope band entered and every interlock condition met."""
-    met = {
-        tag: "met"
-        for tag, condition in INTERLOCKS.items()
-        if isinstance(value := snapshot.equipment[condition.tag].get(condition.variable), float)
-        and condition.is_met(value)
-    }
+    met = {}
+
+    for tag, condition in INTERLOCKS.items():
+        row = snapshot.equipment[condition.tag]
+
+        if condition.variable not in row:
+            continue
+
+        value = number(row[condition.variable])
+        assert value is not None, f"{tag} reads {row[condition.variable]!r}"
+
+        if condition.is_met(value):
+            met[tag] = "met"
 
     return {**{key: row["band"] for key, row in snapshot.envelope.items()}, **met}
 
@@ -317,13 +325,14 @@ def test_an_emergency_shutdown_overrides_a_normal_one_part_way_through(on_spec):
 
 
 def starting(state):
-    """A plant part way through its cold start, the start still running."""
+    """A plant part way through its cold start: in `state`, with a step of
+    the start running."""
     plant = Plant(condition("cold_shutdown"))
     sequencer = Sequencer(plant.sequences, plant.sequences.machine(plant.snapshot), plant.act)
     sequencer.start("cold_start")
 
     for _ in range(HORIZON):
-        if sequencer.machine.state is state:
+        if sequencer.machine.state is state and sequencer.run.active is not None:
             return plant, sequencer
 
         sequencer.update(plant.snapshot)
@@ -368,7 +377,28 @@ def test_a_procedure_that_cannot_start_leaves_the_current_run_in_place(state, pr
     assert reason in refusal
     assert sequencer.run is current
     assert sequencer.procedure == "cold_start"
+    assert current.active is not None
     assert not current.aborted
+
+
+def test_a_procedure_already_running_is_not_started_again(on_spec):
+    plant = Plant(on_spec)
+    sequencer = Sequencer(plant.sequences, plant.sequences.machine(plant.snapshot, state=S.ON_SPEC), plant.act)
+    sequencer.start("emergency_shutdown")
+    sequencer.update(plant.snapshot)
+    plant.snapshot = plant.engine.step(DT)
+    current = sequencer.run
+
+    assert sequencer.start("emergency_shutdown") == ("procedure 'emergency_shutdown' is already running",)
+
+    plant.drive(sequencer)
+
+    assert sequencer.run is current
+    assert [message for _, message in plant.actions()] == [
+        "K-101 stop",
+        "P-101 stop",
+        "LV-101 set_position_target 0.1",
+    ]
 
 
 def test_a_sequencer_refuses_an_unknown_procedure(cold):
@@ -484,6 +514,7 @@ def test_a_valid_file_loads(tmp_path, cold):
         ('["LV-101.position <= 0.11"], for_s', '["LV-101.position ~ 0.11"], for_s', "malformed"),
         ("for_s: 5", "for_s: -5", "non-negative"),
         ('when: ["LV-101.position <= 0.11"], for_s', "when: [], for_s", "needs at least one condition"),
+        ('when: ["LV-101.position <= 0.11"], for_s', "for_s", "needs at least one condition"),
         ("advance: purged", "advance: on_spec", "which ['cold'] cannot reach"),
         ("sequences:\n  start:", "sequences:\n  - start:", "must be a mapping of name to steps"),
         ("      advance: purged\n", "      advance: purged\n    - {step: line_up, in: [purged]}\n", "repeats step(s) ['line_up']"),
@@ -547,6 +578,20 @@ def test_a_bad_gate_condition_does_not_hide_the_shape_checks(tmp_path, cold):
 
     assert "V-101.depth is not published" in str(error.value)
     assert "on_spec -> circulating has no condition to gate it" in str(error.value)
+
+
+@pytest.mark.parametrize(
+    ("old", "new"),
+    [
+        ("{from: cold, to: purged, ", "{to: purged, "),
+        ('hold: {when: ["LV-101.position <= 0.11"], for_s', "hold: {when: null, for_s"),
+    ],
+)
+def test_a_single_fault_is_reported_once(tmp_path, cold, old, new):
+    assert old in VALID
+
+    with pytest.raises(ValueError, match=r"rejected, 1 problem\(s\)"):
+        load_text(tmp_path, cold, VALID.replace(old, new, 1))
 
 
 def test_every_problem_is_reported_together(tmp_path, cold):

@@ -247,6 +247,11 @@ class MalfunctionRegistry:
 
         self._malfunctions[malfunction.key] = malfunction
 
+    def validate(self, snapshot: Snapshot) -> None:
+        """Raise if a start condition cannot be evaluated against this snapshot."""
+        for malfunction in self._malfunctions.values():
+            malfunction.start_condition.is_met(snapshot)
+
     def update(self, snapshot: Snapshot) -> None:
         for key, malfunction in self._malfunctions.items():
             device = self._resolve(malfunction.target_tag)

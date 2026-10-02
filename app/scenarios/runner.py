@@ -89,7 +89,7 @@ import yaml
 
 from app.api.action import apply_action
 from app.disturbances.malfunction import Malfunction, MalfunctionRegistry
-from app.disturbances.profiles import WhenCondition, profile_from_config, start_condition_from_config
+from app.disturbances.profiles import profile_from_config, start_condition_from_config
 from app.engine.engine import Engine
 from app.engine.persistence import capture_state, restore_state
 from app.engine.snapshot import Snapshot
@@ -635,16 +635,13 @@ class ScenarioRunner:
 
         malfunctions = MalfunctionRegistry(registry, engine.instruments.values())
         for entry in config.get("malfunctions", []):
-            malfunction = malfunction_from_config(entry)
-            malfunctions.add(malfunction)
-
-            if isinstance(malfunction.start_condition, WhenCondition):
-                malfunction.start_condition.is_met(armed)
+            malfunctions.add(malfunction_from_config(entry))
 
         time_limit = float(config["time_limit_s"])
         triggers = TriggerEvaluator.from_config(config.get("triggers", []))
         objectives = ObjectiveEvaluator.from_config(config.get("objectives", []), time_limit)
 
+        malfunctions.validate(armed)
         triggers.validate(armed)
         objectives.validate(armed)
 

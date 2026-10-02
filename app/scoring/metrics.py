@@ -63,6 +63,8 @@ _NON_NORMAL: tuple[Severity, ...] = (Severity.WARNING, Severity.ALARM, Severity.
 
 @dataclass(frozen=True)
 class RunMetrics:
+    """Immutable, comparable by value, not hashable (it holds a mapping)."""
+
     alarm_count: int
     trip_count: int
     time_to_recognise_s: float | None

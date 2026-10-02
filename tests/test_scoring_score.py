@@ -159,3 +159,10 @@ def test_config_rejects_unknown_weight_keys():
 
     with pytest.raises(ValueError, match="unknown"):
         ScoringConfig({**config.weights, "bogus": 1.0}, config.scales, config.peak_severity_penalty, {})
+
+
+def test_config_rejects_unknown_scale_keys():
+    config = load_scoring_config()
+
+    with pytest.raises(ValueError, match="unknown"):
+        ScoringConfig(config.weights, {**config.scales, "bogus": 1.0}, config.peak_severity_penalty, {})

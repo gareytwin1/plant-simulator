@@ -184,13 +184,11 @@ def test_refuses_database_newer_than_code(tmp_path):
         ScoreStore(path)
 
 
-def _stale_first_read(monkeypatch, stale):
-    reads = []
+def _stale_until_locked(monkeypatch, stale):
     real = ScoreStore.schema_version.fget
 
     def read(self):
-        reads.append(1)
-        return stale if len(reads) == 1 else real(self)
+        return real(self) if self._connection.in_transaction else stale
 
     monkeypatch.setattr(ScoreStore, "schema_version", property(read))
 
@@ -201,9 +199,9 @@ def test_migration_rereads_version_under_lock(tmp_path, monkeypatch):
     with ScoreStore(path):
         pass
 
-    _stale_first_read(monkeypatch, 0)
+    _stale_until_locked(monkeypatch, 0)
     with ScoreStore(path, migrations=version_two) as store:
-        assert store.schema_version == 2
+        assert store._connection.execute("PRAGMA user_version").fetchone() == (2,)
 
 
 def test_migration_refuses_file_that_became_newer_under_lock(tmp_path, monkeypatch):
@@ -212,6 +210,6 @@ def test_migration_refuses_file_that_became_newer_under_lock(tmp_path, monkeypat
     with ScoreStore(path, migrations=newer):
         pass
 
-    _stale_first_read(monkeypatch, 0)
+    _stale_until_locked(monkeypatch, 0)
     with pytest.raises(SchemaVersionError):
         ScoreStore(path)

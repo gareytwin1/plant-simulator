@@ -1,0 +1,100 @@
+# Startup and shutdown sequences for the reference plant (T12-4),
+# config/plants/olefins_lite.yaml. app/plant/sequences.py loads this file and
+# says what each key means; the numbers below are this plant's.
+#
+# gates: the conditions on each edge of the plant state machine (T12-3). The
+# plant has no purge gas, so PURGED means "lined up": the drain valve closed to
+# its floor so the feed fills the vessel. Pressure needs nothing done: the
+# stopped compressor backflows from its discharge header and holds the
+# headspace near 295 psia (scripts/initial_conditions.py), so PRESSURISED is
+# reached by establishing a liquid level, not by raising pressure. ON_SPEC is
+# the design point: level 0.5 and headspace pressure settling to 200 psia
+# through PV-101's vent.
+gates:
+  - {from: cold, to: purged, when: ["LV-101.position <= 0.11"]}
+  - from: purged
+    to: pressurised
+    when: ["P-101.speed >= 0.99", "V-101.level >= 0.3", "V-101.pressure >= 150"]
+  - from: pressurised
+    to: circulating
+    when: ["P-101.speed >= 0.99", "K-101.load >= 0.99", "LV-101.position >= 0.49"]
+  - from: circulating
+    to: on_spec
+    when:
+      - "V-101.level >= 0.45"
+      - "V-101.level <= 0.55"
+      - "V-101.pressure >= 190"
+      - "V-101.pressure <= 210"
+  # Falling off spec is always allowed; the edge still needs a condition.
+  - {from: on_spec, to: circulating, when: ["V-101.level >= 0.0"]}
+  - {from: shutting_down, to: cold, when: ["K-101.load <= 0.0", "P-101.speed <= 0.0"]}
+
+sequences:
+  cold_start:
+    - step: line_up
+      in: [cold]
+      permissives: ["K-101.load <= 0.0", "P-101.speed <= 0.0"]
+      actions: ["LV-101.set_position_target 0.1"]
+      hold: {when: ["LV-101.position <= 0.11"], for_s: 10}
+      advance: purged
+    # A stop zeroes a machine's target, so every start sets it again first.
+    - step: fill
+      in: [purged]
+      permissives: ["LV-101.position <= 0.11"]
+      actions: ["P-101.set_speed_target 1.0", "P-101.start"]
+      hold: {when: ["P-101.speed >= 0.99", "V-101.level >= 0.3"], for_s: 10}
+      advance: pressurised
+    # No compressor until the vessel holds liquid clear of its low alarm.
+    - step: start_compressor
+      in: [pressurised]
+      permissives: ["P-101.speed >= 0.99", "V-101.level >= 0.3"]
+      actions: ["K-101.set_load_target 1.0", "K-101.start"]
+      hold: {when: ["K-101.load >= 0.99"], for_s: 10}
+    - step: open_drain
+      in: [pressurised]
+      permissives: ["K-101.load >= 0.99", "V-101.level >= 0.45"]
+      actions: ["LV-101.set_position_target 0.5"]
+      hold: {when: ["LV-101.position >= 0.49"], for_s: 10}
+      advance: circulating
+    - step: settle
+      in: [circulating]
+      hold:
+        when:
+          - "V-101.level >= 0.45"
+          - "V-101.level <= 0.55"
+          - "V-101.pressure >= 190"
+          - "V-101.pressure <= 210"
+        for_s: 60
+      advance: on_spec
+
+  # Staged: unload the compressor before stopping it, then stop the feed and
+  # line the drain back up for the next start.
+  normal_shutdown:
+    - step: unload_compressor
+      in: [circulating, on_spec]
+      actions: ["K-101.set_load_target 0.0"]
+      advance: shutting_down
+    - step: stop_compressor
+      in: [shutting_down]
+      permissives: ["K-101.load <= 0.0"]
+      actions: ["K-101.stop"]
+      hold: {when: ["K-101.load <= 0.0"], for_s: 10}
+    - step: stop_feed
+      in: [shutting_down]
+      permissives: ["K-101.load <= 0.0"]
+      actions: ["P-101.stop", "LV-101.set_position_target 0.1"]
+      hold: {when: ["P-101.speed <= 0.0", "LV-101.position <= 0.11"], for_s: 10}
+      advance: cold
+
+  # Everything at once from any running state, a normal shutdown part way
+  # through included: no unloading and no permissives, because nothing may
+  # refuse an emergency stop.
+  emergency_shutdown:
+    - step: stop_all
+      in: [purged, pressurised, circulating, on_spec, shutting_down]
+      actions: ["K-101.stop", "P-101.stop", "LV-101.set_position_target 0.1"]
+      advance: shutting_down
+    - step: confirm_stopped
+      in: [shutting_down]
+      hold: {when: ["K-101.load <= 0.0", "P-101.speed <= 0.0"], for_s: 5}
+      advance: cold

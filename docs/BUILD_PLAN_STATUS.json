@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
-  "refreshed": "1 October 2026",
-  "main_sha": "3690f8e",
-  "tests_passing_on_main": 2534,
+  "refreshed": "2 October 2026",
+  "main_sha": "60e3079",
+  "tests_passing_on_main": 2562,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -83,7 +83,7 @@
     },
     "M13": {
       "name": "Disturbance and Malfunction Layer",
-      "complete": 4,
+      "complete": 5,
       "total": 5
     },
     "M14": {
@@ -119,8 +119,8 @@
   },
   "totals": {
     "tasks": 117,
-    "complete": 91,
-    "startable_now": 18
+    "complete": 92,
+    "startable_now": 17
   },
   "tasks": [
     {
@@ -1656,10 +1656,9 @@
       "files": [
         "app/disturbances/profiles.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true,
-      "note": ""
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged to main as 60e3079 (PR #119). Suite 2562 passed post-merge, mypy clean, no golden movement. Ramp and WhenCondition in app/disturbances/profiles.py; malfunction_from_config decodes them; MalfunctionRegistry.validate checks condition onsets at load."
     },
     {
       "id": "T13-4",

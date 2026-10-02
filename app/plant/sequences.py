@@ -137,7 +137,8 @@ def load_sequences(
     _keys(raw, _FILE_KEYS, "sequences file", errors, required=_FILE_KEYS)
     gates, rejected, partial = _gates(raw.get("gates"), errors)
     procedures: dict[str, tuple[Step, ...]] = {}
-    sequences = raw.get("sequences") or {}
+    sequences = raw.get("sequences")
+    sequences = {} if sequences is None else sequences
 
     if not isinstance(sequences, dict):
         errors.append("sequences must be a mapping of name to steps")
@@ -386,6 +387,7 @@ class Sequencer:
 
     @property
     def run(self) -> SequenceRun | None:
+        """The current run, None before the first start and after `abort`."""
         return self._run
 
     def start(self, procedure: str, snapshot: Snapshot) -> tuple[str, ...]:
@@ -425,6 +427,7 @@ class Sequencer:
             self._run.abort()
 
         self._procedure = None
+        self._run = None
 
     def update(self, snapshot: Snapshot) -> tuple[str, ...]:
         return () if self._run is None else self._run.update(snapshot)
@@ -453,7 +456,7 @@ def _keys(
     errors: list[str],
     required: frozenset[str] | set[str] = frozenset(),
 ) -> None:
-    unknown = sorted(set(entry) - allowed)
+    unknown = sorted(set(entry) - allowed, key=str)
     missing = sorted(required - set(entry))
 
     if unknown:
@@ -515,7 +518,8 @@ def _gates(entries: Any, errors: list[str]) -> tuple[dict[Edge, tuple[str, ...]]
         _keys(entry, _GATE_KEYS, where, errors, required={"from", "to"})
         source = _state(entry["from"], where, errors) if "from" in entry else None
         target = _state(entry["to"], where, errors) if "to" in entry else None
-        when = entry.get("when") or []
+        when = entry.get("when")
+        when = [] if when is None else when
 
         if source is None or target is None:
             partial.append((source, target))

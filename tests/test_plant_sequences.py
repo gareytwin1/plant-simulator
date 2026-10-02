@@ -457,6 +457,7 @@ def test_a_stalled_procedure_can_be_aborted_and_started_again(on_spec):
     sequencer.abort()
 
     assert sequencer.procedure is None
+    assert sequencer.run is None
     assert sequencer.start("emergency_shutdown", plant.snapshot) == ()
     assert stalled.aborted
     assert [message for _, message in plant.actions()].count("P-101 stop") == 2
@@ -601,6 +602,7 @@ def test_a_valid_file_loads(tmp_path, cold):
     ("old", "new", "message"),
     [
         ("sequences:", "extra: 1\nsequences:", "unknown key(s) ['extra']"),
+        ("      advance: purged", "      advance: purged\n      1: x\n      speed: 2", "unknown key(s) [1, 'speed']"),
         ("      advance: purged", "      advance: purged\n      speed: 2", "unknown key(s) ['speed']"),
         ('"LV-101.set_position_target 0.1"', '"XV-999.set_position_target 0.1"', "unknown device 'XV-999'"),
         ('"LV-101.set_position_target 0.1"', '"LV-101.start"', "LV-101 allows only ['set_position_target']"),
@@ -684,6 +686,8 @@ def test_a_bad_gate_condition_does_not_hide_the_shape_checks(tmp_path, cold):
         ('hold: {when: ["LV-101.position <= 0.11"], for_s', "hold: {when: null, for_s"),
         ('hold: {when: ["LV-101.position <= 0.11"], for_s: 5}', "hold: []"),
         (VALID[VALID.index("gates:"):VALID.index("sequences:")], ""),
+        ('{from: cold, to: purged, when: ["LV-101.position <= 0.11"]}', "{from: cold, to: purged, when: {}}"),
+        (VALID[VALID.index("sequences:"):], "sequences: []\n"),
     ],
 )
 def test_a_single_fault_is_reported_once(tmp_path, cold, old, new):

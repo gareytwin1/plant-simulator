@@ -334,8 +334,10 @@ def test_an_emergency_shutdown_overrides_a_normal_one_part_way_through(on_spec):
     assert sequencer.machine.state is S.SHUTTING_DOWN
     assert plant.engine.equipment["P-101"].running
 
-    sequencer.start("emergency_shutdown", plant.snapshot)
     before = len(plant.log)
+    sequencer.start("emergency_shutdown", plant.snapshot)
+
+    assert not plant.engine.equipment["P-101"].running
 
     plant.drive(sequencer)
 
@@ -369,9 +371,9 @@ def test_a_start_cut_off_by_an_emergency_shutdown_takes_no_further_action():
     plant, sequencer = starting(S.PRESSURISED)
     start = sequencer.run
 
-    assert sequencer.start("emergency_shutdown", plant.snapshot) == ()
-
     before = len(plant.log)
+
+    assert sequencer.start("emergency_shutdown", plant.snapshot) == ()
     plant.drive(sequencer)
 
     assert start.aborted
@@ -435,6 +437,28 @@ def test_a_procedure_whose_first_permissives_fail_is_not_started(on_spec):
     )
     assert sequencer.run is None
     assert not plant.log.events
+
+
+def test_a_stalled_procedure_can_be_aborted_and_started_again(on_spec):
+    plant = Plant(on_spec)
+    sequencer = Sequencer(plant.sequences, plant.sequences.machine(plant.snapshot, state=S.ON_SPEC), plant.act)
+    sequencer.start("emergency_shutdown", plant.snapshot)
+    stalled = sequencer.run
+    plant.engine.equipment["P-101"].start()
+    plant.engine.equipment["P-101"].set_speed_target(1.0)
+
+    for _ in range(100):
+        sequencer.update(plant.snapshot)
+        plant.snapshot = plant.engine.step(DT)
+
+    assert stalled.active == "confirm_stopped"
+    assert sequencer.start("emergency_shutdown", plant.snapshot)
+
+    sequencer.abort()
+
+    assert sequencer.start("emergency_shutdown", plant.snapshot) == ()
+    assert stalled.aborted
+    assert [message for _, message in plant.actions()].count("P-101 stop") == 2
 
 
 def test_a_sequencer_refuses_an_unknown_procedure(cold):

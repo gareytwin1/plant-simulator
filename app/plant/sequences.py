@@ -53,7 +53,9 @@ machine and its one current run. Starting a procedure whose first step may
 run aborts the run before it, so an emergency shutdown cuts a start or a
 normal shutdown off where it stands and the run it replaced takes no further
 action; a procedure that may not start yet is refused and the current run
-carries on. A `SequenceRun` on its own assumes nothing else moves its machine.
+carries on, as it does when the procedure asked for is already running.
+`Sequencer.abort` clears a run stalled at a hold so it may be started again.
+A `SequenceRun` on its own assumes nothing else moves its machine.
 
 Not wired: no session or API endpoint loads a sequence yet, and trips are not
 live in a session (nothing calls `TripSystem.update`), so an emergency
@@ -351,8 +353,9 @@ class SequenceRun:
 
 class Sequencer:
     """The one procedure driving a plant. Starting a procedure aborts the
-    run before it, whatever step that run had reached, once the new one's
-    first step may run."""
+    run before it, whatever step that run had reached. A start is refused,
+    and the current run kept, when the procedure is already running or its
+    first step may not run now; `abort` clears a run that has stalled."""
 
     def __init__(
         self,
@@ -384,7 +387,8 @@ class Sequencer:
         permissive on `snapshot`), or one already running, is refused with
         every reason, and the current run carries on: a refused start must
         never leave the plant with nothing driving it, nor take a procedure's
-        actions twice. The first step itself runs on the next `update`."""
+        actions twice. The first step starts at once, on the same `snapshot`
+        it was judged on."""
         if procedure not in self._sequences.procedures:
             raise KeyError(f"no procedure {procedure!r}, only {sorted(self._sequences.procedures)}")
 
@@ -402,8 +406,14 @@ class Sequencer:
 
         self._procedure = procedure
         self._run = SequenceRun(steps, self._machine, self._act)
+        self._run.update(snapshot)
 
         return ()
+
+    def abort(self) -> None:
+        """Abort the current run, so a stalled one may be started again."""
+        if self._run is not None and not self._run.done:
+            self._run.abort()
 
     def update(self, snapshot: Snapshot) -> tuple[str, ...]:
         return () if self._run is None else self._run.update(snapshot)

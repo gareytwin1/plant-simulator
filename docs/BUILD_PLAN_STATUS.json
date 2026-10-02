@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "2 October 2026",
-  "main_sha": "60e3079",
-  "tests_passing_on_main": 2562,
+  "main_sha": "cab96f4",
+  "tests_passing_on_main": 2574,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -78,7 +78,7 @@
     },
     "M12": {
       "name": "Startup and Shutdown Sequences",
-      "complete": 2,
+      "complete": 3,
       "total": 6
     },
     "M13": {
@@ -119,8 +119,8 @@
   },
   "totals": {
     "tasks": 117,
-    "complete": 92,
-    "startable_now": 17
+    "complete": 93,
+    "startable_now": 15
   },
   "tasks": [
     {
@@ -1604,10 +1604,9 @@
         "tests/test_clock.py",
         "tests/test_persistence.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true,
-      "note": ""
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged to main as cab96f4 (PR #120). Suite 2574 passed post-merge, mypy clean, no golden movement. SimulationClock.set_speed and step refuse a negative or non-finite value before changing anything; restore_state refuses a negative clock speed or sim_time with a StateError naming the field. Spine lock released."
     },
     {
       "id": "T13-1",
@@ -1825,10 +1824,10 @@
       "files": [
         "app/scoring/metrics.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
+      "status": "Ready for Review",
+      "status_key": "review",
       "startable": true,
-      "note": ""
+      "note": "READY FOR REVIEW - PR #121, branch feature/scoring-metrics, rebased on a4d4269. 2578 passed, mypy clean over 67 files, no golden movement, roborev-refine clean. PARTIAL: six of eight metrics done (alarm count, trip count, time to recognise, peak excursions, time outside envelope, unnecessary actions via a caller-supplied is_relevant predicate). OPEN QUESTIONS, not implemented: (1) time to stabilise - AlarmManager emits nothing on return to NORMAL and trackers hold only totals, so the three inputs cannot say when the plant settled; needs a return-to-normal record, which touches a contract. (2) production lost - no tracked quantity is a throughput; needs a named source variable and target. Both need a decision before T15-3 can weigh them."
     },
     {
       "id": "T15-3",

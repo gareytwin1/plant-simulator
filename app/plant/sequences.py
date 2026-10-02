@@ -146,6 +146,10 @@ def load_sequences(
         sequences = {}
 
     for name, steps in sequences.items():
+        if not isinstance(name, str) or not name:
+            errors.append(f"sequence {name!r} must be named by a non-empty string")
+            continue
+
         if not isinstance(steps, list) or not steps:
             errors.append(f"sequence {name!r} must be a non-empty list of steps")
             continue
@@ -246,7 +250,7 @@ class SequenceRun:
         self._next = 0
         self._running: Step | None = None
         self._held_since: float | None = None
-        self._started_at = 0.0
+        self._acted_at: float | None = None
         self._aborted = False
 
     @property
@@ -291,9 +295,9 @@ class SequenceRun:
     def update(self, snapshot: Snapshot) -> tuple[str, ...]:
         """Run the procedure one scan: start the next step when it may, or
         carry the running one on. Returns why it is waiting, empty when it is
-        not. A hold is only judged on a snapshot later than the one its step
-        started on, so it never passes on a reading taken before its actions,
-        however the step was started."""
+        not. A hold, or the next step's permissives, are only judged on a
+        snapshot later than the one the run last acted on, so neither passes on
+        a reading taken before those actions, however the step was started."""
         if self._running is not None:
             return self._progress(self._running, snapshot)
 
@@ -309,6 +313,10 @@ class SequenceRun:
 
     def _start(self, index: int, snapshot: Snapshot) -> tuple[str, ...]:
         step = self._steps[index]
+
+        if self._stale(snapshot):
+            return (f"step {step.name!r} waiting for a reading taken after the last step's actions",)
+
         reasons = _blocked(step, self._machine.state, snapshot)
 
         if reasons:
@@ -319,7 +327,7 @@ class SequenceRun:
         self._running = step
         self._next = index + 1
         self._held_since = None
-        self._started_at = snapshot.sim_time
+        self._acted_at = snapshot.sim_time
 
         for action in step.actions:
             self._act(action.tag, action.action, action.value)
@@ -327,7 +335,7 @@ class SequenceRun:
         return ()
 
     def _progress(self, step: Step, snapshot: Snapshot) -> tuple[str, ...]:
-        if step.hold and snapshot.sim_time <= self._started_at:
+        if step.hold and self._stale(snapshot):
             return (f"step {step.name!r} waiting for a reading taken after its actions",)
 
         reasons = _reasons(step.hold, snapshot)
@@ -345,6 +353,11 @@ class SequenceRun:
             return (f"step {step.name!r} holding, {held:g} of {step.hold_s:g} s",)
 
         return self._finish(step, snapshot)
+
+    def _stale(self, snapshot: Snapshot) -> bool:
+        """Whether `snapshot` was taken before this run's latest actions took
+        effect: no hold or permissive is judged on one."""
+        return self._acted_at is not None and snapshot.sim_time <= self._acted_at
 
     def _finish(self, step: Step, snapshot: Snapshot) -> tuple[str, ...]:
         if step.advance is not None and step.advance is not self._machine.state:

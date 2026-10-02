@@ -499,6 +499,36 @@ def test_a_timed_hold_counts_from_the_first_snapshot_after_its_step_started(tmp_
     assert machine.state is S.PURGED
 
 
+def test_a_next_step_is_never_judged_on_a_reading_from_before_the_last_actions(tmp_path):
+    two_steps = VALID[: VALID.index("sequences:")] + textwrap.dedent(
+        """
+        sequences:
+          start:
+            - step: close_drain
+              in: [cold]
+              actions: ["LV-101.set_position_target 0.1"]
+            - step: check_open
+              in: [cold]
+              permissives: ["LV-101.position >= 0.5"]
+        """
+    )
+    plant = Plant(condition("cold_shutdown"))
+    sequences = load_text(tmp_path, plant, two_steps)
+    sequencer = Sequencer(sequences, sequences.machine(plant.snapshot), plant.act)
+
+    assert sequencer.start("start", plant.snapshot) == ()
+    assert sequencer.update(plant.snapshot) == (
+        "step 'check_open' waiting for a reading taken after the last step's actions",
+    )
+
+    plant.snapshot = plant.engine.step(DT)
+
+    assert sequencer.update(plant.snapshot) == (
+        "permissive LV-101.position >= 0.5 not satisfied: LV-101.position reads 0.45",
+    )
+    assert sequencer.run.active is None
+
+
 def test_a_sequencer_refuses_an_unknown_procedure(cold):
     sequencer = Sequencer(cold.sequences, cold.sequences.machine(cold.snapshot), cold.act)
 
@@ -689,6 +719,7 @@ def test_a_bad_gate_condition_does_not_hide_the_shape_checks(tmp_path, cold):
         ('{from: cold, to: purged, when: ["LV-101.position <= 0.11"]}', "{from: cold, to: purged, when: {}}"),
         (VALID[VALID.index("sequences:"):], "sequences: []\n"),
         (VALID[VALID.index("sequences:"):], "sequences:\n"),
+        ("sequences:\n  start:", "sequences:\n  1: [{step: x, in: [cold]}]\n  start:"),
         (VALID[VALID.index("gates:"):VALID.index("sequences:")], "gates:\n"),
     ],
 )

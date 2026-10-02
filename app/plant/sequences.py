@@ -135,10 +135,11 @@ def load_sequences(
 
     errors: list[str] = []
     _keys(raw, _FILE_KEYS, "sequences file", errors, required=_FILE_KEYS)
-    gates, rejected, partial = _gates(raw.get("gates"), errors)
+    gates, rejected, partial = (
+        _gates(raw["gates"], errors) if "gates" in raw else ({}, set(), [(None, None)])
+    )
     procedures: dict[str, tuple[Step, ...]] = {}
-    sequences = raw.get("sequences")
-    sequences = {} if sequences is None else sequences
+    sequences = raw.get("sequences", {})
 
     if not isinstance(sequences, dict):
         errors.append("sequences must be a mapping of name to steps")
@@ -499,9 +500,6 @@ def _gates(entries: Any, errors: list[str]) -> tuple[dict[Edge, tuple[str, ...]]
     gates: dict[Edge, tuple[str, ...]] = {}
     rejected: set[Edge] = set()
     partial: Partial = []
-
-    if entries is None:
-        return gates, rejected, [(None, None)]
 
     if not isinstance(entries, list):
         errors.append("gates must be a list")

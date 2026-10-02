@@ -688,6 +688,8 @@ def test_a_bad_gate_condition_does_not_hide_the_shape_checks(tmp_path, cold):
         (VALID[VALID.index("gates:"):VALID.index("sequences:")], ""),
         ('{from: cold, to: purged, when: ["LV-101.position <= 0.11"]}', "{from: cold, to: purged, when: {}}"),
         (VALID[VALID.index("sequences:"):], "sequences: []\n"),
+        (VALID[VALID.index("sequences:"):], "sequences:\n"),
+        (VALID[VALID.index("gates:"):VALID.index("sequences:")], "gates:\n"),
     ],
 )
 def test_a_single_fault_is_reported_once(tmp_path, cold, old, new):

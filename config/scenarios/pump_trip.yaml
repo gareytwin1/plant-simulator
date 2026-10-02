@@ -1,0 +1,23 @@
+# Feed pump trip: P-101 has stopped and V-101 is draining back through it.
+id: pump_trip
+description: >
+  P-101 has just tripped. With no check valve, V-101 drains backwards through
+  the stopped pump as well as forwards through LV-101, and the level is
+  already falling. Restore feed before the level reaches its low-low trip.
+  Diagnosis path - P-101 flow has gone negative and its speed reads zero, so
+  the pump is stopped, not starved (a starved pump keeps a small positive
+  flow). Restart P-101 and give it a speed target, since stop() zeroes the
+  target; V-101 level then stops falling within a minute or two and holds.
+plant: olefins_lite
+initial_condition:
+  condition: normal_operation
+  overrides:
+    P-101.running: false
+    P-101.speed: 0.0
+objectives:
+  - id: hold-level
+    success: {condition: V-101.level >= 0.3, hold_duration_s: 500}
+    failure: {condition: V-101.level <= 0.1}
+time_limit_s: 900
+difficulty: easy
+seed: 101

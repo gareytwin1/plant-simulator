@@ -1,0 +1,35 @@
+# Weighted scoring (T15-3). Edit freely - no code change needed.
+#
+# score = 100 * (1 - sum(weight * penalty) / sum(weight)), each penalty in [0, 1].
+# Count and time penalties are value / scale, saturating at 1.0 (the scale is
+# the value at which that criterion costs its full weight).
+#
+# A trip costs far more than a slow recovery: that is the point of the weights.
+weights:
+  trip_count: 40
+  peak_severity: 15
+  unnecessary_actions: 10
+  time_outside_envelope: 10
+  time_to_stabilise: 8
+  alarm_count: 7
+  time_to_recognise: 5
+  production_lost: 5
+
+scales:
+  trip_count: 1            # one trip is already the worst case
+  unnecessary_actions: 5
+  time_outside_envelope_s: 300   # point-seconds
+  time_to_stabilise_s: 900
+  alarm_count: 10
+  time_to_recognise_s: 120
+
+# Penalty for the worst severity any variable reached.
+peak_severity_penalty:
+  WARNING: 0.25
+  ALARM: 0.6
+  TRIP: 1.0
+
+# Shortfall (variable unit x seconds) that costs the full production_lost
+# penalty, per label as given to compute_metrics. A label with no entry here
+# is an error, not silently free.
+production_lost_scales: {}

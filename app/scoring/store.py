@@ -21,7 +21,8 @@ timestamp); this module never reads a wall clock.
 
 **Schema versioning.** `PRAGMA user_version` holds the schema version, which
 is the number of applied migrations. Opening an older file applies the missing
-migrations in order inside one transaction (re-reading the version once the write lock is held, so two openers cannot both apply one); opening a newer one raises
+migrations in order inside one transaction, re-reading the version once the
+write lock is held so two openers cannot both apply one; opening a newer one raises
 `SchemaVersionError` rather than guessing at a layout it does not know.
 """
 
@@ -186,16 +187,16 @@ def _statements(script: str) -> list[str]:
     statements: list[str] = []
     pending = ""
 
-    for line in script.splitlines(keepends=True):
-        pending += line
+    for fragment in script.split(";"):
+        pending += fragment + ";"
         if sqlite3.complete_statement(pending):
             statements.append(pending.strip())
             pending = ""
 
-    if pending.strip():
-        statements.append(pending.strip())
+    if pending.strip(" ;\n\t"):
+        statements.append(pending.strip().removesuffix(";"))
 
-    return statements
+    return [statement for statement in statements if statement.strip(" ;\n\t")]
 
 
 def _score_to_json(score: Score) -> dict[str, Any]:

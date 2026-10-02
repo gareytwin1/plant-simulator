@@ -1,4 +1,5 @@
 import sqlite3
+from contextlib import closing
 from types import MappingProxyType
 
 import pytest
@@ -154,7 +155,7 @@ def test_upgrade_from_version_one_keeps_data(tmp_path):
         assert v2.schema_version == 2
         assert v2.get(stored.id) == stored
 
-    with sqlite3.connect(path) as raw:
+    with closing(sqlite3.connect(path)) as raw:
         assert raw.execute("SELECT note FROM results").fetchone() == ("none",)
 
 
@@ -162,7 +163,7 @@ def test_failed_migration_rolls_back(tmp_path):
     path = tmp_path / "scores.db"
     with ScoreStore(path):
         pass
-    broken = MIGRATIONS + ("ALTER TABLE results ADD COLUMN ok TEXT;\nSELECT * FROM missing_table;",)
+    broken = MIGRATIONS + ("ALTER TABLE results ADD COLUMN ok TEXT; SELECT * FROM missing_table;",)
 
     with pytest.raises(sqlite3.OperationalError):
         ScoreStore(path, migrations=broken)
@@ -179,5 +180,38 @@ def test_refuses_database_newer_than_code(tmp_path):
     with ScoreStore(path, migrations=newer):
         pass
 
+    with pytest.raises(SchemaVersionError):
+        ScoreStore(path)
+
+
+def _stale_first_read(monkeypatch, stale):
+    reads = []
+    real = ScoreStore.schema_version.fget
+
+    def read(self):
+        reads.append(1)
+        return stale if len(reads) == 1 else real(self)
+
+    monkeypatch.setattr(ScoreStore, "schema_version", property(read))
+
+
+def test_migration_rereads_version_under_lock(tmp_path, monkeypatch):
+    path = tmp_path / "scores.db"
+    version_two = MIGRATIONS + ("ALTER TABLE results ADD COLUMN note TEXT;",)
+    with ScoreStore(path):
+        pass
+
+    _stale_first_read(monkeypatch, 0)
+    with ScoreStore(path, migrations=version_two) as store:
+        assert store.schema_version == 2
+
+
+def test_migration_refuses_file_that_became_newer_under_lock(tmp_path, monkeypatch):
+    path = tmp_path / "scores.db"
+    newer = MIGRATIONS + ("ALTER TABLE results ADD COLUMN note TEXT;",)
+    with ScoreStore(path, migrations=newer):
+        pass
+
+    _stale_first_read(monkeypatch, 0)
     with pytest.raises(SchemaVersionError):
         ScoreStore(path)

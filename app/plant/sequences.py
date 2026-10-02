@@ -135,7 +135,7 @@ def load_sequences(
 
     errors: list[str] = []
     _keys(raw, _FILE_KEYS, "sequences file", errors, required=_FILE_KEYS)
-    gates, rejected, partial = _gates(raw.get("gates") or [], errors)
+    gates, rejected, partial = _gates(raw.get("gates"), errors)
     procedures: dict[str, tuple[Step, ...]] = {}
     sequences = raw.get("sequences") or {}
 
@@ -497,6 +497,9 @@ def _gates(entries: Any, errors: list[str]) -> tuple[dict[Edge, tuple[str, ...]]
     rejected: set[Edge] = set()
     partial: Partial = []
 
+    if entries is None:
+        return gates, rejected, [(None, None)]
+
     if not isinstance(entries, list):
         errors.append("gates must be a list")
         return gates, rejected, [(None, None)]
@@ -572,7 +575,8 @@ def _step(
         if illegal:
             errors.append(f"{where} advances to {advance}, which {illegal} cannot reach")
 
-    hold = entry.get("hold") or {}
+    hold = entry.get("hold")
+    hold = {} if hold is None else hold
     hold_s = 0.0
     hold_when: tuple[Permissive, ...] = ()
 

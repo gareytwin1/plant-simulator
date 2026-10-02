@@ -477,6 +477,27 @@ def test_a_hold_is_never_judged_on_the_snapshot_its_step_started_on(tmp_path):
     assert sequencer.machine.state is S.PURGED
 
 
+def test_a_timed_hold_counts_from_the_first_snapshot_after_its_step_started(tmp_path):
+    plant = Plant(condition("cold_shutdown"))
+    sequences = load_text(tmp_path, plant, VALID.replace("LV-101.position <= 0.11", "LV-101.position <= 1.0"))
+    machine = sequences.machine(plant.snapshot)
+    run = SequenceRun(sequences.procedures["start"], machine, plant.act)
+    base = plant.snapshot.sim_time
+
+    def at(offset):
+        return dataclasses.replace(plant.snapshot, sim_time=base + offset)
+
+    assert run.request("line_up", at(0)) == ()
+    assert run.update(at(0))
+
+    for offset in range(1, 6):
+        run.update(at(offset))
+        assert run.active == "line_up"
+
+    assert run.update(at(6)) == ()
+    assert machine.state is S.PURGED
+
+
 def test_a_sequencer_refuses_an_unknown_procedure(cold):
     sequencer = Sequencer(cold.sequences, cold.sequences.machine(cold.snapshot), cold.act)
 
@@ -661,6 +682,8 @@ def test_a_bad_gate_condition_does_not_hide_the_shape_checks(tmp_path, cold):
     [
         ("{from: cold, to: purged, ", "{to: purged, "),
         ('hold: {when: ["LV-101.position <= 0.11"], for_s', "hold: {when: null, for_s"),
+        ('hold: {when: ["LV-101.position <= 0.11"], for_s: 5}', "hold: []"),
+        (VALID[VALID.index("gates:"):VALID.index("sequences:")], ""),
     ],
 )
 def test_a_single_fault_is_reported_once(tmp_path, cold, old, new):

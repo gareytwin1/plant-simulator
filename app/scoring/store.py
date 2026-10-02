@@ -21,7 +21,7 @@ timestamp); this module never reads a wall clock.
 
 **Schema versioning.** `PRAGMA user_version` holds the schema version, which
 is the number of applied migrations. Opening an older file applies the missing
-migrations in order inside one transaction; opening a newer one raises
+migrations in order inside one transaction (re-reading the version once the write lock is held, so two openers cannot both apply one); opening a newer one raises
 `SchemaVersionError` rather than guessing at a layout it does not know.
 """
 
@@ -154,30 +154,48 @@ class ScoreStore:
         self.close()
 
     def _migrate(self, migrations: Sequence[str]) -> None:
-        current = self.schema_version
         target = len(migrations)
 
-        if current > target:
-            raise SchemaVersionError(
-                f"database is schema version {current}, this code only knows up to {target}"
-            )
-        if current == target:
+        if self.schema_version > target:
+            raise self._too_new(target)
+        if self.schema_version == target:
             return
 
-        self._connection.execute("BEGIN")
+        self._connection.execute("BEGIN IMMEDIATE")
         try:
+            current = self.schema_version
+            if current > target:
+                raise self._too_new(target)
             for script in migrations[current:]:
                 for statement in _statements(script):
                     self._connection.execute(statement)
             self._connection.execute(f"PRAGMA user_version = {target}")
         except BaseException:
-            self._connection.execute("ROLLBACK")
+            if self._connection.in_transaction:
+                self._connection.execute("ROLLBACK")
             raise
         self._connection.execute("COMMIT")
 
+    def _too_new(self, target: int) -> SchemaVersionError:
+        return SchemaVersionError(
+            f"database is schema version {self.schema_version}, this code only knows up to {target}"
+        )
+
 
 def _statements(script: str) -> list[str]:
-    return [statement.strip() for statement in script.split(";") if statement.strip()]
+    statements: list[str] = []
+    pending = ""
+
+    for line in script.splitlines(keepends=True):
+        pending += line
+        if sqlite3.complete_statement(pending):
+            statements.append(pending.strip())
+            pending = ""
+
+    if pending.strip():
+        statements.append(pending.strip())
+
+    return statements
 
 
 def _score_to_json(score: Score) -> dict[str, Any]:

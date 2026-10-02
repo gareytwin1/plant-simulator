@@ -89,6 +89,37 @@ def test_personal_best_tie_goes_to_earliest_recorded():
         assert store.personal_best("op-1", "s1") == earliest
 
 
+def test_identical_total_and_time_resolve_by_insertion_order():
+    with ScoreStore() as store:
+        first = store.record("op-1", "s1", 2.0, _score(70.0), _metrics())
+        second = store.record("op-1", "s1", 2.0, _score(70.0), _metrics())
+
+        assert store.personal_best("op-1", "s1") == first
+        assert store.history("op-1", "s1") == [first, second]
+
+
+def test_migration_statements_may_contain_semicolons_in_literals_and_triggers(tmp_path):
+    path = tmp_path / "scores.db"
+    version_two = MIGRATIONS + (
+        """
+        ALTER TABLE results ADD COLUMN note TEXT NOT NULL DEFAULT 'a;b';
+        CREATE TABLE audit (n INTEGER);
+        CREATE TRIGGER results_audit AFTER INSERT ON results
+        BEGIN
+            INSERT INTO audit VALUES (1);
+            INSERT INTO audit VALUES (2);
+        END;
+        """,
+    )
+
+    with ScoreStore(path, migrations=version_two) as store:
+        store.record("op-1", "s1", 1.0, _score(10.0), _metrics())
+
+        assert store.schema_version == 2
+        assert store._connection.execute("SELECT count(*) FROM audit").fetchone() == (2,)
+        assert store._connection.execute("SELECT note FROM results").fetchone() == ("a;b",)
+
+
 def test_personal_best_none_without_results():
     with ScoreStore() as store:
         store.record("op-1", "s1", 1.0, _score(10.0), _metrics())
@@ -131,7 +162,7 @@ def test_failed_migration_rolls_back(tmp_path):
     path = tmp_path / "scores.db"
     with ScoreStore(path):
         pass
-    broken = MIGRATIONS + ("ALTER TABLE results ADD COLUMN ok TEXT; SELECT * FROM missing_table;",)
+    broken = MIGRATIONS + ("ALTER TABLE results ADD COLUMN ok TEXT;\nSELECT * FROM missing_table;",)
 
     with pytest.raises(sqlite3.OperationalError):
         ScoreStore(path, migrations=broken)

@@ -114,3 +114,21 @@ def test_tag_of_returns_the_tag_of_the_raising_event():
     history.record_events(events)
 
     assert history.tag_of(events[0].id) == "K-101"
+
+
+def test_recorded_clears_are_retained_after_the_event_that_raised_them():
+    from app.alarms.history import ClearRecord
+
+    history = AlarmHistory(capacity=10)
+    manager = AlarmManager()
+    raised = EnvelopeEvent(tag="K-101", pv="discharge pressure", severity=Severity.ALARM, side="hi")
+    normal = EnvelopeEvent(tag="K-101", pv="discharge pressure", severity=Severity.NORMAL, side=None)
+
+    history.record_events(manager.evaluate([raised], sim_time=1.0))
+    history.record_events(manager.evaluate([normal], sim_time=5.0))
+    history.record_clears(manager.last_cleared(), sim_time=5.0)
+
+    last = history.entries()[-1]
+    assert isinstance(last, ClearRecord)
+    assert last.tag == "K-101"
+    assert last.sim_time == pytest.approx(5.0)

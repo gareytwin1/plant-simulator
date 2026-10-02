@@ -18,7 +18,9 @@ severity side flip (WARNING/lo straight to WARNING/hi), which `Evaluator`
 severity alone would silently swallow that transition. A change that settles
 at NORMAL clears the alarm (T10-1's own `clear()` semantics decide whether
 that makes it immediately available again) but is not itself reported as an
-alarm event.
+alarm event. It is reported separately: `last_cleared()` names the points the
+most recent `evaluate()` returned to NORMAL, for `AlarmHistory.record_clears`
+(T15-2 reads it to time stabilisation).
 
 **A reportable change on an ACKED alarm returns it to UNACK.** The operator
 acknowledged the band that was active *then*; a change to a different one is
@@ -104,6 +106,14 @@ class Event:
     type: Literal["alarm"] = "alarm"
 
 
+@dataclass(frozen=True)
+class Cleared:
+    """A monitored point that returned to NORMAL from a non-NORMAL band."""
+
+    alarm_id: str
+    tag: str
+
+
 class AlarmManager:
     def __init__(self, priorities: Mapping[Severity, Priority] | None = None) -> None:
         resolved: dict[Severity, Priority] = dict(
@@ -116,19 +126,24 @@ class AlarmManager:
         self._priorities = resolved
         self._alarms: dict[str, Alarm] = {}
         self._band: dict[str, tuple[Severity, Side | None]] = {}
+        self._cleared: tuple[Cleared, ...] = ()
 
     def evaluate(self, envelope_events: Iterable[EnvelopeEvent], sim_time: float) -> list[Event]:
         emitted: list[Event] = []
+        cleared: list[Cleared] = []
         for envelope_event in envelope_events:
             alarm_id = _alarm_id(envelope_event.tag, envelope_event.pv)
             alarm = self._alarms.setdefault(alarm_id, Alarm())
             band = (envelope_event.severity, envelope_event.side)
-            if band == self._band.get(alarm_id, (Severity.NORMAL, None)):
+            previous = self._band.get(alarm_id, (Severity.NORMAL, None))
+            if band == previous:
                 continue
             self._band[alarm_id] = band
 
             if envelope_event.severity is Severity.NORMAL:
                 alarm.clear()
+                if previous[0] is not Severity.NORMAL:
+                    cleared.append(Cleared(alarm_id=alarm_id, tag=envelope_event.tag))
                 continue
 
             if alarm.state is AlarmState.ACKED:
@@ -139,7 +154,16 @@ class AlarmManager:
             alarm.activate()
             emitted.append(self._event(alarm_id, envelope_event, sim_time))
 
+        self._cleared = tuple(cleared)
+
         return emitted
+
+    def last_cleared(self) -> tuple[Cleared, ...]:
+        """Points the most recent `evaluate()` returned to NORMAL, in the
+        order they were seen. Additive read accessor (T15-2): `evaluate()`'s
+        frozen signature returns only alarm events, and a return to NORMAL
+        is not one."""
+        return self._cleared
 
     def acknowledge(self, alarm_id: str, sim_time: float) -> None:
         # sim_time is part of C7's frozen signature; T10-3 records it in history.

@@ -11,6 +11,8 @@ the owner replaces it and its `AlarmManager` together at each run boundary.
 `AlarmHistory` paired with a reused `AlarmManager` has no tag for any
 existing alarm - not a stale `AlarmHistory` kept past a manager restart.
 
+A return to NORMAL is likewise its own `ClearRecord` (T15-2).
+
 An acknowledgement is its own `AcknowledgeRecord`, not folded into the
 `Event` that first raised the alarm, so a debrief can read both timestamps
 rather than one overwriting the other. `AlarmHistory` does not decide
@@ -37,7 +39,7 @@ from collections import deque
 from collections.abc import Iterable
 from dataclasses import dataclass
 
-from app.alarms.manager import Event
+from app.alarms.manager import Cleared, Event
 
 
 @dataclass(frozen=True)
@@ -50,7 +52,18 @@ class AcknowledgeRecord:
     sim_time: float
 
 
-HistoryEntry = Event | AcknowledgeRecord
+@dataclass(frozen=True)
+class ClearRecord:
+    """Records that `alarm_id` (raised against `tag`) returned to NORMAL at
+    `sim_time`. Its own record, like an acknowledgement, so a debrief reads
+    both when it was raised and when it settled."""
+
+    alarm_id: str
+    tag: str
+    sim_time: float
+
+
+HistoryEntry = Event | AcknowledgeRecord | ClearRecord
 
 
 class AlarmHistory:
@@ -103,6 +116,15 @@ class AlarmHistory:
         have it from `tag_of` already."""
         with self._lock:
             self._entries.append(AcknowledgeRecord(alarm_id=alarm_id, tag=tag, sim_time=sim_time))
+
+    def record_clears(self, cleared: Iterable[Cleared], sim_time: float) -> None:
+        """Record each point `AlarmManager.last_cleared()` reports as having
+        returned to NORMAL. Call it after `record_events` for the same step."""
+        with self._lock:
+            for item in cleared:
+                self._entries.append(
+                    ClearRecord(alarm_id=item.alarm_id, tag=item.tag, sim_time=sim_time)
+                )
 
     def entries(self) -> tuple[HistoryEntry, ...]:
         """Retained entries, oldest first."""

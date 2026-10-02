@@ -36,7 +36,7 @@ from collections.abc import Callable
 from flask import Blueprint, jsonify, request
 from flask.typing import ResponseReturnValue
 
-from app.alarms.history import AcknowledgeRecord, AlarmHistory, HistoryEntry
+from app.alarms.history import AcknowledgeRecord, AlarmHistory, ClearRecord, HistoryEntry
 from app.alarms.manager import AlarmManager
 
 
@@ -44,6 +44,14 @@ def _serialize(entry: HistoryEntry) -> dict[str, object]:
     if isinstance(entry, AcknowledgeRecord):
         return {
             "type": "acknowledge",
+            "id": entry.alarm_id,
+            "tag": entry.tag,
+            "sim_time": entry.sim_time,
+        }
+
+    if isinstance(entry, ClearRecord):
+        return {
+            "type": "clear",
             "id": entry.alarm_id,
             "tag": entry.tag,
             "sim_time": entry.sim_time,

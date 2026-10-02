@@ -119,7 +119,8 @@ def load_sequences(
     errors: list[str] = []
 
     if not isinstance(raw, dict):
-        raise ValueError(f"sequences file {path} must be a mapping")
+        errors.append("the file must be a mapping")
+        raw = {}
 
     _keys(raw, _FILE_KEYS, "sequences file", errors, required=_FILE_KEYS)
     gates = _gates(raw.get("gates") or [], errors)

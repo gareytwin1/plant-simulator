@@ -225,7 +225,7 @@ def test_a_normal_shutdown_unloads_the_compressor_before_stopping_it(on_spec):
         loads[snapshot.sim_time] = snapshot.equipment["K-101"]["load"]
 
     plant.drive(plant.run("normal_shutdown", machine), watch=watch)
-    times = dict((message, time) for time, message in plant.actions())
+    times = {message: time for time, message in plant.actions()}
 
     assert loads[times["K-101 stop"]] == pytest.approx(0.0)
     assert times["K-101 set_load_target 0.0"] < times["K-101 stop"] < times["P-101 stop"]
@@ -370,6 +370,11 @@ def test_a_bad_file_is_rejected_by_name(tmp_path, cold, old, new, message):
         load_text(tmp_path, cold, VALID.replace(old, new, 1))
 
     assert message in str(error.value)
+
+
+def test_a_file_that_is_not_a_mapping_is_rejected(tmp_path, cold):
+    with pytest.raises(ValueError, match="must be a mapping"):
+        load_text(tmp_path, cold, "- 1\n")
 
 
 def test_every_problem_is_reported_together(tmp_path, cold):

@@ -44,8 +44,8 @@ captured at onset, and `revert` puts it back exactly. Nothing here reads the
 plant except through the snapshot, and nothing reads a clock: elapsed time is
 the snapshot's `sim_time` minus the onset's.
 
-`Step` and `AtTime` are the minimal profile and start condition. Ramps and
-condition-triggered onset are T13-3's, and fit the same two protocols.
+`Step` and `AtTime` are the minimal profile and start condition. `Ramp` and
+`WhenCondition` (`app.disturbances.profiles`, T13-3) fit the same two protocols.
 """
 
 import copy
@@ -246,6 +246,11 @@ class MalfunctionRegistry:
         setattr(copy.copy(device), malfunction.parameter, malfunction.value)
 
         self._malfunctions[malfunction.key] = malfunction
+
+    def validate(self, snapshot: Snapshot) -> None:
+        """Raise if a start condition cannot be evaluated against this snapshot."""
+        for malfunction in self._malfunctions.values():
+            malfunction.start_condition.is_met(snapshot)
 
     def update(self, snapshot: Snapshot) -> None:
         for key, malfunction in self._malfunctions.items():

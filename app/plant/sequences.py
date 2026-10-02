@@ -358,10 +358,10 @@ class SequenceRun:
 
 
 class Sequencer:
-    """The one procedure driving a plant. Starting a procedure aborts the
-    run before it, whatever step that run had reached. A start is refused,
-    and the current run kept, when the procedure is already running or its
-    first step may not run now; `abort` clears a run that has stalled."""
+    """The one procedure driving a plant. A start that may run replaces the
+    current run, whatever step that run had reached. A start is refused, and
+    the current run kept, when the procedure is already running or its first
+    step may not run now; `abort` clears a run that has stalled."""
 
     def __init__(
         self,
@@ -381,6 +381,7 @@ class Sequencer:
 
     @property
     def procedure(self) -> str | None:
+        """The procedure started last, unless the sequencer was aborted."""
         return self._procedure
 
     @property
@@ -394,7 +395,8 @@ class Sequencer:
         every reason, and the current run carries on: a refused start must
         never leave the plant with nothing driving it, nor take a procedure's
         actions twice. The first step starts at once, on the same `snapshot`
-        it was judged on."""
+        it was judged on. Only a refusal is returned: once started, why the
+        run is waiting comes from `update`."""
         if procedure not in self._sequences.procedures:
             raise KeyError(f"no procedure {procedure!r}, only {sorted(self._sequences.procedures)}")
 
@@ -417,9 +419,12 @@ class Sequencer:
         return ()
 
     def abort(self) -> None:
-        """Abort the current run, so a stalled one may be started again."""
+        """Abort the current run, so a stalled one may be started again.
+        Afterwards no procedure is running."""
         if self._run is not None and not self._run.done:
             self._run.abort()
+
+        self._procedure = None
 
     def update(self, snapshot: Snapshot) -> tuple[str, ...]:
         return () if self._run is None else self._run.update(snapshot)

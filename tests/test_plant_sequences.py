@@ -456,6 +456,7 @@ def test_a_stalled_procedure_can_be_aborted_and_started_again(on_spec):
 
     sequencer.abort()
 
+    assert sequencer.procedure is None
     assert sequencer.start("emergency_shutdown", plant.snapshot) == ()
     assert stalled.aborted
     assert [message for _, message in plant.actions()].count("P-101 stop") == 2

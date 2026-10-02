@@ -166,3 +166,32 @@ def test_config_rejects_unknown_scale_keys():
 
     with pytest.raises(ValueError, match="unknown"):
         ScoringConfig(config.weights, {**config.scales, "bogus": 1.0}, config.peak_severity_penalty, {})
+
+
+def test_production_lost_averages_across_labels():
+    config = dataclasses.replace(
+        load_scoring_config(), production_lost_scales={"flow": 100.0, "level": 10.0}
+    )
+    flow = ThroughputTracker(target=10.0)
+    flow.update(5.0, 10.0)  # lost 50 of 100 -> 0.5
+    level = ThroughputTracker(target=10.0)
+    level.update(0.0, 1.0)  # lost 10 of 10 -> 1.0
+    metrics = compute_metrics(
+        ActionLog(), AlarmHistory(capacity=10), {}, _relevant, throughput={"flow": flow, "level": level}
+    )
+
+    assert score_run(metrics, config).penalties["production_lost"] == pytest.approx(0.75)
+
+
+def test_peak_severity_takes_the_worst_point():
+    config = load_scoring_config()
+    trackers = {
+        "a": _tracker((12.0, Severity.WARNING, 1.0)),
+        "b": _tracker((35.0, Severity.TRIP, 1.0)),
+        "c": _tracker((5.0, Severity.NORMAL, 1.0)),
+    }
+    metrics = compute_metrics(ActionLog(), AlarmHistory(capacity=10), trackers, _relevant)
+
+    assert score_run(metrics, config).penalties["peak_severity"] == pytest.approx(
+        config.peak_severity_penalty[Severity.TRIP]
+    )

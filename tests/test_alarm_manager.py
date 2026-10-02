@@ -267,3 +267,28 @@ def test_is_acknowledged_is_true_for_a_point_that_never_left_normal():
 
     assert events == []
     assert manager.is_acknowledged(_alarm_id("K-101", "suction pressure")) is True
+
+
+def test_last_cleared_names_points_that_returned_to_normal():
+    manager = AlarmManager()
+    raised = EnvelopeEvent(tag="K-101", pv="discharge pressure", severity=Severity.ALARM, side="hi")
+    normal = EnvelopeEvent(tag="K-101", pv="discharge pressure", severity=Severity.NORMAL, side=None)
+
+    manager.evaluate([raised], sim_time=1.0)
+    assert manager.last_cleared() == ()
+
+    assert manager.evaluate([normal], sim_time=2.0) == []
+    assert [c.tag for c in manager.last_cleared()] == ["K-101"]
+    assert manager.last_cleared()[0].alarm_id == _alarm_id("K-101", "discharge pressure")
+
+    manager.evaluate([normal], sim_time=3.0)
+    assert manager.last_cleared() == ()
+
+
+def test_a_point_that_never_left_normal_is_not_cleared():
+    manager = AlarmManager()
+    normal = EnvelopeEvent(tag="K-101", pv="discharge pressure", severity=Severity.NORMAL, side=None)
+
+    manager.evaluate([normal], sim_time=1.0)
+
+    assert manager.last_cleared() == ()

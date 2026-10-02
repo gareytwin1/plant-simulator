@@ -341,3 +341,16 @@ def test_post_acknowledge_non_json_body_is_rejected():
 
     assert response.status_code == 400
     assert "error" in response.get_json()
+
+
+def test_get_history_serializes_a_clear_record():
+    app, manager, history, sim_time = build_app()
+    client = app.test_client()
+    alarm_id = raise_alarm(manager, history, sim_time["value"])
+    normal = EnvelopeEvent(tag="K-101", pv="discharge pressure", severity=Severity.NORMAL, side=None)
+    manager.evaluate([normal], sim_time=4.0)
+    history.record_clears(manager.last_cleared(), sim_time=4.0)
+
+    body = client.get("/api/alarms/history").get_json()
+
+    assert body[-1] == {"type": "clear", "id": alarm_id, "tag": "K-101", "sim_time": 4.0}

@@ -147,3 +147,77 @@ def test_peak_excursions_cannot_be_mutated_by_a_consumer():
 
     with pytest.raises(TypeError):
         peaks["discharge pressure"] = None
+
+
+def _settling(*steps):
+    history = AlarmHistory(capacity=100)
+    manager = AlarmManager()
+    for sim_time, severity in steps:
+        side = None if severity is Severity.NORMAL else "hi"
+        event = EnvelopeEvent(tag="K-101", pv="discharge pressure", severity=severity, side=side)
+        history.record_events(manager.evaluate([event], sim_time=sim_time))
+        history.record_clears(manager.last_cleared(), sim_time=sim_time)
+    return history
+
+
+def test_time_to_stabilise_is_first_alarm_to_last_return_to_normal():
+    history = _settling(
+        (10.0, Severity.WARNING), (14.0, Severity.ALARM), (30.0, Severity.NORMAL)
+    )
+
+    assert compute_metrics(ActionLog(), history, {}, _relevant).time_to_stabilise_s == pytest.approx(20.0)
+
+
+def test_time_to_stabilise_waits_for_every_point_that_alarmed():
+    history = AlarmHistory(capacity=100)
+    manager = AlarmManager()
+    for sim_time, pv, severity in [
+        (10.0, "discharge pressure", Severity.ALARM),
+        (11.0, "suction pressure", Severity.WARNING),
+        (20.0, "discharge pressure", Severity.NORMAL),
+    ]:
+        side = None if severity is Severity.NORMAL else "hi"
+        event = EnvelopeEvent(tag="K-101", pv=pv, severity=severity, side=side)
+        history.record_events(manager.evaluate([event], sim_time=sim_time))
+        history.record_clears(manager.last_cleared(), sim_time=sim_time)
+
+    assert compute_metrics(ActionLog(), history, {}, _relevant).time_to_stabilise_s is None
+
+
+def test_time_to_stabilise_is_none_while_a_point_is_still_alarming_or_never_alarmed():
+    still_out = _settling((10.0, Severity.ALARM))
+
+    assert compute_metrics(ActionLog(), still_out, {}, _relevant).time_to_stabilise_s is None
+    assert (
+        compute_metrics(ActionLog(), AlarmHistory(capacity=10), {}, _relevant).time_to_stabilise_s
+        is None
+    )
+
+
+def test_a_re_alarm_after_a_clear_means_not_yet_stable():
+    history = _settling(
+        (10.0, Severity.ALARM), (20.0, Severity.NORMAL), (25.0, Severity.WARNING)
+    )
+
+    assert compute_metrics(ActionLog(), history, {}, _relevant).time_to_stabilise_s is None
+
+
+def test_production_lost_is_reported_per_variable():
+    from app.scoring.throughput import ThroughputTracker
+
+    flow = ThroughputTracker(target=100.0)
+    flow.update(70.0, dt=4.0)
+    other = ThroughputTracker(target=5.0)
+    other.update(4.0, dt=2.0)
+
+    result = compute_metrics(
+        ActionLog(), AlarmHistory(capacity=10), {}, _relevant, throughput={"flow": flow, "other": other}
+    )
+
+    assert result.production_lost == {"flow": pytest.approx(120.0), "other": pytest.approx(2.0)}
+
+
+def test_production_lost_is_empty_without_throughput_trackers():
+    result = compute_metrics(ActionLog(), AlarmHistory(capacity=10), {}, _relevant)
+
+    assert result.production_lost == {}

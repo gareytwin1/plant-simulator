@@ -8,9 +8,13 @@ condition (T12-2), stepping the engine between sequence scans, and acts only
 through `apply_action`, the C5 path an operator uses.
 
 The cold start begins from `cold_shutdown`, whose drained vessel already reads
-lololo on V-101.level (tests/test_initial_conditions.py's INTENDED). "No alarm
-or trip" therefore means the start never enters a band the cold plant was not
-already in, and the standing one clears and never returns.
+lololo on V-101.level (tests/test_initial_conditions.py's INTENDED) and meets
+LSLL-101's trip condition. "No alarm or trip" therefore means the start never
+enters an envelope band, or meets an interlock condition, that the cold plant
+was not already in, and the standing ones clear and never return. Interlocks
+are not live in a session, so the test reads their conditions itself, and only
+against what a device publishes: PSHH-101's K-101.discharge_pressure is not
+published, so it cannot be checked here.
 """
 
 import dataclasses
@@ -21,6 +25,7 @@ from pathlib import Path
 from types import MappingProxyType
 
 import pytest
+import yaml
 
 from app.api.action import ACTIONS, apply_action
 from app.engine.engine import Engine
@@ -28,6 +33,7 @@ from app.engine.persistence import capture_state, restore_state
 from app.plant.loader import load_plant_file
 from app.plant.sequences import SequenceRun, load_sequences
 from app.plant.states import PlantState as S
+from app.safety.interlocks import Condition
 from app.scoring.actionlog import ActionLog
 
 pytestmark = pytest.mark.filterwarnings("ignore:envelope limit")
@@ -39,7 +45,11 @@ LIBRARY = CONFIG / "initial_conditions"
 
 DT = 1.0
 HORIZON = 10_000
-COLD_BANDS = {"V-101.level": "lololo"}
+COLD_READINGS = {"V-101.level": "lololo", "LSLL-101": "met"}
+INTERLOCKS = {
+    entry["tag"]: Condition.parse(entry["condition"])
+    for entry in yaml.safe_load(OLEFINS.read_text())["interlocks"]
+}
 
 
 class Plant:
@@ -91,8 +101,16 @@ def condition(name):
     return json.loads((LIBRARY / f"{name}.json").read_text())
 
 
-def bands(snapshot):
-    return {key: row["band"] for key, row in snapshot.envelope.items()}
+def readings(snapshot):
+    """Every envelope band entered and every interlock condition met."""
+    met = {
+        tag: "met"
+        for tag, condition in INTERLOCKS.items()
+        if isinstance(value := snapshot.equipment[condition.tag].get(condition.variable), float)
+        and condition.is_met(value)
+    }
+
+    return {**{key: row["band"] for key, row in snapshot.envelope.items()}, **met}
 
 
 @pytest.fixture(scope="module")
@@ -100,9 +118,9 @@ def cold_start():
     """One full cold start, with every band it read along the way."""
     plant = Plant(condition("cold_shutdown"))
     machine = plant.sequences.machine(plant.snapshot)
-    seen = [bands(plant.snapshot)]
+    seen = [readings(plant.snapshot)]
 
-    plant.drive(plant.run("cold_start", machine), watch=lambda s: seen.append(bands(s)))
+    plant.drive(plant.run("cold_start", machine), watch=lambda s: seen.append(readings(s)))
 
     return plant, machine, seen
 
@@ -126,13 +144,13 @@ def test_a_full_cold_start_reaches_on_spec(cold_start):
 
 
 def test_a_cold_start_raises_no_alarm_or_trip(cold_start):
-    plant, _, seen = cold_start
-    cleared = next(index for index, reading in enumerate(seen) if not reading)
+    _, _, seen = cold_start
+    cleared = next((index for index, reading in enumerate(seen) if not reading), None)
 
-    assert seen[0] == COLD_BANDS
-    assert all(set(reading) <= set(COLD_BANDS) for reading in seen)
+    assert seen[0] == COLD_READINGS
+    assert cleared is not None
+    assert all(set(reading) <= set(COLD_READINGS) for reading in seen)
     assert all(not reading for reading in seen[cleared:])
-    assert not plant.snapshot.alarms
 
 
 def test_a_cold_start_takes_its_steps_in_order(cold_start):
@@ -270,6 +288,69 @@ def test_a_normal_shutdown_does_not_run_from_a_plant_still_starting(on_spec):
     assert not plant.log.events
 
 
+def test_an_emergency_shutdown_overrides_a_normal_one_part_way_through(on_spec):
+    plant = Plant(on_spec)
+    machine = plant.sequences.machine(plant.snapshot, state=S.ON_SPEC)
+    normal = plant.run("normal_shutdown", machine)
+
+    normal.update(plant.snapshot)
+    plant.snapshot = plant.engine.step(DT)
+
+    assert machine.state is S.SHUTTING_DOWN
+    assert plant.engine.equipment["P-101"].running
+
+    emergency = plant.run("emergency_shutdown", machine)
+
+    assert emergency.update(plant.snapshot) == ()
+    assert not plant.engine.equipment["P-101"].running
+
+    normal.abort()
+    plant.drive(emergency)
+
+    assert machine.state is S.COLD
+    assert normal.aborted
+
+
+def test_a_start_overtaken_by_an_emergency_shutdown_abandons_its_step():
+    plant = Plant(condition("cold_shutdown"))
+    machine = plant.sequences.machine(plant.snapshot, state=S.PURGED)
+    start = plant.run("cold_start", machine)
+
+    lined_up = with_reading(plant.snapshot, "LV-101", "position", 0.1, plant.snapshot.sim_time)
+
+    assert start.request("fill", lined_up) == ()
+    plant.snapshot = plant.engine.step(DT)
+    plant.run("emergency_shutdown", machine).update(plant.snapshot)
+
+    assert start.update(plant.snapshot) == ("step 'fill' abandoned, the plant moved to shutting_down",)
+    assert start.done
+    assert start.aborted
+    assert machine.state is S.SHUTTING_DOWN
+
+
+def test_an_action_that_raises_is_never_retried_with_the_ones_before_it():
+    plant = Plant(condition("cold_shutdown"))
+    machine = plant.sequences.machine(plant.snapshot, state=S.PURGED)
+    taken = []
+
+    def act(tag, action, value):
+        taken.append(f"{tag}.{action}")
+
+        if action == "start":
+            raise RuntimeError("refused")
+
+    run = SequenceRun(plant.sequences.procedures["cold_start"], machine, act)
+
+    lined_up = with_reading(plant.snapshot, "LV-101", "position", 0.1, plant.snapshot.sim_time)
+
+    with pytest.raises(RuntimeError):
+        run.request("fill", lined_up)
+
+    run.update(lined_up)
+
+    assert taken == ["P-101.set_speed_target", "P-101.start"]
+
+
 def with_reading(snapshot, tag, variable, value, sim_time):
     row = {**snapshot.equipment[tag], variable: value}
     equipment = MappingProxyType({**snapshot.equipment, tag: MappingProxyType(row)})
@@ -353,6 +434,7 @@ def test_a_valid_file_loads(tmp_path, cold):
         ('["LV-101.position <= 0.11"], for_s', '["LV-101.travel <= 0.11"], for_s', "LV-101.travel is not published"),
         ('["LV-101.position <= 0.11"], for_s', '["LV-101.position ~ 0.11"], for_s', "malformed"),
         ("for_s: 5", "for_s: -5", "non-negative"),
+        ('when: ["LV-101.position <= 0.11"], for_s', "when: [], for_s", "needs at least one condition"),
         ("advance: purged", "advance: on_spec", "which ['cold'] cannot reach"),
         ("sequences:\n  start:", "sequences:\n  - start:", "must be a mapping of name to steps"),
         ("      advance: purged\n", "      advance: purged\n    - {step: line_up, in: [purged]}\n", "repeats step(s) ['line_up']"),
@@ -372,9 +454,31 @@ def test_a_bad_file_is_rejected_by_name(tmp_path, cold, old, new, message):
     assert message in str(error.value)
 
 
-def test_a_file_that_is_not_a_mapping_is_rejected(tmp_path, cold):
-    with pytest.raises(ValueError, match="must be a mapping"):
-        load_text(tmp_path, cold, "- 1\n")
+@pytest.mark.parametrize("text", ["- 1\n", ""])
+def test_a_file_that_is_not_a_mapping_is_rejected_on_that_alone(tmp_path, cold, text):
+    with pytest.raises(ValueError, match=r"rejected, 1 problem\(s\):\n  the file must be a mapping$"):
+        load_text(tmp_path, cold, text)
+
+
+def test_a_refused_gate_is_not_also_reported_as_ungated(tmp_path, cold):
+    text = VALID.replace('when: ["LV-101.position <= 0.11"]}', 'when: "LV-101.position <= 0.11"}', 1)
+
+    with pytest.raises(ValueError, match="when must be a list") as error:
+        load_text(tmp_path, cold, text)
+
+    assert "cold -> purged has no condition" not in str(error.value)
+
+
+def test_a_bad_gate_condition_does_not_hide_the_shape_checks(tmp_path, cold):
+    text = VALID.replace('"V-101.level >= 0.3"', '"V-101.depth >= 0.3"').replace(
+        '  - {from: on_spec, to: circulating, when: ["V-101.level >= 0.0"]}\n', ""
+    )
+
+    with pytest.raises(ValueError, match=r"2 problem\(s\)") as error:
+        load_text(tmp_path, cold, text)
+
+    assert "V-101.depth is not published" in str(error.value)
+    assert "on_spec -> circulating has no condition to gate it" in str(error.value)
 
 
 def test_every_problem_is_reported_together(tmp_path, cold):

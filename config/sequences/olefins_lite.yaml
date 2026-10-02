@@ -86,11 +86,12 @@ sequences:
       hold: {when: ["P-101.speed <= 0.0", "LV-101.position <= 0.11"], for_s: 10}
       advance: cold
 
-  # Everything at once from any running state: no unloading and no
-  # permissives, because nothing may refuse an emergency stop.
+  # Everything at once from any running state, a normal shutdown part way
+  # through included: no unloading and no permissives, because nothing may
+  # refuse an emergency stop.
   emergency_shutdown:
     - step: stop_all
-      in: [purged, pressurised, circulating, on_spec]
+      in: [purged, pressurised, circulating, on_spec, shutting_down]
       actions: ["K-101.stop", "P-101.stop", "LV-101.set_position_target 0.1"]
       advance: shutting_down
     - step: confirm_stopped

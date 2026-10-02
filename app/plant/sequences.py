@@ -27,6 +27,8 @@ zero whenever any of its conditions stops holding.
 any step by name, and it is refused with every reason when the plant is not in
 one of the step's `in` states or a permissive does not hold. `update` runs the
 procedure in order on its own, waiting at a step until its permissives hold.
+Advancing to the state the plant is already in is no move at all, so a step
+may run from SHUTTING_DOWN and still name it as its `advance`.
 
 **Actions go through the caller's action path.** A run never touches a device:
 it calls the `act` function it is given with `(tag, action, value)`, the
@@ -40,8 +42,10 @@ snapshot publishes, reporting every problem together.
 runs from a running plant through staged steps that each wait for the one
 before (the compressor is unloaded before it is stopped). An emergency
 shutdown takes every stopping action in one step, with no permissives, from any
-running state, and moves straight to SHUTTING_DOWN, which the machine never
-refuses. Both end in COLD once the machines have run down.
+running state, including part way through a normal shutdown, and moves
+straight to SHUTTING_DOWN, which the machine never refuses. A run overtaken
+that way, a start mid-hold for instance, abandons its step on its next scan.
+Both end in COLD once the machines have run down.
 
 Not wired: no session or API endpoint loads a sequence yet, and trips are not
 live in a session (nothing calls `TripSystem.update`), so an emergency
@@ -56,7 +60,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from types import MappingProxyType
-from typing import Any
+from typing import Any, NoReturn
 
 import yaml
 
@@ -116,14 +120,12 @@ def load_sequences(
     with open(path, encoding="utf-8") as handle:
         raw = yaml.safe_load(handle)
 
-    errors: list[str] = []
-
     if not isinstance(raw, dict):
-        errors.append("the file must be a mapping")
-        raw = {}
+        _reject(path, ["the file must be a mapping"])
 
+    errors: list[str] = []
     _keys(raw, _FILE_KEYS, "sequences file", errors, required=_FILE_KEYS)
-    gates = _gates(raw.get("gates") or [], errors)
+    gates, rejected = _gates(raw.get("gates") or [], errors)
     procedures: dict[str, tuple[Step, ...]] = {}
     sequences = raw.get("sequences") or {}
 
@@ -153,31 +155,59 @@ def load_sequences(
             for permissive in (*step.permissives, *step.hold):
                 errors.extend(_unresolved(f"sequence {name!r} step {step.name!r}", permissive, snapshot))
 
-    gate_errors: list[str] = []
-
     for (source, target), conditions in gates.items():
-        for permissive in _conditions(list(conditions), f"gate {source} -> {target}", gate_errors):
-            gate_errors.extend(_unresolved(f"gate {source} -> {target}", permissive, snapshot))
+        where = f"gate {source} -> {target}"
+        problems: list[str] = []
 
-    errors.extend(gate_errors)
+        for permissive in _conditions(list(conditions), where, problems):
+            problems.extend(_unresolved(where, permissive, snapshot))
 
-    if not gate_errors:
-        try:
-            PlantStateMachine(snapshot, gates)
-        except ValueError as error:
-            errors.append(str(error))
+        if problems:
+            rejected.add((source, target))
+            errors.extend(problems)
+
+    errors.extend(_structure(gates, rejected))
 
     if errors:
-        raise ValueError(
-            f"sequences file {path} rejected, {len(errors)} problem(s):\n"
-            + "\n".join(f"  {error}" for error in errors),
-        )
+        _reject(path, errors)
+
+    PlantStateMachine(snapshot, gates)
 
     return Sequences(gates=MappingProxyType(gates), procedures=MappingProxyType(procedures))
 
 
+def _reject(path: Path | str, errors: Sequence[str]) -> NoReturn:
+    raise ValueError(
+        f"sequences file {path} rejected, {len(errors)} problem(s):\n"
+        + "\n".join(f"  {error}" for error in errors),
+    )
+
+
+def _structure(gates: Mapping[Edge, tuple[str, ...]], rejected: set[Edge]) -> list[str]:
+    """The machine's own shape rules, applied here so that an edge already
+    rejected for a bad condition is not reported again as ungated."""
+    errors: list[str] = []
+
+    for source, target in gates:
+        if (source, target) not in TRANSITIONS:
+            errors.append(f"gate on {source} -> {target}, which is not a transition")
+        elif target is PlantState.SHUTTING_DOWN and gates[(source, target)]:
+            errors.append(f"{source} -> {target} may not be gated, a shutdown is never refused")
+
+    for edge in sorted(TRANSITIONS):
+        source, target = edge
+
+        if target is not PlantState.SHUTTING_DOWN and not gates.get(edge) and edge not in rejected:
+            errors.append(f"{source} -> {target} has no condition to gate it")
+
+    return errors
+
+
 class SequenceRun:
-    """One procedure being run against a plant state machine."""
+    """One procedure being run against a plant state machine. Runs may share
+    a machine: a run whose step is overtaken, because another run moved the
+    plant out of the states that step runs from, abandons itself rather than
+    acting on a plant that is no longer where it left it."""
 
     def __init__(
         self,
@@ -191,6 +221,7 @@ class SequenceRun:
         self._next = 0
         self._running: Step | None = None
         self._held_since: float | None = None
+        self._aborted = False
 
     @property
     def active(self) -> str | None:
@@ -198,7 +229,19 @@ class SequenceRun:
 
     @property
     def done(self) -> bool:
+        """Nothing left to do: every step finished, or the run was aborted."""
         return self._running is None and self._next >= len(self._steps)
+
+    @property
+    def aborted(self) -> bool:
+        return self._aborted
+
+    def abort(self) -> None:
+        """Stop the run where it stands. Actions already taken stay taken."""
+        self._running = None
+        self._held_since = None
+        self._next = len(self._steps)
+        self._aborted = True
 
     def request(self, name: str, snapshot: Snapshot) -> tuple[str, ...]:
         """Start the named step now. Returns every reason it may not, and
@@ -207,6 +250,9 @@ class SequenceRun:
 
         if name not in names:
             raise KeyError(f"no step {name!r}, only {names}")
+
+        if self.done:
+            return ("the run is over",)
 
         if self._running is not None:
             return (f"step {self._running.name!r} is still running",)
@@ -236,23 +282,31 @@ class SequenceRun:
         state = self._machine.state
 
         if state not in step.states:
-            return (f"step {step.name!r} runs from {sorted(state.value for state in step.states)}, the plant is {state}",)
+            return (f"step {step.name!r} runs from {sorted(s.value for s in step.states)}, the plant is {state}",)
 
         reasons = _reasons(step.permissives, snapshot)
 
         if reasons:
             return reasons
 
-        for action in step.actions:
-            self._act(action.tag, action.action, action.value)
-
+        # Started before acting, so an action that raises can never be
+        # retried and take the actions before it a second time.
         self._running = step
         self._next = index + 1
         self._held_since = None
 
+        for action in step.actions:
+            self._act(action.tag, action.action, action.value)
+
         return ()
 
     def _progress(self, step: Step, snapshot: Snapshot) -> tuple[str, ...]:
+        state = self._machine.state
+
+        if state not in step.states and state is not step.advance:
+            self.abort()
+            return (f"step {step.name!r} abandoned, the plant moved to {state}",)
+
         reasons = _reasons(step.hold, snapshot)
 
         if reasons:
@@ -270,7 +324,7 @@ class SequenceRun:
         return self._finish(step, snapshot)
 
     def _finish(self, step: Step, snapshot: Snapshot) -> tuple[str, ...]:
-        if step.advance is not None:
+        if step.advance is not None and step.advance is not self._machine.state:
             reasons = self._machine.advance(step.advance, snapshot)
 
             if reasons:
@@ -331,12 +385,15 @@ def _conditions(value: Any, where: str, errors: list[str]) -> tuple[Permissive, 
     return tuple(parsed)
 
 
-def _gates(entries: Any, errors: list[str]) -> dict[Edge, tuple[str, ...]]:
+def _gates(entries: Any, errors: list[str]) -> tuple[dict[Edge, tuple[str, ...]], set[Edge]]:
+    """The gates that parsed, and the edges of entries that named their
+    states but were refused, so the shape check does not call them ungated."""
     gates: dict[Edge, tuple[str, ...]] = {}
+    rejected: set[Edge] = set()
 
     if not isinstance(entries, list):
         errors.append("gates must be a list")
-        return gates
+        return gates, rejected
 
     for index, entry in enumerate(entries):
         where = f"gate {index + 1}"
@@ -350,11 +407,12 @@ def _gates(entries: Any, errors: list[str]) -> dict[Edge, tuple[str, ...]]:
         target = _state(entry.get("to"), where, errors)
         when = entry.get("when") or []
 
-        if not isinstance(when, list) or not all(isinstance(text, str) for text in when):
-            errors.append(f"{where} when must be a list of condition strings")
+        if source is None or target is None:
             continue
 
-        if source is None or target is None:
+        if not isinstance(when, list) or not all(isinstance(text, str) for text in when):
+            errors.append(f"{where} when must be a list of condition strings")
+            rejected.add((source, target))
             continue
 
         if (source, target) in gates:
@@ -363,7 +421,7 @@ def _gates(entries: Any, errors: list[str]) -> dict[Edge, tuple[str, ...]]:
 
         gates[(source, target)] = tuple(when)
 
-    return gates
+    return gates, rejected
 
 
 def _step(
@@ -397,7 +455,11 @@ def _step(
     advance = None if entry.get("advance") is None else _state(entry["advance"], f"{where} advance", errors)
 
     if advance is not None:
-        illegal = sorted(state.value for state in states if (state, advance) not in TRANSITIONS)
+        illegal = sorted(
+            state.value
+            for state in states
+            if state is not advance and (state, advance) not in TRANSITIONS
+        )
 
         if illegal:
             errors.append(f"{where} advances to {advance}, which {illegal} cannot reach")
@@ -409,8 +471,11 @@ def _step(
     if not isinstance(hold, dict):
         errors.append(f"{where} hold must be a mapping")
     else:
-        _keys(hold, _HOLD_KEYS, f"{where} hold", errors, required={"when"} if hold else set())
+        _keys(hold, _HOLD_KEYS, f"{where} hold", errors)
         hold_when = _conditions(hold.get("when", []), f"{where} hold when", errors)
+
+        if hold and not hold.get("when"):
+            errors.append(f"{where} hold needs at least one condition in when")
         raw_s = hold.get("for_s", 0.0)
         seconds = number(raw_s)
 

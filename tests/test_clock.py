@@ -5,6 +5,8 @@ Verify that sim_time advances by dt * speed, pause/resume work correctly,
 and speed changes mid-run produce no discontinuities.
 """
 
+import math
+
 import pytest
 
 from app.engine.clock import SimulationClock
@@ -187,18 +189,32 @@ def test_zero_speed_freezes_advance():
     assert clock.sim_time == pytest.approx(1.0)
 
 
-def test_negative_speed_reverses_time():
+@pytest.mark.parametrize("speed", [-1.0, math.nan, math.inf, -math.inf])
+def test_set_speed_refuses_a_negative_or_non_finite_speed(speed):
     clock = SimulationClock()
+    clock.set_speed(2.0)
 
-    for _ in range(10):
-        clock.step(1.0)
+    with pytest.raises(ValueError, match="speed"):
+        clock.set_speed(speed)
 
-    assert clock.sim_time == pytest.approx(10.0)
+    assert clock.speed == 2.0
 
-    clock.set_speed(-1.0)
-    clock.step(5.0)
 
-    assert clock.sim_time == pytest.approx(5.0)
+@pytest.mark.parametrize("dt", [-1.0, math.nan, math.inf])
+@pytest.mark.parametrize("paused", [False, True])
+def test_step_refuses_a_negative_or_non_finite_dt_and_changes_nothing(dt, paused):
+    clock = SimulationClock()
+    clock.step(3.0)
+
+    if paused:
+        clock.pause()
+
+    before = clock.get_state()
+
+    with pytest.raises(ValueError, match="dt"):
+        clock.step(dt)
+
+    assert clock.get_state() == before
 
 
 def test_fractional_dt():

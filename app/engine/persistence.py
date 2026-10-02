@@ -306,11 +306,10 @@ def _kind(value: bool | int | float | str | None) -> str:
 
 def _decode_clock(engine: Engine, value: JSONValue, steps: list[Step]) -> None:
     fields = _keyed(value, ("sim_time", "speed", "paused"), "clock")
-    # Any finite time and speed: SimulationClock refuses neither a negative
-    # speed nor the negative sim_time one steps to, and a save must restore
-    # whatever a live clock can hold.
-    sim_time = _number(fields["sim_time"], "clock.sim_time")
-    speed = _number(fields["speed"], "clock.speed")
+    # The clock refuses a negative speed and dt, so no live clock holds a
+    # negative speed or sim_time and a save carrying one is not a save.
+    sim_time = _non_negative(fields["sim_time"], "clock.sim_time")
+    speed = _non_negative(fields["speed"], "clock.speed")
 
     paused = _flag(fields["paused"], "clock.paused")
 

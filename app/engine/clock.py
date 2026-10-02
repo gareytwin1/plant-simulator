@@ -12,6 +12,7 @@ arrives only through step(dt), making runs replayable from their initial
 state and seed.
 """
 
+import math
 from typing import TypedDict
 
 
@@ -48,7 +49,13 @@ class SimulationClock:
         Returns the simulated time actually applied (0.0 if paused), so a
         caller that needs to move something else by the same elapsed time
         doesn't have to re-derive it from sim_time before and after.
+
+        Raises ValueError for a negative or non-finite dt, paused or not,
+        before anything changes: simulated time never runs backwards.
         """
+        if not math.isfinite(dt) or dt < 0.0:
+            raise ValueError(f"dt must be finite and non-negative, got {dt!r}")
+
         if self.paused:
             return 0.0
 
@@ -62,7 +69,12 @@ class SimulationClock:
 
         speed=1.0 is real time. speed=10.0 runs 10x faster. speed=0.5 runs
         at half speed. The change takes effect immediately on the next step().
+        Zero freezes time; a negative or non-finite speed raises ValueError
+        and leaves the speed unchanged.
         """
+        if not math.isfinite(speed) or speed < 0.0:
+            raise ValueError(f"speed must be finite and non-negative, got {speed!r}")
+
         self.speed = speed
 
     def pause(self) -> None:

@@ -322,17 +322,40 @@ def test_a_damaged_save_is_refused_naming_the_field(damage, message):
         restore_state(build(), state)
 
 
-@pytest.mark.parametrize("speed", [0.0, -1.0])
-def test_any_clock_speed_a_live_clock_holds_round_trips(speed):
+@pytest.mark.parametrize("dt", [-1.0, math.nan])
+def test_a_refused_engine_step_changes_nothing(dt):
     engine = perturbed()
-    engine.clock.set_speed(speed)
-    engine.clock.sim_time = -5.0
+    before = capture_state(engine)
+
+    with pytest.raises(ValueError, match="dt"):
+        engine.step(dt)
+
+    assert capture_state(engine) == before
+
+
+def test_a_stopped_clock_round_trips():
+    engine = perturbed()
+    engine.clock.set_speed(0.0)
 
     restored = build()
     restore_state(restored, through_json(capture_state(engine)))
 
-    assert restored.clock.speed == speed
-    assert restored.clock.sim_time == -5.0
+    assert restored.clock.speed == 0.0
+
+
+@pytest.mark.parametrize(
+    ("field", "message"),
+    [
+        ("speed", r"clock\.speed: -1\.0 is negative"),
+        ("sim_time", r"clock\.sim_time: -5\.0 is negative"),
+    ],
+)
+def test_a_save_with_a_negative_clock_value_is_refused(field, message):
+    state = capture_state(perturbed())
+    state["clock"][field] = -1.0 if field == "speed" else -5.0
+
+    with pytest.raises(StateError, match=message):
+        restore_state(build(), state)
 
 
 def test_a_whole_number_restores_a_float_attribute_as_a_float():

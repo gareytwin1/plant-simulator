@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "2 October 2026",
-  "main_sha": "abb9615",
-  "tests_passing_on_main": 2683,
+  "main_sha": "611a444",
+  "tests_passing_on_main": 2759,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -78,7 +78,7 @@
     },
     "M12": {
       "name": "Startup and Shutdown Sequences",
-      "complete": 4,
+      "complete": 5,
       "total": 6
     },
     "M13": {
@@ -119,7 +119,7 @@
   },
   "totals": {
     "tasks": 117,
-    "complete": 97,
+    "complete": 98,
     "startable_now": 14
   },
   "tasks": [
@@ -1555,10 +1555,9 @@
         "config/sequences/*.yaml",
         "app/plant/sequences.py"
       ],
-      "status": "Ready for Review",
-      "status_key": "review",
-      "startable": true,
-      "note": "Ready for Review - PR #125 (feature/startup-sequence), not merged. config/sequences/olefins_lite.yaml + app/plant/sequences.py: gates and cold start / normal shutdown / emergency shutdown for the reference plant, SequenceRun (strict step order, holds as time-held conditions on snapshot sim_time) and Sequencer (one procedure at a time, emergency replaces any run). 2742 passed, mypy clean, roborev-refine passed, no golden movement. NOT WIRED: no session or API loads a sequence; trips not live. Follow-up: PlantStateMachine.gated(target) query (states.py, T12-3 file)."
+      "status": "Complete",
+      "status_key": "done",
+      "note": "COMPLETE - merged to main as 611a444 (PR #125). 2759 passed post-merge, mypy clean over 72 files, no golden movement. config/sequences/olefins_lite.yaml + app/plant/sequences.py: gates and cold start / normal shutdown / emergency shutdown for the reference plant; SequenceRun takes steps strictly in order (holds are conditions held for for_s of snapshot sim_time, never judged on a reading from before the last actions) and Sequencer drives one procedure at a time (an emergency shutdown replaces any run, including a normal shutdown part way through). NOT WIRED: no session or API loads a sequence, and trips are not live. Follow-up: PlantStateMachine.gated(target) query in states.py (T12-3's file) so 'into SHUTTING_DOWN is never gated' is not written in three places."
     },
     {
       "id": "T12-5",

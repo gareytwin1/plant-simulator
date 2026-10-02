@@ -92,6 +92,9 @@ def start_condition_from_config(config: Mapping[str, Any], where: str) -> StartC
         return AtTime(sim_time=config.get("sim_time", 0))
 
     if kind == "condition" and set(config) == {"type", "condition"}:
+        if not isinstance(config["condition"], str):
+            raise ValueError(f"{where} condition must be a string, got {config['condition']!r}")
+
         try:
             return WhenCondition(condition=config["condition"])
         except ValueError as error:

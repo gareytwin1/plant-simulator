@@ -18,7 +18,7 @@ from app.disturbances.profiles import (
 from app.engine.snapshot import build_snapshot
 from app.equipment.registry import EquipmentRegistry
 from app.equipment.valve import ControlValve
-from app.scenarios.triggers import ConditionSyntaxError
+from app.scenarios.triggers import ConditionEvaluationError, ConditionSyntaxError
 
 
 def at(sim_time, pressure=0.0):
@@ -155,8 +155,25 @@ def test_config_decodes_every_supported_shape():
         (start_condition_from_config, {"type": "later"}, "supported are"),
         (start_condition_from_config, {"type": "condition"}, "supported are"),
         (start_condition_from_config, {"type": "condition", "condition": "nonsense"}, "not a valid condition"),
+        (start_condition_from_config, {"type": "condition", "condition": 5}, "must be a string"),
     ],
 )
 def test_config_refuses_what_it_does_not_know_by_name(decode, config, mention):
     with pytest.raises(ValueError, match=mention):
         decode(config, "malfunction FV-101.capacity")
+
+
+def test_registry_validate_names_a_condition_the_snapshot_cannot_answer():
+    _, registry, _ = fouled(start_condition=WhenCondition("X-999.pressure > 1"))
+
+    with pytest.raises(ConditionEvaluationError, match="X-999"):
+        registry.validate(at(0.0))
+
+
+def test_registry_validate_passes_a_well_formed_registry_without_starting_anything():
+    valve, registry, original = fouled(start_condition=WhenCondition("V-101.pressure > 5"))
+
+    registry.validate(at(0.0, pressure=9.0))
+
+    assert valve.capacity == original
+    assert len(registry.pending) == 1

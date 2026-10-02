@@ -74,6 +74,9 @@ class ScoringConfig:
             missing = [key for key in keys if key not in table]
             if missing:
                 raise ValueError(f"scoring {name} missing {missing}")
+            unknown = [key for key in table if key not in keys]
+            if unknown:
+                raise ValueError(f"scoring {name} has unknown keys {unknown}")
         if any(weight < 0.0 for weight in self.weights.values()):
             raise ValueError("scoring weights must be non-negative")
         if sum(self.weights.values()) <= 0.0:

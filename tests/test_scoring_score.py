@@ -152,3 +152,10 @@ def test_config_rejects_missing_or_bad_values():
         ScoringConfig({**config.weights, "trip_count": -1.0}, config.scales, config.peak_severity_penalty, {})
     with pytest.raises(ValueError, match="positive"):
         ScoringConfig(config.weights, {**config.scales, "alarm_count": 0.0}, config.peak_severity_penalty, {})
+
+
+def test_config_rejects_unknown_weight_keys():
+    config = load_scoring_config()
+
+    with pytest.raises(ValueError, match="unknown"):
+        ScoringConfig({**config.weights, "bogus": 1.0}, config.scales, config.peak_severity_penalty, {})

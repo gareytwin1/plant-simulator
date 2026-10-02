@@ -244,6 +244,7 @@ class SequenceRun:
         self._next = 0
         self._running: Step | None = None
         self._held_since: float | None = None
+        self._started_at = 0.0
         self._aborted = False
 
     @property
@@ -288,8 +289,9 @@ class SequenceRun:
     def update(self, snapshot: Snapshot) -> tuple[str, ...]:
         """Run the procedure one scan: start the next step when it may, or
         carry the running one on. Returns why it is waiting, empty when it is
-        not. A step with a hold is first judged on the scan after its
-        actions, so a hold never passes on a reading taken before them."""
+        not. A hold is only judged on a snapshot later than the one its step
+        started on, so it never passes on a reading taken before its actions,
+        however the step was started."""
         if self._running is not None:
             return self._progress(self._running, snapshot)
 
@@ -315,6 +317,7 @@ class SequenceRun:
         self._running = step
         self._next = index + 1
         self._held_since = None
+        self._started_at = snapshot.sim_time
 
         for action in step.actions:
             self._act(action.tag, action.action, action.value)
@@ -322,6 +325,9 @@ class SequenceRun:
         return ()
 
     def _progress(self, step: Step, snapshot: Snapshot) -> tuple[str, ...]:
+        if step.hold and snapshot.sim_time <= self._started_at:
+            return (f"step {step.name!r} waiting for a reading taken after its actions",)
+
         reasons = _reasons(step.hold, snapshot)
 
         if reasons:

@@ -165,7 +165,7 @@ def test_a_cold_start_raises_no_alarm_or_trip(cold_start):
     assert all(not reading for reading in seen[cleared:])
 
     for before, after in itertools.pairwise(seen):
-        assert set(after) <= set(COLD_READINGS)
+        assert set(after) <= set(before), (before, after)
         assert all(SEVERITY[after[key]] <= SEVERITY[before[key]] for key in after)
 
 
@@ -459,6 +459,21 @@ def test_a_stalled_procedure_can_be_aborted_and_started_again(on_spec):
     assert sequencer.start("emergency_shutdown", plant.snapshot) == ()
     assert stalled.aborted
     assert [message for _, message in plant.actions()].count("P-101 stop") == 2
+
+
+def test_a_hold_is_never_judged_on_the_snapshot_its_step_started_on(tmp_path):
+    plant = Plant(condition("cold_shutdown"))
+    sequences = load_text(tmp_path, plant, VALID.replace("for_s: 5", "for_s: 0").replace("LV-101.position <= 0.11", "LV-101.position <= 1.0"))
+    sequencer = Sequencer(sequences, sequences.machine(plant.snapshot), plant.act)
+
+    assert sequencer.start("start", plant.snapshot) == ()
+    assert sequencer.update(plant.snapshot) == ("step 'line_up' waiting for a reading taken after its actions",)
+    assert sequencer.machine.state is S.COLD
+
+    plant.snapshot = plant.engine.step(DT)
+    sequencer.update(plant.snapshot)
+
+    assert sequencer.machine.state is S.PURGED
 
 
 def test_a_sequencer_refuses_an_unknown_procedure(cold):

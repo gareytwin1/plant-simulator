@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
-  "refreshed": "30 September 2026",
-  "main_sha": "022446b",
-  "tests_passing_on_main": 2508,
+  "refreshed": "1 October 2026",
+  "main_sha": "3690f8e",
+  "tests_passing_on_main": 2534,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -88,7 +88,7 @@
     },
     "M14": {
       "name": "Scenario Engine",
-      "complete": 5,
+      "complete": 6,
       "total": 6
     },
     "M15": {
@@ -119,8 +119,8 @@
   },
   "totals": {
     "tasks": 117,
-    "complete": 90,
-    "startable_now": 19
+    "complete": 91,
+    "startable_now": 18
   },
   "tasks": [
     {
@@ -1791,10 +1791,9 @@
       "files": [
         "config/scenarios/*.yaml"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true,
-      "note": ""
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged to main as 3690f8e (PR #118). Suite 2534 passed post-merge, mypy clean, no golden movement. Six olefins_lite scenarios; cooling-loss and gradual-fouling scenarios wait on an exchanger plant and T13-3."
     },
     {
       "id": "T15-1",

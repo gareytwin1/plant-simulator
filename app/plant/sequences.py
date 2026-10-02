@@ -130,7 +130,7 @@ def load_sequences(
 
     errors: list[str] = []
     _keys(raw, _FILE_KEYS, "sequences file", errors, required=_FILE_KEYS)
-    gates, rejected, complete = _gates(raw.get("gates") or [], errors)
+    gates, rejected, partial = _gates(raw.get("gates") or [], errors)
     procedures: dict[str, tuple[Step, ...]] = {}
     sequences = raw.get("sequences") or {}
 
@@ -171,7 +171,7 @@ def load_sequences(
             rejected.add((source, target))
             errors.extend(problems)
 
-    errors.extend(_structure(gates, rejected, complete))
+    errors.extend(_structure(gates, rejected, partial))
 
     if errors:
         _reject(path, errors)
@@ -194,12 +194,13 @@ def _reject(path: Path | str, errors: Sequence[str]) -> NoReturn:
 def _structure(
     gates: Mapping[Edge, tuple[str, ...]],
     rejected: set[Edge],
-    complete: bool,
+    partial: Sequence[tuple[PlantState | None, PlantState | None]],
 ) -> list[str]:
     """The machine's own shape rules, applied here so that an edge already
-    refused is not reported again as ungated. When a gate entry named no valid
-    edge at all (`complete` false), which edge it meant is unknown, so no edge
-    is reported as ungated."""
+    refused is not reported again as ungated. An entry that named only half an
+    edge (`partial`, None for the half that did not parse) may have meant any
+    edge matching the half it did name, so none of those is reported as
+    ungated either."""
     errors: list[str] = []
 
     for source, target in gates:
@@ -211,7 +212,12 @@ def _structure(
     for edge in sorted(TRANSITIONS):
         source, target = edge
 
-        if complete and target is not PlantState.SHUTTING_DOWN and not gates.get(edge) and edge not in rejected:
+        meant = any(
+            (named_source in (None, source)) and (named_target in (None, target))
+            for named_source, named_target in partial
+        )
+
+        if target is not PlantState.SHUTTING_DOWN and not gates.get(edge) and edge not in rejected and not meant:
             errors.append(f"{source} -> {target} has no condition to gate it")
 
     return errors
@@ -370,17 +376,28 @@ class Sequencer:
     def run(self) -> SequenceRun | None:
         return self._run
 
-    def start(self, procedure: str) -> SequenceRun:
+    def start(self, procedure: str) -> tuple[str, ...]:
+        """Make `procedure` the plant's run, aborting the one before it. A
+        procedure whose first step cannot run from the plant's state is
+        refused with the reason, and the current run carries on: a refused
+        start must never leave the plant with nothing driving it."""
         if procedure not in self._sequences.procedures:
             raise KeyError(f"no procedure {procedure!r}, only {sorted(self._sequences.procedures)}")
+
+        steps = self._sequences.procedures[procedure]
+        state = self._machine.state
+
+        if state not in steps[0].states:
+            allowed = sorted(s.value for s in steps[0].states)
+            return (f"procedure {procedure!r} starts from {allowed}, the plant is {state}",)
 
         if self._run is not None and not self._run.done:
             self._run.abort()
 
         self._procedure = procedure
-        self._run = SequenceRun(self._sequences.procedures[procedure], self._machine, self._act)
+        self._run = SequenceRun(steps, self._machine, self._act)
 
-        return self._run
+        return ()
 
     def update(self, snapshot: Snapshot) -> tuple[str, ...]:
         return () if self._run is None else self._run.update(snapshot)
@@ -435,23 +452,26 @@ def _conditions(value: Any, where: str, errors: list[str]) -> tuple[Permissive, 
     return tuple(parsed)
 
 
-def _gates(entries: Any, errors: list[str]) -> tuple[dict[Edge, tuple[str, ...]], set[Edge], bool]:
+Partial = list[tuple[PlantState | None, PlantState | None]]
+
+
+def _gates(entries: Any, errors: list[str]) -> tuple[dict[Edge, tuple[str, ...]], set[Edge], Partial]:
     """The gates that parsed; the edges of entries that named their states but
-    were refused; and whether every entry named an edge at all."""
+    were refused; and the halves of edges that entries named only in part."""
     gates: dict[Edge, tuple[str, ...]] = {}
     rejected: set[Edge] = set()
-    complete = True
+    partial: Partial = []
 
     if not isinstance(entries, list):
         errors.append("gates must be a list")
-        return gates, rejected, False
+        return gates, rejected, [(None, None)]
 
     for index, entry in enumerate(entries):
         where = f"gate {index + 1}"
 
         if not isinstance(entry, dict):
             errors.append(f"{where} must be a mapping")
-            complete = False
+            partial.append((None, None))
             continue
 
         _keys(entry, _GATE_KEYS, where, errors, required={"from", "to"})
@@ -460,7 +480,7 @@ def _gates(entries: Any, errors: list[str]) -> tuple[dict[Edge, tuple[str, ...]]
         when = entry.get("when") or []
 
         if source is None or target is None:
-            complete = False
+            partial.append((source, target))
             continue
 
         if not isinstance(when, list) or not all(isinstance(text, str) for text in when):
@@ -474,7 +494,7 @@ def _gates(entries: Any, errors: list[str]) -> tuple[dict[Edge, tuple[str, ...]]
 
         gates[(source, target)] = tuple(when)
 
-    return gates, rejected, complete
+    return gates, rejected, partial
 
 
 def _step(

@@ -292,7 +292,8 @@ def test_a_normal_shutdown_does_not_run_from_a_plant_still_starting(on_spec):
 def test_an_emergency_shutdown_overrides_a_normal_one_part_way_through(on_spec):
     plant = Plant(on_spec)
     sequencer = Sequencer(plant.sequences, plant.sequences.machine(plant.snapshot, state=S.ON_SPEC), plant.act)
-    normal = sequencer.start("normal_shutdown")
+    sequencer.start("normal_shutdown")
+    normal = sequencer.run
 
     for _ in range(5):
         sequencer.update(plant.snapshot)
@@ -315,16 +316,28 @@ def test_an_emergency_shutdown_overrides_a_normal_one_part_way_through(on_spec):
     ]
 
 
-def test_a_start_cut_off_by_an_emergency_shutdown_takes_no_further_action():
+def starting(state):
+    """A plant part way through its cold start, the start still running."""
     plant = Plant(condition("cold_shutdown"))
     sequencer = Sequencer(plant.sequences, plant.sequences.machine(plant.snapshot), plant.act)
-    start = sequencer.start("cold_start")
+    sequencer.start("cold_start")
 
-    while sequencer.machine.state is not S.PRESSURISED:
+    for _ in range(HORIZON):
+        if sequencer.machine.state is state:
+            return plant, sequencer
+
         sequencer.update(plant.snapshot)
         plant.snapshot = plant.engine.step(DT)
 
-    sequencer.start("emergency_shutdown")
+    pytest.fail(f"cold start not {state} after {HORIZON} steps")
+
+
+def test_a_start_cut_off_by_an_emergency_shutdown_takes_no_further_action():
+    plant, sequencer = starting(S.PRESSURISED)
+    start = sequencer.run
+
+    assert sequencer.start("emergency_shutdown") == ()
+
     before = len(plant.log)
     plant.drive(sequencer)
 
@@ -337,6 +350,25 @@ def test_a_start_cut_off_by_an_emergency_shutdown_takes_no_further_action():
         plant.snapshot = plant.engine.step(DT)
 
     assert len(plant.log) == before + 3
+
+
+@pytest.mark.parametrize(
+    ("state", "procedure", "reason"),
+    [
+        (S.PRESSURISED, "normal_shutdown", "starts from ['circulating', 'on_spec'], the plant is pressurised"),
+        (S.COLD, "emergency_shutdown", "the plant is cold"),
+    ],
+)
+def test_a_procedure_that_cannot_start_leaves_the_current_run_in_place(state, procedure, reason):
+    _, sequencer = starting(state)
+    current = sequencer.run
+
+    (refusal,) = sequencer.start(procedure)
+
+    assert reason in refusal
+    assert sequencer.run is current
+    assert sequencer.procedure == "cold_start"
+    assert not current.aborted
 
 
 def test_a_sequencer_refuses_an_unknown_procedure(cold):
@@ -491,6 +523,18 @@ def test_a_gate_naming_no_valid_edge_is_not_followed_by_ungated_reports(tmp_path
 
     with pytest.raises(ValueError, match=r"rejected, 1 problem\(s\):\n  gate 2: 'purgd' is not a plant state"):
         load_text(tmp_path, cold, text)
+
+
+def test_a_half_named_gate_hides_only_the_edges_it_may_have_meant(tmp_path, cold):
+    text = VALID.replace("{from: purged, to: pressurised", "{from: purgd, to: pressurised", 1).replace(
+        '  - {from: on_spec, to: circulating, when: ["V-101.level >= 0.0"]}\n', ""
+    )
+
+    with pytest.raises(ValueError, match=r"2 problem\(s\)") as error:
+        load_text(tmp_path, cold, text)
+
+    assert "'purgd' is not a plant state" in str(error.value)
+    assert "on_spec -> circulating has no condition to gate it" in str(error.value)
 
 
 def test_a_bad_gate_condition_does_not_hide_the_shape_checks(tmp_path, cold):

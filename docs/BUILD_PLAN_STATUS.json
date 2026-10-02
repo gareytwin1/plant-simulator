@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "2 October 2026",
-  "main_sha": "098d17e",
-  "tests_passing_on_main": 2648,
+  "main_sha": "fc7305c",
+  "tests_passing_on_main": 2666,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -93,7 +93,7 @@
     },
     "M15": {
       "name": "Action Log and Scoring",
-      "complete": 2,
+      "complete": 3,
       "total": 4
     },
     "M16": {
@@ -119,8 +119,8 @@
   },
   "totals": {
     "tasks": 117,
-    "complete": 95,
-    "startable_now": 16
+    "complete": 96,
+    "startable_now": 15
   },
   "tasks": [
     {
@@ -1837,10 +1837,9 @@
         "app/scoring/score.py",
         "config/scoring.yaml"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true,
-      "note": ""
+      "status": "Complete",
+      "status_key": "done",
+      "note": "COMPLETE - merged to main as fc7305c (PR #123). 2666 passed post-merge, mypy clean over 70 files, no golden movement. app/scoring/score.py: score_run(RunMetrics, ScoringConfig) -> 0-100 Score with per-criterion penalties; weights, scales, peak-severity penalties and per-label production-lost scales in config/scoring.yaml. None times are free when nothing alarmed, full penalty when something did. production_lost_scales ships empty: a label with no scale is an error, so whoever wires throughput must add entries. NOT WIRED: nothing in a live run produces a Score yet."
     },
     {
       "id": "T15-4",

@@ -8,12 +8,12 @@ regrowth rule is in [.claude/rules/docs.md](../../.claude/rules/docs.md).
 
 ## Right now
 
-**Last state refresh:** 2 October 2026, at `cab96f4` (Merge T12-6:
-Refuse a negative or non-finite clock speed and step, PR #120) - **this is a snapshot,
-not a live pointer.** Run `git log cab96f4..HEAD --oneline` to see what has
+**Last state refresh:** 2 October 2026, at `2dbe7fa` (Merge T15-2:
+Result metrics calculator and alarm clear records, PR #121) - **this is a snapshot,
+not a live pointer.** Run `git log 2dbe7fa..HEAD --oneline` to see what has
 merged since.
-**Full suite as of this refresh:** **2574 passed** · `python -m mypy` clean over 66 source files · no golden trace movement
-**In flight:** T15-2 (Ready for Review, PR #121; not a spine task).
+**Full suite as of this refresh:** **2606 passed** · `python -m mypy` clean over 68 source files · no golden trace movement
+**In flight:** nothing.
 **No spine lock is held.** No task is Blocked. CI runs on every PR, and `main` requires its
 `test` check before a merge.
 
@@ -22,12 +22,12 @@ merged since.
 
 | Task | SHA | What landed |
 |---|---|---|
+| **T15-2** | `2dbe7fa` | Result metrics, `app/scoring/metrics.py` (`compute_metrics` -> immutable `RunMetrics`; relevance is a caller-supplied predicate); `AlarmManager.last_cleared()`, `ClearRecord` and `AlarmHistory.record_clears` record a return to NORMAL; `app/scoring/throughput.py` integrates shortfall below a target. Not wired: nothing calls `record_clears` or feeds a `ThroughputTracker`, and no scenario config names a throughput variable (PR #121) |
 | **T12-6** | `cab96f4` | Clock refuses bad input: `SimulationClock.set_speed` and `step` raise `ValueError` for a negative or non-finite value before changing anything (zero speed stays valid), so a refused `Engine.step` changes nothing; `restore_state` refuses a negative clock speed or sim_time (PR #120) |
 | **T13-3** | `60e3079` | Injection profiles, `app/disturbances/profiles.py`: `Ramp` and `WhenCondition` fit the `Profile` and `StartCondition` protocols; `malfunction_from_config` decodes them, `MalfunctionRegistry.validate` refuses an unanswerable condition at load; a condition onset latches once fired (PR #119) |
 | **T13-4** | `022446b` | Malfunction catalogue, `config/malfunctions/*.yaml`: eight faults with scenario-ready entries, checked response directions and diagnosis paths; controller-left-in-manual not catalogued (loop mode not writable); exchanger faults need a plant with E-101, instrument drift needs LT-101 in code (PR #117) |
 | **T14-5** | `ad94304` | Deterministic replay, `app/scenarios/replay.py`: `Recording.of(runner)` / `replay()`, exact to the bit; `ScenarioRunner` journals every start, step and abort (`inputs()`), fingerprints its plant and condition files and digests its end state; no RNG state, nothing draws one; `app/plant/loader.py` gains public `read_plant_config` (PR #116) |
 | **T14-4** | `8a8f7f6` | Scenario lifecycle, `app/scenarios/runner.py` (`ScenarioRunner`: load arms with no state change, start, step, complete, abort; scenario time rebased from the condition's clock) and the C5 scenario routes `app/api/scenario.py`; `ScenarioRunner.act` plus an optional `apply` on `create_action_blueprint` (`app/api/action.py`); not wired into `app/main.py`; `seed` drives nothing (T14-5) (PR #115) |
-| **T12-2** | `0c16162` | Named initial conditions, `config/initial_conditions/*.json` (cold shutdown, hot standby, normal operation, feed-pump-trip upset) built by `scripts/initial_conditions.py` on `capture_state`/`restore_state`; no loader yet (T14-4) (PR #114) |
 
 **ADRs on `main`:** [0001](../../docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md)
 (+ Amendment 1) and [0002](../../docs/ADR_0002_TYPED_PORTS.md) (+ Amendments
@@ -43,19 +43,19 @@ Complete: **M0-M7, M9, M13, M14, MR**. Open:
 | **M10** Alarms | 3/5 | T10-1, T10-2, T10-3; T10-4 startable (V1.1-deferred), T10-5 startable |
 | **M11** Interlocks and Trips | 3/4 | T11-1, T11-2, T11-3; T11-4 startable (V1.1-deferred) |
 | **M12** Startup and Shutdown Sequences | 3/6 | T12-1, T12-2, T12-6; T12-3, T12-5 startable; T12-4 needs T12-3 |
-| **M15** Action Log and Scoring | 1/4 | T15-1; T15-4 startable (V1.1-deferred) |
+| **M15** Action Log and Scoring | 2/4 | T15-1, T15-2; T15-3 startable; T15-4 startable (V1.1-deferred) |
 | **M16** Operator Console | 1/5 | T16-2; T16-1 startable, T16-5 startable; T16-3 needs T16-1 first |
 | **M17** Historian and Trends | 1/4 | T17-1; T17-2 startable (V1.1-deferred) |
 | **M18** Deployment | 1/5 | T18-2 |
 | M19 | 0 | - |
 
-**93 of 117 tasks Complete.** Checkpoints A-C reached. Checkpoint **D** (M8)
+**94 of 117 tasks Complete.** Checkpoints A-C reached. Checkpoint **D** (M8)
 needs only its "loops reject an injected disturbance" gate: PIC-101 switched to
 AUTO in `olefins_lite.yaml`, which T8-6 enabled but no task owns yet.
 
 ## The next task
 
-**15 tasks are startable** - list them from
+**16 tasks are startable** - list them from
 [BUILD_PLAN_STATUS.json](../../docs/BUILD_PLAN_STATUS.json) (`startable`
 field). All are Sonnet except T12-5, which needs an Opus decision on the
 accessor shape first. T8-5, T10-4, T11-4, T15-4 and T17-2 are V1.1-deferred;

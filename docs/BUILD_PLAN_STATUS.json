@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "2 October 2026",
-  "main_sha": "cab96f4",
-  "tests_passing_on_main": 2574,
+  "main_sha": "2dbe7fa",
+  "tests_passing_on_main": 2606,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -93,7 +93,7 @@
     },
     "M15": {
       "name": "Action Log and Scoring",
-      "complete": 1,
+      "complete": 2,
       "total": 4
     },
     "M16": {
@@ -119,8 +119,8 @@
   },
   "totals": {
     "tasks": 117,
-    "complete": 93,
-    "startable_now": 15
+    "complete": 94,
+    "startable_now": 16
   },
   "tasks": [
     {
@@ -1824,10 +1824,9 @@
       "files": [
         "app/scoring/metrics.py"
       ],
-      "status": "Ready for Review",
-      "status_key": "review",
-      "startable": true,
-      "note": "READY FOR REVIEW - PR #121, branch feature/scoring-metrics, rebased on a4d4269. 2578 passed, mypy clean over 67 files, no golden movement, roborev-refine clean. PARTIAL: six of eight metrics done (alarm count, trip count, time to recognise, peak excursions, time outside envelope, unnecessary actions via a caller-supplied is_relevant predicate). OPEN QUESTIONS, not implemented: (1) time to stabilise - AlarmManager emits nothing on return to NORMAL and trackers hold only totals, so the three inputs cannot say when the plant settled; needs a return-to-normal record, which touches a contract. (2) production lost - no tracked quantity is a throughput; needs a named source variable and target. Both need a decision before T15-3 can weigh them."
+      "status": "Complete",
+      "status_key": "done",
+      "note": "COMPLETE - merged to main as 2dbe7fa (PR #121). 2606 passed post-merge, mypy clean over 68 files, no golden movement. app/scoring/metrics.py: compute_metrics returns an immutable RunMetrics (alarm count, trip count, time to recognise, time to stabilise, peak excursions, time outside envelope, production lost, unnecessary actions via a caller-supplied is_relevant predicate). Added with it: AlarmManager.last_cleared() (additive C7 accessor), ClearRecord and AlarmHistory.record_clears, GET /api/alarms/history serializes type clear, and app/scoring/throughput.py ThroughputTracker. NOT WIRED: nothing in the step loop calls record_clears or feeds a ThroughputTracker, and no scenario config names a throughput variable or target, so a live run reports no stabilisation time and no production lost until a follow-up (spine) task does."
     },
     {
       "id": "T15-3",
@@ -1844,10 +1843,7 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "T15-2"
-      ],
+      "startable": true,
       "note": ""
     },
     {

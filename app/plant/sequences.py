@@ -295,7 +295,7 @@ class SequenceRun:
     def update(self, snapshot: Snapshot) -> tuple[str, ...]:
         """Run the procedure one scan: start the next step when it may, or
         carry the running one on. Returns why it is waiting, empty when it is
-        not. A hold, a gate, or the next step's permissives are only judged on
+        not and on the scan that starts a step. A hold, a gate, or the next step's permissives are only judged on
         a snapshot later than the one the run last acted on, so none passes on
         a reading taken before those actions, however the step was started."""
         if self._running is not None:
@@ -400,6 +400,9 @@ class Sequencer:
         self._act = act
         self._procedure: str | None = None
         self._run: SequenceRun | None = None
+        # The run that acted last, kept through `abort` so a start straight
+        # after one is still not judged on a reading from before its actions.
+        self._last: SequenceRun | None = None
 
     @property
     def machine(self) -> PlantStateMachine:
@@ -432,7 +435,7 @@ class Sequencer:
 
         steps = self._sequences.procedures[procedure]
 
-        if steps[0].permissives and self._run is not None and self._run.stale(snapshot):
+        if steps[0].permissives and self._last is not None and self._last.stale(snapshot):
             return (f"procedure {procedure!r} waiting for a reading taken after the last actions",)
 
         reasons = _blocked(steps[0], self._machine.state, snapshot)
@@ -445,6 +448,7 @@ class Sequencer:
 
         self._procedure = procedure
         self._run = SequenceRun(steps, self._machine, self._act)
+        self._last = self._run
         self._run.update(snapshot)
 
         return ()

@@ -548,8 +548,10 @@ def test_a_step_without_a_hold_never_advances_on_a_reading_from_before_its_actio
     assert sequencer.machine.state is S.PURGED
 
 
-def test_a_new_procedure_is_not_judged_on_a_reading_from_before_the_last_actions(tmp_path):
-    two_procedures = VALID[: VALID.index("sequences:")] + textwrap.dedent(
+def two_procedures():
+    """VALID's gates with two one-step procedures: one closes LV-101, the
+    other needs it open."""
+    return VALID[: VALID.index("sequences:")] + textwrap.dedent(
         """
         sequences:
           close:
@@ -563,8 +565,11 @@ def test_a_new_procedure_is_not_judged_on_a_reading_from_before_the_last_actions
               permissives: ["LV-101.position >= 0.5"]
         """
     )
+
+
+def test_a_new_procedure_is_not_judged_on_a_reading_from_before_the_last_actions(tmp_path):
     plant = Plant(condition("cold_shutdown"))
-    sequences = load_text(tmp_path, plant, two_procedures)
+    sequences = load_text(tmp_path, plant, two_procedures())
     sequencer = Sequencer(sequences, sequences.machine(plant.snapshot), plant.act)
 
     assert sequencer.start("close", plant.snapshot) == ()
@@ -578,6 +583,20 @@ def test_a_new_procedure_is_not_judged_on_a_reading_from_before_the_last_actions
         "permissive LV-101.position >= 0.5 not satisfied: LV-101.position reads 0.45",
     )
     assert sequencer.procedure == "close"
+
+
+def test_an_abort_does_not_let_a_new_procedure_read_from_before_the_last_actions(tmp_path):
+    plant = Plant(condition("cold_shutdown"))
+    sequences = load_text(tmp_path, plant, two_procedures())
+    sequencer = Sequencer(sequences, sequences.machine(plant.snapshot), plant.act)
+
+    sequencer.start("close", plant.snapshot)
+    sequencer.abort()
+
+    assert sequencer.start("check", plant.snapshot) == (
+        "procedure 'check' waiting for a reading taken after the last actions",
+    )
+    assert sequencer.run is None
 
 
 def test_a_sequencer_refuses_an_unknown_procedure(cold):

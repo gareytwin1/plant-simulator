@@ -50,6 +50,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+from types import MappingProxyType
 
 from app.alarms.history import AlarmHistory
 from app.alarms.manager import Event
@@ -83,7 +84,9 @@ def compute_metrics(
         alarm_count=len(events),
         trip_count=sum(1 for event in events if event.data.get("severity") == Severity.TRIP.name),
         time_to_recognise_s=_time_to_recognise(actions, first_alarm, is_relevant),
-        peak_excursions={label: tracker.peak for label, tracker in trackers.items()},
+        peak_excursions=MappingProxyType(
+            {label: tracker.peak for label, tracker in trackers.items()}
+        ),
         time_outside_envelope_s=sum(
             tracker.time_in(severity) for tracker in trackers.values() for severity in _NON_NORMAL
         ),

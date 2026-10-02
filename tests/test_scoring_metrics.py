@@ -139,3 +139,11 @@ def test_metrics_are_identical_on_a_repeat_computation():
     assert compute_metrics(log, history, trackers, _relevant) == compute_metrics(
         log, history, trackers, _relevant
     )
+
+
+def test_peak_excursions_cannot_be_mutated_by_a_consumer():
+    log, history, trackers = _run()
+    peaks = compute_metrics(log, history, trackers, _relevant).peak_excursions
+
+    with pytest.raises(TypeError):
+        peaks["discharge pressure"] = None

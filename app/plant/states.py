@@ -101,6 +101,10 @@ class PlantStateMachine:
                 errors.append(f"gate on {source} -> {target}, which is not a transition")
                 continue
 
+            if target is PlantState.SHUTTING_DOWN and conditions:
+                errors.append(f"{source} -> {target} may not be gated, a shutdown is never refused")
+                continue
+
             try:
                 parsed[edge] = tuple(
                     condition

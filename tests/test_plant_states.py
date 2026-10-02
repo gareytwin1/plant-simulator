@@ -207,6 +207,13 @@ def test_the_machine_refuses_an_edge_with_no_gate(normal):
         PlantStateMachine(normal, {**GATES, (S.PURGED, S.PRESSURISED): []})
 
 
+def test_the_machine_refuses_a_gate_on_a_shutdown(normal):
+    gates = {**GATES, (S.PRESSURISED, S.SHUTTING_DOWN): ["V-101.level >= 0"]}
+
+    with pytest.raises(ValueError, match="never refused"):
+        PlantStateMachine(normal, gates)
+
+
 def test_the_machine_refuses_unknown_devices_and_malformed_conditions_together(normal):
     gates = {
         **GATES,

@@ -88,7 +88,8 @@ from typing import Any
 import yaml
 
 from app.api.action import apply_action
-from app.disturbances.malfunction import AtTime, Malfunction, MalfunctionRegistry, Step
+from app.disturbances.malfunction import Malfunction, MalfunctionRegistry
+from app.disturbances.profiles import WhenCondition, profile_from_config, start_condition_from_config
 from app.engine.engine import Engine
 from app.engine.persistence import capture_state, restore_state
 from app.engine.snapshot import Snapshot
@@ -257,28 +258,27 @@ def _number(value: Any, what: str) -> float:
 def malfunction_from_config(config: Mapping[str, Any]) -> Malfunction:
     """A `Malfunction` from a scenario's malfunction entry.
 
-    Only the profile and start condition `app.disturbances.malfunction` has -
-    `step` and `at_time` - are known; a ramp or a condition onset is T13-3's,
-    and is refused by name rather than approximated.
+    The profile and start condition are decoded by `app.disturbances.profiles`;
+    anything it does not know is refused by name rather than approximated.
     """
     where = f"malfunction {config['target_tag']}.{config['parameter']}"
 
-    profile = config.get("profile", {"type": "step"})
-    if profile.get("type") != "step" or set(profile) != {"type"}:
-        raise ScenarioConfigError(f"{where} has profile {profile!r}; only {{'type': 'step'}} is supported")
+    onset = dict(config.get("start_condition", {"type": "at_time", "sim_time": 0}))
+    if onset.get("type") == "at_time":
+        onset["sim_time"] = _number(onset.get("sim_time", 0), f"{where} sim_time")
 
-    onset = config.get("start_condition", {"type": "at_time", "sim_time": 0})
-    if onset.get("type") != "at_time" or set(onset) - {"type", "sim_time"}:
-        raise ScenarioConfigError(
-            f"{where} has start_condition {onset!r}; only 'at_time' with a sim_time is supported",
-        )
+    try:
+        profile = profile_from_config(config.get("profile", {"type": "step"}), where)
+        start_condition = start_condition_from_config(onset, where)
+    except ValueError as error:
+        raise ScenarioConfigError(str(error)) from None
 
     return Malfunction(
         target_tag=config["target_tag"],
         parameter=config["parameter"],
         value=config["value"],
-        profile=Step(),
-        start_condition=AtTime(sim_time=_number(onset.get("sim_time", 0), f"{where} sim_time")),
+        profile=profile,
+        start_condition=start_condition,
     )
 
 
@@ -635,7 +635,11 @@ class ScenarioRunner:
 
         malfunctions = MalfunctionRegistry(registry, engine.instruments.values())
         for entry in config.get("malfunctions", []):
-            malfunctions.add(malfunction_from_config(entry))
+            malfunction = malfunction_from_config(entry)
+            malfunctions.add(malfunction)
+
+            if isinstance(malfunction.start_condition, WhenCondition):
+                malfunction.start_condition.is_met(armed)
 
         time_limit = float(config["time_limit_s"])
         triggers = TriggerEvaluator.from_config(config.get("triggers", []))

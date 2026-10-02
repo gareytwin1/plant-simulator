@@ -464,7 +464,7 @@ BAD_CONFIGS = {
         ValueError,
         "position",
     ),
-    "ramp profile": (
+    "ramp profile without a duration": (
         lambda: scenario(
             malfunctions=[
                 {"target_tag": "LV-101", "parameter": "capacity", "value": 1, "profile": {"type": "ramp"}},
@@ -473,7 +473,7 @@ BAD_CONFIGS = {
         ScenarioConfigError,
         "ramp",
     ),
-    "condition onset": (
+    "condition onset without a condition": (
         lambda: scenario(
             malfunctions=[
                 {
@@ -486,6 +486,20 @@ BAD_CONFIGS = {
         ),
         ScenarioConfigError,
         "at_time",
+    ),
+    "condition onset on a field the plant lacks": (
+        lambda: scenario(
+            malfunctions=[
+                {
+                    "target_tag": "LV-101",
+                    "parameter": "capacity",
+                    "value": 1,
+                    "start_condition": {"type": "condition", "condition": "V-101.nope > 1"},
+                },
+            ],
+        ),
+        ValueError,
+        "nope",
     ),
 }
 

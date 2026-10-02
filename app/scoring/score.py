@@ -84,7 +84,11 @@ class ScoringConfig:
         for scale in (*self.scales.values(), *self.production_lost_scales.values()):
             if scale <= 0.0:
                 raise ValueError("scoring scales must be positive")
-        for severity in (Severity.WARNING, Severity.ALARM, Severity.TRIP):
+        graded = (Severity.WARNING, Severity.ALARM, Severity.TRIP)
+        unknown = [severity.name for severity in self.peak_severity_penalty if severity not in graded]
+        if unknown:
+            raise ValueError(f"scoring peak_severity_penalty has unknown keys {unknown}")
+        for severity in graded:
             if not 0.0 <= self.peak_severity_penalty.get(severity, -1.0) <= 1.0:
                 raise ValueError(f"peak_severity_penalty[{severity.name}] must be in [0, 1]")
 

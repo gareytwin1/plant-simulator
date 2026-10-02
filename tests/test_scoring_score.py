@@ -195,3 +195,18 @@ def test_peak_severity_takes_the_worst_point():
     assert score_run(metrics, config).penalties["peak_severity"] == pytest.approx(
         config.peak_severity_penalty[Severity.TRIP]
     )
+
+
+def test_config_rejects_bad_peak_severity_penalty():
+    config = load_scoring_config()
+    penalties = dict(config.peak_severity_penalty)
+
+    def build(table):
+        return ScoringConfig(config.weights, config.scales, table, {})
+
+    with pytest.raises(ValueError, match="TRIP"):
+        build({k: v for k, v in penalties.items() if k is not Severity.TRIP})
+    with pytest.raises(ValueError, match="TRIP"):
+        build({**penalties, Severity.TRIP: 1.5})
+    with pytest.raises(ValueError, match="unknown"):
+        build({**penalties, Severity.NORMAL: 0.0})

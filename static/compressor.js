@@ -11,6 +11,8 @@ function setText(id, value) {
 
 async function getPlantState() {
   const response = await fetch("/api/state");
+  if (!response.ok) return;
+
   const state = await response.json();
 
   updatePlantDisplay(state);
@@ -252,6 +254,8 @@ async function startPlant() {
         method: "POST",
     });
 
+    if (!response.ok) return;
+
     const state = await response.json();
 
     updatePlantDisplay(state);
@@ -261,6 +265,8 @@ async function stopPlant() {
     const response = await fetch("/api/stop", {
         method: "POST",
     });
+
+    if (!response.ok) return;
 
     const state = await response.json();
 
@@ -275,27 +281,42 @@ const stopButton =
 
 const loadSlider = document.getElementById("load-slider");
 
+// A drag fires `input` dozens of times a second; the API is rate limited, so
+// send the latest value at most this often.
+const SLIDER_SEND_MS = 100;
+let loadSendTimer = null;
+
 if (loadSlider) {
-    loadSlider.addEventListener("input", async () => {
-        const loadTarget = Number(loadSlider.value) / 100;
+    loadSlider.addEventListener("input", () => {
+        if (loadSendTimer !== null) return;
 
-        const response = await fetch("/api/load", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-                load_target: loadTarget,
-            }),
-        });
-
-        const state = await response.json();
-
-        setText(
-            "load-target",
-            `${(state.load_target * 100).toFixed(1)}%`
-        );
+        loadSendTimer = setTimeout(sendLoadTarget, SLIDER_SEND_MS);
     });
+}
+
+async function sendLoadTarget() {
+    loadSendTimer = null;
+
+    const loadTarget = Number(loadSlider.value) / 100;
+
+    const response = await fetch("/api/load", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+            load_target: loadTarget,
+        }),
+    });
+
+    if (!response.ok) return;
+
+    const state = await response.json();
+
+    setText(
+        "load-target",
+        `${(state.load_target * 100).toFixed(1)}%`
+    );
 }
 
 if (startButton) {

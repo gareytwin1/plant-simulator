@@ -8,6 +8,8 @@ function setText(id, value) {
 
 async function getPumpState() {
   const response = await fetch("/api/pump/state");
+  if (!response.ok) return;
+
   const state = await response.json();
 
   updatePumpDisplay(state);
@@ -66,6 +68,8 @@ async function startPump() {
         method: "POST",
     });
 
+    if (!response.ok) return;
+
     const state = await response.json();
 
     updatePumpDisplay(state);
@@ -75,6 +79,8 @@ async function stopPump() {
     const response = await fetch("/api/pump/stop", {
         method: "POST",
     });
+
+    if (!response.ok) return;
 
     const state = await response.json();
 
@@ -89,27 +95,42 @@ const stopButton =
 
 const speedSlider = document.getElementById("speed-slider");
 
+// A drag fires `input` dozens of times a second; the API is rate limited, so
+// send the latest value at most this often.
+const SLIDER_SEND_MS = 100;
+let speedSendTimer = null;
+
 if (speedSlider) {
-    speedSlider.addEventListener("input", async () => {
-        const speedTarget = Number(speedSlider.value) / 100;
+    speedSlider.addEventListener("input", () => {
+        if (speedSendTimer !== null) return;
 
-        const response = await fetch("/api/pump/speed", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-                speed_target: speedTarget,
-            }),
-        });
-
-        const state = await response.json();
-
-        setText(
-            "speed-target",
-            `${(state.speed_target * 100).toFixed(1)}%`
-        );
+        speedSendTimer = setTimeout(sendSpeedTarget, SLIDER_SEND_MS);
     });
+}
+
+async function sendSpeedTarget() {
+    speedSendTimer = null;
+
+    const speedTarget = Number(speedSlider.value) / 100;
+
+    const response = await fetch("/api/pump/speed", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+            speed_target: speedTarget,
+        }),
+    });
+
+    if (!response.ok) return;
+
+    const state = await response.json();
+
+    setText(
+        "speed-target",
+        `${(state.speed_target * 100).toFixed(1)}%`
+    );
 }
 
 if (startButton) {

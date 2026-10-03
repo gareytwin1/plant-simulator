@@ -1,9 +1,10 @@
-import math
 import uuid
 
 from flask import Flask, Response, g, jsonify, redirect, render_template, request, url_for
 from flask.typing import ResponseReturnValue
 
+from app import config
+from app.api import validate
 from app.engine.scheduler import Scheduler
 from app.engine.sessions import SessionRegistry
 
@@ -17,6 +18,11 @@ app = Flask(
 SESSION_COOKIE = "plant_session_id"
 
 sessions = SessionRegistry()
+
+rate_limiter = validate.RateLimiter(config.API_RATE_PER_SECOND, config.API_RATE_BURST)
+
+# First, so a refused request never reaches the session hook below.
+validate.install(app, lambda: rate_limiter)
 
 
 @app.before_request
@@ -34,7 +40,10 @@ def load_session() -> None:
 
 @app.after_request
 def persist_session_cookie(response: Response) -> Response:
-    response.set_cookie(SESSION_COOKIE, g.session_id, httponly=True)
+    # A request refused before load_session ran (rate limit) has no session.
+    if "session_id" in g:
+        response.set_cookie(SESSION_COOKIE, g.session_id, httponly=True)
+
     return response
 
 
@@ -44,25 +53,13 @@ STEP_UNAVAILABLE_REASON = (
 SESSION_ENDED_REASON = "session ended"
 
 
-def _number_field(field: str) -> tuple[float, None] | tuple[None, ResponseReturnValue]:
-    """Read `field` from a JSON body as a finite int or float, or a 400 error."""
-    data = request.get_json(silent=True)
+def _number_field(field: str) -> float | validate.ErrorResponse:
+    """Read `field` from a JSON body as a finite number, or a 4xx error."""
+    body = validate.read_object({field})
+    if isinstance(body, tuple):
+        return body
 
-    if not isinstance(data, dict):
-        return None, (jsonify({"error": "request body must be a JSON object"}), 400)
-
-    if field not in data:
-        return None, (jsonify({"error": f"missing field: {field}"}), 400)
-
-    value = data[field]
-
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        return None, (jsonify({"error": f"{field} must be a number"}), 400)
-
-    if not math.isfinite(value):
-        return None, (jsonify({"error": f"{field} must be finite"}), 400)
-
-    return float(value), None
+    return validate.number_field(body, field)
 
 
 def _step_refused(scheduler: Scheduler) -> ResponseReturnValue:
@@ -140,9 +137,9 @@ def api_step() -> ResponseReturnValue:
 
 @app.post("/api/load")
 def set_load() -> ResponseReturnValue:
-    load_target, error = _number_field("load_target")
-    if error is not None:
-        return error
+    load_target = _number_field("load_target")
+    if isinstance(load_target, tuple):
+        return load_target
 
     g.plant.compressor_scheduler.command(
         lambda: g.plant.compressor.set_load_target(load_target)
@@ -182,9 +179,9 @@ def api_pump_step() -> ResponseReturnValue:
 
 @app.post("/api/pump/speed")
 def set_pump_speed() -> ResponseReturnValue:
-    speed_target, error = _number_field("speed_target")
-    if error is not None:
-        return error
+    speed_target = _number_field("speed_target")
+    if isinstance(speed_target, tuple):
+        return speed_target
 
     g.plant.pump_scheduler.command(
         lambda: g.plant.pump.set_speed_target(speed_target)

@@ -22,13 +22,14 @@ own note in the build plan).
 
 from __future__ import annotations
 
-import math
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+from typing import cast
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify
 from flask.typing import ResponseReturnValue
 
+from app.api import validate
 from app.engine.engine import Engine
 from app.equipment.base import Equipment
 from app.equipment.compressor import GasCompressor
@@ -107,11 +108,9 @@ def apply_action(
         if value is None:
             raise ValueError(f"{target}.{action} requires a value")
 
-        if isinstance(value, bool) or not isinstance(value, (int, float)):
-            raise ValueError(f"{target}.{action} value must be a number, got {value!r}")
-
-        if not math.isfinite(value):
-            raise ValueError(f"{target}.{action} value must be finite, got {value!r}")
+        problem = validate.number_problem(value, f"{target}.{action} value")
+        if problem is not None:
+            raise ValueError(problem)
 
         # Normalized once, here, so the logged value is always a float
         # regardless of whether the caller's JSON used an int or a float
@@ -147,17 +146,17 @@ def create_action_blueprint(
 
     @blueprint.post("/api/action")
     def post_action() -> ResponseReturnValue:
-        body = request.get_json(silent=True)
-
-        if not isinstance(body, dict):
-            return jsonify({"error": "request body must be a JSON object"}), 400
+        body = validate.read_object({"target", "action", "value"})
+        if isinstance(body, tuple):
+            return body
 
         target = body.get("target")
         action = body.get("action")
-        value = body.get("value")
+        # Not narrowed here: apply_action rejects anything but a number or None.
+        value = cast("float | None", body.get("value"))
 
         if not isinstance(target, str) or not isinstance(action, str):
-            return jsonify({"error": "target and action must be strings"}), 400
+            return validate.error_response("target and action must be strings")
 
         engine = get_engine() if apply is None else None
 

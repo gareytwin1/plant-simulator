@@ -1,9 +1,11 @@
+import json
 import sqlite3
 from contextlib import closing
 from types import MappingProxyType
 
 import pytest
 
+from app.configversion import ConfigVersion
 from app.envelope.evaluator import Severity
 from app.envelope.tracker import Excursion
 from app.scoring.metrics import RunMetrics
@@ -116,7 +118,7 @@ def test_migration_statements_may_contain_semicolons_in_literals_and_triggers(tm
     with ScoreStore(path, migrations=version_two) as store:
         store.record("op-1", "s1", 1.0, _score(10.0), _metrics())
 
-        assert store.schema_version == 2
+        assert store.schema_version == len(MIGRATIONS) + 1
         assert store._connection.execute("SELECT count(*) FROM audit").fetchone() == (2,)
         assert store._connection.execute("SELECT note FROM results").fetchone() == ("a;b",)
 
@@ -143,17 +145,17 @@ def test_new_database_is_at_current_schema_version(tmp_path):
         assert store.schema_version == len(MIGRATIONS)
 
 
-def test_upgrade_from_version_one_keeps_data(tmp_path):
+def test_upgrade_keeps_data(tmp_path):
     path = tmp_path / "scores.db"
-    version_two = MIGRATIONS + ("ALTER TABLE results ADD COLUMN note TEXT NOT NULL DEFAULT 'none';",)
+    next_version = MIGRATIONS + ("ALTER TABLE results ADD COLUMN note TEXT NOT NULL DEFAULT 'none';",)
 
-    with ScoreStore(path) as v1:
-        stored = v1.record("op-1", "s1", 1.0, _score(55.0), _metrics())
-        assert v1.schema_version == 1
+    with ScoreStore(path) as current:
+        stored = current.record("op-1", "s1", 1.0, _score(55.0), _metrics())
+        assert current.schema_version == len(MIGRATIONS)
 
-    with ScoreStore(path, migrations=version_two) as v2:
-        assert v2.schema_version == 2
-        assert v2.get(stored.id) == stored
+    with ScoreStore(path, migrations=next_version) as upgraded:
+        assert upgraded.schema_version == len(MIGRATIONS) + 1
+        assert upgraded.get(stored.id) == stored
 
     with closing(sqlite3.connect(path)) as raw:
         assert raw.execute("SELECT note FROM results").fetchone() == ("none",)
@@ -169,7 +171,7 @@ def test_failed_migration_rolls_back(tmp_path):
         ScoreStore(path, migrations=broken)
 
     with ScoreStore(path) as store:
-        assert store.schema_version == 1
+        assert store.schema_version == len(MIGRATIONS)
         columns = [c[1] for c in store._connection.execute("PRAGMA table_info(results)")]
         assert "ok" not in columns
 
@@ -201,7 +203,7 @@ def test_migration_rereads_version_under_lock(tmp_path, monkeypatch):
 
     _stale_until_locked(monkeypatch, 0)
     with ScoreStore(path, migrations=version_two) as store:
-        assert store._connection.execute("PRAGMA user_version").fetchone() == (2,)
+        assert store._connection.execute("PRAGMA user_version").fetchone() == (len(MIGRATIONS) + 1,)
 
 
 def test_migration_refuses_file_that_became_newer_under_lock(tmp_path, monkeypatch):
@@ -213,3 +215,83 @@ def test_migration_refuses_file_that_became_newer_under_lock(tmp_path, monkeypat
     _stale_until_locked(monkeypatch, 0)
     with pytest.raises(SchemaVersionError):
         ScoreStore(path)
+
+
+def _store(path, version):
+    return ScoreStore(path, config_version=ConfigVersion.parse(version))
+
+
+def test_a_recorded_result_carries_the_stores_config_version():
+    with _store(":memory:", "1.2.3") as store:
+        stored = store.record("op-1", "s1", 1.0, _score(40.0), _metrics())
+
+        assert stored.config_version == ConfigVersion(1, 2, 3)
+        assert store.get(stored.id) == stored
+
+
+def test_the_default_config_version_is_the_repository_version():
+    from app.configversion import read_config_version
+
+    with ScoreStore() as store:
+        assert store.config_version == read_config_version()
+
+
+def test_a_result_from_another_major_is_detected_on_load_and_is_no_personal_best(tmp_path):
+    path = tmp_path / "scores.db"
+
+    with _store(path, "1.0.0") as old:
+        recorded = old.record("op-1", "s1", 1.0, _score(90.0), _metrics())
+
+    with _store(path, "2.0.0") as new:
+        loaded = new.get(recorded.id)
+        assert loaded is not None
+        assert loaded.config_version == ConfigVersion(1, 0, 0)
+        assert not loaded.config_version.comparable_with(new.config_version)
+        assert new.history("op-1", "s1") == [recorded]
+        assert new.personal_best("op-1", "s1") is None
+
+        weaker = new.record("op-1", "s1", 2.0, _score(10.0), _metrics())
+        assert new.personal_best("op-1", "s1") == weaker
+
+
+def test_results_from_the_same_major_compete_for_the_personal_best(tmp_path):
+    path = tmp_path / "scores.db"
+
+    with _store(path, "1.0.0") as old:
+        best = old.record("op-1", "s1", 1.0, _score(90.0), _metrics())
+
+    with _store(path, "1.1.0") as newer_minor:
+        newer_minor.record("op-1", "s1", 2.0, _score(10.0), _metrics())
+
+        assert newer_minor.personal_best("op-1", "s1") == best
+
+
+def test_upgrading_a_pre_versioning_database_keeps_rows_with_no_version(tmp_path):
+    path = tmp_path / "scores.db"
+
+    with ScoreStore(path, migrations=MIGRATIONS[:1]) as v1:
+        assert v1.schema_version == 1
+        score = json.dumps({"total": 55.0, "penalties": {}})
+        metrics = json.dumps(
+            {
+                "alarm_count": 0,
+                "trip_count": 0,
+                "time_to_recognise_s": None,
+                "time_to_stabilise_s": None,
+                "peak_excursions": {},
+                "time_outside_envelope_s": 0.0,
+                "production_lost": {},
+                "unnecessary_actions": 0,
+            }
+        )
+        v1._connection.execute(
+            "INSERT INTO results (operator, scenario, total, recorded_at, score_json, metrics_json)"
+            " VALUES ('op-1', 's1', 55.0, 1.0, ?, ?)",
+            (score, metrics),
+        )
+
+    with _store(path, "1.0.0") as upgraded:
+        assert upgraded.schema_version == len(MIGRATIONS)
+        (legacy,) = upgraded.history("op-1", "s1")
+        assert legacy.config_version is None
+        assert upgraded.personal_best("op-1", "s1") is None

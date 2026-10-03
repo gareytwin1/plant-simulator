@@ -111,7 +111,8 @@ class RateLimiter:
     """A token bucket per client: `burst` requests at once, `rate` per second.
 
     Memory is bounded by `max_clients`: past it, the least recently seen
-    client is forgotten, which is the same as it never having been seen.
+    client is forgotten and, if it returns, starts with a full burst. That
+    only matters with more than `max_clients` clients active at once.
     """
 
     def __init__(

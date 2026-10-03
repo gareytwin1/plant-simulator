@@ -74,6 +74,11 @@ MAX_SESSIONS = 32
 
 
 # API boundary
+#
+# The rate limit is per client address. Behind a reverse proxy or a shared NAT
+# every client shares one bucket, so a deployment there needs proxy-header
+# handling (T18-1) or larger values. A console polls once a second and sends
+# at most ten slider updates a second.
 
 API_MAX_BODY_BYTES = 4096
 API_MAX_MAGNITUDE = 1_000_000.0

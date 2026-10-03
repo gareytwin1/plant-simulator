@@ -71,3 +71,11 @@ TAG_PREFIXES = {
 # least-recently-touched session is ended to make room. See T2-6.
 
 MAX_SESSIONS = 32
+
+
+# API boundary
+
+API_MAX_BODY_BYTES = 4096
+API_MAX_MAGNITUDE = 1_000_000.0
+API_RATE_PER_SECOND = 20.0
+API_RATE_BURST = 100.0

@@ -17,7 +17,8 @@ eviction) stops them. It closes them, so a request still holding an ended
 session cannot start a worker the registry no longer counts.
 SessionRegistry bounds how many sessions - and so how many worker threads -
 stay alive at once: past config.MAX_SESSIONS, create ends the
-least-recently-touched session first. See docs/T2-6_SCHEDULER_OWNERSHIP.md
+least-recently-touched session first, and a session idle for
+config.SESSION_IDLE_SECONDS is reclaimed (T18-5). See docs/T2-6_SCHEDULER_OWNERSHIP.md
 for the design this implements.
 """
 
@@ -171,41 +172,50 @@ def _number(value: JSONValue) -> float:
 
 
 class SessionRegistry:
-    """Bounded by capacity, not by idle age.
+    """Bounded by capacity and by idle age.
 
     A page render starts up to two background scheduler workers on a
-    session (Session.__init__/main.py), and nothing today ever stops them
-    on its own — a browser that navigates away sends nothing. Capacity with
-    least-recently-touched eviction is the safety mechanism that keeps that
-    bounded: past max_sessions, create() ends the LRU session (stopping and
-    joining its workers) before admitting a new one. This is deliberately
-    not idle-age expiry — T18-5 owns reclaiming idle sessions.
+    session (Session.__init__/main.py), and nothing ever stops them on its
+    own - a browser that navigates away sends nothing. Two mechanisms keep
+    that bounded. Idle age (T18-5): reclaim_idle() ends every session last
+    touched `idle_seconds` or more ago, and get() and create() run it under
+    `_lock` before they look anything up, so there is no reaper thread and
+    the sweep follows the injected clock. Capacity: past max_sessions,
+    create() ends the least-recently-touched session (stopping and joining
+    its workers) before admitting a new one. On a server that receives no
+    requests at all, abandoned workers wait for the next one.
 
     Admission is atomic. create() builds its Session outside `_lock`, then
     under it either returns the entry another thread already admitted
-    (ending the unstarted loser) or evicts, inserts and touches. Eviction
-    and end() close the victim while holding `_lock`, so once create()
-    returns the victim's workers are dead, and there are never more than
-    2 * max_sessions of them. `_lock` comes before every Scheduler lock
-    (see scheduler.py). The registry is per-process.
+    (ending the unstarted loser) or reclaims, evicts, inserts and touches.
+    Reclaim, eviction and end() close the victim while holding `_lock`, so
+    once create() returns the victim's workers are dead, and there are never
+    more than 2 * max_sessions of them. `_lock` comes before every Scheduler
+    lock (see scheduler.py). The registry is per-process.
 
     The cost: while a victim's worker is joined, every lookup waits, for
     as long as the step or command that worker is waiting behind. Steps
     and commands are short; that wait buys a victim that is dead, not
-    dying, when create() returns.
+    dying, when create() returns. A request still holding a reclaimed
+    session is safe: Session.end() closed its schedulers.
     """
 
     def __init__(
         self,
         max_sessions: int = config.MAX_SESSIONS,
         monotonic: Callable[[], float] = time.monotonic,
+        idle_seconds: float = config.SESSION_IDLE_SECONDS,
     ) -> None:
         if max_sessions < 1:
             raise ValueError(f"max_sessions must be at least 1, got {max_sessions}")
 
+        if idle_seconds <= 0:
+            raise ValueError(f"idle_seconds must be positive, got {idle_seconds}")
+
         self._sessions: dict[str, Session] = {}
         self._touched: dict[str, float] = {}
         self._max_sessions = max_sessions
+        self.idle_seconds = idle_seconds
         self._monotonic = monotonic
         self._lock = threading.Lock()
 
@@ -213,6 +223,7 @@ class SessionRegistry:
         session = Session()
 
         with self._lock:
+            self._reclaim_idle()
             existing = self._sessions.get(session_id)
 
             if existing is not None:
@@ -229,6 +240,7 @@ class SessionRegistry:
 
     def get(self, session_id: str) -> Session | None:
         with self._lock:
+            self._reclaim_idle()
             session = self._sessions.get(session_id)
 
             if session is not None:
@@ -240,6 +252,13 @@ class SessionRegistry:
         session = self.get(session_id)
 
         return session if session is not None else self.create(session_id)
+
+    def reclaim_idle(self) -> int:
+        """End every session idle for `idle_seconds` or more, and return how
+        many. get() and create() already do this; call it directly to sweep
+        without a lookup."""
+        with self._lock:
+            return self._reclaim_idle()
 
     def end(self, session_id: str) -> None:
         with self._lock:
@@ -260,6 +279,19 @@ class SessionRegistry:
 
         if session is not None:
             session.end()
+
+    def _reclaim_idle(self) -> int:
+        now = self._monotonic()
+        idle = [
+            session_id
+            for session_id, touched in self._touched.items()
+            if now - touched >= self.idle_seconds
+        ]
+
+        for session_id in idle:
+            self._end(session_id)
+
+        return len(idle)
 
     def _evict_least_recently_touched(self) -> None:
         lru_id = min(self._touched, key=self._touched.__getitem__)

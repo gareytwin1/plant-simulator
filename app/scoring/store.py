@@ -19,6 +19,14 @@ Ties go to the earliest `recorded_at`, then the earliest stored. `operator` and
 **No clock.** `recorded_at` is supplied by the caller (sim time or an injected
 timestamp); this module never reads a wall clock.
 
+**Config version (T18-5).** Every result is stamped with the `ConfigVersion`
+(`config/VERSION`) the store was opened under, and `get` and `history` return
+each result with the version it carries (`None` for a row recorded before
+versioning). `personal_best` considers only results whose config major
+equals the store's: a result from an incomparable plant never stands as a
+best, and an unversioned row is never comparable. Separating boards by
+version is the leaderboard's business (T19-1).
+
 **Schema versioning.** `PRAGMA user_version` holds the schema version, which
 is the number of applied migrations. Opening an older file applies the missing
 migrations in order inside one transaction, re-reading the version once the
@@ -36,6 +44,7 @@ from pathlib import Path
 from types import MappingProxyType, TracebackType
 from typing import Any
 
+from app.configversion import ConfigVersion, read_config_version
 from app.envelope.evaluator import Severity
 from app.envelope.tracker import Excursion
 from app.scoring.metrics import RunMetrics
@@ -54,7 +63,15 @@ MIGRATIONS: tuple[str, ...] = (
     );
     CREATE INDEX results_best ON results (operator, scenario, total DESC, recorded_at, id);
     """,
+    """
+    ALTER TABLE results ADD COLUMN config_version TEXT;
+    ALTER TABLE results ADD COLUMN config_major INTEGER;
+    DROP INDEX results_best;
+    CREATE INDEX results_best ON results (operator, scenario, config_major, total DESC, recorded_at, id);
+    """,
 )
+
+_COLUMNS = "id, operator, scenario, recorded_at, score_json, metrics_json, config_version"
 
 
 class SchemaVersionError(Exception):
@@ -69,6 +86,7 @@ class StoredResult:
     recorded_at: float
     score: Score
     metrics: RunMetrics
+    config_version: ConfigVersion | None
 
 
 class ScoreStore:
@@ -76,7 +94,9 @@ class ScoreStore:
         self,
         path: Path | str = ":memory:",
         migrations: Sequence[str] = MIGRATIONS,
+        config_version: ConfigVersion | None = None,
     ) -> None:
+        self.config_version = config_version if config_version is not None else read_config_version()
         self._connection = sqlite3.connect(str(path), isolation_level=None)
         try:
             self._migrate(migrations)
@@ -97,8 +117,8 @@ class ScoreStore:
         metrics: RunMetrics,
     ) -> StoredResult:
         cursor = self._connection.execute(
-            "INSERT INTO results (operator, scenario, total, recorded_at, score_json, metrics_json)"
-            " VALUES (?, ?, ?, ?, ?, ?)",
+            "INSERT INTO results (operator, scenario, total, recorded_at, score_json, metrics_json,"
+            " config_version, config_major) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 operator,
                 scenario,
@@ -106,15 +126,19 @@ class ScoreStore:
                 recorded_at,
                 json.dumps(_score_to_json(score)),
                 json.dumps(_metrics_to_json(metrics)),
+                str(self.config_version),
+                self.config_version.major,
             ),
         )
         assert cursor.lastrowid is not None
 
-        return StoredResult(cursor.lastrowid, operator, scenario, recorded_at, score, metrics)
+        return StoredResult(
+            cursor.lastrowid, operator, scenario, recorded_at, score, metrics, self.config_version
+        )
 
     def get(self, result_id: int) -> StoredResult | None:
         row = self._connection.execute(
-            "SELECT id, operator, scenario, recorded_at, score_json, metrics_json"
+            f"SELECT {_COLUMNS}"
             " FROM results WHERE id = ?",
             (result_id,),
         ).fetchone()
@@ -123,7 +147,7 @@ class ScoreStore:
 
     def history(self, operator: str, scenario: str) -> list[StoredResult]:
         rows = self._connection.execute(
-            "SELECT id, operator, scenario, recorded_at, score_json, metrics_json"
+            f"SELECT {_COLUMNS}"
             " FROM results WHERE operator = ? AND scenario = ? ORDER BY recorded_at, id",
             (operator, scenario),
         ).fetchall()
@@ -132,10 +156,10 @@ class ScoreStore:
 
     def personal_best(self, operator: str, scenario: str) -> StoredResult | None:
         row = self._connection.execute(
-            "SELECT id, operator, scenario, recorded_at, score_json, metrics_json"
-            " FROM results WHERE operator = ? AND scenario = ?"
+            f"SELECT {_COLUMNS}"
+            " FROM results WHERE operator = ? AND scenario = ? AND config_major = ?"
             " ORDER BY total DESC, recorded_at, id LIMIT 1",
-            (operator, scenario),
+            (operator, scenario, self.config_version.major),
         ).fetchone()
 
         return _row_to_result(row) if row else None
@@ -226,7 +250,7 @@ def _metrics_to_json(metrics: RunMetrics) -> dict[str, Any]:
 
 
 def _row_to_result(row: tuple[Any, ...]) -> StoredResult:
-    result_id, operator, scenario, recorded_at, score_json, metrics_json = row
+    result_id, operator, scenario, recorded_at, score_json, metrics_json, config_version = row
     score = json.loads(score_json)
     metrics = json.loads(metrics_json)
 
@@ -246,6 +270,7 @@ def _row_to_result(row: tuple[Any, ...]) -> StoredResult:
             production_lost=MappingProxyType(metrics["production_lost"]),
             unnecessary_actions=metrics["unnecessary_actions"],
         ),
+        config_version=None if config_version is None else ConfigVersion.parse(config_version),
     )
 
 

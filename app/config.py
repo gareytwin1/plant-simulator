@@ -84,3 +84,13 @@ API_MAX_BODY_BYTES = 4096
 API_MAX_MAGNITUDE = 1_000_000.0
 API_RATE_PER_SECOND = 20.0
 API_RATE_BURST = 100.0
+
+
+# Session lifecycle
+#
+# An operational guardrail, like MAX_SESSIONS: how long a session may go
+# untouched before SessionRegistry.reclaim_idle() ends it and frees its
+# workers. A page polls about once a second (a background tab about once a
+# minute), so 30 minutes only catches an abandoned one. See T18-5.
+
+SESSION_IDLE_SECONDS = 1800.0

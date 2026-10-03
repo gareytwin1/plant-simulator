@@ -82,13 +82,14 @@ def test_number_endpoints_refuse_an_oversized_body_with_413(path, field):
 
 
 @pytest.mark.parametrize("path, field", NUMBER_ENDPOINTS)
-@pytest.mark.parametrize("value", [0.5, 1, 1.5, -0.5])
-def test_number_endpoints_still_accept_a_finite_value_and_clamp_it(path, field, value):
+@pytest.mark.parametrize("value, expected", [(0.5, 0.5), (1, 1.0), (1.5, 1.0), (-0.5, 0.0)])
+def test_number_endpoints_still_accept_a_finite_value_and_clamp_it(path, field, value, expected):
     client = main.app.test_client()
 
     response = client.post(path, json={field: value})
 
     assert response.status_code == 200
+    assert response.get_json()[field] == pytest.approx(expected)
 
 
 @pytest.mark.parametrize("path", ["/api/start", "/api/stop", "/api/step", "/api/pump/start"])
@@ -99,6 +100,7 @@ def test_a_post_only_route_answers_get_with_a_json_405(path):
 
     assert response.status_code == 405
     assert "error" in response.get_json()
+    assert "POST" in response.headers["Allow"]
 
 
 def test_an_unknown_api_path_answers_with_a_json_404():

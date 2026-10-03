@@ -183,5 +183,11 @@ def install(app: Flask, limiter: Callable[[], RateLimiter]) -> None:
 
         response = jsonify({"error": error.description or error.name})
         response.status_code = error.code or 500
+        # Allow on a 405, for one: the exception carries headers a client needs.
+        response.headers.extend(
+            (key, value)
+            for key, value in error.get_headers()
+            if key.lower() not in ("content-type", "content-length")
+        )
 
         return response

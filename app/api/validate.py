@@ -28,7 +28,6 @@ import math
 import threading
 import time
 from collections.abc import Callable, Collection
-from typing import Any
 
 from flask import Flask, Response, jsonify, request
 from flask.typing import ResponseReturnValue
@@ -44,7 +43,7 @@ def error_response(message: str, status: int = 400) -> ErrorResponse:
     return jsonify({"error": message}), status
 
 
-def read_object(allowed: Collection[str]) -> dict[str, Any] | ErrorResponse:
+def read_object(allowed: Collection[str]) -> dict[str, object] | ErrorResponse:
     """The request's JSON body as an object holding only `allowed` keys."""
     body = request.get_json(silent=True)
 
@@ -58,21 +57,36 @@ def read_object(allowed: Collection[str]) -> dict[str, Any] | ErrorResponse:
     return body
 
 
-def check_number(value: object, name: str) -> float | ErrorResponse:
-    """`value` as a finite float within `config.API_MAX_MAGNITUDE`."""
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        return error_response(f"{name} must be a number")
+def number_problem(value: object, name: str) -> str | None:
+    """Why `value` is not a usable number, or None if it is.
 
-    if not math.isfinite(value):
-        return error_response(f"{name} must be finite")
+    The range test runs on the int itself: converting a huge int literal to a
+    float, which `math.isfinite` does, raises OverflowError.
+    """
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return f"{name} must be a number"
+
+    if isinstance(value, float) and not math.isfinite(value):
+        return f"{name} must be finite"
 
     if abs(value) > config.API_MAX_MAGNITUDE:
-        return error_response(f"{name} must be within +/-{config.API_MAX_MAGNITUDE:g}")
+        return f"{name} must be within +/-{config.API_MAX_MAGNITUDE:g}"
+
+    return None
+
+
+def check_number(value: object, name: str) -> float | ErrorResponse:
+    """`value` as a float, or a 400 saying why it is not usable."""
+    problem = number_problem(value, name)
+    if problem is not None:
+        return error_response(problem)
+
+    assert isinstance(value, (int, float))
 
     return float(value)
 
 
-def number_field(body: dict[str, Any], field: str) -> float | ErrorResponse:
+def number_field(body: dict[str, object], field: str) -> float | ErrorResponse:
     if field not in body:
         return error_response(f"missing field: {field}")
 
@@ -80,7 +94,7 @@ def number_field(body: dict[str, Any], field: str) -> float | ErrorResponse:
 
 
 def string_field(
-    body: dict[str, Any],
+    body: dict[str, object],
     field: str,
     message: str | None = None,
 ) -> str | ErrorResponse:
@@ -96,9 +110,8 @@ def string_field(
 class RateLimiter:
     """A token bucket per client: `burst` requests at once, `rate` per second.
 
-    Memory is bounded by `max_clients`: past it, idle buckets (full ones,
-    indistinguishable from a client never seen) go first, then the least
-    recently used.
+    Memory is bounded by `max_clients`: past it, the least recently seen
+    client is forgotten, which is the same as it never having been seen.
     """
 
     def __init__(
@@ -132,24 +145,10 @@ class RateLimiter:
                 wait = (1.0 - tokens) / self._rate
 
             self._buckets[key] = (tokens, now)
-            self._evict(now)
+            while len(self._buckets) > self._max_clients:
+                del self._buckets[next(iter(self._buckets))]
 
             return wait
-
-    def _evict(self, now: float) -> None:
-        if len(self._buckets) <= self._max_clients:
-            return
-
-        idle = [
-            key
-            for key, (tokens, stamp) in self._buckets.items()
-            if tokens + (now - stamp) * self._rate >= self._burst
-        ]
-        for key in idle:
-            del self._buckets[key]
-
-        while len(self._buckets) > self._max_clients:
-            del self._buckets[next(iter(self._buckets))]
 
 
 def install(app: Flask, limiter: Callable[[], RateLimiter]) -> None:

@@ -22,14 +22,13 @@ own note in the build plan).
 
 from __future__ import annotations
 
-import math
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+from typing import cast
 
 from flask import Blueprint, jsonify
 from flask.typing import ResponseReturnValue
 
-from app import config
 from app.api import validate
 from app.engine.engine import Engine
 from app.equipment.base import Equipment
@@ -109,14 +108,9 @@ def apply_action(
         if value is None:
             raise ValueError(f"{target}.{action} requires a value")
 
-        if isinstance(value, bool) or not isinstance(value, (int, float)):
-            raise ValueError(f"{target}.{action} value must be a number, got {value!r}")
-
-        if not math.isfinite(value):
-            raise ValueError(f"{target}.{action} value must be finite, got {value!r}")
-
-        if abs(value) > config.API_MAX_MAGNITUDE:
-            raise ValueError(f"{target}.{action} value must be within +/-{config.API_MAX_MAGNITUDE:g}, got {value!r}")
+        problem = validate.number_problem(value, f"{target}.{action} value")
+        if problem is not None:
+            raise ValueError(problem)
 
         # Normalized once, here, so the logged value is always a float
         # regardless of whether the caller's JSON used an int or a float
@@ -158,7 +152,8 @@ def create_action_blueprint(
 
         target = body.get("target")
         action = body.get("action")
-        value = body.get("value")
+        # Not narrowed here: apply_action rejects anything but a number or None.
+        value = cast("float | None", body.get("value"))
 
         if not isinstance(target, str) or not isinstance(action, str):
             return validate.error_response("target and action must be strings")

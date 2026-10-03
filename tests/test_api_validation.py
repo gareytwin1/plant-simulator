@@ -1,4 +1,5 @@
 import math
+from pathlib import Path
 
 import pytest
 from flask import Flask
@@ -45,6 +46,8 @@ BAD_BODIES = [
     pytest.param('{"{f}": -Infinity}', "application/json", "{f} must be finite", id="negative-infinity"),
     pytest.param('{"{f}": 1e30}', "application/json", "{f} must be within", id="huge"),
     pytest.param('{"{f}": -2000000}', "application/json", "{f} must be within", id="huge-negative"),
+    pytest.param('{"{f}": 1' + "0" * 400 + "}", "application/json", "{f} must be within", id="huge-int-literal"),
+    pytest.param('{"{f}": -1' + "0" * 400 + "}", "application/json", "{f} must be within", id="huge-negative-int-literal"),
     pytest.param('{"{f}": 0.5, "extra": 1}', "application/json", "unknown field: extra", id="extra-key"),
 ]
 
@@ -143,6 +146,7 @@ ACTION_BODIES = [
     pytest.param('{"target": "K-101", "action": "set_load_target", "value": true}', "must be a number", id="bool-value"),
     pytest.param('{"target": "K-101", "action": "set_load_target", "value": NaN}', "must be finite", id="nan-value"),
     pytest.param('{"target": "K-101", "action": "set_load_target", "value": 1e30}', "must be within", id="huge-value"),
+    pytest.param('{"target": "K-101", "action": "set_load_target", "value": 1' + "0" * 400 + "}", "must be within", id="huge-int-literal"),
     pytest.param('{"target": "K-101", "action": "start", "value": 1}', "takes no value", id="value-on-valueless"),
 ]
 
@@ -243,7 +247,7 @@ def test_check_number_returns_a_float_for_an_int():
     assert isinstance(value, float)
 
 
-@pytest.mark.parametrize("value", [math.nan, math.inf, True, "1", None, config.API_MAX_MAGNITUDE * 2])
+@pytest.mark.parametrize("value", [math.nan, math.inf, True, "1", None, config.API_MAX_MAGNITUDE * 2, 10**400, -(10**400)])
 def test_check_number_refuses_what_is_not_a_usable_number(value):
     with Flask(__name__).app_context():
         result = validate.check_number(value, "x")
@@ -351,13 +355,13 @@ def test_a_refused_client_is_served_again_once_the_bucket_refills():
 
 
 def test_static_files_are_not_rate_limited():
-    app = Flask(__name__, static_folder=".")
+    app = Flask(__name__, static_folder=str(Path(__file__).parent), static_url_path="/static")
     validate.install(app, lambda: validate.RateLimiter(rate=1.0, burst=1.0, clock=FakeClock()))
     client = app.test_client()
 
-    statuses = {client.get("/static/conftest.py").status_code for _ in range(5)}
+    statuses = {client.get("/static/test_api_validation.py").status_code for _ in range(5)}
 
-    assert 429 not in statuses
+    assert statuses == {200}
 
 
 def test_the_live_app_rate_limits_and_refuses_before_creating_a_session(monkeypatch):

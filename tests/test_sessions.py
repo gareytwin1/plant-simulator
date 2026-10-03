@@ -366,3 +366,168 @@ def test_eviction_while_the_victims_step_lock_is_held_completes_after_release():
     assert not live_scheduler_workers()
 
     registry.end("b")
+
+
+class FakeClock:
+    def __init__(self):
+        self.now = 1000.0
+
+    def __call__(self):
+        return self.now
+
+    def advance(self, seconds):
+        self.now += seconds
+
+
+def registry_with_clock(idle_seconds=60.0, max_sessions=8):
+    clock = FakeClock()
+    registry = SessionRegistry(
+        max_sessions=max_sessions,
+        monotonic=clock,
+        idle_seconds=idle_seconds,
+    )
+
+    return registry, clock
+
+
+def test_idle_session_is_reclaimed_and_its_workers_stopped():
+    registry, clock = registry_with_clock(idle_seconds=60.0)
+    session = registry.create("abandoned")
+    session.compressor_scheduler.start()
+    session.pump_scheduler.start()
+
+    clock.advance(60.0)
+
+    assert registry.reclaim_idle() == 1
+    assert len(registry) == 0
+    assert session.compressor_scheduler.closed and not session.compressor_scheduler.running
+    assert session.pump_scheduler.closed and not session.pump_scheduler.running
+
+
+def test_session_idle_for_less_than_the_timeout_is_kept():
+    registry, clock = registry_with_clock(idle_seconds=60.0)
+    kept = registry.create("kept")
+
+    clock.advance(59.9)
+
+    assert registry.reclaim_idle() == 0
+    assert registry.get("kept") is kept
+
+
+def test_a_touched_session_is_not_reclaimed_while_a_stale_one_is():
+    registry, clock = registry_with_clock(idle_seconds=60.0)
+    busy = registry.create("busy")
+    registry.create("stale")
+
+    clock.advance(40.0)
+    registry.get("busy")
+    clock.advance(40.0)
+
+    assert registry.reclaim_idle() == 1
+    assert registry.get("busy") is busy
+    assert len(registry) == 1
+
+
+def test_get_of_an_idle_id_finds_it_gone():
+    registry, clock = registry_with_clock(idle_seconds=60.0)
+    registry.create("abandoned")
+
+    clock.advance(61.0)
+
+    assert registry.get("abandoned") is None
+
+
+def test_create_reclaims_idle_sessions_before_admitting_a_new_one():
+    registry, clock = registry_with_clock(idle_seconds=60.0, max_sessions=2)
+    old_a = registry.create("a")
+    old_b = registry.create("b")
+
+    clock.advance(61.0)
+    fresh = registry.create("c")
+
+    assert len(registry) == 1
+    assert registry.get("c") is fresh
+    assert old_a.compressor_scheduler.closed and old_b.compressor_scheduler.closed
+
+
+def test_create_of_an_idle_id_returns_a_new_session_not_the_reclaimed_one():
+    registry, clock = registry_with_clock(idle_seconds=60.0)
+    old = registry.create("abc")
+
+    clock.advance(61.0)
+    fresh = registry.create("abc")
+
+    assert fresh is not old
+    assert old.compressor_scheduler.closed
+    assert not fresh.compressor_scheduler.closed
+
+
+def test_reclaimed_session_is_released_from_memory():
+    import gc
+    import weakref
+
+    registry, clock = registry_with_clock(idle_seconds=60.0)
+    reference = weakref.ref(registry.create("abandoned"))
+
+    clock.advance(61.0)
+    registry.reclaim_idle()
+    gc.collect()
+
+    assert reference() is None
+
+
+def test_a_request_holding_a_reclaimed_session_cannot_start_or_step_it():
+    registry, clock = registry_with_clock(idle_seconds=60.0)
+    held = registry.create("abc")
+    before = len(live_scheduler_workers())
+
+    clock.advance(61.0)
+    registry.reclaim_idle()
+
+    held.compressor_scheduler.start()
+    held.pump_scheduler.start()
+
+    assert not held.compressor_scheduler.running
+    assert held.compressor_scheduler.step_once() is None
+    assert held.pump_scheduler.step_once() is None
+    assert len(live_scheduler_workers()) == before
+
+
+def test_the_default_idle_timeout_comes_from_config():
+    from app import config
+
+    registry = SessionRegistry()
+
+    assert registry.idle_seconds == config.SESSION_IDLE_SECONDS
+
+
+@pytest.mark.parametrize("idle_seconds", [0, -1.0])
+def test_registry_rejects_a_non_positive_idle_timeout(idle_seconds):
+    with pytest.raises(ValueError, match="idle_seconds"):
+        SessionRegistry(idle_seconds=idle_seconds)
+
+
+def test_reclaim_waits_out_a_step_in_progress_without_inverting_the_lock_order():
+    registry, clock = registry_with_clock(idle_seconds=60.0)
+    session = registry.create("abc")
+    scheduler = session.compressor_scheduler
+    reclaimed = threading.Event()
+
+    def reclaim():
+        registry.reclaim_idle()
+        reclaimed.set()
+
+    clock.advance(61.0)
+
+    with scheduler.step_lock:
+        # The worker's first step is due at once and queues on the held lock.
+        scheduler.start()
+        thread = threading.Thread(target=reclaim)
+        thread.start()
+        # The registry lock is taken before the scheduler's: reclaim holds it
+        # and waits behind the step, it does not skip or deadlock.
+        assert not reclaimed.wait(0.2)
+
+    assert reclaimed.wait(WAIT)
+    thread.join(WAIT)
+    assert len(registry) == 0

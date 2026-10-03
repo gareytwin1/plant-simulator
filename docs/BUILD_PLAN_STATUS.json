@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
-  "refreshed": "2 October 2026",
-  "main_sha": "611a444",
-  "tests_passing_on_main": 2759,
+  "refreshed": "3 October 2026",
+  "main_sha": "4386993",
+  "tests_passing_on_main": 2774,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -58,7 +58,7 @@
     },
     "M8": {
       "name": "PID Controllers and Modes",
-      "complete": 5,
+      "complete": 6,
       "total": 6
     },
     "M9": {
@@ -119,8 +119,8 @@
   },
   "totals": {
     "tasks": 117,
-    "complete": 98,
-    "startable_now": 14
+    "complete": 99,
+    "startable_now": 13
   },
   "tasks": [
     {
@@ -1249,10 +1249,9 @@
       "files": [
         "app/controls/cascade.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true,
-      "note": ""
+      "status": "Complete",
+      "status_key": "done",
+      "note": "COMPLETE - merged to main as 4386993 (PR #126), 3 Oct 2026. 2774 passed on main, mypy clean over 73 source files, no golden movement. Standalone app/controls/cascade.py: Cascade pairs an outer and inner Loop, scales the outer output into the inner setpoint range through a stand-in outer loop (Loop and PID untouched), safe mode = inner loop MANUAL holding its last output, engage() resumes with no step. Not wired into the loader, C3 or Engine; a plant cascade would need a C3 key, loader CASCADE mode, an engine change and a level PV resolver, and T12-5 would have to cover its loops."
     },
     {
       "id": "T8-6",

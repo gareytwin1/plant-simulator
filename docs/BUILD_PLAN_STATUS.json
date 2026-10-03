@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "3 October 2026",
-  "main_sha": "4d6eed4",
-  "tests_passing_on_main": 2808,
+  "main_sha": "b49f9bc",
+  "tests_passing_on_main": 2914,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -108,7 +108,7 @@
     },
     "M18": {
       "name": "Deployment and Operations",
-      "complete": 1,
+      "complete": 2,
       "total": 5
     },
     "M19": {
@@ -119,8 +119,8 @@
   },
   "totals": {
     "tasks": 117,
-    "complete": 100,
-    "startable_now": 12
+    "complete": 101,
+    "startable_now": 10
   },
   "tasks": [
     {
@@ -2067,10 +2067,9 @@
       "files": [
         "app/api/validate.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true,
-      "note": ""
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged to main as b49f9bc (PR #128). 2914 passed post-merge, mypy clean over 74 files, no golden movement. app/api/validate.py: body readers (unknown keys, finite, +/-1e6 magnitude incl. huge int literals), 4 KiB body cap (413), JSON errors under /api/, per-address token bucket (429 with Retry-After, injected monotonic clock). Targets still clamp to [0,1]. Limiter keys on remote_addr, so clients behind a proxy or NAT share one bucket: proxy-header handling is NOT done. The action, alarm and scenario blueprints are validated but still not registered in main.py (call validate.install when wired). app/main.py lock released."
     },
     {
       "id": "T18-4",
@@ -2105,10 +2104,10 @@
         "app/engine/sessions.py",
         "config/VERSION"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
+      "status": "In Progress",
+      "status_key": "prog",
       "startable": true,
-      "note": ""
+      "note": "SPINE LOCK held (edits existing app/engine/sessions.py). Worktree ../plant-simulator-t18-5 on feature/lifecycle-versioning. Design decided by Opus and recorded on the branch in 73a0b74 (the task's x note in docs/BUILD_PLAN.html); Sonnet implements."
     },
     {
       "id": "T19-1",

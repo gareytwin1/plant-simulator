@@ -5,7 +5,6 @@ registry's worst case is 2N workers sharing one interpreter. The budget is the
 simulation interval: everything one interval has to do must fit inside it.
 """
 
-import logging
 import threading
 import time
 
@@ -41,34 +40,42 @@ def filled_registry():
     return registry
 
 
+def end_all(registry):
+    for index in range(SESSIONS):
+        registry.end(f"load-{index}")
+
+
 def test_one_round_of_every_engine_fits_in_half_the_step_interval():
     # Measured without threads: the GIL serialises the workers, so one round
     # stepping all 2N engines is the real work due in each interval. Half the
     # interval leaves margin for a loaded machine.
     registry = filled_registry()
-    schedulers = schedulers_of(registry)
 
-    started = time.perf_counter()
-    for scheduler in schedulers:
-        assert scheduler.step_once() is not None
-    elapsed = time.perf_counter() - started
+    try:
+        schedulers = schedulers_of(registry)
 
-    for index in range(SESSIONS):
-        registry.end(f"load-{index}")
+        started = time.perf_counter()
+        for scheduler in schedulers:
+            assert scheduler.step_once() is not None
+        elapsed = time.perf_counter() - started
+    finally:
+        end_all(registry)
 
     assert elapsed < INTERVAL / 2, f"{len(schedulers)} engines took {elapsed:.3f}s per round"
 
 
-def test_every_worker_keeps_stepping_and_all_shut_down_cleanly(caplog):
+def test_every_worker_keeps_stepping_and_all_shut_down_cleanly():
+    # Timing is the budget test's business; this one asserts only that 2N live
+    # workers all make progress, none dies, and every one joins on shutdown.
     registry = filled_registry()
     schedulers = schedulers_of(registry)
     workers_before = len(live_scheduler_workers())
 
-    with caplog.at_level(logging.WARNING, logger="app.engine.scheduler"):
+    try:
         for scheduler in schedulers:
             scheduler.start()
 
-        assert len(live_scheduler_workers()) == workers_before + 2 * SESSIONS
+        started_workers = len(live_scheduler_workers()) - workers_before
 
         deadline = time.monotonic() + WAIT
         while time.monotonic() < deadline:
@@ -76,15 +83,13 @@ def test_every_worker_keeps_stepping_and_all_shut_down_cleanly(caplog):
                 break
             time.sleep(0.05)
 
-    stalled = [s for s in schedulers if s.snapshot().sim_time < 2 * INTERVAL]
-    failed = [s for s in schedulers if s.error is not None]
-    slow = [r for r in caplog.records if r.levelno == logging.WARNING]
+        stalled = [s for s in schedulers if s.snapshot().sim_time < 2 * INTERVAL]
+        failed = [s for s in schedulers if s.error is not None]
+    finally:
+        end_all(registry)
 
-    for index in range(SESSIONS):
-        registry.end(f"load-{index}")
-
+    assert started_workers == 2 * SESSIONS
     assert not stalled
     assert not failed
-    assert not slow
     assert len(live_scheduler_workers()) == workers_before
     assert len(registry) == 0

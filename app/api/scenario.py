@@ -27,9 +27,10 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify
 from flask.typing import ResponseReturnValue
 
+from app.api import validate
 from app.scenarios.runner import (
     ScenarioNotFound,
     ScenarioResult,
@@ -47,13 +48,20 @@ def create_scenario_blueprint(get_runner: Callable[[], ScenarioRunner]) -> Bluep
 
     @blueprint.post("/api/scenario/load")
     def post_load() -> ResponseReturnValue:
-        body = request.get_json(silent=True)
+        body = validate.read_object({"scenario"})
+        if isinstance(body, tuple):
+            return body
 
-        if not isinstance(body, dict) or not isinstance(body.get("scenario"), str):
-            return jsonify({"error": "body must be a JSON object with a string 'scenario'"}), 400
+        scenario = validate.string_field(
+            body,
+            "scenario",
+            "body must be a JSON object with a string 'scenario'",
+        )
+        if isinstance(scenario, tuple):
+            return scenario
 
         try:
-            return _ok(get_runner().load(body["scenario"]))
+            return _ok(get_runner().load(scenario))
         except ScenarioNotFound as error:
             return jsonify({"error": str(error)}), 404
         except ScenarioStateError as error:

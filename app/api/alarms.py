@@ -33,11 +33,12 @@ from __future__ import annotations
 import threading
 from collections.abc import Callable
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify
 from flask.typing import ResponseReturnValue
 
 from app.alarms.history import AcknowledgeRecord, AlarmHistory, ClearRecord, HistoryEntry
 from app.alarms.manager import AlarmManager
+from app.api import validate
 
 
 def _serialize(entry: HistoryEntry) -> dict[str, object]:
@@ -88,15 +89,13 @@ def create_alarm_blueprint(
 
     @blueprint.post("/api/alarms/acknowledge")
     def post_alarm_acknowledge() -> ResponseReturnValue:
-        body = request.get_json(silent=True)
+        body = validate.read_object({"alarm_id"})
+        if isinstance(body, tuple):
+            return body
 
-        if not isinstance(body, dict):
-            return jsonify({"error": "request body must be a JSON object"}), 400
-
-        alarm_id = body.get("alarm_id")
-
-        if not isinstance(alarm_id, str):
-            return jsonify({"error": "alarm_id must be a string"}), 400
+        alarm_id = validate.string_field(body, "alarm_id")
+        if isinstance(alarm_id, tuple):
+            return alarm_id
 
         manager = get_manager()
         history = get_history()

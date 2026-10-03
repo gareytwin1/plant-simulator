@@ -33,6 +33,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from app.envelope.evaluator import Limits, Severity
+from app.statetypes import StateError
 
 _NON_NORMAL: tuple[Severity, ...] = (Severity.WARNING, Severity.ALARM, Severity.TRIP)
 
@@ -59,6 +60,13 @@ class Excursion:
     severity: Severity
     magnitude: float
     timestamp: float
+
+
+@dataclass(frozen=True)
+class TrackerCheckpoint:
+    elapsed: float
+    time_in_band: dict[Severity, float]
+    peak: Excursion | None
 
 
 class ExcursionTracker:
@@ -94,3 +102,36 @@ class ExcursionTracker:
         self._elapsed = 0.0
         self._time_in_band = dict.fromkeys(_NON_NORMAL, 0.0)
         self._peak = None
+
+    def checkpoint(self) -> TrackerCheckpoint:
+        return TrackerCheckpoint(self._elapsed, dict(self._time_in_band), self._peak)
+
+    def validate_checkpoint(self, checkpoint: TrackerCheckpoint) -> None:
+        if checkpoint.elapsed < 0.0:
+            raise StateError("elapsed", f"{checkpoint.elapsed!r} is negative")
+
+        if set(checkpoint.time_in_band) != set(_NON_NORMAL):
+            raise StateError(
+                "time_in_band",
+                f"expected exactly {[band.name for band in _NON_NORMAL]}, "
+                f"got {[band.name for band in checkpoint.time_in_band]}",
+            )
+
+        for band, seconds in checkpoint.time_in_band.items():
+            if seconds < 0.0:
+                raise StateError(f"time_in_band.{band.name}", f"{seconds!r} is negative")
+
+        peak = checkpoint.peak
+
+        if peak is not None:
+            if peak.magnitude < 0.0:
+                raise StateError("peak.magnitude", f"{peak.magnitude!r} is negative")
+
+            if peak.timestamp < 0.0:
+                raise StateError("peak.timestamp", f"{peak.timestamp!r} is negative")
+
+    def restore_checkpoint(self, checkpoint: TrackerCheckpoint) -> None:
+        self.validate_checkpoint(checkpoint)
+        self._elapsed = checkpoint.elapsed
+        self._time_in_band = dict(checkpoint.time_in_band)
+        self._peak = checkpoint.peak

@@ -33,15 +33,28 @@ control resumes, exactly as if the master were still off `AUTO`.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from enum import StrEnum
 
-from app.controls.pid import PID
+from app.controls.pid import PID, PIDCheckpoint
+from app.statetypes import StateError
 
 
 class Mode(StrEnum):
     MANUAL = "manual"
     AUTO = "auto"
     CASCADE = "cascade"
+
+
+@dataclass(frozen=True)
+class LoopCheckpoint:
+    """A `Loop` and the `PID` it wraps, as one resumable state."""
+
+    mode: Mode
+    output: float
+    manual_output: float
+    entering: bool
+    pid: PIDCheckpoint
 
 
 class Loop:
@@ -83,3 +96,29 @@ class Loop:
 
         self.output = self.pid.compute(measurement, dt)
         return self.output
+
+    def checkpoint(self) -> LoopCheckpoint:
+        return LoopCheckpoint(
+            mode=self._mode,
+            output=self.output,
+            manual_output=self.manual_output,
+            entering=self._entering,
+            pid=self.pid.checkpoint(),
+        )
+
+    def validate_checkpoint(self, checkpoint: LoopCheckpoint) -> None:
+        try:
+            self.pid.validate_checkpoint(checkpoint.pid)
+        except StateError as error:
+            raise error.within("pid") from error
+
+    def restore_checkpoint(self, checkpoint: LoopCheckpoint) -> None:
+        self.validate_checkpoint(checkpoint)
+        # Written straight to _mode: the `mode` setter would reseed
+        # manual_output and _entering from the transition, and a restore
+        # is not a transition.
+        self._mode = checkpoint.mode
+        self.output = checkpoint.output
+        self.manual_output = checkpoint.manual_output
+        self._entering = checkpoint.entering
+        self.pid.restore_checkpoint(checkpoint.pid)

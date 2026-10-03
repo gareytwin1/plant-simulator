@@ -149,6 +149,7 @@ from a wall clock — determinism depends on the caller owning time.
 import math
 import warnings
 from collections.abc import Iterable, Mapping
+from dataclasses import dataclass
 
 from app.controls.arbitration import CommandArbiter, Source
 from app.controls.loader import LoopBinding, load_loops
@@ -164,6 +165,19 @@ from app.envelope.tracker import ExcursionTracker
 from app.equipment.base import Equipment
 from app.plant.loader import DEFAULT_DOMAIN, Plant
 from app.plant.topology import Topology
+from app.statetypes import StateError
+
+
+@dataclass(frozen=True)
+class EngineCheckpoint:
+    """What `Engine` itself holds beyond its parts: which loops it has
+    primed, and each envelope point's band and when that band was entered.
+    The clock, devices, loops, arbiter, evaluators and trackers each
+    checkpoint themselves; whoever saves a plant composes them."""
+
+    primed: frozenset[str]
+    envelope_band: dict[LimitKey, tuple[Severity, Side | None]]
+    envelope_since: dict[LimitKey, float]
 
 
 class Engine:
@@ -417,6 +431,40 @@ class Engine:
             solver=self._solver_section(),
             truth=truth,
         )
+
+    def checkpoint(self) -> EngineCheckpoint:
+        return EngineCheckpoint(
+            primed=frozenset(self._primed),
+            envelope_band=dict(self._envelope_band),
+            envelope_since=dict(self._envelope_since),
+        )
+
+    def validate_checkpoint(self, checkpoint: EngineCheckpoint) -> None:
+        unknown = sorted(checkpoint.primed - self.loops.keys())
+
+        if unknown:
+            raise StateError("primed", f"{unknown} are not loops of this engine")
+
+        for name, held in (
+            ("envelope_band", checkpoint.envelope_band),
+            ("envelope_since", checkpoint.envelope_since),
+        ):
+            if held.keys() != self.limits.keys():
+                raise StateError(name, "does not cover exactly this engine's limits")
+
+        for (tag, variable), (severity, side) in checkpoint.envelope_band.items():
+            if (severity is Severity.NORMAL) != (side is None):
+                raise StateError(
+                    f"envelope_band.{tag}.{variable}",
+                    f"{severity.name} with side {side!r}: a band has a side "
+                    f"exactly when it is not NORMAL",
+                )
+
+    def restore_checkpoint(self, checkpoint: EngineCheckpoint) -> None:
+        self.validate_checkpoint(checkpoint)
+        self._primed = set(checkpoint.primed)
+        self._envelope_band = dict(checkpoint.envelope_band)
+        self._envelope_since = dict(checkpoint.envelope_since)
 
     def _control(self, dt: float) -> None:
         """Every loop, in order, on the plant as the last snapshot showed it."""

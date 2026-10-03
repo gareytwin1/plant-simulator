@@ -47,27 +47,34 @@ refuses - and only then applied, so a refused restore leaves the engine
 exactly as it was. A device attribute with no setter is checked for type and
 finiteness only. Every refusal is a `StateError` naming the path to the field.
 
-This module reads a few private attributes of `Engine`, `CommandArbiter`,
-`Loop`, `PID`, `Evaluator` and `ExcursionTracker`: none has a public accessor,
-and adding one is a spine or contract change this task does not make.
+`Engine`, `Loop` (with its `PID`), `CommandArbiter`, `Evaluator` and
+`ExcursionTracker` each save and restore their own slow state through
+`checkpoint()`, `validate_checkpoint()` and `restore_checkpoint()` (T12-5), and
+own the invariants of their own fields. This module decodes the saved layout
+into those checkpoints, adds the path to a refusal, and keeps only the checks
+that span two objects or need the plant: the save's shape, an engine band
+agreeing with its evaluator, and a loop the engine cannot run. It reads no
+underscore attribute of another class, which
+`tests/test_persistence_private_access_guard.py` enforces.
 """
 
 import copy
 import math
 from collections.abc import Callable, Iterable, Mapping
 from functools import partial
-from typing import TypeGuard
+from typing import Protocol, TypeGuard
 
-from app.controls.arbitration import PRECEDENCE, CommandArbiter, Source
-from app.controls.modes import Mode
-from app.controls.pid import Action
-from app.engine.engine import Engine
+from app.controls.arbitration import PRECEDENCE, ArbiterCheckpoint, Source
+from app.controls.modes import LoopCheckpoint, Mode
+from app.controls.pid import Action, PIDCheckpoint
+from app.engine.engine import Engine, EngineCheckpoint
 from app.engine.network import SolverResult
-from app.envelope.evaluator import Limits, Severity, Side, _Band
-from app.envelope.tracker import Excursion
+from app.envelope.evaluator import Band, EvaluatorCheckpoint, Severity, Side
+from app.envelope.loader import LimitKey
+from app.envelope.tracker import Excursion, TrackerCheckpoint
 from app.equipment.base import PRESERVED_ON_RESET, Equipment
 from app.plant.topology import Stream
-from app.statetypes import JSONValue
+from app.statetypes import JSONValue, StateError
 
 
 STATE_VERSION = 1
@@ -88,14 +95,16 @@ Step = Callable[[], None]
 _SIDES = ("lo", "hi")
 
 
-class StateError(ValueError):
-    """A save that cannot be restored onto this engine, or a state that
-    cannot be saved."""
+class _Checkpointed[C](Protocol):
+    def validate_checkpoint(self, checkpoint: C) -> None: ...
+
+    def restore_checkpoint(self, checkpoint: C) -> None: ...
 
 
 def capture_state(engine: Engine) -> dict[str, JSONValue]:
     """Everything `restore_state` needs, as plain JSON-safe values."""
     clock = engine.clock.get_state()
+    held = engine.checkpoint()
 
     return {
         "version": STATE_VERSION,
@@ -117,7 +126,7 @@ def capture_state(engine: Engine) -> dict[str, JSONValue]:
             for domain in engine.topologies
         },
         "loops": {
-            tag: _capture_loop(engine, tag)
+            tag: _capture_loop(engine, tag, held)
             for tag in engine.loops
         },
         "arbiter": {
@@ -125,20 +134,21 @@ def capture_state(engine: Engine) -> dict[str, JSONValue]:
                 source.value: dict(requesters)
                 for source, requesters in by_source.items()
             }
-            for output, by_source in _held_demands(engine.arbiter).items()
+            for output, by_source in engine.arbiter.checkpoint().demands.items()
         },
-        "envelope": _capture_envelope(engine),
+        "envelope": _capture_envelope(engine, held),
     }
 
 
 def restore_state(engine: Engine, state: Mapping[str, JSONValue]) -> None:
     """Write `state` onto `engine`, or raise `StateError` and change nothing."""
     if "version" not in state:
-        raise StateError("state: missing field 'version'")
+        raise StateError("state", "missing field 'version'")
 
     if state["version"] != STATE_VERSION:
         raise StateError(
-            f"state: version {state['version']!r} is not the version "
+            "state",
+            f"version {state['version']!r} is not the version "
             f"{STATE_VERSION} this code restores",
         )
 
@@ -149,9 +159,10 @@ def restore_state(engine: Engine, state: Mapping[str, JSONValue]) -> None:
     _decode_equipment(engine, fields["equipment"], steps)
     _decode_instruments(engine, fields["instruments"], steps)
     _decode_domains(engine, fields["domains"], steps)
-    _decode_loops(engine, fields["loops"], steps)
+    primed = _decode_loops(engine, fields["loops"], steps)
     _decode_arbiter(engine, fields["arbiter"], steps)
-    _decode_envelope(engine, fields["envelope"], steps)
+    band, since = _decode_envelope(engine, fields["envelope"], steps)
+    _plan(steps, engine, EngineCheckpoint(primed, band, since), "engine")
 
     for step in steps:
         step()
@@ -189,16 +200,20 @@ def _capture_domain(engine: Engine, domain: str) -> dict[str, JSONValue]:
     }
 
 
-def _capture_loop(engine: Engine, tag: str) -> dict[str, JSONValue]:
-    loop = engine.loops[tag].loop
-    pid = loop.pid
+def _capture_loop(
+    engine: Engine,
+    tag: str,
+    held: EngineCheckpoint,
+) -> dict[str, JSONValue]:
+    checkpoint = engine.loops[tag].loop.checkpoint()
+    pid = checkpoint.pid
 
     return {
-        "primed": tag in engine._primed,
-        "mode": loop.mode.value,
-        "output": loop.output,
-        "manual_output": loop.manual_output,
-        "entering": loop._entering,
+        "primed": tag in held.primed,
+        "mode": checkpoint.mode.value,
+        "output": checkpoint.output,
+        "manual_output": checkpoint.manual_output,
+        "entering": checkpoint.entering,
         "pid": {
             "kp": pid.kp,
             "ki": pid.ki,
@@ -207,32 +222,33 @@ def _capture_loop(engine: Engine, tag: str) -> dict[str, JSONValue]:
             "output_max": pid.output_max,
             "setpoint": pid.setpoint,
             "action": pid.action.value,
-            "integral": pid._integral,
-            "prev_measurement": pid._prev_measurement,
+            "integral": pid.integral,
+            "prev_measurement": pid.prev_measurement,
         },
     }
 
 
-def _capture_envelope(engine: Engine) -> dict[str, JSONValue]:
+def _capture_envelope(engine: Engine, held: EngineCheckpoint) -> dict[str, JSONValue]:
     points: dict[str, JSONValue] = {}
 
     for key, evaluator in engine.limits.items():
         tag, variable = key
-        tracker = engine.trackers[key]
-        severity, side = engine._envelope_band[key]
-        peak = tracker._peak
+        evaluated = evaluator.checkpoint()
+        tracked = engine.trackers[key].checkpoint()
+        severity, side = held.envelope_band[key]
+        peak = tracked.peak
 
         row: dict[str, JSONValue] = {
             "evaluator": {
-                "band": _band_row(evaluator._band),
-                "pending": _band_row(evaluator._pending),
-                "pending_elapsed": evaluator._pending_elapsed,
+                "band": _band_row(evaluated.band),
+                "pending": _band_row(evaluated.pending),
+                "pending_elapsed": evaluated.pending_elapsed,
             },
             "tracker": {
-                "elapsed": tracker._elapsed,
+                "elapsed": tracked.elapsed,
                 "time_in_band": {
                     band.name: seconds
-                    for band, seconds in tracker._time_in_band.items()
+                    for band, seconds in tracked.time_in_band.items()
                 },
                 "peak": None if peak is None else {
                     "severity": peak.severity.name,
@@ -241,7 +257,7 @@ def _capture_envelope(engine: Engine) -> dict[str, JSONValue]:
                 },
             },
             "band": {"severity": severity.name, "side": side},
-            "since": engine._envelope_since[key],
+            "since": held.envelope_since[key],
         }
 
         by_variable = points.setdefault(tag, {})
@@ -251,7 +267,7 @@ def _capture_envelope(engine: Engine) -> dict[str, JSONValue]:
     return points
 
 
-def _band_row(band: _Band | None) -> JSONValue:
+def _band_row(band: Band | None) -> JSONValue:
     if band is None:
         return None
 
@@ -260,10 +276,6 @@ def _band_row(band: _Band | None) -> JSONValue:
         "side": band.side,
         "threshold": band.threshold,
     }
-
-
-def _held_demands(arbiter: CommandArbiter) -> dict[str, dict[Source, dict[str, float]]]:
-    return arbiter._demands
 
 
 def _device_state(device: Equipment) -> dict[str, JSONValue]:
@@ -277,9 +289,9 @@ def _device_state(device: Equipment) -> dict[str, JSONValue]:
 
         if not _is_primitive(value):
             raise StateError(
-                f"equipment.{device.tag}.{name}: a {type(value).__name__} "
-                f"cannot be saved, a device's state must be plain numbers, "
-                f"flags and text",
+                f"equipment.{device.tag}.{name}",
+                f"a {type(value).__name__} cannot be saved, a device's state "
+                f"must be plain numbers, flags and text",
             )
 
         row[name] = value
@@ -336,7 +348,7 @@ def _decode_equipment(engine: Engine, value: JSONValue, steps: list[Step]) -> No
 
         for name, saved in row.items():
             if not _is_primitive(saved):
-                raise StateError(f"{path}.{name}: {saved!r} is not a plain value")
+                raise StateError(f"{path}.{name}", f"{saved!r} is not a plain value")
 
             was = current[name]
             assert _is_primitive(was)
@@ -348,11 +360,12 @@ def _decode_equipment(engine: Engine, value: JSONValue, steps: list[Step]) -> No
             # type here first.
             if was is not None and _kind(saved) != _kind(was):
                 raise StateError(
-                    f"{path}.{name}: expected a {_kind(was)}, got {saved!r}",
+                    f"{path}.{name}",
+                    f"expected a {_kind(was)}, got {saved!r}",
                 )
 
             if isinstance(saved, float) and not math.isfinite(saved):
-                raise StateError(f"{path}.{name}: {saved!r} is not finite")
+                raise StateError(f"{path}.{name}", f"{saved!r} is not finite")
 
             # JSON does not keep 5.0 apart from 5, so a float attribute is
             # restored as a float. No device declares an int attribute; one a
@@ -386,7 +399,7 @@ def _check_setters(device: Equipment, row: Mapping[str, JSONValue], path: str) -
         try:
             guard.fset(probe, saved)
         except ValueError as error:
-            raise StateError(f"{path}.{name}: {error}") from error
+            raise StateError(f"{path}.{name}", f"{error}") from error
 
 
 def _decode_instruments(engine: Engine, value: JSONValue, steps: list[Step]) -> None:
@@ -418,7 +431,8 @@ def _decode_domains(engine: Engine, value: JSONValue, steps: list[Step]) -> None
 
             if node.is_boundary and pressure <= 0.0:
                 raise StateError(
-                    f"{node_path}: boundary pressure {pressure!r} is not positive",
+                    node_path,
+                    f"boundary pressure {pressure!r} is not positive",
                 )
 
             setter = node.set_boundary_pressure if node.is_boundary else node.set_pressure
@@ -449,7 +463,7 @@ def _decode_domains(engine: Engine, value: JSONValue, steps: list[Step]) -> None
                 if isinstance(error, StateError):
                     raise
 
-                raise StateError(f"{stream_path}: {error}") from error
+                raise StateError(f"{stream_path}", f"{error}") from error
 
             steps.append(partial(branch.set_stream, stream))
 
@@ -498,7 +512,7 @@ def _decode_solver_result(value: JSONValue, path: str) -> SolverResult:
     iterations = fields["iterations"]
 
     if isinstance(iterations, bool) or not isinstance(iterations, int):
-        raise StateError(f"{path}.iterations: expected a whole number, got {iterations!r}")
+        raise StateError(f"{path}.iterations", f"expected a whole number, got {iterations!r}")
 
     try:
         return SolverResult(
@@ -516,11 +530,18 @@ def _decode_solver_result(value: JSONValue, path: str) -> SolverResult:
         if isinstance(error, StateError):
             raise
 
-        raise StateError(f"{path}: {error}") from error
+        raise StateError(f"{path}", f"{error}") from error
 
 
-def _decode_loops(engine: Engine, value: JSONValue, steps: list[Step]) -> None:
+def _decode_loops(
+    engine: Engine,
+    value: JSONValue,
+    steps: list[Step],
+) -> frozenset[str]:
+    """Plan every loop's restore and return the tags the save has primed -
+    the engine, not the loop, owns that flag."""
     rows = _keyed(value, engine.loops, "loops")
+    primed: set[str] = set()
 
     for tag, binding in engine.loops.items():
         path = f"loops.{tag}"
@@ -545,122 +566,76 @@ def _decode_loops(engine: Engine, value: JSONValue, steps: list[Step]) -> None:
             f"{path}.pid",
         )
 
-        primed = _flag(fields["primed"], f"{path}.primed")
+        if _flag(fields["primed"], f"{path}.primed"):
+            primed.add(tag)
+
         mode = _enum(Mode, fields["mode"], f"{path}.mode")
 
         # Engine never hands a loop a master, so a CASCADE loop could not step.
         if mode is Mode.CASCADE:
-            raise StateError(f"{path}.mode: the engine cannot run a cascade loop")
-
-        output = _number(fields["output"], f"{path}.output")
-        manual_output = _number(fields["manual_output"], f"{path}.manual_output")
-        entering = _flag(fields["entering"], f"{path}.entering")
-        gains = {
-            name: _number(pid[name], f"{path}.pid.{name}")
-            for name in ("kp", "ki", "kd", "output_min", "output_max", "setpoint", "integral")
-        }
-        action = _enum(Action, pid["action"], f"{path}.pid.action")
-
-        if gains["output_min"] > gains["output_max"]:
-            raise StateError(
-                f"{path}.pid: output_min {gains['output_min']!r} exceeds "
-                f"output_max {gains['output_max']!r}",
-            )
-
-        if gains["ki"] < 0.0:
-            raise StateError(f"{path}.pid.ki: {gains['ki']!r} is negative")
+            raise StateError(f"{path}.mode", "the engine cannot run a cascade loop")
 
         previous = pid["prev_measurement"]
-        prev_measurement = (
-            None
-            if previous is None
-            else _number(previous, f"{path}.pid.prev_measurement")
+        checkpoint = LoopCheckpoint(
+            mode=mode,
+            output=_number(fields["output"], f"{path}.output"),
+            manual_output=_number(fields["manual_output"], f"{path}.manual_output"),
+            entering=_flag(fields["entering"], f"{path}.entering"),
+            pid=PIDCheckpoint(
+                kp=_number(pid["kp"], f"{path}.pid.kp"),
+                ki=_number(pid["ki"], f"{path}.pid.ki"),
+                kd=_number(pid["kd"], f"{path}.pid.kd"),
+                output_min=_number(pid["output_min"], f"{path}.pid.output_min"),
+                output_max=_number(pid["output_max"], f"{path}.pid.output_max"),
+                setpoint=_number(pid["setpoint"], f"{path}.pid.setpoint"),
+                action=_enum(Action, pid["action"], f"{path}.pid.action"),
+                integral=_number(pid["integral"], f"{path}.pid.integral"),
+                prev_measurement=(
+                    None
+                    if previous is None
+                    else _number(previous, f"{path}.pid.prev_measurement")
+                ),
+            ),
         )
+        _plan(steps, binding.loop, checkpoint, path)
 
-        def apply(
-            tag: str = tag,
-            primed: bool = primed,
-            mode: Mode = mode,
-            output: float = output,
-            manual_output: float = manual_output,
-            entering: bool = entering,
-            gains: dict[str, float] = gains,
-            action: Action = action,
-            prev_measurement: float | None = prev_measurement,
-        ) -> None:
-            loop = engine.loops[tag].loop
-            loop.mode = mode
-            loop.output = output
-            loop.manual_output = manual_output
-            loop._entering = entering
-
-            loop.pid.kp = gains["kp"]
-            loop.pid.ki = gains["ki"]
-            loop.pid.kd = gains["kd"]
-            loop.pid.output_min = gains["output_min"]
-            loop.pid.output_max = gains["output_max"]
-            loop.pid.setpoint = gains["setpoint"]
-            loop.pid.action = action
-            loop.pid._integral = gains["integral"]
-            loop.pid._prev_measurement = prev_measurement
-
-            if primed:
-                engine._primed.add(tag)
-            else:
-                engine._primed.discard(tag)
-
-        steps.append(apply)
+    return frozenset(primed)
 
 
 def _decode_arbiter(engine: Engine, value: JSONValue, steps: list[Step]) -> None:
     outputs = _keyed(value, engine.arbiter.outputs, "arbiter")
     demands: dict[str, dict[Source, dict[str, float]]] = {}
 
-    # Posting the saved demands to a scratch arbiter is what finds two
-    # requesters of one source that disagree, before the real one is touched.
-    scratch = CommandArbiter()
-
     for output in engine.arbiter.outputs:
         path = f"arbiter.{output}"
         by_source = _keyed(outputs[output], [source.value for source in PRECEDENCE], path)
         demands[output] = {}
-        scratch.bind(output, _ignore)
 
         for source in PRECEDENCE:
             requesters = _mapping(by_source[source.value], f"{path}.{source.value}")
-            held = {
+            demands[output][source] = {
                 requester: _number(demand, f"{path}.{source.value}.{requester}")
                 for requester, demand in requesters.items()
             }
-            demands[output][source] = held
 
-            for requester, demand in held.items():
-                try:
-                    scratch.demand(output, source, requester, demand)
-                except ValueError as error:
-                    raise StateError(f"{path}.{source.value}.{requester}: {error}") from error
-
-    def apply() -> None:
-        for output, by_source_held in _held_demands(engine.arbiter).items():
-            for source, requesters in by_source_held.items():
-                for requester in list(requesters):
-                    engine.arbiter.release(output, source, requester)
-
-        for output, by_source_held in demands.items():
-            for source, requesters in by_source_held.items():
-                for requester, demand in requesters.items():
-                    engine.arbiter.demand(output, source, requester, demand)
-
-    steps.append(apply)
+    _plan(steps, engine.arbiter, ArbiterCheckpoint(demands), "arbiter")
 
 
-def _decode_envelope(engine: Engine, value: JSONValue, steps: list[Step]) -> None:
+def _decode_envelope(
+    engine: Engine,
+    value: JSONValue,
+    steps: list[Step],
+) -> tuple[dict[LimitKey, tuple[Severity, Side | None]], dict[LimitKey, float]]:
+    """Plan every evaluator's and tracker's restore, and return the engine's
+    own band and since for each point - the engine, not they, owns those."""
     variables: dict[str, list[str]] = {}
 
     for tag, variable in engine.limits:
         variables.setdefault(tag, []).append(variable)
 
     tags = _keyed(value, variables, "envelope")
+    bands: dict[LimitKey, tuple[Severity, Side | None]] = {}
+    since: dict[LimitKey, float] = {}
 
     for tag, names in variables.items():
         by_variable = _keyed(tags[tag], names, f"envelope.{tag}")
@@ -679,21 +654,18 @@ def _decode_envelope(engine: Engine, value: JSONValue, steps: list[Step]) -> Non
                 ("band", "pending", "pending_elapsed"),
                 f"{path}.evaluator",
             )
-            limits = engine.limits[key].limits
-            held_band = _decode_band(
-                evaluator_fields["band"],
-                limits,
-                f"{path}.evaluator.band",
+            evaluated = EvaluatorCheckpoint(
+                band=_decode_band(evaluator_fields["band"], f"{path}.evaluator.band"),
+                pending=_decode_band(
+                    evaluator_fields["pending"],
+                    f"{path}.evaluator.pending",
+                ),
+                pending_elapsed=_number(
+                    evaluator_fields["pending_elapsed"],
+                    f"{path}.evaluator.pending_elapsed",
+                ),
             )
-            pending_band = _decode_band(
-                evaluator_fields["pending"],
-                limits,
-                f"{path}.evaluator.pending",
-            )
-            pending_elapsed = _non_negative(
-                evaluator_fields["pending_elapsed"],
-                f"{path}.evaluator.pending_elapsed",
-            )
+            _plan(steps, engine.limits[key], evaluated, f"{path}.evaluator")
 
             tracker = engine.trackers[key]
             tracker_fields = _keyed(
@@ -701,69 +673,50 @@ def _decode_envelope(engine: Engine, value: JSONValue, steps: list[Step]) -> Non
                 ("elapsed", "time_in_band", "peak"),
                 f"{path}.tracker",
             )
-            elapsed = _non_negative(tracker_fields["elapsed"], f"{path}.tracker.elapsed")
             saved_times = _keyed(
                 tracker_fields["time_in_band"],
-                [band.name for band in tracker._time_in_band],
+                [band.name for band in tracker.checkpoint().time_in_band],
                 f"{path}.tracker.time_in_band",
             )
-            time_in_band = {
-                band: _non_negative(
-                    saved_times[band.name],
-                    f"{path}.tracker.time_in_band.{band.name}",
-                )
-                for band in tracker._time_in_band
-            }
-            peak = _decode_peak(tracker_fields["peak"], f"{path}.tracker.peak")
+            tracked = TrackerCheckpoint(
+                elapsed=_number(tracker_fields["elapsed"], f"{path}.tracker.elapsed"),
+                time_in_band={
+                    band: _number(
+                        saved_times[band.name],
+                        f"{path}.tracker.time_in_band.{band.name}",
+                    )
+                    for band in tracker.checkpoint().time_in_band
+                },
+                peak=_decode_peak(tracker_fields["peak"], f"{path}.tracker.peak"),
+            )
+            _plan(steps, tracker, tracked, f"{path}.tracker")
 
             engine_band = _keyed(fields["band"], ("severity", "side"), f"{path}.band")
             severity = _severity(engine_band["severity"], f"{path}.band.severity")
             side = _optional_side(engine_band["side"], f"{path}.band.side")
-            since = _number(fields["since"], f"{path}.since")
 
             # The engine's band is always its evaluator's held band, re-read
             # after every evaluate - a save where they differ never stepped.
             held = (
-                (held_band.severity, held_band.side)
-                if held_band is not None
+                (evaluated.band.severity, evaluated.band.side)
+                if evaluated.band is not None
                 else (Severity.NORMAL, None)
             )
 
             if (severity, side) != held:
                 raise StateError(
-                    f"{path}.band: {severity.name}/{side} does not match the "
+                    f"{path}.band",
+                    f"{severity.name}/{side} does not match the "
                     f"evaluator's held band {held[0].name}/{held[1]}",
                 )
 
-            def apply(
-                key: tuple[str, str] = key,
-                held_band: _Band | None = held_band,
-                pending_band: _Band | None = pending_band,
-                pending_elapsed: float = pending_elapsed,
-                elapsed: float = elapsed,
-                time_in_band: dict[Severity, float] = time_in_band,
-                peak: Excursion | None = peak,
-                severity: Severity = severity,
-                side: Side | None = side,
-                since: float = since,
-            ) -> None:
-                evaluator = engine.limits[key]
-                evaluator._band = held_band
-                evaluator._pending = pending_band
-                evaluator._pending_elapsed = pending_elapsed
+            bands[key] = (severity, side)
+            since[key] = _number(fields["since"], f"{path}.since")
 
-                tracker = engine.trackers[key]
-                tracker._elapsed = elapsed
-                tracker._time_in_band = time_in_band
-                tracker._peak = peak
-
-                engine._envelope_band[key] = (severity, side)
-                engine._envelope_since[key] = since
-
-            steps.append(apply)
+    return bands, since
 
 
-def _decode_band(value: JSONValue, limits: Limits, path: str) -> _Band | None:
+def _decode_band(value: JSONValue, path: str) -> Band | None:
     if value is None:
         return None
 
@@ -771,26 +724,13 @@ def _decode_band(value: JSONValue, limits: Limits, path: str) -> _Band | None:
     side = _optional_side(fields["side"], f"{path}.side")
 
     if side is None:
-        raise StateError(f"{path}.side: a held band has a side")
+        raise StateError(f"{path}.side", "a held band has a side")
 
-    severity = _severity(fields["severity"], f"{path}.severity")
-
-    if severity is Severity.NORMAL:
-        raise StateError(f"{path}.severity: a held band is never NORMAL")
-
-    # A band only ever holds the configured limit it crossed, and the
-    # evaluator de-escalates against that threshold.
-    threshold = _number(fields["threshold"], f"{path}.threshold")
-    limit = f"{severity.name.lower()}_{side}"
-    configured: float | None = getattr(limits, limit)
-
-    if configured != threshold:
-        raise StateError(
-            f"{path}.threshold: {threshold!r} is not the configured {limit} "
-            f"({configured!r})",
-        )
-
-    return _Band(severity, side, threshold)
+    return Band(
+        _severity(fields["severity"], f"{path}.severity"),
+        side,
+        _number(fields["threshold"], f"{path}.threshold"),
+    )
 
 
 def _decode_peak(value: JSONValue, path: str) -> Excursion | None:
@@ -801,18 +741,25 @@ def _decode_peak(value: JSONValue, path: str) -> Excursion | None:
 
     return Excursion(
         _severity(fields["severity"], f"{path}.severity"),
-        _non_negative(fields["magnitude"], f"{path}.magnitude"),
-        _non_negative(fields["timestamp"], f"{path}.timestamp"),
+        _number(fields["magnitude"], f"{path}.magnitude"),
+        _number(fields["timestamp"], f"{path}.timestamp"),
     )
 
 
-def _ignore(_: float) -> None:
-    return None
+def _plan[C](steps: list[Step], target: _Checkpointed[C], checkpoint: C, path: str) -> None:
+    """Have `target` validate `checkpoint` now, and queue its restore for after
+    every other object has validated its own."""
+    try:
+        target.validate_checkpoint(checkpoint)
+    except StateError as error:
+        raise error.within(path) from error
+
+    steps.append(partial(target.restore_checkpoint, checkpoint))
 
 
 def _mapping(value: object, path: str) -> Mapping[str, JSONValue]:
     if not isinstance(value, Mapping):
-        raise StateError(f"{path}: expected an object, got {value!r}")
+        raise StateError(f"{path}", f"expected an object, got {value!r}")
 
     return value
 
@@ -826,13 +773,15 @@ def _keyed(value: object, expected: Iterable[str], path: str) -> Mapping[str, JS
 
     if missing:
         raise StateError(
-            f"{path}: missing {', '.join(repr(name) for name in missing)} "
+            path,
+            f"missing {', '.join(repr(name) for name in missing)} "
             f"- the save does not match this plant",
         )
 
     if unexpected:
         raise StateError(
-            f"{path}: unexpected {', '.join(repr(name) for name in unexpected)} "
+            path,
+            f"unexpected {', '.join(repr(name) for name in unexpected)} "
             f"- the save does not match this plant",
         )
 
@@ -843,10 +792,10 @@ def _number(value: object, path: str) -> float:
     """A finite number: `json.loads` accepts NaN and Infinity, and no saved
     number is one on a plant that stepped there."""
     if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise StateError(f"{path}: expected a number, got {value!r}")
+        raise StateError(f"{path}", f"expected a number, got {value!r}")
 
     if not math.isfinite(value):
-        raise StateError(f"{path}: {value!r} is not finite")
+        raise StateError(f"{path}", f"{value!r} is not finite")
 
     return float(value)
 
@@ -857,38 +806,38 @@ def _non_negative(value: object, path: str) -> float:
     number = _number(value, path)
 
     if number < 0.0:
-        raise StateError(f"{path}: {number!r} is negative")
+        raise StateError(f"{path}", f"{number!r} is negative")
 
     return number
 
 
 def _flag(value: object, path: str) -> bool:
     if not isinstance(value, bool):
-        raise StateError(f"{path}: expected true or false, got {value!r}")
+        raise StateError(f"{path}", f"expected true or false, got {value!r}")
 
     return value
 
 
 def _optional_text(value: object, path: str) -> str | None:
     if value is not None and not isinstance(value, str):
-        raise StateError(f"{path}: expected text or null, got {value!r}")
+        raise StateError(f"{path}", f"expected text or null, got {value!r}")
 
     return value
 
 
 def _enum[E: (Mode, Action)](kind: type[E], value: object, path: str) -> E:
     if not isinstance(value, str):
-        raise StateError(f"{path}: expected a {kind.__name__} name, got {value!r}")
+        raise StateError(f"{path}", f"expected a {kind.__name__} name, got {value!r}")
 
     try:
         return kind(value)
     except ValueError as error:
-        raise StateError(f"{path}: {value!r} is not a {kind.__name__}") from error
+        raise StateError(f"{path}", f"{value!r} is not a {kind.__name__}") from error
 
 
 def _severity(value: object, path: str) -> Severity:
     if not isinstance(value, str) or value not in Severity.__members__:
-        raise StateError(f"{path}: {value!r} is not a severity")
+        raise StateError(f"{path}", f"{value!r} is not a severity")
 
     return Severity[value]
 
@@ -903,4 +852,4 @@ def _optional_side(value: object, path: str) -> Side | None:
     if value == "hi":
         return "hi"
 
-    raise StateError(f"{path}: expected one of {_SIDES} or null, got {value!r}")
+    raise StateError(f"{path}", f"expected one of {_SIDES} or null, got {value!r}")

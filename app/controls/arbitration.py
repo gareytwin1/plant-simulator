@@ -44,6 +44,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum
 
+from app.statetypes import StateError
+
 
 class Source(StrEnum):
     INTERLOCK = "interlock"
@@ -72,6 +74,13 @@ class Resolution:
     value: float
     source: Source
     requesters: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class ArbiterCheckpoint:
+    """The demands held on every output: output, then source, then requester."""
+
+    demands: dict[str, dict[Source, dict[str, float]]]
 
 
 class CommandArbiter:
@@ -165,8 +174,51 @@ class CommandArbiter:
         if failures:
             raise ExceptionGroup("actuator writes failed", failures)
 
+    def checkpoint(self) -> ArbiterCheckpoint:
+        return ArbiterCheckpoint(
+            demands={
+                output: {source: dict(held) for source, held in by_source.items()}
+                for output, by_source in self._demands.items()
+            },
+        )
+
+    def validate_checkpoint(self, checkpoint: ArbiterCheckpoint) -> None:
+        """Post the saved demands to a scratch arbiter: that is what finds two
+        requesters of one source that disagree, before this one is touched."""
+        scratch = CommandArbiter()
+
+        for output, by_source in checkpoint.demands.items():
+            if output not in self._demands:
+                raise StateError(output, "is not an output this arbiter binds")
+
+            scratch.bind(output, _ignore)
+
+            for source, held in by_source.items():
+                for requester, value in held.items():
+                    try:
+                        scratch.demand(output, source, requester, value)
+                    except ValueError as error:
+                        raise StateError(
+                            f"{output}.{source.value}.{requester}",
+                            str(error),
+                        ) from error
+
+    def restore_checkpoint(self, checkpoint: ArbiterCheckpoint) -> None:
+        """Replace every held demand with the checkpoint's."""
+        self.validate_checkpoint(checkpoint)
+
+        for output, by_source in self._demands.items():
+            for source in by_source:
+                by_source[source] = dict(
+                    checkpoint.demands.get(output, {}).get(source, {}),
+                )
+
     def _held(self, output: str, source: Source) -> dict[str, float]:
         if output not in self._demands:
             raise KeyError(f"output {output!r} is not bound")
 
         return self._demands[output][source]
+
+
+def _ignore(_: float) -> None:
+    return None

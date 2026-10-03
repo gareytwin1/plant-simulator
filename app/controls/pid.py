@@ -43,12 +43,31 @@ handoff is bumpless whenever it happens.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from enum import StrEnum
+
+from app.statetypes import StateError
 
 
 class Action(StrEnum):
     DIRECT = "direct"
     REVERSE = "reverse"
+
+
+@dataclass(frozen=True)
+class PIDCheckpoint:
+    """Everything a `PID` needs to resume: its tuning, its setpoint and the
+    two numbers `compute()` carries from one step to the next."""
+
+    kp: float
+    ki: float
+    kd: float
+    output_min: float
+    output_max: float
+    setpoint: float
+    action: Action
+    integral: float
+    prev_measurement: float | None
 
 
 class PID:
@@ -131,6 +150,43 @@ class PID:
         # already have moved past the target by ki * error * dt.
         if self.ki != 0.0:
             self._integral = (target - self.kp * error) / self.ki - error * dt
+
+    def checkpoint(self) -> PIDCheckpoint:
+        return PIDCheckpoint(
+            kp=self.kp,
+            ki=self.ki,
+            kd=self.kd,
+            output_min=self.output_min,
+            output_max=self.output_max,
+            setpoint=self.setpoint,
+            action=self.action,
+            integral=self._integral,
+            prev_measurement=self._prev_measurement,
+        )
+
+    def validate_checkpoint(self, checkpoint: PIDCheckpoint) -> None:
+        """Refuse a checkpoint the constructor would refuse, changing nothing."""
+        if checkpoint.output_min > checkpoint.output_max:
+            raise StateError(
+                "",
+                f"output_min {checkpoint.output_min!r} exceeds "
+                f"output_max {checkpoint.output_max!r}",
+            )
+
+        if checkpoint.ki < 0.0:
+            raise StateError("ki", f"{checkpoint.ki!r} is negative")
+
+    def restore_checkpoint(self, checkpoint: PIDCheckpoint) -> None:
+        self.validate_checkpoint(checkpoint)
+        self.kp = checkpoint.kp
+        self.ki = checkpoint.ki
+        self.kd = checkpoint.kd
+        self.output_min = checkpoint.output_min
+        self.output_max = checkpoint.output_max
+        self.setpoint = checkpoint.setpoint
+        self.action = checkpoint.action
+        self._integral = checkpoint.integral
+        self._prev_measurement = checkpoint.prev_measurement
 
     @property
     def _sign(self) -> float:

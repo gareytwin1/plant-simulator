@@ -44,6 +44,8 @@ from dataclasses import dataclass
 from enum import IntEnum
 from typing import Literal
 
+from app.statetypes import StateError
+
 Side = Literal["lo", "hi"]
 
 _LIMIT_ORDER: tuple[str, ...] = (
@@ -86,25 +88,35 @@ class Limits:
 
 
 @dataclass(frozen=True)
-class _Band:
+class Band:
     severity: Severity
     side: Side
     threshold: float
 
 
-def _classify(value: float, limits: Limits) -> _Band | None:
+@dataclass(frozen=True)
+class EvaluatorCheckpoint:
+    """The held band, the escalation waiting out its on-delay and how long
+    it has waited: what `evaluate()` carries between calls."""
+
+    band: Band | None
+    pending: Band | None
+    pending_elapsed: float
+
+
+def _classify(value: float, limits: Limits) -> Band | None:
     if limits.trip_lo is not None and value <= limits.trip_lo:
-        return _Band(Severity.TRIP, "lo", limits.trip_lo)
+        return Band(Severity.TRIP, "lo", limits.trip_lo)
     if limits.trip_hi is not None and value >= limits.trip_hi:
-        return _Band(Severity.TRIP, "hi", limits.trip_hi)
+        return Band(Severity.TRIP, "hi", limits.trip_hi)
     if limits.alarm_lo is not None and value <= limits.alarm_lo:
-        return _Band(Severity.ALARM, "lo", limits.alarm_lo)
+        return Band(Severity.ALARM, "lo", limits.alarm_lo)
     if limits.alarm_hi is not None and value >= limits.alarm_hi:
-        return _Band(Severity.ALARM, "hi", limits.alarm_hi)
+        return Band(Severity.ALARM, "hi", limits.alarm_hi)
     if limits.warning_lo is not None and value <= limits.warning_lo:
-        return _Band(Severity.WARNING, "lo", limits.warning_lo)
+        return Band(Severity.WARNING, "lo", limits.warning_lo)
     if limits.warning_hi is not None and value >= limits.warning_hi:
-        return _Band(Severity.WARNING, "hi", limits.warning_hi)
+        return Band(Severity.WARNING, "hi", limits.warning_hi)
     return None
 
 
@@ -119,8 +131,8 @@ class Evaluator:
         self.deadband = deadband
         self.on_delay = on_delay
 
-        self._band: _Band | None = None
-        self._pending: _Band | None = None
+        self._band: Band | None = None
+        self._pending: Band | None = None
         self._pending_elapsed = 0.0
 
     @property
@@ -176,6 +188,43 @@ class Evaluator:
         if cleared:
             self._band = raw
         return self.severity
+
+    def checkpoint(self) -> EvaluatorCheckpoint:
+        return EvaluatorCheckpoint(self._band, self._pending, self._pending_elapsed)
+
+    def validate_checkpoint(self, checkpoint: EvaluatorCheckpoint) -> None:
+        self._check_band(checkpoint.band, "band")
+        self._check_band(checkpoint.pending, "pending")
+
+        if checkpoint.pending_elapsed < 0.0:
+            raise StateError(
+                "pending_elapsed",
+                f"{checkpoint.pending_elapsed!r} is negative",
+            )
+
+    def restore_checkpoint(self, checkpoint: EvaluatorCheckpoint) -> None:
+        self.validate_checkpoint(checkpoint)
+        self._band = checkpoint.band
+        self._pending = checkpoint.pending
+        self._pending_elapsed = checkpoint.pending_elapsed
+
+    def _check_band(self, band: Band | None, path: str) -> None:
+        if band is None:
+            return
+
+        if band.severity is Severity.NORMAL:
+            raise StateError(f"{path}.severity", "a held band is never NORMAL")
+
+        # A band only ever holds the configured limit it crossed, and
+        # evaluate() de-escalates against that threshold.
+        limit = f"{band.severity.name.lower()}_{band.side}"
+        configured: float | None = getattr(self.limits, limit)
+
+        if configured != band.threshold:
+            raise StateError(
+                f"{path}.threshold",
+                f"{band.threshold!r} is not the configured {limit} ({configured!r})",
+            )
 
     def _clear_pending(self) -> None:
         self._pending = None

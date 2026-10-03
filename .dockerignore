@@ -1,0 +1,11 @@
+.git
+.github
+.claude
+.workspace
+.mypy_cache
+.pytest_cache
+__pycache__
+*.py[cod]
+node_modules
+.venv
+.env

@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "3 October 2026",
-  "main_sha": "4386993",
-  "tests_passing_on_main": 2774,
+  "main_sha": "4d6eed4",
+  "tests_passing_on_main": 2808,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -78,7 +78,7 @@
     },
     "M12": {
       "name": "Startup and Shutdown Sequences",
-      "complete": 5,
+      "complete": 6,
       "total": 6
     },
     "M13": {
@@ -119,8 +119,8 @@
   },
   "totals": {
     "tasks": 117,
-    "complete": 99,
-    "startable_now": 13
+    "complete": 100,
+    "startable_now": 12
   },
   "tasks": [
     {
@@ -1575,12 +1575,13 @@
         "app/controls/pid.py",
         "app/envelope/evaluator.py",
         "app/envelope/tracker.py",
-        "tests/test_persistence.py"
+        "app/statetypes.py",
+        "tests/test_persistence.py",
+        "tests/test_persistence_private_access_guard.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true,
-      "note": ""
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged to main as 4d6eed4 (PR #127). Suite 2808 passed post-merge, mypy clean, no golden movement. Engine, Loop with PID, CommandArbiter, Evaluator and ExcursionTracker each checkpoint, validate and restore their own state; persistence.py composes them and reads no private attribute (AST guard test). StateError moved to app/statetypes.py as StateError(path, reason); _Band is now the public Band. Saved layout unchanged, STATE_VERSION stays 1. Spine lock released. Follow-ups: drop Engine._envelope_band (repeats the evaluator band); rename the master parameter in modes.py."
     },
     {
       "id": "T12-6",

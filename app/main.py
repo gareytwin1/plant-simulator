@@ -1,10 +1,22 @@
 import uuid
 
-from flask import Flask, Response, g, jsonify, redirect, render_template, request, url_for
+from flask import (
+    Flask,
+    Response,
+    g,
+    has_app_context,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    url_for,
+)
 from flask.typing import ResponseReturnValue
 
 from app import config
+from app import logging as plant_logging
 from app.api import validate
+from app.api.health import create_health_blueprint
 from app.engine.scheduler import Scheduler
 from app.engine.sessions import SessionRegistry
 
@@ -21,12 +33,47 @@ sessions = SessionRegistry()
 
 rate_limiter = validate.RateLimiter(config.API_RATE_PER_SECOND, config.API_RATE_BURST)
 
+HEALTH_PATH_PREFIX = "/health/"
+
+
+def _request_sim_time() -> float | None:
+    """Sim time of the request's own plant, None where it has none (a health
+    probe, a refused request)."""
+    plant = g.get("plant") if has_app_context() else None
+
+    return None if plant is None else plant.compressor_scheduler.snapshot().sim_time
+
+
+plant_logging.configure(sim_time=_request_sim_time)
+plant_logging.log_requests(app, _request_sim_time)
+
 # First, so a refused request never reaches the session hook below.
 validate.install(app, lambda: rate_limiter)
 
 
+def _health_schedulers() -> dict[str, Scheduler]:
+    # A probe must not create, touch or evict a plant, so it reads the
+    # session its cookie names and nothing else.
+    session_id = request.cookies.get(SESSION_COOKIE)
+    session = sessions.get(session_id) if session_id else None
+
+    if session is None:
+        return {}
+
+    return {
+        "compressor": session.compressor_scheduler,
+        "pump": session.pump_scheduler,
+    }
+
+
+app.register_blueprint(create_health_blueprint(_health_schedulers, lambda: len(sessions)))
+
+
 @app.before_request
 def load_session() -> None:
+    if request.path.startswith(HEALTH_PATH_PREFIX):
+        return
+
     session_id = request.cookies.get(SESSION_COOKIE)
     session = sessions.get(session_id) if session_id else None
 

@@ -43,18 +43,18 @@ Complete: **M0-M9, M12, M13, M14, M15, MR**. Open:
 | **M11** Interlocks and Trips | 3/4 | T11-1, T11-2, T11-3; T11-4 startable (V1.1-deferred) |
 | **M16** Operator Console | 2/5 | T16-1, T16-2; T16-3, T16-4 and T16-5 startable |
 | **M17** Historian and Trends | 1/4 | T17-1; T17-2 startable (V1.1-deferred) |
-| **M18** Deployment | 6/7 | T18-1 to T18-5, T18-7; T18-6 (scheduler log sim time, spine) startable |
+| **M18** Deployment | 6/8 | T18-1 to T18-5, T18-7; T18-6 (scheduler log sim time, spine) startable; T18-8 (rate limit behind a reverse proxy) startable once Opus decides its shape |
 | M19 | 0 | - |
 
-**107 of 119 tasks Complete.** Checkpoints A-C reached. Checkpoint **D** (M8)
+**107 of 120 tasks Complete.** Checkpoints A-C reached. Checkpoint **D** (M8)
 needs only its "loops reject an injected disturbance" gate: PIC-101 switched to
 AUTO in `olefins_lite.yaml`, which T8-6 enabled but no task owns yet.
 
 ## The next task
 
-**9 tasks are startable** - list them from
+**10 tasks are startable** - list them from
 [BUILD_PLAN_STATUS.json](../../docs/BUILD_PLAN_STATUS.json) (`startable`
-field). All are Sonnet. T10-4, T11-4 and T17-2 are V1.1-deferred;
+field). All are Sonnet except T18-8 (Opus: it decides how the rate limiter trusts a proxy header). T10-4, T11-4 and T17-2 are V1.1-deferred;
 T19-2 (startable - its other dependency, T13-1, was already Complete) is
 deferred further still, to **V2**.
 

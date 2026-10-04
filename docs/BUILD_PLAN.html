@@ -1896,6 +1896,13 @@ Scenario(initial_condition, malfunctions[], triggers[],
    t:["peek() returns the live session, or None for an unknown or reclaimed id","peek() does not move the session's idle clock: a session peeked repeatedly is still reclaimed on schedule","peek() does not end any other idle session","A cookie-carrying request to /health/engine leaves the session's last-touched time unchanged"],
    x:"Spine task: it edits sessions.py, so it holds the spine lock. The shape is decided, so Sonnet implements. SessionRegistry.peek(session_id) -> Session | None, under _lock, with no _reclaim_idle() and no _touch(); a session past idle_seconds is still returned until the next get() or create() sweeps it, and health may report it. main.py's _health_schedulers switches from get() to peek(), and the known-gap paragraph in app/api/health.py and the comment in main.py come out. Lock order is unchanged."},
 
+  {id:"T18-8",m:"M18",cat:"dep",n:"Rate limit behind a reverse proxy",
+   p:"T18-3's rate limiter keys on request.remote_addr. Behind a reverse proxy or a shared NAT every client arrives from one address and shares one bucket, so one busy console can throttle every other operator. The T18-1 deployment is a gunicorn container that production will sit behind a proxy, so this is the deployed case, not an edge case.",
+   d:["T18-1","T18-3"],f:["app/api/validate.py","app/config.py","app/main.py","tests/test_api_validation.py"],b:"feature/rate-limit-proxy",
+   w:["Clients behind a trusted proxy are limited per client, not per proxy","A client cannot dodge the limit by sending its own forwarding header"],
+   t:["With no trusted proxy configured the limiter keys on remote_addr and ignores X-Forwarded-For, as today","With a trusted proxy configured two clients behind it get separate buckets","A forwarding header sent by an untrusted peer is ignored: spoofing it neither evades nor shifts the limit onto another address","Health probes stay exempt and static files stay unthrottled"],
+   x:"Shape NOT yet decided: Opus decides before Sonnet implements, because the forwarding header is a trust boundary. The open question is how the deployment says which peers to trust, for example a trusted-proxy hop count in app/config.py (append-only) applied through werkzeug's ProxyFix, against an explicit allow-list of proxy addresses. Default must be no trust, so a bare deployment behaves as T18-3 does today. Not a spine task: it edits validate.py, config.py and main.py, so it takes the app/main.py lock but not the spine lock. Known fact: the comment above API_RATE_PER_SECOND in app/config.py already names this gap and is to be rewritten when it closes."},
+
   // ---------------- M19 ----------------
   {id:"T19-1",m:"M19",cat:"dep",n:"Leaderboards",
    p:"Asynchronous, low cost, high replay value. The only shared feature clearly worth building on its own merits.",
@@ -2066,6 +2073,7 @@ Scenario(initial_condition, malfunctions[], triggers[],
     "T16-5":"Sonnet",
     "T17-1":"Sonnet",
     "T18-2":"Sonnet",
+    "T18-8":"Opus",
     "R12":"Opus"
   };
   function agentOf(t){ return AGENT[t.id] || (t.cat==="core" ? "Opus" : "Sonnet"); }

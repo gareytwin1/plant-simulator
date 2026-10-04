@@ -278,3 +278,22 @@ def test_request_log_sim_time_follows_the_engine_the_route_serves(client):
 
     assert by_path["/api/pump/state"] > 0
     assert by_path["/api/state"] == 0
+
+
+@pytest.mark.parametrize(
+    "path, expected_pump",
+    [("/pump", True), ("/api/pump/state", True), ("/pumpdata", False), ("/api/state", False)],
+)
+def test_pump_routes_are_classified_by_exact_path(path, expected_pump):
+    session_id = "classify-" + path
+    plant = main_module.sessions.create(session_id)
+    try:
+        plant.pump_scheduler.step_once()
+        plant.pump_scheduler.step_once()
+        with main_module.app.test_request_context(path):
+            main_module.g.plant = plant
+            sim_time = main_module._request_sim_time()
+    finally:
+        main_module.sessions.end(session_id)
+
+    assert sim_time == (2.0 if expected_pump else 0.0)

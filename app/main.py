@@ -34,7 +34,8 @@ sessions = SessionRegistry()
 rate_limiter = validate.RateLimiter(config.API_RATE_PER_SECOND, config.API_RATE_BURST)
 
 HEALTH_PATH_PREFIX = "/health/"
-PUMP_PATH_PREFIXES = ("/pump", "/api/pump/")
+PUMP_PATH_PREFIX = "/api/pump/"
+PUMP_PAGE_PATH = "/pump"
 
 
 def _request_sim_time() -> float | None:
@@ -46,7 +47,7 @@ def _request_sim_time() -> float | None:
         return None
 
     # The two machines run on separate engines with separate clocks.
-    is_pump = request.path.startswith(PUMP_PATH_PREFIXES)
+    is_pump = request.path == PUMP_PAGE_PATH or request.path.startswith(PUMP_PATH_PREFIX)
     scheduler: Scheduler = (
         plant.pump_scheduler if is_pump else plant.compressor_scheduler
     )
@@ -62,8 +63,8 @@ validate.install(app, lambda: rate_limiter)
 
 
 def _health_schedulers() -> dict[str, Scheduler]:
-    # A probe must not create, touch or evict a plant, so it reads the
-    # session its cookie names and nothing else.
+    # Never creates a session. SessionRegistry.get() does touch the named one
+    # and sweeps idle ones, and the registry offers no read-only lookup yet.
     session_id = request.cookies.get(SESSION_COOKIE)
     session = sessions.get(session_id) if session_id else None
 

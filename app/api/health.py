@@ -5,13 +5,18 @@ solves land.
     GET /health/live    the process answers; touches no plant
     GET /health/engine  per-engine liveness and solver convergence
 
-Both are read-only and sit outside the session machinery: a probe must not
-create, touch or evict a plant. `/health/engine` reports the schedulers the
+Both are read-only against the plants and sit outside the session machinery:
+a probe never creates a plant. `/health/engine` reports the schedulers the
 caller's `get_schedulers` returns for this request (in `app.main`, the plant
 of the session cookie the request carries, none when it carries none). The
 process holds one plant per browser session, so "the engine" has no single
 meaning here; a probe without a cookie learns the process is up and how many
 sessions it holds, not the state of anyone's plant.
+
+Known gap: `app.main` resolves the cookie through `SessionRegistry.get()`,
+which refreshes that session's idle timer and sweeps other idle sessions. A
+cookie-carrying probe therefore keeps its own plant alive, and a read-only
+`peek()` on the registry (spine) is the fix.
 
 Everything is read from published state: `Scheduler.snapshot()`, `running`,
 `closed` and `error`. Nothing here steps, locks or reaches into an Engine.

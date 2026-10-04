@@ -35,7 +35,7 @@ merged since.
 
 ## Milestone progress
 
-Complete: **M0-M9, M12, M13, M14, M15, M18, MR**. Open:
+Complete: **M0-M9, M12, M13, M14, M15, MR**. Open:
 
 | Milestone | Done | Complete / startable |
 |---|---|---|
@@ -43,15 +43,16 @@ Complete: **M0-M9, M12, M13, M14, M15, M18, MR**. Open:
 | **M11** Interlocks and Trips | 3/4 | T11-1, T11-2, T11-3; T11-4 startable (V1.1-deferred) |
 | **M16** Operator Console | 1/5 | T16-2; T16-1 startable, T16-5 startable; T16-3 needs T16-1 first |
 | **M17** Historian and Trends | 1/4 | T17-1; T17-2 startable (V1.1-deferred) |
+| **M18** Deployment | 5/7 | T18-1 to T18-5; T18-6 (scheduler log sim time) and T18-7 (`SessionRegistry.peek()`) startable, both spine, so serial |
 | M19 | 0 | - |
 
-**104 of 117 tasks Complete.** Checkpoints A-C reached. Checkpoint **D** (M8)
+**104 of 119 tasks Complete.** Checkpoints A-C reached. Checkpoint **D** (M8)
 needs only its "loops reject an injected disturbance" gate: PIC-101 switched to
 AUTO in `olefins_lite.yaml`, which T8-6 enabled but no task owns yet.
 
 ## The next task
 
-**8 tasks are startable** - list them from
+**10 tasks are startable** - list them from
 [BUILD_PLAN_STATUS.json](../../docs/BUILD_PLAN_STATUS.json) (`startable`
 field). All are Sonnet. T10-4, T11-4 and T17-2 are V1.1-deferred;
 T19-2 (startable - its other dependency, T13-1, was already Complete) is

@@ -531,3 +531,52 @@ def test_reclaim_waits_out_a_step_in_progress_without_inverting_the_lock_order()
     assert reclaimed.wait(WAIT)
     thread.join(WAIT)
     assert len(registry) == 0
+
+
+def test_peek_returns_the_live_session_and_none_for_unknown_or_reclaimed_ids():
+    registry, clock = registry_with_clock(idle_seconds=60.0)
+    session = registry.create("a")
+
+    assert registry.peek("a") is session
+    assert registry.peek("unknown") is None
+
+    clock.advance(61.0)
+    registry.reclaim_idle()
+
+    assert registry.peek("a") is None
+
+
+def test_peek_does_not_move_the_idle_clock():
+    registry, clock = registry_with_clock(idle_seconds=60.0)
+    registry.create("probed")
+
+    for _ in range(5):
+        clock.advance(20.0)
+        registry.peek("probed")
+
+    assert registry.reclaim_idle() == 1
+    assert registry.peek("probed") is None
+
+
+def test_peek_returns_a_session_past_the_timeout_until_something_sweeps():
+    registry, clock = registry_with_clock(idle_seconds=60.0)
+    session = registry.create("stale")
+
+    clock.advance(61.0)
+
+    assert registry.peek("stale") is session
+    assert len(registry) == 1
+
+
+def test_peek_does_not_end_other_idle_sessions():
+    registry, clock = registry_with_clock(idle_seconds=60.0)
+    stale = registry.create("stale")
+    registry.create("probed")
+
+    clock.advance(30.0)
+    registry.get("probed")
+    clock.advance(31.0)
+
+    assert registry.peek("probed") is not None
+    assert len(registry) == 2
+    assert not stale.compressor_scheduler.closed

@@ -248,6 +248,15 @@ class SessionRegistry:
 
             return session
 
+    def peek(self, session_id: str) -> Session | None:
+        """The live session for `session_id`, or None. Read-only: it neither
+        refreshes the session's idle timer nor sweeps idle sessions, so a
+        monitoring probe cannot keep a plant alive or end anyone else's. A
+        session past `idle_seconds` is still returned until the next get()
+        or create() sweeps it."""
+        with self._lock:
+            return self._sessions.get(session_id)
+
     def get_or_create(self, session_id: str) -> Session:
         session = self.get(session_id)
 

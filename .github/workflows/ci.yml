@@ -41,7 +41,7 @@ jobs:
           done
           curl -fsS http://localhost:8000/api/state
           # One gunicorn master plus exactly one worker process.
-          test "$(docker top plant -eo args | grep -c 'gunicorn')" -eq 2
+          test "$(docker top plant -eo pid,args | grep -c 'gunicorn')" -eq 2
 
       - name: Container logs and cleanup
         if: always()

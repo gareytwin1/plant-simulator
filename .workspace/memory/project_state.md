@@ -8,11 +8,11 @@ regrowth rule is in [.claude/rules/docs.md](../../.claude/rules/docs.md).
 
 ## Right now
 
-**Last state refresh:** 3 October 2026, at `1927cbb` (Merge T18-5:
-Session lifecycle and config versioning, PR #129) - **this is a snapshot,
-not a live pointer.** Run `git log 1927cbb..HEAD --oneline` to see what has
+**Last state refresh:** 3 October 2026, at `cc2784f` (Merge T18-1:
+Container and WSGI serving, PR #130) - **this is a snapshot,
+not a live pointer.** Run `git log cc2784f..HEAD --oneline` to see what has
 merged since.
-**Full suite as of this refresh:** **2955 passed** · `python -m mypy` clean over 75 source files · no golden trace movement
+**Full suite as of this refresh:** **2962 passed** · `python -m mypy` clean over 75 source files · no golden trace movement
 **In flight:** nothing.
 **No spine lock is held.** No task is Blocked. CI runs on every PR, and `main` requires its
 `test` check before a merge.
@@ -22,12 +22,12 @@ merged since.
 
 | Task | SHA | What landed |
 |---|---|---|
+| **T18-1** | `cc2784f` | Container and WSGI serving: `gunicorn.conf.py` pins `workers = 1` (gthread, 64 threads, no preload; a test reads the pin), multi-stage `Dockerfile` (`runtime` default, `test` target runs the suite), `docker-compose.yml` (one service, never scale), `.dockerignore`; `gunicorn==26.2.0`. A `docker` job in `ci.yml` runs the suite in the image, serves the runtime image and asserts one master plus one worker. Gunicorn gives the SSE stream no socket send timeout, and the stream blueprint is not registered in `main.py` (PR #130) |
 | **T18-5** | `1927cbb` | Session lifecycle and config versioning: `SessionRegistry.reclaim_idle()` ends sessions idle for `config.SESSION_IDLE_SECONDS` (1800), run lazily under the registry lock by `get()` and `create()` (no reaper thread, lock order unchanged); `config/VERSION` (1.0.0) read by the leaf `app/configversion.py`, and `tests/test_config_version_guard.py` fails a config edit that does not bump it; `ScoreStore` stamps results with the version (migration 2) and `personal_best` counts only the store's major. `STATE_VERSION` stays 1 (PR #129) |
 | **T18-3** | `b49f9bc` | API input validation and rate limiting, `app/api/validate.py` (body readers: unknown keys, finite, +/-1e6 magnitude incl. huge int literals; 4 KiB body cap; JSON errors under `/api/`; per-address token bucket with an injected monotonic clock, 429 plus `Retry-After`; installed on the live app before the session hook). Consoles ignore non-ok responses and throttle slider posts. Targets still clamp to [0,1]. Limiter keys on `remote_addr`, so clients behind a proxy or NAT share one bucket. The action, alarm and scenario blueprints are validated but still not registered in `main.py`. |
 | **T12-5** | `4d6eed4` | Public state accessors: `Engine`, `Loop` (with its `PID`), `CommandArbiter`, `Evaluator` and `ExcursionTracker` each `checkpoint()`, `validate_checkpoint()` and `restore_checkpoint()` their own slow state; `persistence.py` composes them and reads no private attribute (AST guard test). `StateError(path, reason)` now lives in `app/statetypes.py`; `Band` is public. Saved layout unchanged, `STATE_VERSION` stays 1. Follow-ups: drop `Engine._envelope_band` (repeats the evaluator band), rename `master` in `modes.py` (PR #127) |
 | **T8-5** | `4386993` | Cascade control, `app/controls/cascade.py` (`Cascade` pairs an outer and an inner `Loop`, scales the outer output into the inner setpoint's range through a stand-in outer loop so `Loop` and `PID` are untouched; safe mode is the inner loop in MANUAL holding its last output, `engage()` resumes with no step). Not wired: the loader, C3 and `Engine` cannot create a cascade, and no level PV resolver exists (PR #126) |
 | **T12-4** | `611a444` | Startup and shutdown sequences, `app/plant/sequences.py` and `config/sequences/olefins_lite.yaml` (the state machine's gates plus cold start, normal shutdown and emergency shutdown for the reference plant; `SequenceRun` takes steps strictly in order, a hold is a condition held for `for_s` of snapshot `sim_time`, nothing is judged on a reading from before the last actions; `Sequencer` drives one procedure at a time and an emergency shutdown replaces any run; every action goes through the caller's action function). Not wired: no session or API loads a sequence, and trips are not live so a caller starts an emergency shutdown. Follow-up: `PlantStateMachine.gated(target)` (PR #125) |
-| **T15-4** | `abb9615` | Score persistence, `app/scoring/store.py` (`ScoreStore`, SQLite, stdlib only: indexed operator/scenario/total/recorded_at plus JSON `Score` and `RunMetrics`; personal best is the highest total per operator and scenario, ties to the earliest; `recorded_at` is caller-supplied; schema versioned by `PRAGMA user_version`, migrated in one `BEGIN IMMEDIATE` transaction, a newer database raises `SchemaVersionError`). Not wired: nothing in a live run produces or stores a `Score` (PR #124) |
 
 **ADRs on `main`:** [0001](../../docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md)
 (+ Amendment 1) and [0002](../../docs/ADR_0002_TYPED_PORTS.md) (+ Amendments
@@ -43,24 +43,24 @@ Complete: **M0-M9, M12, M13, M14, M15, MR**. Open:
 | **M11** Interlocks and Trips | 3/4 | T11-1, T11-2, T11-3; T11-4 startable (V1.1-deferred) |
 | **M16** Operator Console | 1/5 | T16-2; T16-1 startable, T16-5 startable; T16-3 needs T16-1 first |
 | **M17** Historian and Trends | 1/4 | T17-1; T17-2 startable (V1.1-deferred) |
-| **M18** Deployment | 3/5 | T18-2, T18-3, T18-5; T18-1 and T18-4 startable |
+| **M18** Deployment | 4/5 | T18-1, T18-2, T18-3, T18-5; T18-4 startable |
 | M19 | 0 | - |
 
-**102 of 117 tasks Complete.** Checkpoints A-C reached. Checkpoint **D** (M8)
+**103 of 117 tasks Complete.** Checkpoints A-C reached. Checkpoint **D** (M8)
 needs only its "loops reject an injected disturbance" gate: PIC-101 switched to
 AUTO in `olefins_lite.yaml`, which T8-6 enabled but no task owns yet.
 
 ## The next task
 
-**10 tasks are startable** - list them from
+**9 tasks are startable** - list them from
 [BUILD_PLAN_STATUS.json](../../docs/BUILD_PLAN_STATUS.json) (`startable`
 field). All are Sonnet. T10-4, T11-4 and T17-2 are V1.1-deferred;
 T19-2 (startable - its other dependency, T13-1, was already Complete) is
 deferred further still, to **V2**.
 
 **Scheduling notes.** The spine lock is one global lock
-([DEVELOPMENT.md](../../DEVELOPMENT.md#file-ownership)); it is free. **T18-1 must run
-exactly one Gunicorn worker** - `SessionRegistry` is per-process (R7).
+([DEVELOPMENT.md](../../DEVELOPMENT.md#file-ownership)); it is free. **The container runs
+exactly one Gunicorn worker** (T18-1) - `SessionRegistry` is per-process (R7); never scale it.
 **Trips do not run in a live session yet**: nothing in `Session`/`Scheduler`
 calls `TripSystem.update`, and wiring it in is a spine change no task owns.
 `RestartGate` (T11-3) must be updated before `TripSystem.update`, and only

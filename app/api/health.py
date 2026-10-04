@@ -13,11 +13,6 @@ process holds one plant per browser session, so "the engine" has no single
 meaning here; a probe without a cookie learns the process is up and how many
 sessions it holds, not the state of anyone's plant.
 
-Known gap: `app.main` resolves the cookie through `SessionRegistry.get()`,
-which refreshes that session's idle timer and sweeps other idle sessions. A
-cookie-carrying probe therefore keeps its own plant alive, and a read-only
-`peek()` on the registry (spine) is the fix.
-
 Everything is read from published state: `Scheduler.snapshot()`, `running`,
 `closed` and `error`. Nothing here steps, locks or reaches into an Engine.
 Alarms and scoring do not run against the live plant, so health says nothing

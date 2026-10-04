@@ -7,6 +7,7 @@ import pytest
 import app.main as main_module
 from app.api.health import HealthMonitor, create_health_blueprint
 from app.engine.scheduler import Scheduler
+from app.engine.sessions import SessionRegistry
 from app.engine.snapshot import build_snapshot, solver_status
 from flask import Flask
 
@@ -311,3 +312,20 @@ def test_a_snapshot_with_no_solve_degrades_gracefully():
     assert row["solver"]["converged"] is None
     assert row["solver"]["convergence_rate"] is None
     assert row["solver"]["samples"] == 0
+
+
+def test_a_cookie_carrying_probe_neither_touches_its_session_nor_sweeps_others(client, monkeypatch):
+    now = [1000.0]
+    registry = SessionRegistry(monotonic=lambda: now[0], idle_seconds=60.0)
+    monkeypatch.setattr(main_module, "sessions", registry)
+    registry.create("probed")
+    stale = registry.create("stale")
+    client.set_cookie(main_module.SESSION_COOKIE, "probed")
+    now[0] += 61.0
+
+    response = client.get("/health/engine")
+
+    assert set(response.get_json()["engines"]) == {"compressor", "pump"}
+    assert len(registry) == 2
+    assert not stale.compressor_scheduler.closed
+    assert registry.reclaim_idle() == 2

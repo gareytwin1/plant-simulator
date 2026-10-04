@@ -62,10 +62,9 @@ validate.install(app, lambda: rate_limiter)
 
 
 def _health_schedulers() -> dict[str, Scheduler]:
-    # Never creates a session. SessionRegistry.get() does touch the named one
-    # and sweeps idle ones, and the registry offers no read-only lookup yet.
+    # Never creates a session, and peek() neither touches it nor sweeps.
     session_id = request.cookies.get(SESSION_COOKIE)
-    session = sessions.get(session_id) if session_id else None
+    session = sessions.peek(session_id) if session_id else None
 
     if session is None:
         return {}

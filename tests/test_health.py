@@ -28,6 +28,7 @@ class FakeEngine:
         self.gate = None
         self.speed = 1.0
         self.paused = False
+        self.no_solve = False
 
     def _build(self):
         return build_snapshot(
@@ -35,7 +36,7 @@ class FakeEngine:
             speed=self.speed,
             running=not self.paused,
             equipment={},
-            solver=solver_status(Solve(converged=self.converged)),
+            solver={} if self.no_solve else solver_status(Solve(converged=self.converged)),
         )
 
     def step(self, dt):
@@ -297,3 +298,16 @@ def test_pump_routes_are_classified_by_exact_path(path, expected_pump):
         main_module.sessions.end(session_id)
 
     assert sim_time == (2.0 if expected_pump else 0.0)
+
+
+def test_a_snapshot_with_no_solve_degrades_gracefully():
+    engine, scheduler, clock, monitor = make()
+    engine.no_solve = True
+    scheduler.step_once()
+
+    row = monitor.observe(scheduler)
+
+    assert row["status"] == "stopped"
+    assert row["solver"]["converged"] is None
+    assert row["solver"]["convergence_rate"] is None
+    assert row["solver"]["samples"] == 0

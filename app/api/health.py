@@ -38,7 +38,7 @@ Per engine, `status` is the first that applies:
 Stall detection compares sim time between observations, so it needs two
 requests `stall_after` apart: the first sight of an engine only starts its
 clock. `convergence_rate` is the share of distinct published snapshots this
-monitor has seen whose solve converged, over a bounded window. It samples at
+monitor has seen, with a solve to report, whose solve converged, over a bounded window. It samples at
 the rate health is polled, so it is a trend, not an exact count of solves.
 """
 
@@ -109,19 +109,22 @@ class HealthMonitor:
     def observe(self, source: EngineSource) -> dict[str, JSONValue]:
         snapshot = source.snapshot()
         now = self._monotonic()
-        converged = snapshot.solver["converged"] is True
+        solved = bool(snapshot.solver)
+        converged = solved and snapshot.solver["converged"] is True
 
         with self._lock:
             watch = self._watches.get(source)
 
             if watch is None:
                 watch = _Watch(snapshot.sim_time, now)
-                watch.converged.append(converged)
+                if solved:
+                    watch.converged.append(converged)
                 self._watches[source] = watch
             elif snapshot.sim_time != watch.sim_time:
                 watch.sim_time = snapshot.sim_time
                 watch.changed_at = now
-                watch.converged.append(converged)
+                if solved:
+                    watch.converged.append(converged)
 
             stalled_for = now - watch.changed_at
             window = list(watch.converged)
@@ -140,7 +143,7 @@ class HealthMonitor:
             status = "paused"
         elif stalled:
             status = "stalled"
-        elif not converged:
+        elif solved and not converged:
             status = "degraded"
         else:
             status = "ok"
@@ -152,10 +155,10 @@ class HealthMonitor:
             "seconds_since_progress": stalled_for,
             "error": None if error is None else f"{type(error).__name__}: {error}",
             "solver": {
-                "converged": converged,
-                "iterations": snapshot.solver["iterations"],
-                "residual": snapshot.solver["residual"],
-                "convergence_rate": sum(window) / len(window),
+                "converged": converged if solved else None,
+                "iterations": snapshot.solver.get("iterations"),
+                "residual": snapshot.solver.get("residual"),
+                "convergence_rate": sum(window) / len(window) if window else None,
                 "samples": len(window),
             },
         }

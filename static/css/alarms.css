@@ -1,0 +1,194 @@
+/* Alarm banner and summary (T10-5). Colour and glyphs come from tokens.css;
+ * the rules for them are in docs/console-standards.md. Load tokens.css first.
+ *
+ * Priority is a hue and a glyph; lifecycle is behaviour (standards, "Alarm
+ * lifecycle"): unack flashes, acked is steady, rtn_unack is outlined. */
+
+[data-priority="critical"] {
+  --alarm-fill: var(--alarm-critical-fill);
+  --alarm-on: var(--alarm-critical-on);
+  --alarm-mark: var(--alarm-critical-mark);
+  --alarm-glyph: var(--symbol-alarm-critical);
+}
+
+[data-priority="high"] {
+  --alarm-fill: var(--alarm-high-fill);
+  --alarm-on: var(--alarm-high-on);
+  --alarm-mark: var(--alarm-high-mark);
+  --alarm-glyph: var(--symbol-alarm-high);
+}
+
+[data-priority="low"] {
+  --alarm-fill: var(--alarm-low-fill);
+  --alarm-on: var(--alarm-low-on);
+  --alarm-mark: var(--alarm-low-mark);
+  --alarm-glyph: var(--symbol-alarm-low);
+}
+
+@keyframes alarm-flash {
+  50% {
+    background-color: var(--surface-raised);
+    color: var(--alarm-mark);
+  }
+}
+
+.alarm-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  padding: 0.1em 0.55em;
+  border: 2px solid var(--alarm-fill);
+  border-radius: 3px;
+  background-color: var(--alarm-fill);
+  color: var(--alarm-on);
+  font-weight: 700;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.alarm-badge::before {
+  content: var(--alarm-glyph);
+}
+
+/* Banner */
+
+.alarm-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  padding: 0.6rem 1rem;
+  border: 2px solid var(--border);
+  background-color: var(--surface-raised);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.alarm-banner[data-empty] {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.alarm-banner[data-priority] {
+  border-color: var(--alarm-fill);
+  background-color: var(--alarm-fill);
+  color: var(--alarm-on);
+}
+
+.alarm-banner[data-state="rtn_unack"] {
+  background-color: var(--surface-raised);
+  border-color: var(--alarm-mark);
+  color: var(--text);
+}
+
+.alarm-banner[data-state="unack"] {
+  animation: alarm-flash var(--alarm-flash-period) step-end infinite;
+}
+
+.alarm-banner-headline,
+.alarm-banner-tallies {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* A badge inside a filled banner needs its own surface to stay legible. */
+.alarm-banner[data-priority]:not([data-state="rtn_unack"]) .alarm-badge {
+  border-color: var(--alarm-on);
+}
+
+.alarm-banner-tallies .alarm-badge {
+  background-color: var(--surface-raised);
+  border-color: var(--alarm-mark);
+  color: var(--text);
+}
+
+/* Summary */
+
+.alarm-summary {
+  width: 100%;
+  border-collapse: collapse;
+  background-color: var(--surface-raised);
+  color: var(--text);
+}
+
+.alarm-summary th,
+.alarm-summary td {
+  padding: 0.4rem 0.7rem;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+
+.alarm-summary th[aria-sort] .alarm-sort::after {
+  margin-left: 0.3em;
+}
+
+.alarm-summary th[aria-sort="ascending"] .alarm-sort::after {
+  content: "\25B2";
+}
+
+.alarm-summary th[aria-sort="descending"] .alarm-sort::after {
+  content: "\25BC";
+}
+
+.alarm-sort,
+.alarm-ack {
+  font: inherit;
+  color: var(--text);
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 0.15rem 0.6rem;
+  cursor: pointer;
+}
+
+.alarm-sort {
+  border-color: transparent;
+  background-color: transparent;
+  font-weight: 700;
+  padding-inline: 0;
+}
+
+.alarm-sort:focus-visible,
+.alarm-ack:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.alarm-empty {
+  color: var(--text-muted);
+}
+
+.alarm-row[data-state="unack"] .alarm-badge {
+  animation: alarm-flash var(--alarm-flash-period) step-end infinite;
+}
+
+.alarm-row[data-state="rtn_unack"] .alarm-badge {
+  background-color: transparent;
+  border-color: var(--alarm-mark);
+  color: var(--alarm-mark);
+}
+
+.alarm-row .alarm-state {
+  font-weight: 700;
+}
+
+/* Flashing is never the only cue: a steady thick border replaces it. */
+@media (prefers-reduced-motion: reduce) {
+  .alarm-banner[data-state="unack"],
+  .alarm-row[data-state="unack"] .alarm-badge {
+    animation: none;
+  }
+
+  .alarm-banner[data-state="unack"] {
+    border-width: 6px;
+    border-color: var(--alarm-mark);
+  }
+
+  .alarm-row[data-state="unack"] .alarm-badge {
+    border-width: 4px;
+    border-color: var(--alarm-mark);
+  }
+}

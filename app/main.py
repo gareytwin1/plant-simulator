@@ -34,6 +34,7 @@ sessions = SessionRegistry()
 rate_limiter = validate.RateLimiter(config.API_RATE_PER_SECOND, config.API_RATE_BURST)
 
 HEALTH_PATH_PREFIX = "/health/"
+PUMP_PATH_PREFIXES = ("/pump", "/api/pump/")
 
 
 def _request_sim_time() -> float | None:
@@ -41,7 +42,16 @@ def _request_sim_time() -> float | None:
     probe, a refused request)."""
     plant = g.get("plant") if has_app_context() else None
 
-    return None if plant is None else plant.compressor_scheduler.snapshot().sim_time
+    if plant is None:
+        return None
+
+    # The two machines run on separate engines with separate clocks.
+    is_pump = request.path.startswith(PUMP_PATH_PREFIXES)
+    scheduler: Scheduler = (
+        plant.pump_scheduler if is_pump else plant.compressor_scheduler
+    )
+
+    return scheduler.snapshot().sim_time
 
 
 plant_logging.configure(sim_time=_request_sim_time)

@@ -240,3 +240,41 @@ def test_engine_probe_with_a_session_reports_both_engines(client):
 
     assert set(body["engines"]) == {"compressor", "pump"}
     assert body["engines"]["compressor"]["sim_time"] > 0
+
+
+def test_health_probes_are_not_rate_limited(client):
+    limiter = main_module.validate.RateLimiter(rate=0.001, burst=1)
+    original = main_module.rate_limiter
+    main_module.rate_limiter = limiter
+    try:
+        statuses = {client.get("/health/live").status_code for _ in range(10)}
+    finally:
+        main_module.rate_limiter = original
+
+    assert statuses == {200}
+
+
+def test_request_log_sim_time_follows_the_engine_the_route_serves(client):
+    import io
+
+    from app import logging as plant_logging
+
+    request_out = io.StringIO()
+    plant_logging.configure(
+        sim_time=main_module._request_sim_time, request_stream=request_out
+    )
+    try:
+        client.get("/api/state")
+        for _ in range(3):
+            client.post("/api/pump/step")
+        client.post("/api/pump/step")
+        client.get("/api/state")
+        client.get("/api/pump/state")
+    finally:
+        plant_logging.configure(sim_time=main_module._request_sim_time)
+
+    rows = [json.loads(line) for line in request_out.getvalue().splitlines()]
+    by_path = {row["path"]: row["sim_time"] for row in rows}
+
+    assert by_path["/api/pump/state"] > 0
+    assert by_path["/api/state"] == 0

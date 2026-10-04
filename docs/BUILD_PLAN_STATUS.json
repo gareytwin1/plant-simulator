@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "4 October 2026",
-  "main_sha": "f90c49e",
-  "tests_passing_on_main": 3065,
+  "main_sha": "508137c",
+  "tests_passing_on_main": 3070,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -108,7 +108,7 @@
     },
     "M18": {
       "name": "Deployment and Operations",
-      "complete": 5,
+      "complete": 6,
       "total": 7
     },
     "M19": {
@@ -119,8 +119,8 @@
   },
   "totals": {
     "tasks": 119,
-    "complete": 106,
-    "startable_now": 10
+    "complete": 107,
+    "startable_now": 9
   },
   "tasks": [
     {
@@ -2143,10 +2143,9 @@
         "tests/test_sessions.py",
         "tests/test_health.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true,
-      "note": ""
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged 508137c (PR #134); 3070 passed on main, mypy clean"
     },
     {
       "id": "T19-1",

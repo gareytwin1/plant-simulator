@@ -3,11 +3,14 @@ import json
 import logging
 import subprocess
 import sys
+import threading
 
 import pytest
 from flask import Flask
 
 from app import logging as plant_logging
+from app.engine.scheduler import Scheduler
+from app.engine.snapshot import build_snapshot
 
 
 @pytest.fixture
@@ -83,6 +86,47 @@ def test_a_provider_with_no_answer_or_that_raises_gives_null_sim_time():
         assert [r["sim_time"] for r in lines(out)] == [None, None]
     finally:
         plant_logging.configure()
+
+
+def test_scheduler_records_show_the_snapshot_sim_time_not_the_provider(streams):
+    engine, _ = streams
+    ticks = iter([0.0, 0.0, 0.0, 2.5])
+    last = [0.0]
+
+    def monotonic():
+        last[0] = next(ticks, last[0])
+
+        return last[0]
+
+    class Stepper:
+        def __init__(self):
+            self.calls = 0
+            self.done = threading.Event()
+
+        def step(self, dt):
+            self.calls += 1
+
+            if self.calls == 2:
+                self.done.set()
+                raise RuntimeError("boom")
+
+            return build_snapshot(sim_time=3.0, speed=1.0, running=True, equipment={})
+
+        def snapshot(self):
+            return build_snapshot(sim_time=3.0, speed=1.0, running=True, equipment={})
+
+    stepper = Stepper()
+    scheduler = Scheduler(stepper, step_seconds=1.0, monotonic=monotonic)
+    scheduler.start()
+    assert stepper.done.wait(5.0)
+    scheduler._thread.join(5.0)
+    scheduler.stop()
+
+    rows = lines(engine)
+
+    assert [r["sim_time"] for r in rows] == [3.0, 3.0]
+    assert "slow simulation step" in rows[0]["message"]
+    assert "engine step failed" in rows[1]["message"]
 
 
 def test_extra_fields_and_exceptions_are_included(streams):

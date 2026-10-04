@@ -279,6 +279,7 @@ def test_slow_step_logs_a_warning_with_interval_and_duration(caplog):
     assert "slow simulation step" in warnings[0].getMessage()
     assert "interval 1.000s" in warnings[0].getMessage()
     assert "step took 2.500s" in warnings[0].getMessage()
+    assert warnings[0].sim_time == pytest.approx(1.0)
     # dt is untouched by the lateness.
     assert set(engine.dts) == {1.0}
 
@@ -311,6 +312,25 @@ def test_step_exception_is_logged_recorded_and_stops_the_worker(caplog):
     assert isinstance(scheduler.error, RuntimeError)
     assert any(r.exc_info for r in caplog.records)
     assert len(engine.dts) == 1
+    failures = [r for r in caplog.records if r.exc_info]
+    assert failures[0].sim_time == pytest.approx(1.0)
+
+    scheduler.stop()
+
+
+def test_failure_before_any_snapshot_logs_null_sim_time(caplog):
+    engine = FakeEngine()
+    engine.fail_on = 1
+    scheduler = Scheduler(engine, step_seconds=0.001)
+
+    with caplog.at_level(logging.ERROR, logger="app.engine.scheduler"):
+        scheduler.start()
+        scheduler._thread.join(WAIT)
+
+    failures = [r for r in caplog.records if r.exc_info]
+
+    assert len(failures) == 1
+    assert failures[0].sim_time is None
 
     scheduler.stop()
 

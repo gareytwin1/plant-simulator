@@ -20,7 +20,10 @@ duration and the overrun. No physics step is skipped or merged: an overrun
 smaller than one interval is caught up by running the next step at once; one
 of a whole interval or more re-anchors the schedule to now, so a stall
 (a suspended laptop) cannot release a burst of steps. The wall time not
-simulated in that case is reported in the warning, never hidden.
+simulated in that case is reported in the warning, never hidden. Both log
+records carry `sim_time` explicitly, read from an already-published snapshot:
+the one the slow step just built, or the last one published before a failure
+(null when none was). The scheduler imports no logging module of the project.
 
 Pause belongs to the clock and the scheduler has no flag of its own. A
 paused clock applies zero elapsed time, so the scheduler keeps ticking at
@@ -259,10 +262,15 @@ class Scheduler:
 
             try:
                 with self.step_lock:
-                    self._latest = self.engine.step(self.step_seconds)
+                    stepped = self.engine.step(self.step_seconds)
+                    self._latest = stepped
             except Exception as exc:
                 self.error = exc
-                logger.exception("engine step failed, scheduler stopping")
+                last = self._latest
+                logger.exception(
+                    "engine step failed, scheduler stopping",
+                    extra={"sim_time": None if last is None else last.sim_time},
+                )
 
                 return
 
@@ -276,4 +284,5 @@ class Scheduler:
                     self.step_seconds,
                     finished - started,
                     overrun,
+                    extra={"sim_time": stepped.sim_time},
                 )

@@ -174,12 +174,11 @@ def cvd_distance(a: str, b: str, kind: str) -> float:
     return delta_e_2000(_to_lab(_simulate(a, matrix)), _to_lab(_simulate(b, matrix)))
 
 
-def _fill_on_pairs() -> list[tuple[str, str, str]]:
+def _fill_states() -> list[tuple[str, str]]:
     return [
-        (group, state, role)
+        (group, state)
         for group, states in (("alarm", ALARM_STATES), ("equip", EQUIP_STATES))
         for state in states
-        for role in ("fill",)
     ]
 
 
@@ -189,7 +188,7 @@ def report() -> str:
     for theme in THEMES:
         t = tokens[theme]
         lines.append(f"[{theme}]")
-        for group, state, _ in _fill_on_pairs():
+        for group, state in _fill_states():
             ratio = contrast(t[f"--{group}-{state}-on"], t[f"--{group}-{state}-fill"])
             lines.append(f"  {group}-{state} on/fill {ratio:5.2f}:1 (floor {TEXT_CONTRAST})")
         for state in ALARM_STATES:
@@ -217,7 +216,7 @@ def tokens() -> dict[str, dict[str, str]]:
 
 def test_every_expected_token_is_defined_in_both_themes(tokens):
     expected = {"--surface", "--surface-raised", "--border", "--text", "--text-muted", "--focus-ring"}
-    for group, state, _ in _fill_on_pairs():
+    for group, state in _fill_states():
         expected |= {f"--{group}-{state}-fill", f"--{group}-{state}-on"}
     expected |= {f"--alarm-{s}-mark" for s in ALARM_STATES}
     expected |= {f"--band-{s}-tint" for s in BAND_STATES}
@@ -228,7 +227,7 @@ def test_every_expected_token_is_defined_in_both_themes(tokens):
 @pytest.mark.parametrize("theme", THEMES)
 def test_text_on_every_fill_meets_text_contrast(tokens, theme):
     t = tokens[theme]
-    for group, state, _ in _fill_on_pairs():
+    for group, state in _fill_states():
         ratio = contrast(t[f"--{group}-{state}-on"], t[f"--{group}-{state}-fill"])
         assert ratio >= TEXT_CONTRAST, (theme, group, state, ratio)
 
@@ -266,6 +265,16 @@ def test_band_tints_are_distinct_from_each_other_and_the_surface(tokens, theme):
     for a, b in itertools.combinations(colours, 2):
         d = delta_e_2000(_to_lab(tuple(map(_linear, _rgb(a)))), _to_lab(tuple(map(_linear, _rgb(b)))))
         assert d >= BAND_MIN_DELTA_E, (theme, a, b, d)
+
+
+@pytest.mark.parametrize("kind", sorted(CVD_MATRICES))
+@pytest.mark.parametrize("theme", THEMES)
+def test_band_tints_stay_distinct_under_colour_blindness(tokens, theme, kind):
+    t = tokens[theme]
+    colours = [t["--surface"]] + [t[f"--band-{s}-tint"] for s in BAND_STATES]
+    for a, b in itertools.combinations(colours, 2):
+        d = cvd_distance(a, b, kind)
+        assert d >= BAND_MIN_DELTA_E, (theme, kind, a, b, d)
 
 
 @pytest.mark.parametrize("kind", sorted(CVD_MATRICES))

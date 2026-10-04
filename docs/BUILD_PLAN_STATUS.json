@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "4 October 2026",
-  "main_sha": "506ba7f",
-  "tests_passing_on_main": 2996,
+  "main_sha": "d379e30",
+  "tests_passing_on_main": 3031,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -98,7 +98,7 @@
     },
     "M16": {
       "name": "Operator Console",
-      "complete": 1,
+      "complete": 2,
       "total": 5
     },
     "M17": {
@@ -109,7 +109,7 @@
     "M18": {
       "name": "Deployment and Operations",
       "complete": 5,
-      "total": 5
+      "total": 7
     },
     "M19": {
       "name": "Shared Features",
@@ -118,9 +118,9 @@
     }
   },
   "totals": {
-    "tasks": 117,
-    "complete": 104,
-    "startable_now": 8
+    "tasks": 119,
+    "complete": 105,
+    "startable_now": 11
   },
   "tasks": [
     {
@@ -1865,10 +1865,9 @@
         "static/css/tokens.css",
         "docs/console-standards.md"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true,
-      "note": ""
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged to main as d379e30 (PR #132). Suite 3031 passed post-merge, mypy clean over 77 files, no golden movement. static/css/tokens.css: light-dark() colour tokens for alarm priority, envelope bands and equipment state plus --symbol-* glyphs; docs/console-standards.md: rules and per-state tables; tests/test_console_tokens.py: WCAG contrast in both themes and CIEDE2000 distinctness of alarm, equipment and band palettes under protan, deutan and tritan simulation (python tests/test_console_tokens.py prints the numbers). Tripped is purple so it stays separable from critical red. Not yet viewed in a browser (light-dark() switching untested there)."
     },
     {
       "id": "T16-2",
@@ -1902,10 +1901,7 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "T16-1"
-      ],
+      "startable": true,
       "note": ""
     },
     {
@@ -1923,10 +1919,7 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "T16-1"
-      ],
+      "startable": true,
       "note": ""
     },
     {
@@ -2015,8 +2008,7 @@
       "status_key": "todo",
       "startable": false,
       "blocked_by": [
-        "T17-3",
-        "T16-1"
+        "T17-3"
       ],
       "note": ""
     },
@@ -2114,6 +2106,48 @@
       "status": "Complete",
       "status_key": "done",
       "note": "Merged to main as 1927cbb (PR #129). Suite 2955 passed post-merge, mypy clean over 75 files, no golden movement. SessionRegistry.reclaim_idle() ends sessions idle for config.SESSION_IDLE_SECONDS (1800), run lazily under the registry lock by get() and create() (no reaper thread, lock order unchanged). config/VERSION (1.0.0) is read by the leaf app/configversion.py; tests/test_config_version_guard.py fails a config edit that does not bump it. ScoreStore stamps results with the version (schema migration 2) and personal_best counts only the store's major. Load test over MAX_SESSIONS sessions. STATE_VERSION stays 1. Spine lock released."
+    },
+    {
+      "id": "T18-6",
+      "milestone": "M18",
+      "name": "Scheduler log records carry sim time",
+      "category": "dep",
+      "branch": "feature/scheduler-log-sim-time",
+      "depends_on": [
+        "T18-4",
+        "T2-5"
+      ],
+      "files": [
+        "app/engine/scheduler.py",
+        "tests/test_scheduler.py",
+        "tests/test_logging.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": true,
+      "note": ""
+    },
+    {
+      "id": "T18-7",
+      "milestone": "M18",
+      "name": "Read-only session lookup for health probes",
+      "category": "dep",
+      "branch": "feature/registry-peek",
+      "depends_on": [
+        "T18-4",
+        "T18-5"
+      ],
+      "files": [
+        "app/engine/sessions.py",
+        "app/main.py",
+        "app/api/health.py",
+        "tests/test_sessions.py",
+        "tests/test_health.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": true,
+      "note": ""
     },
     {
       "id": "T19-1",

@@ -8,11 +8,11 @@ regrowth rule is in [.claude/rules/docs.md](../../.claude/rules/docs.md).
 
 ## Right now
 
-**Last state refresh:** 4 October 2026, at `506ba7f` (Merge T18-4:
-Structured logging and health, PR #131) - **this is a snapshot,
-not a live pointer.** Run `git log 506ba7f..HEAD --oneline` to see what has
+**Last state refresh:** 4 October 2026, at `d379e30` (Merge T16-1:
+Console design tokens and standards, PR #132) - **this is a snapshot,
+not a live pointer.** Run `git log d379e30..HEAD --oneline` to see what has
 merged since.
-**Full suite as of this refresh:** **2996 passed** · `python -m mypy` clean over 77 source files · no golden trace movement
+**Full suite as of this refresh:** **3031 passed** · `python -m mypy` clean over 77 source files · no golden trace movement
 **In flight:** nothing.
 **No spine lock is held.** No task is Blocked. CI runs on every PR, and `main` requires its
 `test` check before a merge.
@@ -22,12 +22,12 @@ merged since.
 
 | Task | SHA | What landed |
 |---|---|---|
+| **T16-1** | `d379e30` | Console design system: `static/css/tokens.css` (`light-dark()` colour tokens for alarm priority, envelope bands and equipment state, plus `--symbol-*` glyphs), `docs/console-standards.md`, and `tests/test_console_tokens.py` (WCAG contrast in both themes, CIEDE2000 distinctness under protan, deutan and tritan simulation). Tripped is purple so it stays apart from critical red. Not yet viewed in a browser (PR #132) |
 | **T18-4** | `506ba7f` | Structured logging and health: `app/logging.py` (JSON lines, engine and request streams, `sim_time` from an injected provider; scheduler worker records carry `sim_time` null because `Scheduler` passes none), `app/api/health.py` (`/health/live`, `/health/engine`: failed, closed, stopped, paused, stalled, degraded, ok, plus convergence rate from published `Scheduler` state; 503 on failed or stalled). Wired in `main.py`; probes create no session and skip the rate limiter. A cookie-carrying probe still touches its session (`SessionRegistry` needs a read-only `peek()`, spine) (PR #131) |
 | **T18-1** | `cc2784f` | Container and WSGI serving: `gunicorn.conf.py` pins `workers = 1` (gthread, 64 threads, no preload; a test reads the pin), multi-stage `Dockerfile` (`runtime` default, `test` target runs the suite), `docker-compose.yml` (one service, never scale), `.dockerignore`; `gunicorn==26.2.0`. A `docker` job in `ci.yml` runs the suite in the image, serves the runtime image and asserts one master plus one worker. Gunicorn gives the SSE stream no socket send timeout, and the stream blueprint is not registered in `main.py` (PR #130) |
 | **T18-5** | `1927cbb` | Session lifecycle and config versioning: `SessionRegistry.reclaim_idle()` ends sessions idle for `config.SESSION_IDLE_SECONDS` (1800), run lazily under the registry lock by `get()` and `create()` (no reaper thread, lock order unchanged); `config/VERSION` (1.0.0) read by the leaf `app/configversion.py`, and `tests/test_config_version_guard.py` fails a config edit that does not bump it; `ScoreStore` stamps results with the version (migration 2) and `personal_best` counts only the store's major. `STATE_VERSION` stays 1 (PR #129) |
 | **T18-3** | `b49f9bc` | API input validation and rate limiting, `app/api/validate.py` (body readers: unknown keys, finite, +/-1e6 magnitude incl. huge int literals; 4 KiB body cap; JSON errors under `/api/`; per-address token bucket with an injected monotonic clock, 429 plus `Retry-After`; installed on the live app before the session hook). Consoles ignore non-ok responses and throttle slider posts. Targets still clamp to [0,1]. Limiter keys on `remote_addr`, so clients behind a proxy or NAT share one bucket. The action, alarm and scenario blueprints are validated but still not registered in `main.py`. |
 | **T12-5** | `4d6eed4` | Public state accessors: `Engine`, `Loop` (with its `PID`), `CommandArbiter`, `Evaluator` and `ExcursionTracker` each `checkpoint()`, `validate_checkpoint()` and `restore_checkpoint()` their own slow state; `persistence.py` composes them and reads no private attribute (AST guard test). `StateError(path, reason)` now lives in `app/statetypes.py`; `Band` is public. Saved layout unchanged, `STATE_VERSION` stays 1. Follow-ups: drop `Engine._envelope_band` (repeats the evaluator band), rename `master` in `modes.py` (PR #127) |
-| **T8-5** | `4386993` | Cascade control, `app/controls/cascade.py` (`Cascade` pairs an outer and an inner `Loop`, scales the outer output into the inner setpoint's range through a stand-in outer loop so `Loop` and `PID` are untouched; safe mode is the inner loop in MANUAL holding its last output, `engage()` resumes with no step). Not wired: the loader, C3 and `Engine` cannot create a cascade, and no level PV resolver exists (PR #126) |
 
 **ADRs on `main`:** [0001](../../docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md)
 (+ Amendment 1) and [0002](../../docs/ADR_0002_TYPED_PORTS.md) (+ Amendments
@@ -41,18 +41,18 @@ Complete: **M0-M9, M12, M13, M14, M15, MR**. Open:
 |---|---|---|
 | **M10** Alarms | 3/5 | T10-1, T10-2, T10-3; T10-4 startable (V1.1-deferred), T10-5 startable |
 | **M11** Interlocks and Trips | 3/4 | T11-1, T11-2, T11-3; T11-4 startable (V1.1-deferred) |
-| **M16** Operator Console | 1/5 | T16-2; T16-1 startable, T16-5 startable; T16-3 needs T16-1 first |
+| **M16** Operator Console | 2/5 | T16-1, T16-2; T16-3, T16-4 and T16-5 startable |
 | **M17** Historian and Trends | 1/4 | T17-1; T17-2 startable (V1.1-deferred) |
 | **M18** Deployment | 5/7 | T18-1 to T18-5; T18-6 (scheduler log sim time) and T18-7 (`SessionRegistry.peek()`) startable, both spine, so serial |
 | M19 | 0 | - |
 
-**104 of 119 tasks Complete.** Checkpoints A-C reached. Checkpoint **D** (M8)
+**105 of 119 tasks Complete.** Checkpoints A-C reached. Checkpoint **D** (M8)
 needs only its "loops reject an injected disturbance" gate: PIC-101 switched to
 AUTO in `olefins_lite.yaml`, which T8-6 enabled but no task owns yet.
 
 ## The next task
 
-**10 tasks are startable** - list them from
+**11 tasks are startable** - list them from
 [BUILD_PLAN_STATUS.json](../../docs/BUILD_PLAN_STATUS.json) (`startable`
 field). All are Sonnet. T10-4, T11-4 and T17-2 are V1.1-deferred;
 T19-2 (startable - its other dependency, T13-1, was already Complete) is

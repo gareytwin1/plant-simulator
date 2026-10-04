@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
-  "refreshed": "3 October 2026",
-  "main_sha": "cc2784f",
-  "tests_passing_on_main": 2962,
+  "refreshed": "4 October 2026",
+  "main_sha": "506ba7f",
+  "tests_passing_on_main": 2996,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -108,7 +108,7 @@
     },
     "M18": {
       "name": "Deployment and Operations",
-      "complete": 4,
+      "complete": 5,
       "total": 5
     },
     "M19": {
@@ -119,8 +119,8 @@
   },
   "totals": {
     "tasks": 117,
-    "complete": 103,
-    "startable_now": 9
+    "complete": 104,
+    "startable_now": 8
   },
   "tasks": [
     {
@@ -2084,10 +2084,9 @@
         "app/logging.py",
         "app/api/health.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true,
-      "note": ""
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged to main as 506ba7f (PR #131). Suite 2996 passed post-merge, mypy clean over 77 files, no golden movement. app/logging.py: JSON lines in engine and request streams, sim_time via injected provider. app/api/health.py: /health/live and /health/engine report liveness (failed, closed, stopped, paused, stalled, degraded, ok) and solver convergence rate from published Scheduler state; failed or stalled returns 503. main.py wires both in; health probes create no session and are exempt from the rate limiter (one line in validate.py). Open gaps, both need a spine task: scheduler worker logs carry sim_time null (Scheduler does not pass the plant time); SessionRegistry.get() touches the session on a cookie-carrying probe (needs a read-only peek())."
     },
     {
       "id": "T18-5",

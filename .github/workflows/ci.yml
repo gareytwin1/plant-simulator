@@ -20,3 +20,31 @@ jobs:
       - run: python -m pytest -q
 
       - run: python -m mypy
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run the suite inside the image
+        run: docker build --target test -t plant-simulator:test . && docker run --rm plant-simulator:test
+
+      - name: Build the runtime image
+        run: docker build -t plant-simulator .
+
+      - name: Serve and smoke-test
+        run: |
+          docker run -d --name plant -p 8000:8000 plant-simulator
+          for _ in $(seq 1 30); do
+            curl -fsS -o /dev/null http://localhost:8000/api/state && break
+            sleep 1
+          done
+          curl -fsS http://localhost:8000/api/state
+          # One gunicorn master plus exactly one worker process.
+          test "$(docker top plant -eo pid,args | grep -c 'gunicorn')" -eq 2
+
+      - name: Container logs and cleanup
+        if: always()
+        run: |
+          docker logs plant || true
+          docker rm -f plant || true

@@ -1,0 +1,18 @@
+# Production-style serving: Gunicorn, no dev server, no debug.
+#
+# Do not scale this service (`--scale`, `deploy.replicas`) and do not raise
+# `workers` in gunicorn.conf.py: sessions, schedulers and the rate limiter are
+# per-process, so a second process splits one browser's session across two
+# plants. Scale with threads.
+#
+# Behind a reverse proxy the API rate limit is per client address, so every
+# client may share one bucket. Proxy-header handling is not done here.
+services:
+  plant-simulator:
+    build:
+      context: .
+      target: runtime
+    image: plant-simulator
+    ports:
+      - "8000:8000"
+    restart: unless-stopped

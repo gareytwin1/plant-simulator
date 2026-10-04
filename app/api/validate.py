@@ -162,7 +162,8 @@ def install(app: Flask, limiter: Callable[[], RateLimiter]) -> None:
 
     @app.before_request
     def enforce_rate_limit() -> ResponseReturnValue | None:
-        if request.endpoint == "static":
+        # A probe that is throttled cannot tell a busy server from a dead one.
+        if request.endpoint == "static" or request.blueprint == "health":
             return None
 
         wait = limiter().acquire(request.remote_addr or "unknown")

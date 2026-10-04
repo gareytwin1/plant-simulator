@@ -13,9 +13,8 @@ timestamp. Sim time is never read from a clock here: a `SimTimeFilter` asks a
 provider the caller supplies (in `app.main`, the session's last published
 Snapshot) and a caller may override it with `extra={"sim_time": ...}`. A
 record logged where no provider can name a plant carries `sim_time: null`,
-never a guess. That is the case for records the scheduler worker logs today:
-`Scheduler` does not pass the plant's time with them, and it is spine, so
-closing the gap is a change there, not here.
+never a guess. The scheduler worker passes the plant's time itself on its
+slow-step and failed-step records (T18-6).
 
 This module is `app.logging` and the standard library is `logging`; files in
 `app/` use absolute imports, so `import logging` there is still the stdlib.

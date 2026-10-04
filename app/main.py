@@ -33,7 +33,6 @@ sessions = SessionRegistry()
 
 rate_limiter = validate.RateLimiter(config.API_RATE_PER_SECOND, config.API_RATE_BURST)
 
-HEALTH_PATH_PREFIX = "/health/"
 PUMP_PATH_PREFIX = "/api/pump/"
 PUMP_PAGE_PATH = "/pump"
 
@@ -82,7 +81,7 @@ app.register_blueprint(create_health_blueprint(_health_schedulers, lambda: len(s
 
 @app.before_request
 def load_session() -> None:
-    if request.path.startswith(HEALTH_PATH_PREFIX):
+    if request.blueprint == "health":
         return
 
     session_id = request.cookies.get(SESSION_COOKIE)

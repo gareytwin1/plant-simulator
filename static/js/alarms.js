@@ -183,9 +183,9 @@
 
     var head = COLUMNS.map(function (column) {
       var current = column.key === active.key;
-      var direction = active.descending ? "descending" : "ascending";
+      var direction = current ? (active.descending ? "descending" : "ascending") : "none";
       return (
-        '<th scope="col"' + (current ? ' aria-sort="' + direction + '"' : "") + ">" +
+        '<th scope="col" aria-sort="' + direction + '">' +
         '<button type="button" class="alarm-sort" data-sort="' + column.key + '">' +
         column.label + "</button></th>"
       );
@@ -249,6 +249,7 @@
     var sort = { key: "priority", descending: false };
     var alarms = [];
     var timer = null;
+    var latest = 0;
 
     function draw() {
       bannerEl.innerHTML = renderBanner(alarms);
@@ -256,9 +257,13 @@
     }
 
     async function refresh() {
+      var ticket = ++latest;
       var response = await doFetch(HISTORY_URL);
       if (!response.ok) return;
-      alarms = deriveAlarms(await response.json());
+      var entries = await response.json();
+      // A newer refresh started while this one was in flight; its answer wins.
+      if (ticket !== latest) return;
+      alarms = deriveAlarms(entries);
       draw();
     }
 

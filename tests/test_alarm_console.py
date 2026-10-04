@@ -277,8 +277,13 @@ def test_summary_marks_the_sorted_column_with_its_direction(plant):
         entries=plant.entries(),
     )
 
-    assert html.count("aria-sort") == 1
-    assert re.search(r'aria-sort="descending"><button[^>]*data-sort="tag"', html)
+    assert re.findall(r'aria-sort="(\w+)"><button[^>]*data-sort="(\w+)"', html) == [
+        ("none", "priority"),
+        ("none", "state"),
+        ("descending", "tag"),
+        ("none", "message"),
+        ("none", "time"),
+    ]
 
 
 @needs_node
@@ -349,6 +354,35 @@ def test_clicking_acknowledge_posts_then_refetches_and_redraws(plant):
     assert 'data-state="unack"' in result["drawn"]
     assert 'data-state="acked"' in result["redrawn"]
     assert 'data-state="acked"' in result["banner"]
+
+
+@needs_node
+def test_a_stale_history_response_does_not_overwrite_a_newer_one(plant):
+    plant.set_band("K-101", "discharge pressure", Severity.ALARM, at=5.0)
+    older = plant.entries()
+    plant.set_band("K-102", "vibration", Severity.TRIP, at=6.0)
+    newer = plant.entries()
+
+    result = run_js(
+        """
+        const resolvers = [];
+        const fakeFetch = () => new Promise((resolve) => resolvers.push(resolve));
+        const respond = (i, entries) => resolvers[i]({ok: true, json: async () => entries});
+        const banner = {innerHTML: ''};
+        const summary = {innerHTML: '', addEventListener: () => {}};
+        const mounted = A.mount(banner, summary, {fetch: fakeFetch});
+        const second = mounted.refresh();
+        respond(1, data.newer);
+        await second;
+        respond(0, data.older);
+        await mounted.ready;
+        return summary.innerHTML;
+        """,
+        older=older,
+        newer=newer,
+    )
+
+    assert "K-102" in result
 
 
 def css_tokens_used(css):

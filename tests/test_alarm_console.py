@@ -427,3 +427,34 @@ def test_flashing_has_a_reduced_motion_fallback():
 
 def test_alarm_js_has_no_colour_literals():
     assert not re.findall(r"#[0-9a-fA-F]{6}\b", ALARMS_JS.read_text())
+
+
+def rule_for(css, selector):
+    block = re.search(re.escape(selector) + r"\s*\{(.*?)\}", css, re.DOTALL)
+    assert block is not None, selector
+    return block.group(1)
+
+
+@pytest.mark.parametrize("theme", ["light", "dark"])
+@pytest.mark.parametrize("priority", ["critical", "high", "low"])
+def test_tally_badge_edge_is_visible_on_the_surface_it_is_drawn_on(theme, priority):
+    from test_console_tokens import GRAPHIC_CONTRAST, contrast, load_tokens
+
+    css = ALARMS_CSS.read_text()
+    tally = rule_for(css, ".alarm-banner-tallies .alarm-badge")
+    assert "border-color: var(--alarm-mark)" in tally
+    assert "background-color: var(--surface-raised)" in tally
+
+    colours = load_tokens()[theme]
+    edge, surface = colours[f"--alarm-{priority}-mark"], colours["--surface-raised"]
+    assert contrast(edge, surface) >= GRAPHIC_CONTRAST
+
+
+def test_filled_banner_edge_rule_cannot_reach_the_tally_badges():
+    css = ALARMS_CSS.read_text()
+
+    selectors = re.findall(r"^([^{}\n]*\.alarm-banner\[data-priority\][^{}]*)\{", css, re.MULTILINE)
+    edge_rules = [s for s in selectors if ".alarm-badge" in s]
+
+    assert edge_rules
+    assert all(".alarm-banner-headline .alarm-badge" in s for s in edge_rules)

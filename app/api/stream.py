@@ -47,7 +47,7 @@ that never regains control cannot run any check written after it:
   timeout the socket had is restored once the response closes - after the
   server's own closing write, which still needs the bound - because
   Gunicorn's gthread worker reuses a kept-alive connection for the
-  request. A WSGI server that exposes its socket under neither key has no
+  client's next request. A WSGI server that exposes its socket under neither key has no
   backstop against that specific case.
 
 `create_stream_blueprint` also takes an optional `hold`, a context manager

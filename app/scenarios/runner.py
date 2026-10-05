@@ -47,6 +47,9 @@ snapshot and its interlocks and alarms start clean. An interlock `reset` is an
 operator action like any other: it goes through `act`, is journaled in the
 `ActionLog` and is replayed. The run exposes `alarm_entries` and `acknowledge`
 under the runner lock.
+Acknowledgement is not an input a replay reproduces: it changes the alarm
+history only, never the plant, and is accepted in any phase so a finished
+run's alarms can still be acknowledged in the debrief.
 
 `ScenarioRunner` is `Steppable` (`app.engine.scheduler`): a `Scheduler` can
 drive it like an engine. Before `start` and after completion `step` publishes
@@ -54,8 +57,10 @@ the current snapshot without advancing anything, the way a paused engine does.
 
 The game layer reaches the physics only as `Malfunction` allows: through its
 allowlist of engineer-changeable parameters, and through the same operator
-actions a person has (`app.api.action`, against `runner.engine` and
-`runner.actions`). A trip now fires in a run, and an objective's `failure`
+actions a person has, taken with `ScenarioRunner.act` (an HTTP action route
+passes `apply=runner.act`). `runner.engine` and `runner.actions` are for
+reading: an action applied to them directly skips the runtime, so it cannot
+reset an interlock and the next trip check reads the plant from before it. A trip now fires in a run, and an objective's `failure`
 condition can read the plant it moved. Interlock state is not in
 `capture_state`, so a run armed from an initial condition starts untripped and
 `_end_state` ignores interlock state (the replayed inputs reproduce it).

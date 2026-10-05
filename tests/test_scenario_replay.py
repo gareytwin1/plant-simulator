@@ -832,3 +832,41 @@ def test_the_rng_guard_catches_each_way_of_importing_the_generator(tmp_path):
 def test_the_rng_guard_names_each_module_by_its_package():
     assert package_of(APP / "engine" / "engine.py") == "app.engine"
     assert package_of(APP / "scenarios" / "replay.py") == "app.scenarios"
+
+
+def tripped_then_reset_run():
+    config = scenario(
+        initial_condition={"condition": "feed_pump_trip", "overrides": {"V-101._level": 0.95}},
+        objectives=[{"id": "never", "success": {"condition": "V-101.level >= 5.0"}}],
+    )
+    live = started(config)
+    live.act("P-101", "start", None)
+    live.act("P-101", "set_speed_target", 1.0)
+    steps(live, 30)
+    assert not live.engine.equipment["P-101"].running  # LSHH-101 tripped it
+
+    live.act("LV-101", "set_position_target", 1.0)
+    steps(live, 20)
+    live.act("LSHH-101", "reset", None)
+    steps(live, 10)
+
+    return live
+
+
+def test_replaying_a_run_that_trips_and_resets_reproduces_the_same_end_state():
+    live = tripped_then_reset_run()
+    assert [(a["tag"], a["action"]) for a in live.result().actions][-1] == ("LSHH-101", "reset")
+
+    replayed = replay(Recording.of(live))
+
+    assert_identical(live, replayed)
+    assert replayed._run.runtime.trips.interlocks["LSHH-101"].tripped == live._run.runtime.trips.interlocks["LSHH-101"].tripped
+    assert [e.id for e in replayed.alarm_entries()] == [e.id for e in live.alarm_entries()]
+
+
+def test_a_trip_run_survives_a_json_round_trip_and_still_replays():
+    live = tripped_then_reset_run()
+
+    document = json.loads(json.dumps(Recording.of(live).as_dict()))
+
+    assert_identical(live, replay(Recording.from_dict(document)))

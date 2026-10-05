@@ -28,6 +28,8 @@ A scenario is loaded, armed, run and completed, and every step of that is one
             initial condition, so the plant stands exactly as it did when
             armed. Refused once the run has completed: a result is not
             discarded by accident.
+    unload  forgets the loaded run and returns the runner to IDLE. Refused
+            while RUNNING, as `load` is.
 
 **Scenario time starts at zero, wherever the initial condition's clock stood.**
 A saved condition carries the sim time it was captured at, but a scenario's
@@ -37,6 +39,15 @@ read a copy of each snapshot with `sim_time` rebased to the scenario's start;
 the plant itself, its clock and its envelope history are never rewritten, and
 the snapshot `step` returns to a consumer is the engine's own.
 
+**A run steps a `PlantRuntime` (`app.training.runtime`), not a bare engine,**
+so it is protected by the plant's trips and raises and records alarms exactly
+as free play does. Every arm and every abort builds a fresh runtime *after*
+the initial condition is restored, so its trips start from the restored
+snapshot and its interlocks and alarms start clean. An interlock `reset` is an
+operator action like any other: it goes through `act`, is journaled in the
+`ActionLog` and is replayed. The run exposes `alarm_entries` and `acknowledge`
+under the runner lock.
+
 `ScenarioRunner` is `Steppable` (`app.engine.scheduler`): a `Scheduler` can
 drive it like an engine. Before `start` and after completion `step` publishes
 the current snapshot without advancing anything, the way a paused engine does.
@@ -44,9 +55,10 @@ the current snapshot without advancing anything, the way a paused engine does.
 The game layer reaches the physics only as `Malfunction` allows: through its
 allowlist of engineer-changeable parameters, and through the same operator
 actions a person has (`app.api.action`, against `runner.engine` and
-`runner.actions`). A scenario's "expected trip" is an objective's `failure`
-condition, since trips are not evaluated in a live session yet (see
-project_state.md).
+`runner.actions`). A trip now fires in a run, and an objective's `failure`
+condition can read the plant it moved. Interlock state is not in
+`capture_state`, so a run armed from an initial condition starts untripped and
+`_end_state` ignores interlock state (the replayed inputs reproduce it).
 
 **Every input that moves a run is journaled** (`inputs()`), so
 `app.scenarios.replay` can play it back: a `Tick` for each `start`, advancing
@@ -87,19 +99,21 @@ from typing import Any
 
 import yaml
 
-from app.api.action import apply_action
+from app.alarms.acknowledge import Acknowledged
+from app.alarms.history import HistoryEntry
 from app.disturbances.malfunction import Malfunction, MalfunctionRegistry
 from app.disturbances.profiles import profile_from_config, start_condition_from_config
 from app.engine.engine import Engine
 from app.engine.persistence import capture_state, restore_state
 from app.engine.snapshot import Snapshot
 from app.equipment.registry import EquipmentRegistry
-from app.plant.loader import CONFIG_SUFFIXES, load_plant, read_plant_config
+from app.plant.loader import CONFIG_SUFFIXES, Plant, load_plant, read_plant_config
 from app.plant.validate import validate
 from app.scenarios.objectives import ObjectiveEvaluator, ObjectiveResult, ObjectiveStatus
 from app.scenarios.triggers import TriggerEvaluator
 from app.scoring.actionlog import ActionLog
 from app.statetypes import JSONValue
+from app.training.runtime import PlantRuntime
 
 
 ROOT = Path(__file__).resolve().parent.parent.parent
@@ -410,11 +424,10 @@ class _Run:
     difficulty: str
     seed: int
     time_limit_s: float
-    build: Callable[[], Engine]
+    build: Callable[[], Plant]
     armed_state: dict[str, JSONValue]
-    engine: Engine
+    runtime: PlantRuntime
     origin: float
-    actions: ActionLog
     malfunctions: MalfunctionRegistry
     triggers: TriggerEvaluator
     objectives: ObjectiveEvaluator
@@ -425,6 +438,14 @@ class _Run:
     results: tuple[ObjectiveResult, ...] = ()
     fired: dict[str, float] = field(default_factory=dict)
     journal: list[Tick] = field(default_factory=list)
+
+    @property
+    def engine(self) -> Engine:
+        return self.runtime.engine
+
+    @property
+    def actions(self) -> ActionLog:
+        return self.runtime.actions
 
     def view(self, snapshot: Snapshot) -> Snapshot:
         """`snapshot` on the scenario's own clock."""
@@ -498,9 +519,27 @@ class ScenarioRunner:
                 )
 
             sim_time = run.engine.clock.sim_time
-            apply_action(run.engine.equipment, run.actions, sim_time, target, action, value)
+            run.runtime.act(target, action, value)
 
             return sim_time - run.origin
+
+    def acknowledge(self, alarm_id: str) -> Acknowledged:
+        """Acknowledge one alarm of the loaded run, under the runner lock."""
+        with self._lock:
+            return self._loaded().runtime.acknowledge(alarm_id)
+
+    def alarm_entries(self) -> tuple[HistoryEntry, ...]:
+        """The loaded run's alarm history, oldest first."""
+        with self._lock:
+            return self._loaded().runtime.alarm_entries()
+
+    def unload(self) -> None:
+        """Forget the loaded run, returning the runner to IDLE."""
+        with self._lock:
+            if self._run is not None and self._run.phase is Phase.RUNNING:
+                raise ScenarioStateError("a scenario is running; abort it before unloading")
+
+            self._run = None
 
     def load(self, scenario_id: str) -> ScenarioResult:
         return self.load_config(self._library.scenario(scenario_id))
@@ -546,7 +585,7 @@ class ScenarioRunner:
             tick = Tick(TickKind.STEP, len(run.actions), dt=dt, speed=clock.speed, paused=clock.paused)
 
             with _journaling(run, tick):
-                snapshot = run.engine.step(dt)
+                snapshot = run.runtime.step(dt)
                 self._observe(run, snapshot)
 
             return snapshot
@@ -566,7 +605,11 @@ class ScenarioRunner:
 
             with _journaling(run, Tick(TickKind.ABORT, len(run.actions))):
                 run.malfunctions.revert_all()
-                run.engine = self._restored(run.build, run.armed_state)
+                # The rebuilt runtime starts with clean interlocks and alarms,
+                # but the log stays the run's one record of what was done.
+                actions = run.runtime.actions
+                run.runtime = self._restored(run.build, run.armed_state)
+                run.runtime.actions = actions
                 run.phase = Phase.ABORTED
                 run.outcome = Outcome.ABORTED
                 run.ended_at = elapsed
@@ -623,10 +666,11 @@ class ScenarioRunner:
         plant_config = read_plant_config(plant_path, plant_bytes)
         state = apply_overrides(_decode_condition(condition_path, condition_bytes), condition.get("overrides", {}))
 
-        def build() -> Engine:
-            return Engine.from_plant(load_plant(copy.deepcopy(plant_config)))
+        def build() -> Plant:
+            return load_plant(copy.deepcopy(plant_config))
 
-        engine = self._restored(build, state)
+        runtime = self._restored(build, state)
+        engine = runtime.engine
         armed = engine.snapshot()
 
         registry = EquipmentRegistry()
@@ -654,9 +698,8 @@ class ScenarioRunner:
             time_limit_s=time_limit,
             build=build,
             armed_state=state,
-            engine=engine,
+            runtime=runtime,
             origin=armed.sim_time,
-            actions=ActionLog(),
             malfunctions=malfunctions,
             triggers=triggers,
             objectives=objectives,
@@ -669,11 +712,13 @@ class ScenarioRunner:
         return hashlib.sha256(json.dumps(where, sort_keys=True).encode()).hexdigest()
 
     @staticmethod
-    def _restored(build: Callable[[], Engine], state: dict[str, JSONValue]) -> Engine:
-        engine = build()
+    def _restored(build: Callable[[], Plant], state: dict[str, JSONValue]) -> PlantRuntime:
+        plant = build()
+        engine = Engine.from_plant(plant)
         restore_state(engine, state)
 
-        return engine
+        # After the restore, so the trips start from the restored snapshot.
+        return PlantRuntime(engine, plant)
 
     @staticmethod
     def _observe(run: _Run, snapshot: Snapshot) -> None:

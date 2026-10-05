@@ -41,12 +41,12 @@ Complete: **M0-M9, M12, M13, M14, M15, MR**. Open:
 |---|---|---|
 | **M10** Alarms | 4/5 | T10-1, T10-2, T10-3, T10-5; T10-4 startable (V1.1-deferred) |
 | **M11** Interlocks and Trips | 3/4 | T11-1, T11-2, T11-3; T11-4 startable (V1.1-deferred) |
-| **M16** Operator Console | 3/9 | T16-1, T16-2, T16-6; T16-3, T16-4, T16-5 and T16-7 startable; T16-8 then T16-9 chain behind T16-7 |
+| **M16** Operator Console | 3/11 | T16-1, T16-2, T16-6; T16-3, T16-4, T16-5 and T16-7 startable; T16-8, T16-10, T16-11 then T16-9 chain behind T16-7 |
 | **M17** Historian and Trends | 1/4 | T17-1; T17-2 startable (V1.1-deferred) |
 | **M18** Deployment | 7/9 | T18-1 to T18-7; T18-9 startable; T18-8 (rate limit behind a reverse proxy) startable once Opus decides its shape |
 | M19 | 0 | - |
 
-**109 of 125 tasks Complete.** Checkpoints A-C reached. Checkpoint **D** (M8)
+**109 of 127 tasks Complete.** Checkpoints A-C reached. Checkpoint **D** (M8)
 needs only its "loops reject an injected disturbance" gate: PIC-101 switched to
 AUTO in `olefins_lite.yaml`, which T8-6 enabled but no task owns yet.
 
@@ -58,10 +58,14 @@ field). All are Sonnet except T18-8 (Opus: it decides how the rate limiter trust
 T19-2 (startable - its other dependency, T13-1, was already Complete) is
 deferred further still, to **V2**.
 
-**Next by leverage: T16-7, then T16-8 and T16-9** - the rest of the chain that
-puts the live plant, its trips, alarms and scenarios behind the console; T18-9
-runs alongside and T16-9 waits on it. Shapes are decided in each task's
-build-plan note. T16-3 to T16-5 can still build against fixtures meanwhile.
+**Next by leverage: T16-7, then T16-8, T16-10, T16-11 and T16-9** - the chain
+that puts the live plant, its trips, alarms and scenarios behind a landing page
+and the console. T16-8 is a standalone training session; T16-10 retires the
+single-machine pages and the legacy `Session` (the console does not build on
+them); T16-11 is the landing page at `/` with the shared header; T16-9 wires
+the console last. T18-9 runs alongside and T16-9 waits on it. Shapes are
+decided in each task's build-plan note. T16-3 to T16-5 can still build against
+fixtures meanwhile.
 
 **Scheduling notes.** The spine lock is one global lock
 ([DEVELOPMENT.md](../../DEVELOPMENT.md#file-ownership)); it is free. **The container runs
@@ -162,6 +166,12 @@ scope, and item 1 in particular reads like a bug and is not.
    on C1, a **spine change**, before anything relies on `reset()` for a loaded
    plant. `restore_state` (T12-1) does not use `reset()`, so it is unaffected.
    Needs an Opus decision.
+3. **Scenario ids name their cause** (`pump_trip`, `stuck_drain_valve`), and
+   the scenario API already returns `scenario_id` to the browser, so a trainee
+   reading network traffic sees the hidden cause. T16-11 keeps ids off the
+   landing page's visible text and adds an operator-facing `title` and
+   `briefing`, but the id is still the load handle. Renaming ids to neutral
+   ones touches recorded scores (a config major bump). Needs a user decision.
 
 ## Traps for the next tasks
 

@@ -63,10 +63,10 @@ passes `apply=runner.act`). `runner.engine` and `runner.actions` are for
 reading: an action applied to them directly skips the runtime, so it cannot
 reset an interlock and the next trip check reads the plant from before it.
 
-A trip now fires in a run, and an objective's `failure` condition can read
-the plant it moved. Interlock state is not in
-`capture_state`, so a run armed from an initial condition starts untripped and
-`_end_state` ignores interlock state (the replayed inputs reproduce it).
+A trip fires in a run, and an objective's `failure` condition can read the
+plant it moved. Interlock state is not in `capture_state`, so a run armed from
+an initial condition starts untripped and `_end_state` ignores interlock state
+(the replayed inputs reproduce it).
 
 **Every input that moves a run is journaled** (`inputs()`), so
 `app.scenarios.replay` can play it back: a `Tick` for each `start`, advancing

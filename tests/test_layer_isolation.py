@@ -58,13 +58,18 @@ DISTURBANCE_LAYER = APP / "disturbances"
 SCORING_LAYER = APP / "scoring"
 API_LAYER = APP / "api"
 SCENARIOS_LAYER = APP / "scenarios"
+TRAINING_LAYER = APP / "training"
 MAIN_MODULE = APP / "main.py"
 
 # app/scenarios is forbidden too, alongside the two layers it sits above: it
 # imports app.scoring itself (T14-2's trigger evaluator reads the action
 # log), so a physics module reaching into app.scenarios would pull scoring
 # in by the back door without ever naming it directly.
-FORBIDDEN_LAYERS = frozenset({"disturbances", "scoring", "scenarios"})
+#
+# app/training (T16-6) is forbidden for the same reason: PlantRuntime imports
+# app.scoring (the action log) and app.api.action, so a physics module
+# reaching into it would pull scoring in by the back door.
+FORBIDDEN_LAYERS = frozenset({"disturbances", "scoring", "scenarios", "training"})
 
 # PHYSICS_MODULES is everything guarded against FORBIDDEN_LAYERS - which is
 # not "all of app/". Excluded: the forbidden layers' own internals (their own
@@ -76,7 +81,13 @@ FORBIDDEN_LAYERS = frozenset({"disturbances", "scoring", "scenarios"})
 # these is physics; each exists to coordinate between layers, which is a
 # different direction than physics reaching backwards into disturbances,
 # scoring or scenarios.
-ORCHESTRATION_LAYERS = (DISTURBANCE_LAYER, SCORING_LAYER, API_LAYER, SCENARIOS_LAYER)
+ORCHESTRATION_LAYERS = (
+    DISTURBANCE_LAYER,
+    SCORING_LAYER,
+    API_LAYER,
+    SCENARIOS_LAYER,
+    TRAINING_LAYER,
+)
 
 APP_MODULES = sorted(APP.rglob("*.py"))
 PHYSICS_MODULES = [
@@ -175,6 +186,8 @@ def test_the_guard_excludes_the_orchestration_layer_it_does_not_guard():
     assert (API_LAYER / "action.py") not in PHYSICS_MODULES
     assert (SCENARIOS_LAYER / "triggers.py").exists()
     assert (SCENARIOS_LAYER / "triggers.py") not in PHYSICS_MODULES
+    assert (TRAINING_LAYER / "runtime.py").exists()
+    assert (TRAINING_LAYER / "runtime.py") not in PHYSICS_MODULES
     assert MAIN_MODULE not in PHYSICS_MODULES
 
 
@@ -192,8 +205,8 @@ def test_the_disturbance_layer_is_the_one_that_imports_physics():
 )
 def test_no_physics_module_imports_a_forbidden_layer(path):
     assert not imports_forbidden_layer(path), (
-        f"{path.relative_to(APP)} imports the disturbance, scoring or "
-        f"scenarios layer — physics must never depend on any of them; a "
+        f"{path.relative_to(APP)} imports the disturbance, scoring, "
+        f"scenarios or training layer — physics must never depend on any of them; a "
         f"malfunction reaches a device only through the allowlist in "
         f"app/disturbances/malfunction.py (WRITABLE), never the other way "
         f"around"
@@ -211,6 +224,9 @@ def test_the_guard_catches_each_way_of_importing_the_forbidden_layer(tmp_path):
         "import app.scoring.board",
         "from app.scenarios.triggers import Trigger",
         "import app.scenarios.triggers",
+        "from app.training.runtime import PlantRuntime",
+        "from app.training import runtime",
+        "import app.training.runtime",
     ):
         module = tmp_path / "m.py"
         module.write_text(source)

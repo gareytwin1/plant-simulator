@@ -39,14 +39,20 @@ that never regains control cannot run any check written after it:
   This catches a write that is slow but still completes.
 - `create_stream_blueprint` additionally sets a send timeout on the raw
   socket, when the WSGI server hands one through (Werkzeug's development
-  server does, under `environ["werkzeug.socket"]`). A write that never
-  completes at all - a client that stops draining its socket entirely -
-  cannot return control to `stream_events` for its own check to run; the
-  socket timeout is what bounds that case instead, by making the blocked
-  write itself raise. A WSGI server that does not expose its socket this
-  way has no backstop against that specific case here; closing that gap
-  for such a server is deployment's job (see T18-1/T18-2), not this
-  module's.
+  server under `environ["werkzeug.socket"]`, Gunicorn under
+  `environ["gunicorn.socket"]`). A write that never completes at all - a
+  client that stops draining its socket entirely - cannot return control
+  to `stream_events` for its own check to run; the socket timeout is what
+  bounds that case instead, by making the blocked write itself raise. The
+  timeout the socket had is restored once the response closes - after the
+  server's own closing write, which still needs the bound - because
+  Gunicorn's gthread worker reuses a kept-alive connection for the
+  client's next request. A WSGI server that exposes its socket under neither key has no
+  backstop against that specific case.
+
+`create_stream_blueprint` also takes an optional `hold`, a context manager
+the stream holds open for its whole life (the training session's lease, once
+a session owns the stream).
 """
 
 from __future__ import annotations
@@ -55,6 +61,7 @@ import json
 import math
 import time
 from collections.abc import Callable, Iterator, Mapping
+from contextlib import AbstractContextManager, ExitStack
 from typing import Any, Protocol
 
 from flask import Blueprint, Response, request
@@ -222,24 +229,46 @@ def stream_events(
 
 def _socket_of(environ: Mapping[str, Any]) -> Any:
     """The raw socket behind this request, if the WSGI server hands one
-    through - Werkzeug's development server does, under this environ key.
-    `environ` is a WSGI environ - a mapping of a shape nothing here types -
-    so both the key lookup and the return are `Any`; a server that does not
-    expose this key yields `None`, which every caller here treats as "no
-    transport-level backstop available", not an error.
+    through - Werkzeug's development server under `werkzeug.socket`,
+    Gunicorn under `gunicorn.socket`. `environ` is a WSGI environ - a
+    mapping of a shape nothing here types - so both the key lookups and the
+    return are `Any`; a server that exposes neither key yields `None`, which
+    every caller here treats as "no transport-level backstop available",
+    not an error.
     """
-    return environ.get("werkzeug.socket")
+    return environ.get("werkzeug.socket") or environ.get("gunicorn.socket")
+
+
+def _restore_timeout(sock: Any, bounded: list[float | None]) -> None:
+    """Undo the bound `generate()` put on `sock`, if it ever did - a body
+    that was never iterated (HEAD) left the socket alone."""
+    if not bounded:
+        return
+
+    try:
+        sock.settimeout(bounded[0])
+    except OSError:
+        # The connection is already closed; nothing will read it again.
+        pass
 
 
 def create_stream_blueprint(
     get_source: Callable[[], SnapshotSource],
     interval_seconds: float,
+    hold: Callable[[], AbstractContextManager[Any]] | None = None,
 ) -> Blueprint:
     """Build the `/api/stream` blueprint against a `SnapshotSource` resolved
     on demand - once per request, so each call to `get_source` reaches
     whichever plant the caller's own session machinery has already resolved
     for this request, the same discipline `create_action_blueprint` follows
     for `Engine`.
+
+    `hold`, when given, is called once per request in the view, under the
+    request context, like `get_source`, and returns a context manager. The
+    stream enters it before its first event and exits it when the stream
+    ends, however it ends. A body that is never iterated (HEAD) never
+    enters it, and a 204 builds none; still, do not acquire anything
+    before `__enter__`.
     """
     if interval_seconds <= 0:
         raise ValueError(f"interval_seconds must be positive, got {interval_seconds}")
@@ -252,10 +281,11 @@ def create_stream_blueprint(
         # generate()'s closure - stream_events never touches flask.g or
         # flask.request itself, so it needs no stream_with_context.
         source = get_source()
-
         # Only a permanent close gets 204; see _is_closed vs. _is_dead.
         if _is_closed(source):
             return Response(status=204)
+
+        held = hold() if hold is not None else None
 
         # Only the lookup needs the real request context; the set itself
         # waits inside generate(), so a body that is never iterated (HEAD,
@@ -263,23 +293,37 @@ def create_stream_blueprint(
         # touching this generator) never touches the socket either.
         sock = _socket_of(request.environ)
 
+        # Holds the socket's prior timeout once generate() has bounded it.
+        # The restore waits for the response to close, not for generate()
+        # to finish: both servers write the closing chunk after the body
+        # iterator is exhausted and only then close it, and that last
+        # write still needs the bound.
+        bounded: list[float | None] = []
+
         def generate() -> Iterator[str]:
-            if sock is not None:
-                # Bounds a write that never completes at all; see the
-                # module docstring's second backstop bullet. Set, never
-                # restored: Werkzeug's development server - the only
-                # server confirmed to expose this socket - sends
-                # `Connection: close` on every response and never reuses
-                # one, so nothing ever reads this socket again once this
-                # stream (and Werkzeug's own trailing writes on it) ends.
-                sock.settimeout(_dropout_seconds(interval_seconds))
+            with ExitStack() as stack:
+                if held is not None:
+                    stack.enter_context(held)
 
-            yield from stream_events(source, interval_seconds)
+                if sock is not None:
+                    # Bounds a write that never completes at all; see the
+                    # module docstring's second backstop bullet.
+                    bounded.append(sock.gettimeout())
+                    sock.settimeout(_dropout_seconds(interval_seconds))
 
-        return Response(
+                yield from stream_events(source, interval_seconds)
+
+        response = Response(
             generate(),
             mimetype="text/event-stream",
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
+
+        if sock is not None:
+            # A gthread worker reuses a kept-alive connection, so the
+            # timeout the socket had goes back once the stream is over.
+            response.call_on_close(lambda: _restore_timeout(sock, bounded))
+
+        return response
 
     return blueprint

@@ -5,7 +5,7 @@ import threading
 import time
 
 import pytest
-from flask import Flask
+from flask import Flask, request
 from werkzeug.serving import make_server
 
 import app.api.stream as stream_module
@@ -536,40 +536,169 @@ def test_a_transient_error_at_connect_ends_the_stream_without_a_204():
         response.close()
 
 
-# ---- the socket timeout: set once, lazily, inside generate() ----
+# ---- the socket timeout: set lazily inside generate(), restored when it ends ----
 
 
 class FakeSocket:
-    """A werkzeug.socket stand-in that only records settimeout() calls -
-    all generate() ever makes on one."""
+    """A raw-socket stand-in that records settimeout() calls and reports
+    the timeout it had before generate() touched it - all generate() ever
+    asks of one."""
 
-    def __init__(self):
+    def __init__(self, timeout=None):
+        self.timeout = timeout
         self.calls = []
+
+    def gettimeout(self):
+        return self.timeout
 
     def settimeout(self, value):
         self.calls.append(value)
+        self.timeout = value
 
 
-def test_the_sockets_timeout_is_set_once_generate_starts_and_never_restored():
-    # Werkzeug's development server - the only server confirmed to expose
-    # this socket - sends Connection: close on every response and never
-    # reuses one, including for its own trailing chunked-encoding
-    # terminator write after generate() exhausts - so there is nothing
-    # left to restore this to, and nothing here tries.
-    source = FakeSource()
-    fake_socket = FakeSocket()
-
-    app = Flask(__name__)
-    app.register_blueprint(create_stream_blueprint(lambda: source, interval_seconds=0.1))
-    client = app.test_client()
-
-    response = client.get("/api/stream", environ_overrides={"werkzeug.socket": fake_socket})
+def _first_event(app, **overrides):
+    response = app.test_client().get("/api/stream", environ_overrides=overrides)
     try:
         next(iter(response.response))
     finally:
         response.close()
 
-    assert fake_socket.calls == [stream_module._dropout_seconds(0.1)]
+
+def _stream_app(source=None, **kwargs):
+    app = Flask(__name__)
+    app.register_blueprint(
+        create_stream_blueprint(lambda: source or FakeSource(), interval_seconds=0.1, **kwargs)
+    )
+    return app
+
+
+def test_the_bound_outlives_the_generator_and_is_lifted_only_on_response_close():
+    # Both servers write the closing chunk after the generator is
+    # exhausted and before they close the response; that write needs the
+    # bound too.
+    source = FakeSource()
+    fake_socket = FakeSocket(timeout=30.0)
+
+    response = _stream_app(source).test_client().get(
+        "/api/stream", environ_overrides={"gunicorn.socket": fake_socket}
+    )
+    iterator = iter(response.response)
+    next(iterator)
+    source.closed = True
+    assert list(iterator) == []
+
+    assert fake_socket.timeout == stream_module._dropout_seconds(0.1)
+    response.close()
+    assert fake_socket.timeout == 30.0
+
+
+def test_a_204_never_builds_the_hold():
+    source = FakeSource()
+    source.closed = True
+    built = []
+
+    response = _stream_app(source, hold=lambda: built.append(1)).test_client().get("/api/stream")
+
+    assert response.status_code == 204 and built == []
+
+
+@pytest.mark.parametrize("key", ["werkzeug.socket", "gunicorn.socket"])
+def test_the_sockets_timeout_is_bounded_while_streaming_then_restored(key):
+    # Gunicorn's gthread worker reuses a kept-alive connection, so the
+    # bound must not outlive the stream.
+    fake_socket = FakeSocket(timeout=30.0)
+
+    _first_event(_stream_app(), **{key: fake_socket})
+
+    assert fake_socket.calls == [stream_module._dropout_seconds(0.1), 30.0]
+    assert fake_socket.timeout == 30.0
+
+
+def test_a_blocking_socket_is_restored_to_blocking():
+    fake_socket = FakeSocket(timeout=None)
+
+    _first_event(_stream_app(), **{"gunicorn.socket": fake_socket})
+
+    assert fake_socket.timeout is None
+
+
+def test_restoring_the_timeout_on_an_already_closed_socket_is_swallowed():
+    class ClosedSocket(FakeSocket):
+        def settimeout(self, value):
+            if self.calls:
+                raise OSError("closed")
+            super().settimeout(value)
+
+    _first_event(_stream_app(), **{"gunicorn.socket": ClosedSocket()})
+
+
+def test_werkzeug_socket_wins_when_both_keys_are_present():
+    werkzeug_socket, gunicorn_socket = FakeSocket(), FakeSocket()
+
+    _first_event(_stream_app(), **{"werkzeug.socket": werkzeug_socket, "gunicorn.socket": gunicorn_socket})
+
+    assert werkzeug_socket.calls and not gunicorn_socket.calls
+
+
+# ---- hold: a context the stream keeps for its whole life ----
+
+
+class RecordingHold:
+    def __init__(self):
+        self.events = []
+
+    def __enter__(self):
+        self.events.append("enter")
+
+    def __exit__(self, *exc):
+        self.events.append("exit")
+
+
+def test_hold_is_entered_when_the_body_starts_and_exited_when_it_ends():
+    hold = RecordingHold()
+    app = _stream_app(hold=lambda: hold)
+
+    response = app.test_client().get("/api/stream")
+    next(iter(response.response))
+    assert hold.events == ["enter"]
+    response.close()
+
+    assert hold.events == ["enter", "exit"]
+
+
+def test_hold_is_exited_when_the_stream_ends_on_its_own():
+    source = FakeSource()
+    hold = RecordingHold()
+    app = _stream_app(source, hold=lambda: hold)
+
+    response = app.test_client().get("/api/stream")
+    iterator = iter(response.response)
+    next(iterator)
+    source.closed = True
+    assert list(iterator) == []
+
+    assert hold.events == ["enter", "exit"]
+
+
+def test_hold_is_resolved_under_the_request_context():
+    seen = []
+
+    def hold():
+        seen.append(request.path)
+        return RecordingHold()
+
+    _first_event(_stream_app(hold=hold))
+
+    assert seen == ["/api/stream"]
+
+
+def test_a_head_request_never_enters_hold():
+    hold = RecordingHold()
+
+    response = _stream_app(hold=lambda: hold).test_client().head("/api/stream")
+    response.close()
+
+    assert hold.events == []
 
 
 def test_a_head_request_never_touches_the_sockets_timeout():

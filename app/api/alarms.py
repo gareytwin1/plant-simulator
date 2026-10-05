@@ -4,40 +4,30 @@ Alarm API (T10-3, contract C7 exposed over HTTP).
 Two things a console needs beyond what `AlarmManager.evaluate()` returns: the
 running record for the debrief (`GET /api/alarms/history`) and a way for the
 operator to acknowledge (`POST /api/alarms/acknowledge`). Same shape as
-`app/api/action.py` (T15-1): `create_alarm_blueprint` takes its
-`AlarmManager`, `AlarmHistory` and a sim-time source as callables resolved
-once per request, so this module makes no assumption about where they live -
-whoever wires this blueprint into `app/main.py` decides that.
+`app/api/action.py` (T15-1): `create_alarm_blueprint` takes the history entries
+and the acknowledge call as callables resolved once per request, so this module
+makes no assumption about where they live - whoever wires this blueprint into
+`app/main.py` decides that.
 
-Acknowledging runs three checks in sequence, all under one lock so two
-concurrent requests for the same id cannot both act:
+The acknowledge sequence itself is `app.alarms.acknowledge` (T16-6), run by
+whatever owns the alarm manager under the lock it already holds around the step
+that evaluates alarms. This module only maps its answer to HTTP:
 
-- `manager.is_acknowledged()` is `None` for an unknown id, 400.
-- Otherwise it's the redundancy check - already ACKED, cleared to NORMAL, or
-  never raised (`AlarmManager.evaluate`'s `setdefault` binds an `Alarm` even
-  to a point that has never left NORMAL) all read `True` here, per `Alarm`'s
-  own state machine. `True` reports `recorded: false` without writing a
-  second `AcknowledgeRecord`.
-- `history.tag_of()` is checked before `manager.acknowledge()` runs: a
-  history that has drifted from the manager (fresh history, reused manager;
-  a missed `record_events` call) has no tag for the id. `None` is a 409
-  with the alarm's state left untouched, rather than acknowledging first
-  and having nothing to record.
-
-The fetched tag passes straight to `record_acknowledge()`, which trusts it
-rather than looking it up again.
+    UNKNOWN   400  the manager has never seen the id
+    ALREADY   200  `recorded: false`, nothing written
+    NO_EVENT  409  history has no event for the id, state left untouched
+    RECORDED  200  `recorded: true`
 """
 
 from __future__ import annotations
 
-import threading
 from collections.abc import Callable
 
 from flask import Blueprint, jsonify
 from flask.typing import ResponseReturnValue
 
-from app.alarms.history import AcknowledgeRecord, AlarmHistory, ClearRecord, HistoryEntry
-from app.alarms.manager import AlarmManager
+from app.alarms.acknowledge import Acknowledged
+from app.alarms.history import AcknowledgeRecord, ClearRecord, HistoryEntry
 from app.api import validate
 
 
@@ -70,22 +60,18 @@ def _serialize(entry: HistoryEntry) -> dict[str, object]:
 
 
 def create_alarm_blueprint(
-    get_manager: Callable[[], AlarmManager],
-    get_history: Callable[[], AlarmHistory],
-    get_sim_time: Callable[[], float],
+    get_entries: Callable[[], tuple[HistoryEntry, ...]],
+    acknowledge: Callable[[str], Acknowledged],
 ) -> Blueprint:
-    """Build the `/api/alarms/*` blueprint against an `AlarmManager` and
-    `AlarmHistory` resolved on demand - once per request, so each call
-    reaches whichever manager and history the caller's own session
-    machinery has already resolved for this request.
+    """Build the `/api/alarms/*` blueprint against the alarm history and the
+    acknowledge call of whichever plant the caller's own session machinery
+    has already resolved for this request.
     """
     blueprint = Blueprint("alarms", __name__)
-    lock = threading.Lock()
 
     @blueprint.get("/api/alarms/history")
     def get_alarm_history() -> ResponseReturnValue:
-        entries = get_history().entries()
-        return jsonify([_serialize(entry) for entry in entries]), 200
+        return jsonify([_serialize(entry) for entry in get_entries()]), 200
 
     @blueprint.post("/api/alarms/acknowledge")
     def post_alarm_acknowledge() -> ResponseReturnValue:
@@ -97,27 +83,16 @@ def create_alarm_blueprint(
         if isinstance(alarm_id, tuple):
             return alarm_id
 
-        manager = get_manager()
-        history = get_history()
+        outcome = acknowledge(alarm_id)
 
-        with lock:
-            acknowledged = manager.is_acknowledged(alarm_id)
-            if acknowledged is None:
-                return jsonify({"error": f"unknown alarm_id: {alarm_id!r}"}), 400
+        if outcome is Acknowledged.UNKNOWN:
+            return jsonify({"error": f"unknown alarm_id: {alarm_id!r}"}), 400
 
-            if acknowledged:
-                return jsonify({"ok": True, "recorded": False}), 200
+        if outcome is Acknowledged.NO_EVENT:
+            return jsonify(
+                {"error": f"alarm_id {alarm_id!r} has no recorded event in history"}
+            ), 409
 
-            tag = history.tag_of(alarm_id)
-            if tag is None:
-                return jsonify(
-                    {"error": f"alarm_id {alarm_id!r} has no recorded event in history"}
-                ), 409
-
-            sim_time = get_sim_time()
-            manager.acknowledge(alarm_id, sim_time)
-            history.record_acknowledge(alarm_id, tag, sim_time)
-
-        return jsonify({"ok": True, "recorded": True}), 200
+        return jsonify({"ok": True, "recorded": outcome is Acknowledged.RECORDED}), 200
 
     return blueprint

@@ -19,6 +19,7 @@ from pathlib import Path
 import pytest
 from flask import Flask
 
+from app.alarms.acknowledge import acknowledge_alarm
 from app.alarms.history import AlarmHistory
 from app.alarms.manager import AlarmManager, EnvelopeEvent, _alarm_id
 from app.api.alarms import create_alarm_blueprint
@@ -62,7 +63,10 @@ class Plant:
         app = Flask(__name__)
         app.register_blueprint(
             create_alarm_blueprint(
-                lambda: self.manager, lambda: self.history, lambda: self.sim_time
+                self.history.entries,
+                lambda alarm_id: acknowledge_alarm(
+                    self.manager, self.history, alarm_id, self.sim_time
+                ),
             )
         )
         self.client = app.test_client()

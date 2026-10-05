@@ -5,8 +5,7 @@ import pytest
 from flask import Flask
 
 from app import config, main
-from app.alarms.history import AlarmHistory
-from app.alarms.manager import AlarmManager
+from app.alarms.acknowledge import Acknowledged
 from app.api import validate
 from app.api.action import create_action_blueprint
 from app.api.alarms import create_alarm_blueprint
@@ -179,7 +178,9 @@ def test_action_refuses_an_oversized_body_with_413():
 def alarm_client():
     app = Flask(__name__)
     validate.install(app, unlimited)
-    app.register_blueprint(create_alarm_blueprint(AlarmManager, AlarmHistory, lambda: 0.0))
+    app.register_blueprint(create_alarm_blueprint(
+            lambda: (), lambda alarm_id: Acknowledged.UNKNOWN
+        ))
 
     return app.test_client()
 

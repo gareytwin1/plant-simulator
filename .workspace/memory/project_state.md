@@ -8,11 +8,11 @@ regrowth rule is in [.claude/rules/docs.md](../../.claude/rules/docs.md).
 
 ## Right now
 
-**Last state refresh:** 4 October 2026, at `f7a8b7c` (Merge T18-6:
-Scheduler log records carry sim time, PR #135) - **this is a snapshot,
-not a live pointer.** Run `git log f7a8b7c..HEAD --oneline` to see what has
+**Last state refresh:** 5 October 2026, at `a4c5882` (Merge T16-6: Plant
+runtime: trips and alarms around the step, PR #136) - **this is a snapshot,
+not a live pointer.** Run `git log a4c5882..HEAD --oneline` to see what has
 merged since.
-**Full suite as of this refresh:** **3072 passed** · `python -m mypy` clean over 77 source files · no golden trace movement
+**Full suite as of this refresh:** **3103 passed** · `python -m mypy` clean over 80 source files · no golden trace movement
 **In flight:** nothing.
 **No spine lock is held.** No task is Blocked. CI runs on every PR, and `main` requires its
 `test` check before a merge.
@@ -22,12 +22,12 @@ merged since.
 
 | Task | SHA | What landed |
 |---|---|---|
+| **T16-6** | `a4c5882` | Plant runtime: `app/training/runtime.py` `PlantRuntime` wraps an `Engine` and is `Steppable`; each step runs `TripSystem.update`, `Engine.step`, then one `EnvelopeEvent` per configured limit into `AlarmManager` and `AlarmHistory` (also once at construction). `act()` is the one operator entry point (device actions, interlock `reset`); one lock covers step, act, acknowledge and history reads. The acknowledge sequence moved to `app/alarms/acknowledge.py` and `create_alarm_blueprint` takes `(get_entries, acknowledge)`. Not wired into any session yet (T16-7, T16-8); `app/training` is orchestration in the layer guard (PR #136) |
 | **T18-6** | `f7a8b7c` | Scheduler log records carry sim time: the slow-step warning stamps the `sim_time` of the snapshot the step just published, the step-failure record the last published snapshot's (null if none), via `extra=` in `Scheduler._run`; no clock, no `Snapshot` field (PR #135) |
 | **T18-7** | `508137c` | Read-only session lookup: `SessionRegistry.peek(session_id)` returns the live session under `_lock` with no idle sweep and no touch (a session past the timeout is still returned until the next `get()` or `create()` sweeps it). `/health/engine` resolves its cookie through it, so a probe no longer keeps its plant alive or ends others' idle plants (PR #134) |
 | **T10-5** | `f90c49e` | Alarm console: `static/js/alarms.js` replays the alarm lifecycle (unack, acked, rtn_unack) from `GET /api/alarms/history` and renders a priority banner plus a sortable summary that acknowledges through `POST /api/alarms/acknowledge`; `static/css/alarms.css` uses only the T16-1 tokens (flash, steady, outline; reduced-motion border). Tested under Node (skipped if `node` is absent) against history from the real manager and blueprint. Not mounted in any template, the alarm blueprint is still unregistered in `main.py`, and not yet viewed in a browser (PR #133) |
 | **T16-1** | `d379e30` | Console design system: `static/css/tokens.css` (`light-dark()` colour tokens for alarm priority, envelope bands and equipment state, plus `--symbol-*` glyphs), `docs/console-standards.md`, and `tests/test_console_tokens.py` (WCAG contrast in both themes, CIEDE2000 distinctness under protan, deutan and tritan simulation). Tripped is purple so it stays apart from critical red. Not yet viewed in a browser (PR #132) |
 | **T18-4** | `506ba7f` | Structured logging and health: `app/logging.py` (JSON lines, engine and request streams, `sim_time` from an injected provider; scheduler worker records gained it in T18-6), `app/api/health.py` (`/health/live`, `/health/engine`: failed, closed, stopped, paused, stalled, degraded, ok, plus convergence rate from published `Scheduler` state; 503 on failed or stalled). Wired in `main.py`; probes create no session and skip the rate limiter. (PR #131) |
-| **T18-1** | `cc2784f` | Container and WSGI serving: `gunicorn.conf.py` pins `workers = 1` (gthread, 64 threads, no preload; a test reads the pin), multi-stage `Dockerfile` (`runtime` default, `test` target runs the suite), `docker-compose.yml` (one service, never scale), `.dockerignore`; `gunicorn==26.2.0`. A `docker` job in `ci.yml` runs the suite in the image, serves the runtime image and asserts one master plus one worker. Gunicorn gives the SSE stream no socket send timeout, and the stream blueprint is not registered in `main.py` (PR #130) |
 
 **ADRs on `main`:** [0001](../../docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md)
 (+ Amendment 1) and [0002](../../docs/ADR_0002_TYPED_PORTS.md) (+ Amendments
@@ -41,12 +41,12 @@ Complete: **M0-M9, M12, M13, M14, M15, MR**. Open:
 |---|---|---|
 | **M10** Alarms | 4/5 | T10-1, T10-2, T10-3, T10-5; T10-4 startable (V1.1-deferred) |
 | **M11** Interlocks and Trips | 3/4 | T11-1, T11-2, T11-3; T11-4 startable (V1.1-deferred) |
-| **M16** Operator Console | 2/9 | T16-1, T16-2; T16-3, T16-4, T16-5 and T16-6 startable; T16-7 to T16-9 chain behind T16-6 |
+| **M16** Operator Console | 3/9 | T16-1, T16-2, T16-6; T16-3, T16-4, T16-5 and T16-7 startable; T16-8 then T16-9 chain behind T16-7 |
 | **M17** Historian and Trends | 1/4 | T17-1; T17-2 startable (V1.1-deferred) |
 | **M18** Deployment | 7/9 | T18-1 to T18-7; T18-9 startable; T18-8 (rate limit behind a reverse proxy) startable once Opus decides its shape |
 | M19 | 0 | - |
 
-**108 of 125 tasks Complete.** Checkpoints A-C reached. Checkpoint **D** (M8)
+**109 of 125 tasks Complete.** Checkpoints A-C reached. Checkpoint **D** (M8)
 needs only its "loops reject an injected disturbance" gate: PIC-101 switched to
 AUTO in `olefins_lite.yaml`, which T8-6 enabled but no task owns yet.
 
@@ -54,23 +54,21 @@ AUTO in `olefins_lite.yaml`, which T8-6 enabled but no task owns yet.
 
 **11 tasks are startable** - list them from
 [BUILD_PLAN_STATUS.json](../../docs/BUILD_PLAN_STATUS.json) (`startable`
-field; T16-6 and T18-9 were added to the build plan on 4 October 2026 and
-appear there from the next regeneration). All are Sonnet except T18-8 (Opus: it decides how the rate limiter trusts a proxy header). T10-4, T11-4 and T17-2 are V1.1-deferred;
+field). All are Sonnet except T18-8 (Opus: it decides how the rate limiter trusts a proxy header). T10-4, T11-4 and T17-2 are V1.1-deferred;
 T19-2 (startable - its other dependency, T13-1, was already Complete) is
 deferred further still, to **V2**.
 
-**Next by leverage: T16-6 then T16-7, T16-8, T16-9** - the chain that puts
-the live plant, its trips, alarms and scenarios behind the console; T18-9
+**Next by leverage: T16-7, then T16-8 and T16-9** - the rest of the chain that
+puts the live plant, its trips, alarms and scenarios behind the console; T18-9
 runs alongside and T16-9 waits on it. Shapes are decided in each task's
 build-plan note. T16-3 to T16-5 can still build against fixtures meanwhile.
 
 **Scheduling notes.** The spine lock is one global lock
 ([DEVELOPMENT.md](../../DEVELOPMENT.md#file-ownership)); it is free. **The container runs
 exactly one Gunicorn worker** (T18-1) - `SessionRegistry` is per-process (R7); never scale it.
-**Trips and alarms do not run in a live session yet**: nothing calls
-`TripSystem.update` or `AlarmManager.evaluate` outside tests. T16-6 (a
-`PlantRuntime` around the engine, no spine edit) owns it, and T16-7/T16-8
-carry it into scenarios and the session.
+**Trips and alarms do not run in a live session yet**: `PlantRuntime`
+(T16-6) runs both around the engine step, but no `Session` or `ScenarioRunner`
+builds one. T16-7 puts scenario runs on it and T16-8 builds the session.
 `RestartGate` (T11-3) must be updated before `TripSystem.update`, and only
 blocks a restart for a trip listed in its `resets`; an ungated trip still lets a
 standing lower-precedence RUN demand restart a machine the moment it releases.

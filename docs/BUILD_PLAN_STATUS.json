@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
-  "refreshed": "4 October 2026",
-  "main_sha": "f7a8b7c",
-  "tests_passing_on_main": 3072,
+  "refreshed": "5 October 2026",
+  "main_sha": "a4c5882",
+  "tests_passing_on_main": 3103,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -98,8 +98,8 @@
     },
     "M16": {
       "name": "Operator Console",
-      "complete": 2,
-      "total": 5
+      "complete": 3,
+      "total": 9
     },
     "M17": {
       "name": "Historian and Trends",
@@ -109,7 +109,7 @@
     "M18": {
       "name": "Deployment and Operations",
       "complete": 7,
-      "total": 8
+      "total": 9
     },
     "M19": {
       "name": "Shared Features",
@@ -118,9 +118,9 @@
     }
   },
   "totals": {
-    "tasks": 120,
-    "complete": 108,
-    "startable_now": 9
+    "tasks": 125,
+    "complete": 109,
+    "startable_now": 11
   },
   "tasks": [
     {
@@ -1939,6 +1939,109 @@
       "note": ""
     },
     {
+      "id": "T16-6",
+      "milestone": "M16",
+      "name": "Plant runtime: trips and alarms around the step",
+      "category": "dep",
+      "branch": "feature/plant-runtime",
+      "depends_on": [
+        "T10-3",
+        "T11-2",
+        "T15-1"
+      ],
+      "files": [
+        "app/training/__init__.py",
+        "app/training/runtime.py",
+        "app/api/alarms.py",
+        "app/config.py",
+        "tests/test_layer_isolation.py",
+        "tests/test_training_runtime.py",
+        "tests/test_alarm_api.py"
+      ],
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged to main as a4c5882 (PR #136). Suite 3103 passed post-merge, mypy clean over 80 files, no golden movement. app/training/runtime.py: PlantRuntime (Steppable) runs TripSystem.update before each step and the alarm pipeline after it (one EnvelopeEvent per configured limit into AlarmManager and AlarmHistory, also once at construction); act() is the one operator entry point (device actions via apply_action, interlock reset logged); one lock covers step, act, acknowledge and the history read. app/alarms/acknowledge.py holds the acknowledge sequence and the Acknowledged outcome; create_alarm_blueprint now takes (get_entries, acknowledge). app/training is orchestration in the layer guard. ALARM_HISTORY_CAPACITY added to app/config.py. Engine, Scheduler and the spine untouched. Not wired into any session yet (T16-7, T16-8). roborev branch review clean."
+    },
+    {
+      "id": "T16-7",
+      "milestone": "M16",
+      "name": "Scenarios run on the plant runtime",
+      "category": "dep",
+      "branch": "feature/scenario-runtime",
+      "depends_on": [
+        "T16-6",
+        "T14-4",
+        "T14-5"
+      ],
+      "files": [
+        "app/scenarios/runner.py",
+        "app/scenarios/replay.py",
+        "tests/test_scenario_runner.py",
+        "tests/test_scenario_replay.py",
+        "tests/test_scenario_pack.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": true,
+      "note": ""
+    },
+    {
+      "id": "T16-8",
+      "milestone": "M16",
+      "name": "Training session",
+      "category": "core",
+      "branch": "feature/training-session",
+      "depends_on": [
+        "T16-7",
+        "T18-7"
+      ],
+      "files": [
+        "app/training/session.py",
+        "app/engine/sessions.py",
+        "app/api/scenario.py",
+        "app/config.py",
+        "docs/ARCHITECTURE.md",
+        "tests/test_training_session.py",
+        "tests/test_sessions.py",
+        "tests/test_session_load.py",
+        "tests/test_scenario_api.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T16-7"
+      ],
+      "note": ""
+    },
+    {
+      "id": "T16-9",
+      "milestone": "M16",
+      "name": "Console wiring",
+      "category": "dep",
+      "branch": "feature/console-wiring",
+      "depends_on": [
+        "T16-8",
+        "T18-9",
+        "T10-5"
+      ],
+      "files": [
+        "app/main.py",
+        "app/api/action.py",
+        "app/config.py",
+        "templates/console.html",
+        "tests/test_console_api.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T16-8",
+        "T18-9"
+      ],
+      "note": ""
+    },
+    {
       "id": "T17-1",
       "milestone": "M17",
       "name": "Ring-buffer historian",
@@ -2161,6 +2264,26 @@
         "app/config.py",
         "app/main.py",
         "tests/test_api_validation.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": true,
+      "note": ""
+    },
+    {
+      "id": "T18-9",
+      "milestone": "M18",
+      "name": "Stream transport under Gunicorn",
+      "category": "dep",
+      "branch": "fix/stream-gunicorn-socket",
+      "depends_on": [
+        "T16-2",
+        "T18-1"
+      ],
+      "files": [
+        "app/api/stream.py",
+        "tests/test_stream.py",
+        "tests/test_stream_gunicorn.py"
       ],
       "status": "Not Started",
       "status_key": "todo",

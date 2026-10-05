@@ -44,9 +44,9 @@ that never regains control cannot run any check written after it:
   client that stops draining its socket entirely - cannot return control
   to `stream_events` for its own check to run; the socket timeout is what
   bounds that case instead, by making the blocked write itself raise. The
-  timeout the socket had is restored once the response closes, after the
-  server's own closing write, which still needs the bound: Gunicorn's
-  gthread worker reuses a kept-alive connection for the client's next
+  timeout the socket had is restored once the response closes - after the
+  server's own closing write, which still needs the bound - because
+  Gunicorn's gthread worker reuses a kept-alive connection for the
   request. A WSGI server that exposes its socket under neither key has no
   backstop against that specific case.
 

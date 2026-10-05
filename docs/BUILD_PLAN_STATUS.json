@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "4 October 2026",
-  "main_sha": "508137c",
-  "tests_passing_on_main": 3070,
+  "main_sha": "f7a8b7c",
+  "tests_passing_on_main": 3072,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -108,8 +108,8 @@
     },
     "M18": {
       "name": "Deployment and Operations",
-      "complete": 6,
-      "total": 7
+      "complete": 7,
+      "total": 8
     },
     "M19": {
       "name": "Shared Features",
@@ -118,8 +118,8 @@
     }
   },
   "totals": {
-    "tasks": 119,
-    "complete": 107,
+    "tasks": 120,
+    "complete": 108,
     "startable_now": 9
   },
   "tasks": [
@@ -2121,10 +2121,9 @@
         "tests/test_scheduler.py",
         "tests/test_logging.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true,
-      "note": ""
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged f7a8b7c (PR #135). Post-merge 3072 passed, mypy clean, no golden trace moved. Spine lock released."
     },
     {
       "id": "T18-7",
@@ -2146,6 +2145,27 @@
       "status": "Complete",
       "status_key": "done",
       "note": "Merged 508137c (PR #134); 3070 passed on main, mypy clean"
+    },
+    {
+      "id": "T18-8",
+      "milestone": "M18",
+      "name": "Rate limit behind a reverse proxy",
+      "category": "dep",
+      "branch": "feature/rate-limit-proxy",
+      "depends_on": [
+        "T18-1",
+        "T18-3"
+      ],
+      "files": [
+        "app/api/validate.py",
+        "app/config.py",
+        "app/main.py",
+        "tests/test_api_validation.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": true,
+      "note": ""
     },
     {
       "id": "T19-1",

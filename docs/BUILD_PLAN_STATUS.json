@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "5 October 2026",
-  "main_sha": "d2b7583",
-  "tests_passing_on_main": 3113,
+  "main_sha": "ed5934e",
+  "tests_passing_on_main": 3124,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -108,7 +108,7 @@
     },
     "M18": {
       "name": "Deployment and Operations",
-      "complete": 7,
+      "complete": 8,
       "total": 9
     },
     "M19": {
@@ -119,7 +119,7 @@
   },
   "totals": {
     "tasks": 129,
-    "complete": 110,
+    "complete": 111,
     "startable_now": 10
   },
   "tasks": [
@@ -2075,8 +2075,7 @@
       "status_key": "todo",
       "startable": false,
       "blocked_by": [
-        "T16-10",
-        "T18-9"
+        "T16-10"
       ],
       "note": ""
     },
@@ -2106,8 +2105,7 @@
       "startable": false,
       "blocked_by": [
         "T16-12",
-        "T16-13",
-        "T18-9"
+        "T16-13"
       ],
       "note": ""
     },
@@ -2414,10 +2412,9 @@
         "tests/test_stream.py",
         "tests/test_stream_gunicorn.py"
       ],
-      "status": "Ready for Review",
-      "status_key": "review",
-      "startable": true,
-      "note": "PR #138 on fix/stream-gunicorn-socket; suite 3114 passed, mypy clean, roborev-refine clean."
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged to main as ed5934e (PR #138); 3124 tests passed on main."
     },
     {
       "id": "T19-1",

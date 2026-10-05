@@ -94,3 +94,12 @@ API_RATE_BURST = 100.0
 # minute), so 30 minutes only catches an abandoned one. See T18-5.
 
 SESSION_IDLE_SECONDS = 1800.0
+
+
+# Alarm history
+#
+# How many alarm events, acknowledgements and clears one plant's AlarmHistory
+# keeps before the oldest is dropped. A seven-device train raises a handful of
+# alarms per upset, so this holds many whole scenario runs. See T16-6.
+
+ALARM_HISTORY_CAPACITY = 1000

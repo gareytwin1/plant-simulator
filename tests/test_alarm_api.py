@@ -1,13 +1,20 @@
-import threading
-import time
-
 import pytest
 from flask import Flask
 
+from app.alarms.acknowledge import acknowledge_alarm
 from app.alarms.history import AcknowledgeRecord, AlarmHistory
 from app.alarms.manager import AlarmManager, EnvelopeEvent, _alarm_id
 from app.api.alarms import create_alarm_blueprint
 from app.envelope.evaluator import Severity
+
+
+def blueprint_for(manager, history, now=lambda: 0.0):
+    """The blueprint over a manager and history, acknowledging as
+    `PlantRuntime.acknowledge` does (the lock it adds is tested there)."""
+    return create_alarm_blueprint(
+        history.entries,
+        lambda alarm_id: acknowledge_alarm(manager, history, alarm_id, now()),
+    )
 
 
 def build_app():
@@ -16,9 +23,7 @@ def build_app():
     sim_time = {"value": 0.0}
 
     app = Flask(__name__)
-    app.register_blueprint(
-        create_alarm_blueprint(lambda: manager, lambda: history, lambda: sim_time["value"])
-    )
+    app.register_blueprint(blueprint_for(manager, history, lambda: sim_time["value"]))
 
     return app, manager, history, sim_time
 
@@ -168,7 +173,7 @@ def test_post_acknowledge_after_the_raising_event_has_been_evicted_still_works()
     manager = AlarmManager()
     history = AlarmHistory(capacity=2)
     app = Flask(__name__)
-    app.register_blueprint(create_alarm_blueprint(lambda: manager, lambda: history, lambda: 0.0))
+    app.register_blueprint(blueprint_for(manager, history))
     client = app.test_client()
 
     # Distinct tags on the evicted alarm vs. the two that push it out of the
@@ -209,88 +214,6 @@ def test_post_acknowledge_of_an_id_missing_from_history_is_a_409_and_leaves_stat
     assert "error" in response.get_json()
     assert len(history) == 0
     assert manager.is_acknowledged(alarm_id) is False
-
-
-def test_post_acknowledge_concurrent_requests_record_exactly_once():
-    # get_sim_time runs inside the blueprint's locked section, so blocking
-    # the first request there and only releasing it once the second request
-    # has been sent proves the lock actually serializes the two - a version
-    # of this test that just lines threads up before each POST would pass
-    # even with the lock removed, since the requests would still very likely
-    # run one after another.
-    manager = AlarmManager()
-    history = AlarmHistory(capacity=100)
-    alarm_id = raise_alarm(manager, history, 0.0)
-
-    first_thread_entered = threading.Event()
-    release_first_thread = threading.Event()
-    call_count = {"value": 0}
-    call_count_lock = threading.Lock()
-
-    def get_sim_time() -> float:
-        with call_count_lock:
-            call_count["value"] += 1
-            is_first_call = call_count["value"] == 1
-        if is_first_call:
-            first_thread_entered.set()
-            assert release_first_thread.wait(timeout=5.0)
-        return 0.0
-
-    app = Flask(__name__)
-    app.register_blueprint(create_alarm_blueprint(lambda: manager, lambda: history, get_sim_time))
-
-    responses: list[object] = []
-    responses_lock = threading.Lock()
-
-    def post() -> None:
-        client = app.test_client()
-        response = client.post("/api/alarms/acknowledge", json={"alarm_id": alarm_id})
-        with responses_lock:
-            responses.append(response.get_json())
-
-    first = threading.Thread(target=post)
-    first.start()
-    assert first_thread_entered.wait(timeout=5.0)
-
-    second = threading.Thread(target=post)
-    second.start()
-
-    # Give the second request every chance to reach get_sim_time if the lock
-    # were not actually holding it back - poll rather than a single fixed
-    # sleep, so this only passes because the second call never arrives, not
-    # because we didn't wait long enough for it to. Reaching get_sim_time
-    # takes microseconds when unblocked, so 0.5s is a large margin without
-    # taxing every passing run by seconds.
-    try:
-        deadline = time.monotonic() + 0.5
-        while time.monotonic() < deadline:
-            with call_count_lock:
-                reached = call_count["value"]
-            if reached >= 2 or not second.is_alive():
-                break
-            time.sleep(0.01)
-
-        assert call_count["value"] == 1  # second never reached get_sim_time
-        assert manager.is_acknowledged(alarm_id) is False  # ...nor manager.acknowledge()
-        assert second.is_alive()  # ...so it is still blocked on the lock
-        assert len(history) == 1  # only the original raise; neither ack recorded yet
-    finally:
-        # However the assertions above came out, the first thread is stuck
-        # in get_sim_time until this fires - release it unconditionally so a
-        # failed assertion can't strand a non-daemon thread past the test.
-        release_first_thread.set()
-
-    first.join(timeout=5.0)
-    second.join(timeout=5.0)
-    assert not first.is_alive()
-    assert not second.is_alive()
-
-    assert len(responses) == 2
-    recorded = [body for body in responses if body["recorded"] is True]
-    assert len(recorded) == 1
-    not_recorded = [body for body in responses if body["recorded"] is False]
-    assert not_recorded == [{"ok": True, "recorded": False}]
-    assert len(history) == 2
 
 
 def test_post_acknowledge_uses_sim_time_not_wall_time():

@@ -16,6 +16,7 @@ from pathlib import Path
 
 import pytest
 
+from app.alarms.acknowledge import Acknowledged
 from app.api.action import apply_action
 from app.engine.engine import Engine
 from app.engine.persistence import capture_state, restore_state
@@ -31,6 +32,7 @@ from app.scenarios.runner import (
     ScenarioStateError,
     apply_overrides,
 )
+from app.training.runtime import PlantRuntime
 
 
 pytestmark = pytest.mark.filterwarnings("ignore:envelope limit")
@@ -62,10 +64,12 @@ def scenario(**changes):
 
 def armed_engine(condition="feed_pump_trip"):
     """What a load should leave behind, built without the runner."""
-    engine = Engine.from_plant(load_plant_file(CONFIG / "plants" / "olefins_lite.yaml"))
+    plant = load_plant_file(CONFIG / "plants" / "olefins_lite.yaml")
+    engine = Engine.from_plant(plant)
     restore_state(engine, json.loads((CONFIG / "initial_conditions" / f"{condition}.json").read_text()))
 
-    return engine
+    # A run steps a PlantRuntime, whose trip system adds its interlock slots to the arbiter.
+    return PlantRuntime(engine, plant).engine
 
 
 def started(config=None):
@@ -568,3 +572,141 @@ def test_an_unparseable_scenario_file_is_a_config_error(tmp_path):
 
     with pytest.raises(ScenarioConfigError, match="not parseable"):
         ScenarioRunner(ScenarioLibrary(scenarios=tmp_path)).load("broken")
+
+
+# ---- the plant runtime (T16-7) ----
+
+
+def brimming(**changes):
+    """The reference plant with V-101 already past LSHH-101's 0.9, P-101 running."""
+    return scenario(
+        initial_condition={"condition": "feed_pump_trip", "overrides": {"V-101._level": 0.95}},
+        objectives=[{"id": "never", "success": {"condition": "V-101.level >= 5.0"}}],
+        **changes,
+    )
+
+
+def brimming_run():
+    runner = started(brimming())
+    recover(runner)
+
+    return runner
+
+
+def run_for(runner, seconds):
+    for _ in range(seconds):
+        runner.step(DT)
+
+
+def test_a_run_that_holds_v101_above_the_trip_level_trips_lshh_101():
+    runner = brimming_run()
+    assert runner.engine.equipment["P-101"].running
+
+    run_for(runner, 30)
+
+    assert not runner.engine.equipment["P-101"].running
+    assert runner.engine.snapshot().equipment["P-101"]["speed"] < 1.0
+    assert "V-101" in {entry.tag for entry in runner.alarm_entries()}
+
+
+def test_an_interlock_reset_is_an_operator_action_the_run_journals():
+    runner = brimming_run()
+    run_for(runner, 30)
+
+    runner.act("LSHH-101", "reset", None)
+
+    assert [row["action"] for row in runner.result().actions][-1] == "reset"
+    assert runner.result().actions[-1]["tag"] == "LSHH-101"
+    assert runner.result().actions[-1]["value"] is None
+
+
+def test_an_interlock_accepts_only_reset_with_no_value():
+    runner = brimming_run()
+
+    with pytest.raises(ValueError):
+        runner.act("LSHH-101", "start", None)
+
+    with pytest.raises(ValueError):
+        runner.act("LSHH-101", "reset", 1.0)
+
+
+def test_alarm_entries_and_acknowledge_are_refused_with_nothing_loaded():
+    runner = ScenarioRunner()
+
+    with pytest.raises(ScenarioStateError):
+        runner.alarm_entries()
+
+    with pytest.raises(ScenarioStateError):
+        runner.acknowledge("alarm-0")
+
+
+def test_a_run_acknowledges_its_own_alarms():
+    runner = brimming_run()
+    run_for(runner, 30)
+    entry = runner.alarm_entries()[0]
+
+    assert runner.acknowledge(entry.id) is Acknowledged.RECORDED
+    assert runner.acknowledge(entry.id) is Acknowledged.ALREADY
+    assert runner.acknowledge("no-such-alarm") is Acknowledged.UNKNOWN
+
+
+def test_alarm_entries_and_acknowledge_hold_the_runner_lock():
+    runner = brimming_run()
+    run_for(runner, 30)
+    entry = runner.alarm_entries()[0]
+    reached = []
+
+    with runner._lock:
+        threads = [
+            threading.Thread(target=lambda: reached.append(runner.alarm_entries())),
+            threading.Thread(target=lambda: reached.append(runner.acknowledge(entry.id))),
+        ]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=0.2)
+
+        assert reached == []
+
+    for thread in threads:
+        thread.join(timeout=5)
+
+    assert len(reached) == 2
+
+
+def test_unload_is_refused_while_running_and_otherwise_returns_to_idle():
+    runner = started()
+
+    with pytest.raises(ScenarioStateError):
+        runner.unload()
+
+    runner.abort()
+    runner.unload()
+
+    assert runner.phase is Phase.IDLE
+
+    runner.load_config(scenario())
+    runner.unload()
+
+    assert runner.phase is Phase.IDLE
+
+    runner.unload()  # nothing loaded: still IDLE, not an error
+    assert runner.phase is Phase.IDLE
+
+
+def test_abort_rebuilds_the_runtime_so_interlocks_and_alarms_start_clean():
+    runner = brimming_run()
+    run_for(runner, 30)
+    assert not runner.engine.equipment["P-101"].running
+    tripped = runner._run.runtime
+    assert tripped.trips.interlocks["LSHH-101"].tripped
+    taken = len(runner.actions)
+
+    runner.abort()
+
+    fresh = ScenarioRunner()
+    fresh.load_config(brimming())
+    assert runner._run.runtime is not tripped
+    assert not runner._run.runtime.trips.interlocks["LSHH-101"].tripped
+    assert runner.alarm_entries() == fresh.alarm_entries()
+    assert len(runner.actions) == taken

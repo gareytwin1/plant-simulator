@@ -41,12 +41,12 @@ Complete: **M0-M9, M12, M13, M14, M15, MR**. Open:
 |---|---|---|
 | **M10** Alarms | 4/5 | T10-1, T10-2, T10-3, T10-5; T10-4 startable (V1.1-deferred) |
 | **M11** Interlocks and Trips | 3/4 | T11-1, T11-2, T11-3; T11-4 startable (V1.1-deferred) |
-| **M16** Operator Console | 3/12 | T16-1, T16-2, T16-6; T16-3, T16-4, T16-5 and T16-7 startable; T16-8, T16-10, T16-11, T16-12 then T16-9 chain behind T16-7 |
+| **M16** Operator Console | 3/13 | T16-1, T16-2, T16-6; T16-3, T16-4, T16-5 and T16-7 startable; T16-8, T16-10, T16-11, T16-12, T16-13 then T16-9 chain behind T16-7 and T18-9 |
 | **M17** Historian and Trends | 1/4 | T17-1; T17-2 startable (V1.1-deferred) |
 | **M18** Deployment | 7/9 | T18-1 to T18-7; T18-9 startable; T18-8 (rate limit behind a reverse proxy) startable once Opus decides its shape |
 | M19 | 0 | - |
 
-**109 of 128 tasks Complete.** Checkpoints A-C reached. Checkpoint **D** (M8)
+**109 of 129 tasks Complete.** Checkpoints A-C reached. Checkpoint **D** (M8)
 needs only its "loops reject an injected disturbance" gate: PIC-101 switched to
 AUTO in `olefins_lite.yaml`, which T8-6 enabled but no task owns yet.
 
@@ -58,13 +58,14 @@ field). All are Sonnet except T18-8 (Opus: it decides how the rate limiter trust
 T19-2 (startable - its other dependency, T13-1, was already Complete) is
 deferred further still, to **V2**.
 
-**Next by leverage: T16-7, then T16-8, T16-10, T16-11, T16-12 and T16-9** - the chain
+**Next by leverage: T16-7, then T16-8, T16-10, T16-11, T16-12, T16-13 and T16-9** - the chain
 that puts the live plant, its trips, alarms and scenarios behind a landing page
 and the console. T16-8 is a standalone training session; T16-10 retires the
 single-machine pages and the legacy `Session` (the console does not build on
 them); T16-11 is the landing page at `/` with the shared header; T16-12 keeps
-a scenario's cause out of the browser until the run ends; T16-9 wires the
-console last. T18-9 runs alongside and T16-9 waits on it. Shapes are
+a scenario's cause out of the browser until the run ends; T16-13 sends the
+browser an operator view of the snapshot (no valve fault flags); T16-9 wires
+the console last. T18-9 runs alongside and T16-9 waits on it. Shapes are
 decided in each task's build-plan note. T16-3 to T16-5 can still build against
 fixtures meanwhile.
 
@@ -167,13 +168,6 @@ scope, and item 1 in particular reads like a bug and is not.
    on C1, a **spine change**, before anything relies on `reset()` for a loaded
    plant. `restore_state` (T12-1) does not use `reset()`, so it is unaffected.
    Needs an Opus decision.
-3. **Device rows in the live snapshot carry fault state.** `ControlValve`
-   publishes `stuck`, `action_reversed`, `signal_ok` and `effective_capacity`
-   (which a `capacity` malfunction moves) in the indicated equipment section,
-   so the stream can show a valve fault the operator is meant to diagnose.
-   Which device fields an operator may see is a C4 question; T16-12 hides the
-   scenario API's leaks but not this. Needs an Opus decision.
-
 ## Traps for the next tasks
 
 - **Mass-balance identity** (ADR 0002 §7.1) is written down and checked in

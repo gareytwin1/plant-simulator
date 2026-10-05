@@ -13,12 +13,15 @@ import sys
 import textwrap
 import time
 import urllib.request
+from pathlib import Path
 
 import pytest
 
 pytest.importorskip("gunicorn")
 
 from app.api.stream import MIN_DROPOUT_SECONDS  # noqa: E402
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
 
 APP_SOURCE = textwrap.dedent(
     """
@@ -71,7 +74,7 @@ def test_a_client_that_never_reads_frees_its_request_thread_under_gunicorn(tmp_p
             sys.executable, "-m", "gunicorn",
             "--worker-class", "gthread", "--workers", "1", "--threads", "1",
             "--bind", f"127.0.0.1:{port}",
-            "--pythonpath", f"{tmp_path},.",
+            "--pythonpath", f"{tmp_path},{REPO_ROOT}",
             "stream_app:app",
         ],
         stdout=subprocess.DEVNULL,

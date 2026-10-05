@@ -46,7 +46,8 @@ that never regains control cannot run any check written after it:
   bounds that case instead, by making the blocked write itself raise. The
   timeout the socket had is restored when the stream ends: Gunicorn's
   gthread worker reuses a kept-alive connection for the client's next
-  request. A WSGI server that exposes its socket under neither key has no
+  request, and only after the server's own closing write, which still
+  needs the bound. A WSGI server that exposes its socket under neither key has no
   backstop against that specific case.
 
 `create_stream_blueprint` also takes an optional `hold`, a context manager
@@ -238,9 +239,14 @@ def _socket_of(environ: Mapping[str, Any]) -> Any:
     return environ.get("werkzeug.socket") or environ.get("gunicorn.socket")
 
 
-def _restore_timeout(sock: Any, timeout: float | None) -> None:
+def _restore_timeout(sock: Any, bounded: list[float | None]) -> None:
+    """Undo the bound `generate()` put on `sock`, if it ever did - a body
+    that was never iterated (HEAD) left the socket alone."""
+    if not bounded:
+        return
+
     try:
-        sock.settimeout(timeout)
+        sock.settimeout(bounded[0])
     except OSError:
         # The connection is already closed; nothing will read it again.
         pass
@@ -261,7 +267,8 @@ def create_stream_blueprint(
     request context, like `get_source`, and returns a context manager. The
     stream enters it before its first event and exits it when the stream
     ends, however it ends. A body that is never iterated (HEAD) never
-    enters it.
+    enters it, and a 204 builds none; still, do not acquire anything
+    before `__enter__`.
     """
     if interval_seconds <= 0:
         raise ValueError(f"interval_seconds must be positive, got {interval_seconds}")
@@ -274,17 +281,24 @@ def create_stream_blueprint(
         # generate()'s closure - stream_events never touches flask.g or
         # flask.request itself, so it needs no stream_with_context.
         source = get_source()
-        held = hold() if hold is not None else None
-
         # Only a permanent close gets 204; see _is_closed vs. _is_dead.
         if _is_closed(source):
             return Response(status=204)
+
+        held = hold() if hold is not None else None
 
         # Only the lookup needs the real request context; the set itself
         # waits inside generate(), so a body that is never iterated (HEAD,
         # for one - Werkzeug swaps its iterable for `()` before ever
         # touching this generator) never touches the socket either.
         sock = _socket_of(request.environ)
+
+        # Holds the socket's prior timeout once generate() has bounded it.
+        # The restore waits for the response to close, not for generate()
+        # to finish: both servers write the closing chunk after the body
+        # iterator is exhausted and only then close it, and that last
+        # write still needs the bound.
+        bounded: list[float | None] = []
 
         def generate() -> Iterator[str]:
             with ExitStack() as stack:
@@ -293,19 +307,23 @@ def create_stream_blueprint(
 
                 if sock is not None:
                     # Bounds a write that never completes at all; see the
-                    # module docstring's second backstop bullet. A gthread
-                    # worker reuses a kept-alive connection, so the timeout
-                    # the socket had goes back when the stream ends.
-                    original = sock.gettimeout()
+                    # module docstring's second backstop bullet.
+                    bounded.append(sock.gettimeout())
                     sock.settimeout(_dropout_seconds(interval_seconds))
-                    stack.callback(_restore_timeout, sock, original)
 
                 yield from stream_events(source, interval_seconds)
 
-        return Response(
+        response = Response(
             generate(),
             mimetype="text/event-stream",
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
+
+        if sock is not None:
+            # A gthread worker reuses a kept-alive connection, so the
+            # timeout the socket had goes back once the stream is over.
+            response.call_on_close(lambda: _restore_timeout(sock, bounded))
+
+        return response
 
     return blueprint

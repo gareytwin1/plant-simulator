@@ -564,6 +564,36 @@ def _first_event(app, **overrides):
         response.close()
 
 
+def test_the_bound_outlives_the_generator_and_is_lifted_only_on_response_close():
+    # Both servers write the closing chunk after the generator is
+    # exhausted and before they close the response; that write needs the
+    # bound too.
+    source = FakeSource()
+    fake_socket = FakeSocket(timeout=30.0)
+
+    response = _stream_app(source).test_client().get(
+        "/api/stream", environ_overrides={"gunicorn.socket": fake_socket}
+    )
+    iterator = iter(response.response)
+    next(iterator)
+    source.closed = True
+    assert list(iterator) == []
+
+    assert fake_socket.timeout == stream_module._dropout_seconds(0.1)
+    response.close()
+    assert fake_socket.timeout == 30.0
+
+
+def test_a_204_never_builds_the_hold():
+    source = FakeSource()
+    source.closed = True
+    built = []
+
+    response = _stream_app(source, hold=lambda: built.append(1)).test_client().get("/api/stream")
+
+    assert response.status_code == 204 and built == []
+
+
 def _stream_app(source=None, **kwargs):
     app = Flask(__name__)
     app.register_blueprint(

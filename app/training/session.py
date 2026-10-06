@@ -1,0 +1,142 @@
+"""
+Training session (T16-8) - one browser's plant, free play and scenarios alike.
+
+A console needs one config-loaded plant per browser, driven by one background
+scheduler and kept alive while its stream is open. `TrainingSession` is that
+plant. It stands alone: it does not subclass, import or reuse the legacy
+`app.engine.sessions.Session`, which holds two single-machine test plants and
+two schedulers from the earliest pages.
+
+It owns three things:
+
+- `free`: a `PlantRuntime` of `config.FREE_PLAY_PLANT` restored to
+  `config.FREE_PLAY_CONDITION`, both resolved through `ScenarioLibrary` so free
+  play reads the same files a scenario of that plant does.
+- `runner`: a `ScenarioRunner`, idle until a scenario is loaded.
+- `training_scheduler`: a `Scheduler` over the session itself. It is created
+  here and started by whoever serves the console; nothing here starts a thread.
+
+**The session is `Steppable`.** `step` and `snapshot` go to the runner while
+its phase is not IDLE - loaded, running, complete or aborted - and to free play
+otherwise. Free play does not advance while a scenario is loaded, and unloading
+hands it back exactly where it was left.
+
+**Every write is a scheduler command**, so it runs under `step_lock` and
+publishes at once: `act`, `acknowledge`, and a scenario's `load`, `start`,
+`abort` and `unload`. A response read straight after a write sees it, and a
+load switches the published snapshot to the scenario's plant in the same
+command. The runner's own lock nests inside `step_lock`, the order
+`app.scenarios.runner` documents. Alarm entries are read under `step_lock` too,
+which pins which plant answers: a load or unload cannot land between choosing
+the plant and reading it.
+
+`end()` closes the scheduler and is idempotent. A closed scheduler refuses
+`start` and a manual step, so a request still holding a reclaimed session
+cannot start a worker the registry no longer counts.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Callable
+
+from app import config
+from app.alarms.acknowledge import Acknowledged
+from app.alarms.history import HistoryEntry
+from app.engine.engine import Engine
+from app.engine.persistence import restore_state
+from app.engine.scheduler import Scheduler
+from app.engine.snapshot import Snapshot
+from app.plant.loader import load_plant, read_plant_config
+from app.scenarios.runner import Phase, ScenarioLibrary, ScenarioResult, ScenarioRunner
+from app.training.runtime import PlantRuntime
+
+
+class TrainingSession:
+    def __init__(self, library: ScenarioLibrary | None = None) -> None:
+        library = library if library is not None else ScenarioLibrary()
+
+        self.free = _free_play(library)
+        self.runner = ScenarioRunner(library)
+        self.training_scheduler = Scheduler(self)
+
+    def end(self) -> None:
+        """Close the scheduler, stopping and joining its worker. Permanent and
+        safe to repeat, or on a session whose scheduler was never started."""
+        self.training_scheduler.close()
+
+    # Steppable: what the scheduler drives. step() runs under step_lock on the
+    # worker or a manual step; snapshot() is called under it too, by command()
+    # and by the scheduler's first read, so the phase it reads is stable.
+
+    def step(self, dt: float) -> Snapshot:
+        return self._plant().step(dt)
+
+    def snapshot(self) -> Snapshot:
+        return self._plant().snapshot()
+
+    def act(self, target: str, action: str, value: float | None) -> None:
+        """One operator action on the plant the snapshot shows. Refusals are
+        those of `PlantRuntime.act`, or of `ScenarioRunner.act` once a
+        scenario is loaded."""
+
+        def apply() -> None:
+            if self.runner.phase is Phase.IDLE:
+                self.free.act(target, action, value)
+            else:
+                self.runner.act(target, action, value)
+
+        self._command(apply)
+
+    def acknowledge(self, alarm_id: str) -> Acknowledged:
+        def apply() -> Acknowledged:
+            if self.runner.phase is Phase.IDLE:
+                return self.free.acknowledge(alarm_id)
+
+            return self.runner.acknowledge(alarm_id)
+
+        return self._command(apply)
+
+    def alarm_entries(self) -> tuple[HistoryEntry, ...]:
+        """The alarm history of the plant the snapshot shows, oldest first."""
+        with self.training_scheduler.step_lock:
+            if self.runner.phase is Phase.IDLE:
+                return self.free.alarm_entries()
+
+            return self.runner.alarm_entries()
+
+    def load(self, scenario_id: str) -> ScenarioResult:
+        return self._command(lambda: self.runner.load(scenario_id))
+
+    def start(self) -> ScenarioResult:
+        return self._command(self.runner.start)
+
+    def abort(self) -> ScenarioResult:
+        return self._command(self.runner.abort)
+
+    def unload(self) -> None:
+        self._command(self.runner.unload)
+
+    def result(self) -> ScenarioResult:
+        return self.runner.result()
+
+    def _plant(self) -> PlantRuntime | ScenarioRunner:
+        return self.free if self.runner.phase is Phase.IDLE else self.runner
+
+    def _command[T](self, apply: Callable[[], T]) -> T:
+        """Run `apply` as a scheduler command and return what it returned. The
+        command publishes the snapshot it leaves behind, so a failed `apply`
+        publishes nothing."""
+        outcome: list[T] = []
+
+        self.training_scheduler.command(lambda: outcome.append(apply()))
+
+        return outcome[0]
+
+
+def _free_play(library: ScenarioLibrary) -> PlantRuntime:
+    plant = load_plant(read_plant_config(library.plant_path(config.FREE_PLAY_PLANT)))
+    engine = Engine.from_plant(plant)
+    restore_state(engine, library.condition(config.FREE_PLAY_CONDITION))
+
+    # After the restore, so the trips start from the restored snapshot.
+    return PlantRuntime(engine, plant)

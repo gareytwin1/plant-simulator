@@ -20,12 +20,19 @@ stay alive at once: past config.MAX_SESSIONS, create ends the
 least-recently-touched session first, and a session idle for
 config.SESSION_IDLE_SECONDS is reclaimed (T18-5). See docs/T2-6_SCHEDULER_OWNERSHIP.md
 for the design this implements.
+
+The registry holds any session type that can be ended (`Endable`): the legacy
+Session here, with two workers, or a TrainingSession (app.training.session),
+with one. It takes a factory for the type it builds and defaults to Session,
+so this module never imports app.training. `lease` pins a session against the
+idle sweep while something - a console's open stream - is using it (T16-8).
 """
 
 import threading
 import time
-from collections.abc import Callable, Mapping
-from typing import Any
+from collections.abc import Callable, Iterator, Mapping
+from contextlib import contextmanager
+from typing import Any, Protocol, overload
 
 from app import config
 from app.engine.engine import Engine
@@ -171,21 +178,36 @@ def _number(value: JSONValue) -> float:
     return float(value)
 
 
-class SessionRegistry:
+class Endable(Protocol):
+    """What the registry needs of a session: a way to end it."""
+
+    def end(self) -> None: ...
+
+
+class SessionRegistry[S: Endable]:
     """Bounded by capacity and by idle age.
 
-    A page render starts up to two background scheduler workers on a
-    session (Session.__init__/main.py), and nothing ever stops them on its
-    own - a browser that navigates away sends nothing. Two mechanisms keep
-    that bounded. Idle age (T18-5): reclaim_idle() ends every session last
-    touched `idle_seconds` or more ago, and get() and create() run it under
-    `_lock` before they look anything up, so there is no reaper thread and
-    the sweep follows the injected clock. Capacity: past max_sessions,
-    create() ends the least-recently-touched session (stopping and joining
-    its workers) before admitting a new one. On a server that receives no
-    requests at all, abandoned workers wait for the next one.
+    A page render starts up to two background scheduler workers on a legacy
+    session (Session.__init__/main.py), a training session runs one, and
+    nothing ever stops them on its own - a browser that navigates away sends
+    nothing. Two mechanisms keep that bounded. Idle age (T18-5):
+    reclaim_idle() ends every session last touched `idle_seconds` or more ago,
+    and get() and create() run it under `_lock` before they look anything up,
+    so there is no reaper thread and the sweep follows the injected clock.
+    Capacity: past max_sessions, create() ends the least-recently-touched
+    session (stopping and joining its workers) before admitting a new one. On
+    a server that receives no requests at all, abandoned workers wait for the
+    next one.
 
-    Admission is atomic. create() builds its Session outside `_lock`, then
+    A session in use is leased (T16-8). `lease(session_id)` counts a hold
+    under `_lock`: reclaim_idle() skips a held session, and releasing the
+    last hold touches it, so its idle clock starts at the release. Capacity is
+    the backstop: create() prefers the least-recently-touched session that is
+    not held, and ends a held one only when every session is, so the
+    registry never exceeds max_sessions. The holder then finds its session
+    ended.
+
+    Admission is atomic. create() builds its session outside `_lock`, then
     under it either returns the entry another thread already admitted
     (ending the unstarted loser) or reclaims, evicts, inserts and touches.
     Reclaim, eviction and end() close the victim while holding `_lock`, so
@@ -197,14 +219,34 @@ class SessionRegistry:
     as long as the step or command that worker is waiting behind. Steps
     and commands are short; that wait buys a victim that is dead, not
     dying, when create() returns. A request still holding a reclaimed
-    session is safe: Session.end() closed its schedulers.
+    session is safe: end() closed its schedulers.
     """
+
+    @overload
+    def __init__(
+        self: "SessionRegistry[Session]",
+        max_sessions: int = ...,
+        monotonic: Callable[[], float] = ...,
+        idle_seconds: float = ...,
+    ) -> None: ...
+
+    @overload
+    def __init__(
+        self,
+        max_sessions: int = ...,
+        monotonic: Callable[[], float] = ...,
+        idle_seconds: float = ...,
+        *,
+        factory: Callable[[], S],
+    ) -> None: ...
 
     def __init__(
         self,
         max_sessions: int = config.MAX_SESSIONS,
         monotonic: Callable[[], float] = time.monotonic,
         idle_seconds: float = config.SESSION_IDLE_SECONDS,
+        *,
+        factory: Callable[[], Any] | None = None,
     ) -> None:
         if max_sessions < 1:
             raise ValueError(f"max_sessions must be at least 1, got {max_sessions}")
@@ -212,15 +254,21 @@ class SessionRegistry:
         if idle_seconds <= 0:
             raise ValueError(f"idle_seconds must be positive, got {idle_seconds}")
 
-        self._sessions: dict[str, Session] = {}
+        self._sessions: dict[str, S] = {}
         self._touched: dict[str, float] = {}
+        self._holds: dict[str, int] = {}
+        # Any: the implementation signature serves both overloads, and the
+        # default builds a Session, which no S can name. The overloads above
+        # are what type the public surface. Resolved at call time, so the
+        # default always builds this module's Session.
+        self._factory: Callable[[], Any] = factory if factory is not None else lambda: Session()
         self._max_sessions = max_sessions
         self.idle_seconds = idle_seconds
         self._monotonic = monotonic
         self._lock = threading.Lock()
 
-    def create(self, session_id: str) -> Session:
-        session = Session()
+    def create(self, session_id: str) -> S:
+        session: S = self._factory()
 
         with self._lock:
             self._reclaim_idle()
@@ -238,7 +286,7 @@ class SessionRegistry:
             self._touch(session_id)
             return session
 
-    def get(self, session_id: str) -> Session | None:
+    def get(self, session_id: str) -> S | None:
         with self._lock:
             self._reclaim_idle()
             session = self._sessions.get(session_id)
@@ -248,7 +296,7 @@ class SessionRegistry:
 
             return session
 
-    def peek(self, session_id: str) -> Session | None:
+    def peek(self, session_id: str) -> S | None:
         """The live session for `session_id`, or None. Read-only: it neither
         refreshes the session's idle timer nor sweeps idle sessions, so a
         monitoring probe cannot keep a plant alive or end anyone else's. A
@@ -257,15 +305,41 @@ class SessionRegistry:
         with self._lock:
             return self._sessions.get(session_id)
 
-    def get_or_create(self, session_id: str) -> Session:
+    def get_or_create(self, session_id: str) -> S:
         session = self.get(session_id)
 
         return session if session is not None else self.create(session_id)
 
+    @contextmanager
+    def lease(self, session_id: str) -> Iterator[None]:
+        """Hold `session_id`'s session against the idle sweep for the life of
+        the `with` block. Nothing is taken until the block is entered, so a
+        caller may build the lease and never enter it.
+
+        Leases count, so overlapping holders each keep the session alive.
+        Leaving the last one touches the session: its idle clock starts at the
+        release, not at its last lookup. A lease on a session that is not in
+        the registry, or that was ended and replaced meanwhile, holds nothing.
+        Capacity eviction still ends a leased session when every session is
+        leased.
+        """
+        with self._lock:
+            session = self._sessions.get(session_id)
+
+            if session is not None:
+                self._holds[session_id] = self._holds.get(session_id, 0) + 1
+
+        try:
+            yield
+        finally:
+            if session is not None:
+                with self._lock:
+                    self._release(session_id, session)
+
     def reclaim_idle(self) -> int:
         """End every session idle for `idle_seconds` or more, and return how
         many. get() and create() already do this; call it directly to sweep
-        without a lookup."""
+        without a lookup. A leased session is never idle."""
         with self._lock:
             return self._reclaim_idle()
 
@@ -282,9 +356,25 @@ class SessionRegistry:
     def _touch(self, session_id: str) -> None:
         self._touched[session_id] = self._monotonic()
 
+    def _release(self, session_id: str, session: S) -> None:
+        # Only the session the lease was taken on: an ended one took its holds
+        # with it, and a new session under the same id owns its own.
+        if self._sessions.get(session_id) is not session:
+            return
+
+        holds = self._holds[session_id] - 1
+
+        if holds > 0:
+            self._holds[session_id] = holds
+            return
+
+        del self._holds[session_id]
+        self._touch(session_id)
+
     def _end(self, session_id: str) -> None:
         session = self._sessions.pop(session_id, None)
         self._touched.pop(session_id, None)
+        self._holds.pop(session_id, None)
 
         if session is not None:
             session.end()
@@ -294,7 +384,7 @@ class SessionRegistry:
         idle = [
             session_id
             for session_id, touched in self._touched.items()
-            if now - touched >= self.idle_seconds
+            if now - touched >= self.idle_seconds and session_id not in self._holds
         ]
 
         for session_id in idle:
@@ -303,5 +393,6 @@ class SessionRegistry:
         return len(idle)
 
     def _evict_least_recently_touched(self) -> None:
-        lru_id = min(self._touched, key=self._touched.__getitem__)
+        candidates = [session_id for session_id in self._touched if session_id not in self._holds]
+        lru_id = min(candidates or self._touched, key=self._touched.__getitem__)
         self._end(lru_id)

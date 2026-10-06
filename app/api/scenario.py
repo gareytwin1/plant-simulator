@@ -4,14 +4,19 @@ Scenario API (T14-4, contract C5's scenario routes).
     POST /api/scenario/load    {"scenario": "<id>"}
     POST /api/scenario/start
     POST /api/scenario/abort
+    POST /api/scenario/unload
     GET  /api/scenario/result
 
-Every route answers with the run's `ScenarioResult` as JSON, so a console
-polls one shape whether the run is loaded, running or over. Same shape as
+Every route but unload answers with the run's `ScenarioResult` as JSON, so a
+console polls one shape whether the run is loaded, running or over. Unload
+answers `{"phase": "idle"}`: there is no run left to report. Same shape as
 `app/api/action.py` and `app/api/alarms.py`: `create_scenario_blueprint`
-takes its `ScenarioRunner` as a callable resolved once per request, so this
-module makes no assumption about where the runner lives - whoever wires it
-into `app/main.py` decides that, and it is one file one branch at a time.
+takes its runner as a callable resolved once per request, so this module
+makes no assumption about where the runner lives - whoever wires it into
+`app/main.py` decides that, and it is one file one branch at a time. What it
+needs of one is the small `ScenarioControl` protocol: a bare `ScenarioRunner`
+satisfies it, and so does a `TrainingSession`, whose writes publish under the
+session's scheduler lock.
 
 A refusal is one of three, so a client can tell them apart:
 
@@ -26,6 +31,7 @@ A refusal is one of three, so a client can tell them apart:
 from __future__ import annotations
 
 from collections.abc import Callable
+from typing import Protocol
 
 from flask import Blueprint, jsonify
 from flask.typing import ResponseReturnValue
@@ -34,16 +40,29 @@ from app.api import validate
 from app.scenarios.runner import (
     ScenarioNotFound,
     ScenarioResult,
-    ScenarioRunner,
     ScenarioStateError,
 )
+
+
+class ScenarioControl(Protocol):
+    """What the scenario routes need of a runner."""
+
+    def load(self, scenario_id: str) -> ScenarioResult: ...
+
+    def start(self) -> ScenarioResult: ...
+
+    def abort(self) -> ScenarioResult: ...
+
+    def unload(self) -> None: ...
+
+    def result(self) -> ScenarioResult: ...
 
 
 def _ok(result: ScenarioResult) -> ResponseReturnValue:
     return jsonify(result.as_dict()), 200
 
 
-def create_scenario_blueprint(get_runner: Callable[[], ScenarioRunner]) -> Blueprint:
+def create_scenario_blueprint(get_runner: Callable[[], ScenarioControl]) -> Blueprint:
     blueprint = Blueprint("scenario", __name__)
 
     @blueprint.post("/api/scenario/load")
@@ -86,6 +105,15 @@ def create_scenario_blueprint(get_runner: Callable[[], ScenarioRunner]) -> Bluep
             return _ok(get_runner().abort())
         except ScenarioStateError as error:
             return jsonify({"error": str(error)}), 409
+
+    @blueprint.post("/api/scenario/unload")
+    def post_unload() -> ResponseReturnValue:
+        try:
+            get_runner().unload()
+        except ScenarioStateError as error:
+            return jsonify({"error": str(error)}), 409
+
+        return jsonify({"phase": "idle"}), 200
 
     @blueprint.get("/api/scenario/result")
     def get_result() -> ResponseReturnValue:

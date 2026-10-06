@@ -153,3 +153,68 @@ def test_a_malfunction_naming_a_tag_the_plant_lacks_is_a_400_with_an_unquoted_me
 
     assert response.status_code == 400
     assert response.get_json()["error"].startswith("no device registered under tag 'X-999'")
+
+
+def test_unload_over_http_returns_the_runner_to_idle(api):
+    client, runner = api
+    client.post("/api/scenario/load", json={"scenario": "pump-trip"})
+
+    response = client.post("/api/scenario/unload")
+
+    assert response.status_code == 200
+    assert response.get_json() == {"phase": "idle"}
+    assert runner.phase is Phase.IDLE
+
+
+def test_unload_with_nothing_loaded_is_a_no_op_not_an_error(api):
+    client, runner = api
+
+    assert client.post("/api/scenario/unload").status_code == 200
+    assert runner.phase is Phase.IDLE
+
+
+def test_unload_while_running_is_a_409_and_leaves_the_run(api):
+    client, runner = api
+    client.post("/api/scenario/load", json={"scenario": "pump-trip"})
+    client.post("/api/scenario/start")
+
+    response = client.post("/api/scenario/unload")
+
+    assert response.status_code == 409
+    assert "abort" in response.get_json()["error"]
+    assert runner.phase is Phase.RUNNING
+
+
+def test_a_training_session_serves_the_scenario_and_action_routes(tmp_path):
+    from app.training.session import TrainingSession
+
+    (tmp_path / "pump-trip.yaml").write_text(SCENARIO)
+    session = TrainingSession(ScenarioLibrary(scenarios=tmp_path))
+    app = Flask(__name__)
+    app.register_blueprint(create_scenario_blueprint(lambda: session))
+    app.register_blueprint(
+        create_action_blueprint(
+            lambda: session.runner.engine, lambda: session.runner.actions, session.act,
+        ),
+    )
+    client = app.test_client()
+    scheduler = session.training_scheduler
+
+    try:
+        free_time = scheduler.snapshot().sim_time
+
+        assert client.post("/api/scenario/load", json={"scenario": "pump-trip"}).status_code == 200
+        assert scheduler.snapshot().equipment["P-101"]["running"] is False
+        assert scheduler.snapshot().sim_time != free_time
+
+        assert client.post("/api/scenario/start").status_code == 200
+        assert client.post("/api/action", json={"target": "P-101", "action": "start"}).status_code == 200
+        assert scheduler.snapshot().equipment["P-101"]["running"] is True
+        assert client.post("/api/scenario/unload").status_code == 409
+
+        assert client.post("/api/scenario/abort").get_json()["outcome"] == "aborted"
+        assert client.post("/api/scenario/unload").status_code == 200
+        assert scheduler.snapshot().sim_time == free_time
+        assert client.post("/api/scenario/start").status_code == 409
+    finally:
+        session.end()

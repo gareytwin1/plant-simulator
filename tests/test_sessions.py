@@ -580,3 +580,231 @@ def test_peek_does_not_end_other_idle_sessions():
     assert registry.peek("probed") is not None
     assert len(registry) == 2
     assert not stale.compressor_scheduler.closed
+
+
+# Leases and the session factory (T16-8)
+
+
+class Probe:
+    """The least a registry needs of a session: it can be ended."""
+
+    def __init__(self):
+        self.ended = 0
+
+    def end(self):
+        self.ended += 1
+
+
+def probe_registry(idle_seconds=60.0, max_sessions=8):
+    clock = FakeClock()
+    registry = SessionRegistry(
+        max_sessions=max_sessions,
+        monotonic=clock,
+        idle_seconds=idle_seconds,
+        factory=Probe,
+    )
+
+    return registry, clock
+
+
+def test_a_factory_decides_what_the_registry_builds():
+    registry, _ = probe_registry()
+
+    session = registry.create("abc")
+
+    assert isinstance(session, Probe)
+    assert registry.get("abc") is session
+
+
+def test_the_default_factory_still_builds_a_legacy_session():
+    assert isinstance(SessionRegistry().create("abc"), Session)
+
+
+def test_the_loser_of_a_racing_create_is_ended_for_any_session_type():
+    built = []
+
+    def factory():
+        built.append(Probe())
+
+        return built[-1]
+
+    registry = SessionRegistry(factory=factory)
+    first = registry.create("abc")
+
+    assert registry.create("abc") is first
+    assert len(built) == 2
+    assert built[0] is first
+    assert first.ended == 0
+    assert built[1].ended == 1
+
+
+def test_a_leased_session_survives_the_idle_sweep():
+    registry, clock = probe_registry(idle_seconds=60.0)
+    session = registry.create("abc")
+
+    with registry.lease("abc"):
+        clock.advance(600.0)
+
+        assert registry.reclaim_idle() == 0
+        assert registry.get("abc") is session
+
+    assert session.ended == 0
+
+
+def test_a_released_session_is_reclaimable_once_idle_counted_from_the_release():
+    registry, clock = probe_registry(idle_seconds=60.0)
+    session = registry.create("abc")
+
+    with registry.lease("abc"):
+        clock.advance(600.0)
+
+    # Untouched for 600 s, but its idle clock started at the release.
+    clock.advance(59.0)
+    assert registry.reclaim_idle() == 0
+
+    clock.advance(1.0)
+    assert registry.reclaim_idle() == 1
+    assert session.ended == 1
+
+
+def test_overlapping_leases_each_keep_the_session_alive():
+    registry, clock = probe_registry(idle_seconds=60.0)
+    registry.create("abc")
+    first, second = registry.lease("abc"), registry.lease("abc")
+
+    with first:
+        with second:
+            pass
+
+        clock.advance(600.0)
+
+        assert registry.reclaim_idle() == 0
+
+    clock.advance(60.0)
+
+    assert registry.reclaim_idle() == 1
+
+
+def test_building_a_lease_takes_nothing_until_it_is_entered():
+    registry, clock = probe_registry(idle_seconds=60.0)
+    registry.create("abc")
+
+    registry.lease("abc")
+    clock.advance(60.0)
+
+    assert registry.reclaim_idle() == 1
+
+
+def test_a_lease_is_released_when_its_block_raises():
+    registry, clock = probe_registry(idle_seconds=60.0)
+    registry.create("abc")
+
+    with pytest.raises(RuntimeError):
+        with registry.lease("abc"):
+            raise RuntimeError("stream broke")
+
+    clock.advance(60.0)
+
+    assert registry.reclaim_idle() == 1
+
+
+def test_a_lease_on_an_unknown_session_holds_nothing_and_does_not_leak_a_hold():
+    registry, clock = probe_registry(idle_seconds=60.0)
+
+    with registry.lease("nope"):
+        pass
+
+    session = registry.create("nope")
+    clock.advance(60.0)
+
+    assert registry.reclaim_idle() == 1
+    assert session.ended == 1
+
+
+def test_a_lease_does_not_hold_the_replacement_of_the_session_it_was_taken_on():
+    registry, clock = probe_registry(idle_seconds=60.0)
+    old = registry.create("abc")
+    lease = registry.lease("abc")
+
+    with lease:
+        registry.end("abc")
+        new = registry.create("abc")
+
+    # Leaving the lease neither touched nor counted against the new session.
+    clock.advance(60.0)
+
+    assert old.ended == 1
+    assert registry.reclaim_idle() == 1
+    assert new.ended == 1
+
+
+def test_eviction_prefers_a_session_that_is_not_leased():
+    registry, clock = probe_registry(max_sessions=2)
+    leased = registry.create("leased")
+    clock.advance(1.0)
+    spare = registry.create("spare")
+
+    with registry.lease("leased"):
+        clock.advance(1.0)
+        registry.create("third")
+
+    assert leased.ended == 0
+    assert spare.ended == 1
+    assert registry.peek("leased") is leased
+
+
+def test_eviction_past_capacity_still_ends_a_leased_session_when_all_are_leased():
+    registry, clock = probe_registry(max_sessions=1)
+    leased = registry.create("leased")
+
+    with registry.lease("leased"):
+        registry.create("newcomer")
+
+        assert leased.ended == 1
+        assert len(registry) == 1
+
+    # Leaving the lease of an ended session is harmless.
+    assert registry.peek("newcomer") is not None
+
+
+def test_ending_a_leased_session_by_id_ends_it():
+    registry, _ = probe_registry()
+    session = registry.create("abc")
+
+    with registry.lease("abc"):
+        registry.end("abc")
+
+    assert session.ended == 1
+    assert len(registry) == 0
+
+
+def test_a_leased_legacy_session_and_a_training_session_share_the_same_paths():
+    from app.training.session import TrainingSession
+
+    for factory in (Session, TrainingSession):
+        clock = FakeClock()
+        registry = SessionRegistry(max_sessions=2, monotonic=clock, idle_seconds=60.0, factory=factory)
+        held = registry.create("held")
+        idle = registry.create("idle")
+
+        with registry.lease("held"):
+            clock.advance(60.0)
+            assert registry.reclaim_idle() == 1
+
+        assert registry.peek("idle") is None
+        assert registry.peek("held") is held
+
+        registry.create("a")
+        registry.create("b")
+
+        assert len(registry) == 2
+        assert registry.peek("held") is None
+
+        for session in (held, idle):
+            scheduler = (
+                session.training_scheduler if factory is TrainingSession else session.compressor_scheduler
+            )
+            assert scheduler.closed
+
+        registry.end("a")
+        registry.end("b")

@@ -24,6 +24,7 @@ sessions = SessionRegistry(factory=TrainingSession)
 
 rate_limiter = validate.RateLimiter(config.API_RATE_PER_SECOND, config.API_RATE_BURST)
 
+
 def _request_sim_time() -> float | None:
     """Sim time of the request's own plant, None where it has none (a health
     probe, a refused request)."""

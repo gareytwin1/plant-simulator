@@ -50,6 +50,7 @@ BAD_BODIES = [
     pytest.param('{"{f}": 0.5, "extra": 1}', "application/json", "unknown field: extra", id="extra-key"),
 ]
 
+
 def number_client():
     """A one-route app on the shared request pipeline: a POST that echoes the
     one number field its body must carry, read the way every writer does."""

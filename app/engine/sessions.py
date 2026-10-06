@@ -41,8 +41,8 @@ class Endable(Protocol):
 class SessionRegistry[S: Endable]:
     """Bounded by capacity and by idle age.
 
-    A page render starts a session's background scheduler worker
-    (main.py), and nothing ever stops it on its own - a browser that navigates away sends
+    A page render starts a session's background scheduler worker (main.py),
+    and nothing ever stops it on its own - a browser that navigates away sends
     nothing. Two mechanisms keep that bounded. Idle age (T18-5):
     reclaim_idle() ends every session last touched `idle_seconds` or more ago,
     and get() and create() run it under `_lock` before they look anything up,

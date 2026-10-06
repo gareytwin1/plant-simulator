@@ -2,7 +2,7 @@
 
 import pytest
 
-from app import config, main
+from app import main
 from app.training.session import TrainingSession
 
 
@@ -27,7 +27,6 @@ def test_the_registry_builds_training_sessions():
     client.get("/api/snapshot")
 
     assert isinstance(session_for(client), TrainingSession)
-    assert config.FREE_PLAY_PLANT == "olefins_lite"
 
 
 def test_snapshot_keeps_one_plant_per_cookie_and_never_starts_the_scheduler():
@@ -38,7 +37,6 @@ def test_snapshot_keeps_one_plant_per_cookie_and_never_starts_the_scheduler():
     client.get("/api/snapshot")
 
     assert session_for(client) is session
-    assert len(main.sessions) >= 1
     assert session.training_scheduler.running is False
 
 

@@ -621,11 +621,21 @@ def test_the_default_factory_still_builds_a_legacy_session():
 
 
 def test_the_loser_of_a_racing_create_is_ended_for_any_session_type():
-    registry, _ = probe_registry()
+    built = []
+
+    def factory():
+        built.append(Probe())
+
+        return built[-1]
+
+    registry = SessionRegistry(factory=factory)
     first = registry.create("abc")
 
     assert registry.create("abc") is first
+    assert len(built) == 2
+    assert built[0] is first
     assert first.ended == 0
+    assert built[1].ended == 1
 
 
 def test_a_leased_session_survives_the_idle_sweep():

@@ -257,7 +257,10 @@ class SessionRegistry[S: Endable]:
         self._sessions: dict[str, S] = {}
         self._touched: dict[str, float] = {}
         self._holds: dict[str, int] = {}
-        # Resolved at call time, so the default always builds this module's Session.
+        # Any: the implementation signature serves both overloads, and the
+        # default builds a Session, which no S can name. The overloads above
+        # are what type the public surface. Resolved at call time, so the
+        # default always builds this module's Session.
         self._factory: Callable[[], Any] = factory if factory is not None else lambda: Session()
         self._max_sessions = max_sessions
         self.idle_seconds = idle_seconds

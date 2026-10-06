@@ -38,7 +38,6 @@ cannot start a worker the registry no longer counts.
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import TypeVar
 
 from app import config
 from app.alarms.acknowledge import Acknowledged
@@ -50,8 +49,6 @@ from app.engine.snapshot import Snapshot
 from app.plant.loader import load_plant, read_plant_config
 from app.scenarios.runner import Phase, ScenarioLibrary, ScenarioResult, ScenarioRunner
 from app.training.runtime import PlantRuntime
-
-T = TypeVar("T")
 
 
 class TrainingSession:
@@ -125,7 +122,7 @@ class TrainingSession:
     def _plant(self) -> PlantRuntime | ScenarioRunner:
         return self.free if self.runner.phase is Phase.IDLE else self.runner
 
-    def _command(self, apply: Callable[[], T]) -> T:
+    def _command[T](self, apply: Callable[[], T]) -> T:
         """Run `apply` as a scheduler command and return what it returned. The
         command publishes the snapshot it leaves behind, so a failed `apply`
         publishes nothing."""

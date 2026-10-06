@@ -1,0 +1,46 @@
+/* Stale connection handling (T16-5). Colour comes from tokens.css; load it first.
+ *
+ * static/js/connection.js sets data-connection on the console root. Any element
+ * showing a value read from the stream carries data-live-value: it dims when
+ * the stream goes stale or closes, so a frozen number stops looking current.
+ * Dimming is the second channel; the indicator's text and glyph are the first,
+ * so the state never rests on opacity alone. */
+
+[data-connection="stale"] [data-live-value],
+[data-connection="closed"] [data-live-value] {
+  opacity: 0.45;
+  filter: grayscale(1);
+}
+
+.connection-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  padding: 0.1em 0.55em;
+  border: 2px solid var(--border);
+  border-radius: 3px;
+  background-color: var(--surface-raised);
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+[data-connection="live"] .connection-indicator::before {
+  content: var(--symbol-equip-running);
+}
+
+[data-connection="connecting"] .connection-indicator::before,
+[data-connection="stale"] .connection-indicator::before {
+  content: var(--symbol-equip-stopped);
+}
+
+[data-connection="closed"] .connection-indicator::before {
+  content: var(--symbol-equip-tripped);
+}
+
+[data-connection="stale"] .connection-indicator,
+[data-connection="closed"] .connection-indicator {
+  border-color: var(--alarm-high-mark);
+  color: var(--text);
+}

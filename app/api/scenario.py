@@ -7,8 +7,9 @@ Scenario API (T14-4, contract C5's scenario routes).
     POST /api/scenario/unload
     GET  /api/scenario/result
 
-Every route answers with the run's `ScenarioResult` as JSON, so a console
-polls one shape whether the run is loaded, running or over. Same shape as
+Every route but unload answers with the run's `ScenarioResult` as JSON, so a
+console polls one shape whether the run is loaded, running or over. Unload
+answers `{"phase": "idle"}`: there is no run left to report. Same shape as
 `app/api/action.py` and `app/api/alarms.py`: `create_scenario_blueprint`
 takes its runner as a callable resolved once per request, so this module
 makes no assumption about where the runner lives - whoever wires it into

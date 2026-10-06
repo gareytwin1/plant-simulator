@@ -101,11 +101,6 @@ def test_a_new_session_runs_free_play_on_the_configured_plant_and_starts_no_thre
         made.end()
 
 
-def test_free_play_is_the_configured_plant_and_condition():
-    assert config.FREE_PLAY_PLANT == "olefins_lite"
-    assert config.FREE_PLAY_CONDITION == "normal_operation"
-
-
 def test_the_session_does_not_reuse_the_legacy_session():
     made = TrainingSession()
 

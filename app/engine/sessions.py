@@ -1,181 +1,35 @@
 """
 Per-session plant registry.
 
-main.py used to hold one module-global compressor and pump, so every
-browser shared the same plant and one visitor's actions were visible to
-everyone else's. A Session bundles a fresh device instance of each kind;
-SessionRegistry creates, looks up and tears one down by session id, so
-concurrent browsers never see each other's state.
+Every browser gets a plant of its own, so one visitor's actions are never
+visible to another's. SessionRegistry creates, looks up and tears one down by
+session id; what it holds is any session type that can be ended (`Endable`),
+built by the `factory` it is given, so this module names no concrete session
+type and never imports app.training. main.py passes TrainingSession.
 
-Since T2-6, a Session also owns a background Scheduler per engine —
-compressor_scheduler and pump_scheduler — so a browser's plant keeps
-running on the server's own clock instead of a browser's setInterval.
-Session.__init__ constructs both and starts neither; only the route
-serving the page that displays a machine starts its scheduler, and only
-Session.end() (called directly, by SessionRegistry.end(), or by LRU
-eviction) stops them. It closes them, so a request still holding an ended
-session cannot start a worker the registry no longer counts.
-SessionRegistry bounds how many sessions - and so how many worker threads -
-stay alive at once: past config.MAX_SESSIONS, create ends the
+A session owns a background Scheduler, so a browser's plant keeps running on
+the server's own clock instead of a browser's setInterval. Constructing a
+session starts nothing; only the route serving a page that displays the plant
+starts it, and only the session's end() (called directly, by
+SessionRegistry.end(), or by LRU eviction) stops it. It closes it, so a request
+still holding an ended session cannot start a worker the registry no longer
+counts. SessionRegistry bounds how many sessions - and so how many worker
+threads - stay alive at once: past config.MAX_SESSIONS, create ends the
 least-recently-touched session first, and a session idle for
-config.SESSION_IDLE_SECONDS is reclaimed (T18-5). See docs/T2-6_SCHEDULER_OWNERSHIP.md
-for the design this implements.
+config.SESSION_IDLE_SECONDS is reclaimed (T18-5). See
+docs/T2-6_SCHEDULER_OWNERSHIP.md for the design this implements.
 
-The registry holds any session type that can be ended (`Endable`): the legacy
-Session here, with two workers, or a TrainingSession (app.training.session),
-with one. It takes a factory for the type it builds and defaults to Session,
-so this module never imports app.training. `lease` pins a session against the
-idle sweep while something - a console's open stream - is using it (T16-8).
+`lease` pins a session against the idle sweep while something - a console's
+open stream - is using it (T16-8).
 """
 
 import threading
 import time
-from collections.abc import Callable, Iterator, Mapping
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from typing import Any, Protocol, overload
+from typing import Protocol
 
 from app import config
-from app.engine.engine import Engine
-from app.engine.scheduler import Scheduler
-from app.equipment.compressor import GasCompressor
-from app.equipment.pump import CentrifugalPump
-from app.plant.loader import load_plant
-from app.statetypes import JSONValue, StateRow
-
-
-# The standalone pages each run one machine between two fixed battery limits.
-# Equal boundary pressures are the legacy pages' own defaults, so an idle
-# machine sits at zero flow exactly as it always did.
-COMPRESSOR_PLANT: dict[str, Any] = {
-    "nodes": [
-        {"id": "N-201", "boundary": True, "pressure": 750.0, "domain": "gas"},
-        {"id": "N-202", "boundary": True, "pressure": 750.0, "domain": "gas"},
-    ],
-    "equipment": [
-        {"tag": "K-101", "type": "compressor", "node_in": "N-201", "node_out": "N-202", "design": {}},
-    ],
-}
-
-PUMP_PLANT: dict[str, Any] = {
-    "nodes": [
-        {"id": "N-101", "boundary": True, "pressure": 50.0, "domain": "liquid"},
-        {"id": "N-102", "boundary": True, "pressure": 50.0, "domain": "liquid"},
-    ],
-    "equipment": [
-        {"tag": "P-101", "type": "pump", "node_in": "N-101", "node_out": "N-102", "design": {}},
-    ],
-}
-
-
-class Session:
-    """One browser's plant: a compressor and a pump, each on an Engine of its
-    own. They are separate plants because they sit in separate flow domains
-    and the pages step them independently.
-    """
-
-    def __init__(
-        self,
-        compressor_plant: dict[str, Any] = COMPRESSOR_PLANT,
-        pump_plant: dict[str, Any] = PUMP_PLANT,
-    ) -> None:
-        self.compressor_engine = _engine_for(compressor_plant)
-        self.pump_engine = _engine_for(pump_plant)
-
-        compressor = self.compressor_engine.equipment["K-101"]
-        pump = self.pump_engine.equipment["P-101"]
-
-        assert isinstance(compressor, GasCompressor)
-        assert isinstance(pump, CentrifugalPump)
-
-        self.compressor = compressor
-        self.pump = pump
-
-        # Created here, started only by the route that renders the page
-        # displaying the matching engine (main.py). An unstarted Scheduler
-        # holds no thread, so this adds no cost to a plain API request.
-        self.compressor_scheduler = Scheduler(self.compressor_engine)
-        self.pump_scheduler = Scheduler(self.pump_engine)
-
-    def end(self) -> None:
-        """Close both schedulers, stopping and joining any worker. Permanent:
-        a later start() is a no-op. Safe to call on a session whose
-        schedulers were never started."""
-        self.compressor_scheduler.close()
-        self.pump_scheduler.close()
-
-    def compressor_state(self) -> StateRow:
-        """The compressor page's row: the device's own state plus what the
-        solver put on its branch and nodes.
-
-        The page carries no valve: T7-2 retired the compressor's own valve
-        state, and this plant has no valve branch to read one from. The
-        reference plant config/plants/olefins_lite.yaml is where K-101
-        discharges through a real ControlValve.
-
-        temperature_at(suction, discharge) and characteristic(flow) are
-        live-device queries over a solved value, so they cannot move into
-        get_state(). One step_lock acquisition covers the snapshot read and
-        both queries, so all three come from the same coherent step even
-        while the scheduler is running concurrently.
-        """
-        with self.compressor_scheduler.step_lock:
-            snapshot = self.compressor_scheduler.snapshot_locked()
-
-            flow = _flow_of(snapshot.streams)
-            suction = _pressure_at(snapshot.nodes, "N-201")
-            discharge = _pressure_at(snapshot.nodes, "N-202")
-
-            return {
-                **snapshot.equipment["K-101"],
-                "pressure": discharge,
-                "suction_pressure": suction,
-                "discharge_pressure": discharge,
-                "spread": discharge - suction,
-                "temperature": self.compressor.temperature_at(
-                    suction,
-                    discharge,
-                ),
-                "flow": flow,
-                "compressor_pressure_rise": self.compressor.characteristic(flow),
-            }
-
-    def pump_state(self) -> StateRow:
-        with self.pump_scheduler.step_lock:
-            snapshot = self.pump_scheduler.snapshot_locked()
-
-            flow = _flow_of(snapshot.streams)
-            suction = _pressure_at(snapshot.nodes, "N-101")
-            discharge = _pressure_at(snapshot.nodes, "N-102")
-
-            return {
-                **snapshot.equipment["P-101"],
-                "flow": flow,
-                "suction_pressure": suction,
-                "discharge_pressure": discharge,
-                "spread": discharge - suction,
-                "pump_pressure_rise": self.pump.characteristic(flow),
-            }
-
-
-def _engine_for(config_dict: dict[str, Any]) -> Engine:
-    return Engine.from_plant(load_plant(config_dict))
-
-
-def _flow_of(streams: Mapping[str, Mapping[str, JSONValue]]) -> float:
-    # The single-device plants have exactly one stream.
-    (stream,) = streams.values()
-
-    return _number(stream["flow"])
-
-
-def _pressure_at(nodes: Mapping[str, Mapping[str, JSONValue]], node_id: str) -> float:
-    return _number(nodes[node_id]["pressure"])
-
-
-def _number(value: JSONValue) -> float:
-    assert isinstance(value, (int, float)) and not isinstance(value, bool)
-
-    return float(value)
 
 
 class Endable(Protocol):
@@ -187,9 +41,8 @@ class Endable(Protocol):
 class SessionRegistry[S: Endable]:
     """Bounded by capacity and by idle age.
 
-    A page render starts up to two background scheduler workers on a legacy
-    session (Session.__init__/main.py), a training session runs one, and
-    nothing ever stops them on its own - a browser that navigates away sends
+    A page render starts a session's background scheduler worker
+    (main.py), and nothing ever stops it on its own - a browser that navigates away sends
     nothing. Two mechanisms keep that bounded. Idle age (T18-5):
     reclaim_idle() ends every session last touched `idle_seconds` or more ago,
     and get() and create() run it under `_lock` before they look anything up,
@@ -212,7 +65,7 @@ class SessionRegistry[S: Endable]:
     (ending the unstarted loser) or reclaims, evicts, inserts and touches.
     Reclaim, eviction and end() close the victim while holding `_lock`, so
     once create() returns the victim's workers are dead, and there are never
-    more than 2 * max_sessions of them. `_lock` comes before every Scheduler
+    more than max_sessions of them. `_lock` comes before every Scheduler
     lock (see scheduler.py). The registry is per-process.
 
     The cost: while a victim's worker is joined, every lookup waits, for
@@ -222,31 +75,13 @@ class SessionRegistry[S: Endable]:
     session is safe: end() closed its schedulers.
     """
 
-    @overload
-    def __init__(
-        self: "SessionRegistry[Session]",
-        max_sessions: int = ...,
-        monotonic: Callable[[], float] = ...,
-        idle_seconds: float = ...,
-    ) -> None: ...
-
-    @overload
     def __init__(
         self,
-        max_sessions: int = ...,
-        monotonic: Callable[[], float] = ...,
-        idle_seconds: float = ...,
         *,
         factory: Callable[[], S],
-    ) -> None: ...
-
-    def __init__(
-        self,
         max_sessions: int = config.MAX_SESSIONS,
         monotonic: Callable[[], float] = time.monotonic,
         idle_seconds: float = config.SESSION_IDLE_SECONDS,
-        *,
-        factory: Callable[[], Any] | None = None,
     ) -> None:
         if max_sessions < 1:
             raise ValueError(f"max_sessions must be at least 1, got {max_sessions}")
@@ -257,11 +92,7 @@ class SessionRegistry[S: Endable]:
         self._sessions: dict[str, S] = {}
         self._touched: dict[str, float] = {}
         self._holds: dict[str, int] = {}
-        # Any: the implementation signature serves both overloads, and the
-        # default builds a Session, which no S can name. The overloads above
-        # are what type the public surface. Resolved at call time, so the
-        # default always builds this module's Session.
-        self._factory: Callable[[], Any] = factory if factory is not None else lambda: Session()
+        self._factory = factory
         self._max_sessions = max_sessions
         self.idle_seconds = idle_seconds
         self._monotonic = monotonic

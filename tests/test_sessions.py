@@ -1,31 +1,68 @@
+import gc
 import threading
-import time
+import weakref
 
 import pytest
 
-from app.engine import sessions
-from app.engine.sessions import Session, SessionRegistry
+from app import config
+from app.engine.sessions import SessionRegistry
 
 
 WAIT = 5.0
 
 
-def live_scheduler_workers():
-    return [t for t in threading.enumerate() if t.name == "engine-scheduler"]
+class FakeSession:
+    """The least a registry needs of a session: it can be ended. `end()` takes
+    `busy`, standing in for the step_lock a real session's scheduler holds
+    while a step or command runs, so a test can hold a session busy."""
+
+    def __init__(self):
+        self.ended = 0
+        self.busy = threading.Lock()
+
+    def end(self):
+        with self.busy:
+            self.ended += 1
 
 
-def test_create_returns_a_session_with_fresh_equipment():
-    registry = SessionRegistry()
+class FakeClock:
+    def __init__(self):
+        self.now = 1000.0
+
+    def __call__(self):
+        return self.now
+
+    def advance(self, seconds):
+        self.now += seconds
+
+
+def make_registry(**kwargs):
+    return SessionRegistry(factory=FakeSession, **kwargs)
+
+
+def registry_with_clock(idle_seconds=60.0, max_sessions=8):
+    clock = FakeClock()
+    registry = make_registry(max_sessions=max_sessions, monotonic=clock, idle_seconds=idle_seconds)
+
+    return registry, clock
+
+
+def test_create_builds_a_session_with_the_factory():
+    registry = make_registry()
 
     session = registry.create("abc")
 
-    assert isinstance(session, Session)
-    assert session.compressor.running is False
-    assert session.pump.running is False
+    assert isinstance(session, FakeSession)
+    assert session.ended == 0
+
+
+def test_the_factory_is_required():
+    with pytest.raises(TypeError):
+        SessionRegistry()
 
 
 def test_get_returns_the_same_session_on_repeated_lookups():
-    registry = SessionRegistry()
+    registry = make_registry()
     created = registry.create("abc")
 
     assert registry.get("abc") is created
@@ -33,13 +70,11 @@ def test_get_returns_the_same_session_on_repeated_lookups():
 
 
 def test_get_unknown_id_returns_none():
-    registry = SessionRegistry()
-
-    assert registry.get("nope") is None
+    assert make_registry().get("nope") is None
 
 
 def test_get_or_create_creates_once_then_reuses():
-    registry = SessionRegistry()
+    registry = make_registry()
 
     first = registry.get_or_create("abc")
     second = registry.get_or_create("abc")
@@ -48,96 +83,44 @@ def test_get_or_create_creates_once_then_reuses():
     assert len(registry) == 1
 
 
-def test_two_sessions_have_independent_equipment_with_no_cross_talk():
-    registry = SessionRegistry()
+def test_two_ids_get_two_independent_sessions():
+    registry = make_registry()
+
     session_a = registry.create("a")
     session_b = registry.create("b")
+    registry.end("a")
 
-    session_a.compressor.set_load_target(0.8)
-    session_a.compressor.start()
-    session_a.compressor_scheduler.step_once()
-
-    assert session_a.compressor.running is True
-    assert session_b.compressor.running is False
-    assert session_b.compressor.load_target == 0.0
-    assert session_a.compressor is not session_b.compressor
-    assert session_a.pump is not session_b.pump
+    assert session_a is not session_b
+    assert session_a.ended == 1
+    assert session_b.ended == 0
+    assert registry.get("b") is session_b
 
 
-def test_end_releases_the_session():
-    registry = SessionRegistry()
-    registry.create("abc")
+def test_end_releases_the_session_and_ends_it():
+    registry = make_registry()
+    session = registry.create("abc")
 
     registry.end("abc")
 
+    assert session.ended == 1
     assert registry.get("abc") is None
     assert len(registry) == 0
 
 
 def test_end_unknown_id_is_a_no_op():
-    registry = SessionRegistry()
+    registry = make_registry()
 
     registry.end("nope")
 
     assert len(registry) == 0
 
 
-# Scheduler ownership (T2-6)
-
-
-def test_session_construction_creates_schedulers_but_starts_neither():
-    session = Session()
-
-    assert session.compressor_scheduler.running is False
-    assert session.pump_scheduler.running is False
-    assert not live_scheduler_workers()
-
-
-def test_session_end_stops_and_joins_both_workers_even_if_never_started():
-    session = Session()
-
-    session.end()
-
-    assert session.compressor_scheduler.running is False
-    assert session.pump_scheduler.running is False
-
-
-def test_session_end_stops_and_joins_workers_that_were_started():
-    session = Session()
-    session.compressor_scheduler.start()
-    session.pump_scheduler.start()
-
-    assert session.compressor_scheduler.running is True
-    assert session.pump_scheduler.running is True
-
-    session.end()
-
-    assert session.compressor_scheduler.running is False
-    assert session.pump_scheduler.running is False
-    assert not live_scheduler_workers()
-
-
-def test_registry_end_stops_the_sessions_workers_before_dropping_it():
-    registry = SessionRegistry()
-    session = registry.create("abc")
-    session.compressor_scheduler.start()
-
-    registry.end("abc")
-
-    assert registry.get("abc") is None
-    assert session.compressor_scheduler.running is False
-    assert not live_scheduler_workers()
-
-
 def test_create_at_capacity_evicts_the_least_recently_touched_session():
     tick = iter(range(100))
-    registry = SessionRegistry(max_sessions=2, monotonic=lambda: next(tick))
+    registry = make_registry(max_sessions=2, monotonic=lambda: next(tick))
 
     session_a = registry.create("a")  # touched at 0
     session_b = registry.create("b")  # touched at 1
-
-    session_a.compressor_scheduler.start()
-    session_b.compressor_scheduler.start()
 
     registry.get("b")  # touched at 2, so "a" is now the LRU session
 
@@ -147,17 +130,13 @@ def test_create_at_capacity_evicts_the_least_recently_touched_session():
     assert registry.get("b") is session_b
     assert registry.get("c") is session_c
     assert len(registry) == 2
-
-    # Eviction stopped and joined "a"'s worker.
-    assert session_a.compressor_scheduler.running is False
-
-    session_b.end()
-    session_c.end()
+    assert session_a.ended == 1
+    assert session_b.ended == 0
 
 
 def test_touching_a_session_protects_it_from_eviction():
     tick = iter(range(100))
-    registry = SessionRegistry(max_sessions=2, monotonic=lambda: next(tick))
+    registry = make_registry(max_sessions=2, monotonic=lambda: next(tick))
 
     session_a = registry.create("a")  # touched at 0
     registry.create("b")  # touched at 1
@@ -175,40 +154,26 @@ def test_registry_rejects_a_capacity_below_one():
     # Capacity of zero would make eviction pick a session from an empty
     # registry, so it is refused at construction rather than at create().
     with pytest.raises(ValueError):
-        SessionRegistry(max_sessions=0)
+        make_registry(max_sessions=0)
 
 
-def test_a_command_reaches_the_published_state_without_advancing_time():
-    # DEFECT REPRODUCTION
-    session = Session()
-    scheduler = session.compressor_scheduler
-
-    scheduler.step_once()
-    before = scheduler.snapshot().sim_time
-    scheduler.command(session.compressor.start)
-
-    assert session.compressor_state()["running"] is True
-    assert scheduler.snapshot().sim_time == before
+# Atomic admission (R7)
 
 
-# Atomic admission and permanent closure (R7)
-
-
-def constructing_together(monkeypatch, parties):
-    """Make every Session construction wait until `parties` of them are
+def constructing_together(parties):
+    """A factory whose every construction waits until `parties` of them are
     under way, so racing admissions all build before any is admitted."""
     barrier = threading.Barrier(parties, timeout=WAIT)
     built = []
 
-    class Rendezvous(Session):
-        def __init__(self):
-            super().__init__()
-            built.append(self)
-            barrier.wait()
+    def factory():
+        session = FakeSession()
+        built.append(session)
+        barrier.wait()
 
-    monkeypatch.setattr(sessions, "Session", Rendezvous)
+        return session
 
-    return built
+    return factory, built
 
 
 def run_together(target, args_list):
@@ -229,179 +194,76 @@ def run_together(target, args_list):
     return results
 
 
-def closed(session):
-    return session.compressor_scheduler.closed and session.pump_scheduler.closed
-
-
-def test_concurrent_creates_at_capacity_leave_one_session_and_close_the_rest(monkeypatch):
-    # DEFECT REPRODUCTION
+def test_concurrent_creates_at_capacity_leave_one_session_and_end_the_rest():
     ids = [f"s{i}" for i in range(8)]
-    built = constructing_together(monkeypatch, len(ids))
-    registry = SessionRegistry(max_sessions=1)
+    factory, built = constructing_together(len(ids))
+    registry = SessionRegistry(factory=factory, max_sessions=1)
 
     run_together(registry.create, [(i,) for i in ids])
 
     assert len(registry) == 1
     (admitted,) = [registry.get(i) for i in ids if registry.get(i) is not None]
-    assert [s for s in built if not closed(s)] == [admitted]
+    assert [s for s in built if s.ended == 0] == [admitted]
 
 
-def test_concurrent_get_or_create_of_one_id_returns_one_object(monkeypatch):
-    # DEFECT REPRODUCTION
+def test_concurrent_get_or_create_of_one_id_returns_one_object():
     n = 8
-    built = constructing_together(monkeypatch, n)
-    registry = SessionRegistry()
+    factory, built = constructing_together(n)
+    registry = SessionRegistry(factory=factory)
 
     results = run_together(registry.get_or_create, [("abc",)] * n)
 
     assert all(result is results[0] for result in results)
     assert registry.get("abc") is results[0]
     assert len(registry) == 1
-    assert [s for s in built if not closed(s)] == [results[0]]
+    assert [s for s in built if s.ended == 0] == [results[0]]
 
 
-def test_evicted_session_cannot_start_a_worker_once_create_returns():
-    # DEFECT REPRODUCTION: a request that resolved the victim before it was
-    # evicted must not be able to start a worker the registry no longer counts.
-    registry = SessionRegistry(max_sessions=1)
+def test_eviction_while_the_victim_is_busy_completes_after_it_is_released():
+    # A route mid-command on the victim holds its step_lock. Eviction waits for
+    # it, then leaves the victim ended, and does not deadlock.
+    registry = make_registry(max_sessions=1)
     victim = registry.create("a")
-    victim.compressor_scheduler.start()
-    victim.pump_scheduler.start()
-
-    survivor = registry.create("b")
-
-    assert not live_scheduler_workers()
-    assert closed(victim)
-
-    victim.compressor_scheduler.start()
-    victim.pump_scheduler.start()
-
-    assert not live_scheduler_workers()
-
-    survivor.end()
-
-
-def test_session_end_then_start_creates_no_thread():
-    # DEFECT REPRODUCTION
-    session = Session()
-
-    session.end()
-    session.compressor_scheduler.start()
-    session.pump_scheduler.start()
-
-    assert not live_scheduler_workers()
-
-
-def test_session_start_then_end_joins_both_workers():
-    # DEFECT REPRODUCTION
-    session = Session()
-    session.compressor_scheduler.start()
-    session.pump_scheduler.start()
-
-    session.end()
-
-    assert not live_scheduler_workers()
-    assert closed(session)
-
-
-class ContendedLock:
-    """A step_lock stand-in that reports when a second thread waits on it."""
-
-    def __init__(self):
-        self._lock = threading.Lock()
-        self.contended = threading.Event()
-
-    def __enter__(self):
-        if not self._lock.acquire(blocking=False):
-            self.contended.set()
-            self._lock.acquire()
-
-    def __exit__(self, *exc_info):
-        self._lock.release()
-
-
-def test_eviction_while_the_victims_step_lock_is_held_completes_after_release():
-    # DEFECT REPRODUCTION: a route mid-command on the victim holds its
-    # step_lock and the victim's worker is queued behind it. Eviction must
-    # wait for both, then leave the victim closed, not deadlock.
-    registry = SessionRegistry(max_sessions=1)
-    victim = registry.create("a")
-    scheduler = victim.compressor_scheduler
-    scheduler.step_lock = ContendedLock()
-
-    holding = threading.Event()
-    release = threading.Event()
-
-    def slow_action():
-        holding.set()
-        assert release.wait(WAIT)
-
-    commander = threading.Thread(target=scheduler.command, args=(slow_action,))
-    commander.start()
-    assert holding.wait(WAIT)
-
-    # The worker's first step is due at once, so it queues on the held lock.
-    scheduler.start()
-    assert scheduler.step_lock.contended.wait(WAIT)
+    victim.busy.acquire()
 
     evictor = threading.Thread(target=registry.create, args=("b",))
     evictor.start()
+    evictor.join(0.2)
 
-    deadline = time.monotonic() + WAIT
-    while not scheduler.closed and time.monotonic() < deadline:
-        time.sleep(0.001)
-
-    assert scheduler.closed
-    evictor.join(0.05)
     assert evictor.is_alive()
+    assert victim.ended == 0
 
-    release.set()
-    commander.join(WAIT)
+    victim.busy.release()
     evictor.join(WAIT)
 
-    assert not commander.is_alive()
     assert not evictor.is_alive()
+    assert victim.ended == 1
     assert registry.get("a") is None
-    assert closed(victim)
-    assert not live_scheduler_workers()
-
-    registry.end("b")
+    assert registry.get("b") is not None
 
 
-class FakeClock:
-    def __init__(self):
-        self.now = 1000.0
+def test_registry_ends_a_session_once_however_it_leaves():
+    registry = make_registry(max_sessions=1)
+    session = registry.create("a")
 
-    def __call__(self):
-        return self.now
+    registry.create("b")
+    registry.end("a")
 
-    def advance(self, seconds):
-        self.now += seconds
-
-
-def registry_with_clock(idle_seconds=60.0, max_sessions=8):
-    clock = FakeClock()
-    registry = SessionRegistry(
-        max_sessions=max_sessions,
-        monotonic=clock,
-        idle_seconds=idle_seconds,
-    )
-
-    return registry, clock
+    assert session.ended == 1
 
 
-def test_idle_session_is_reclaimed_and_its_workers_stopped():
+# Idle reclaim (T18-5)
+
+
+def test_idle_session_is_reclaimed_and_ended():
     registry, clock = registry_with_clock(idle_seconds=60.0)
     session = registry.create("abandoned")
-    session.compressor_scheduler.start()
-    session.pump_scheduler.start()
 
     clock.advance(60.0)
 
     assert registry.reclaim_idle() == 1
     assert len(registry) == 0
-    assert session.compressor_scheduler.closed and not session.compressor_scheduler.running
-    assert session.pump_scheduler.closed and not session.pump_scheduler.running
+    assert session.ended == 1
 
 
 def test_session_idle_for_less_than_the_timeout_is_kept():
@@ -447,7 +309,7 @@ def test_create_reclaims_idle_sessions_before_admitting_a_new_one():
 
     assert len(registry) == 1
     assert registry.get("c") is fresh
-    assert old_a.compressor_scheduler.closed and old_b.compressor_scheduler.closed
+    assert old_a.ended == 1 and old_b.ended == 1
 
 
 def test_create_of_an_idle_id_returns_a_new_session_not_the_reclaimed_one():
@@ -458,14 +320,11 @@ def test_create_of_an_idle_id_returns_a_new_session_not_the_reclaimed_one():
     fresh = registry.create("abc")
 
     assert fresh is not old
-    assert old.compressor_scheduler.closed
-    assert not fresh.compressor_scheduler.closed
+    assert old.ended == 1
+    assert fresh.ended == 0
 
 
 def test_reclaimed_session_is_released_from_memory():
-    import gc
-    import weakref
-
     registry, clock = registry_with_clock(idle_seconds=60.0)
     reference = weakref.ref(registry.create("abandoned"))
 
@@ -476,41 +335,19 @@ def test_reclaimed_session_is_released_from_memory():
     assert reference() is None
 
 
-def test_a_request_holding_a_reclaimed_session_cannot_start_or_step_it():
-    registry, clock = registry_with_clock(idle_seconds=60.0)
-    held = registry.create("abc")
-    before = len(live_scheduler_workers())
-
-    clock.advance(61.0)
-    registry.reclaim_idle()
-
-    held.compressor_scheduler.start()
-    held.pump_scheduler.start()
-
-    assert not held.compressor_scheduler.running
-    assert held.compressor_scheduler.step_once() is None
-    assert held.pump_scheduler.step_once() is None
-    assert len(live_scheduler_workers()) == before
-
-
 def test_the_default_idle_timeout_comes_from_config():
-    from app import config
-
-    registry = SessionRegistry()
-
-    assert registry.idle_seconds == config.SESSION_IDLE_SECONDS
+    assert make_registry().idle_seconds == config.SESSION_IDLE_SECONDS
 
 
 @pytest.mark.parametrize("idle_seconds", [0, -1.0])
 def test_registry_rejects_a_non_positive_idle_timeout(idle_seconds):
     with pytest.raises(ValueError, match="idle_seconds"):
-        SessionRegistry(idle_seconds=idle_seconds)
+        make_registry(idle_seconds=idle_seconds)
 
 
-def test_reclaim_waits_out_a_step_in_progress_without_inverting_the_lock_order():
+def test_reclaim_waits_out_a_busy_session_without_inverting_the_lock_order():
     registry, clock = registry_with_clock(idle_seconds=60.0)
     session = registry.create("abc")
-    scheduler = session.compressor_scheduler
     reclaimed = threading.Event()
 
     def reclaim():
@@ -519,18 +356,20 @@ def test_reclaim_waits_out_a_step_in_progress_without_inverting_the_lock_order()
 
     clock.advance(61.0)
 
-    with scheduler.step_lock:
-        # The worker's first step is due at once and queues on the held lock.
-        scheduler.start()
+    with session.busy:
         thread = threading.Thread(target=reclaim)
         thread.start()
-        # The registry lock is taken before the scheduler's: reclaim holds it
-        # and waits behind the step, it does not skip or deadlock.
+        # The registry lock is taken before the session's: reclaim holds it
+        # and waits behind the busy session, it does not skip or deadlock.
         assert not reclaimed.wait(0.2)
 
     assert reclaimed.wait(WAIT)
     thread.join(WAIT)
     assert len(registry) == 0
+    assert session.ended == 1
+
+
+# Read-only lookup (T18-7)
 
 
 def test_peek_returns_the_live_session_and_none_for_unknown_or_reclaimed_ids():
@@ -579,52 +418,17 @@ def test_peek_does_not_end_other_idle_sessions():
 
     assert registry.peek("probed") is not None
     assert len(registry) == 2
-    assert not stale.compressor_scheduler.closed
+    assert stale.ended == 0
 
 
-# Leases and the session factory (T16-8)
+# Leases (T16-8)
 
 
-class Probe:
-    """The least a registry needs of a session: it can be ended."""
-
-    def __init__(self):
-        self.ended = 0
-
-    def end(self):
-        self.ended += 1
-
-
-def probe_registry(idle_seconds=60.0, max_sessions=8):
-    clock = FakeClock()
-    registry = SessionRegistry(
-        max_sessions=max_sessions,
-        monotonic=clock,
-        idle_seconds=idle_seconds,
-        factory=Probe,
-    )
-
-    return registry, clock
-
-
-def test_a_factory_decides_what_the_registry_builds():
-    registry, _ = probe_registry()
-
-    session = registry.create("abc")
-
-    assert isinstance(session, Probe)
-    assert registry.get("abc") is session
-
-
-def test_the_default_factory_still_builds_a_legacy_session():
-    assert isinstance(SessionRegistry().create("abc"), Session)
-
-
-def test_the_loser_of_a_racing_create_is_ended_for_any_session_type():
+def test_the_loser_of_a_racing_create_is_ended():
     built = []
 
     def factory():
-        built.append(Probe())
+        built.append(FakeSession())
 
         return built[-1]
 
@@ -639,7 +443,7 @@ def test_the_loser_of_a_racing_create_is_ended_for_any_session_type():
 
 
 def test_a_leased_session_survives_the_idle_sweep():
-    registry, clock = probe_registry(idle_seconds=60.0)
+    registry, clock = registry_with_clock(idle_seconds=60.0)
     session = registry.create("abc")
 
     with registry.lease("abc"):
@@ -652,7 +456,7 @@ def test_a_leased_session_survives_the_idle_sweep():
 
 
 def test_a_released_session_is_reclaimable_once_idle_counted_from_the_release():
-    registry, clock = probe_registry(idle_seconds=60.0)
+    registry, clock = registry_with_clock(idle_seconds=60.0)
     session = registry.create("abc")
 
     with registry.lease("abc"):
@@ -668,7 +472,7 @@ def test_a_released_session_is_reclaimable_once_idle_counted_from_the_release():
 
 
 def test_overlapping_leases_each_keep_the_session_alive():
-    registry, clock = probe_registry(idle_seconds=60.0)
+    registry, clock = registry_with_clock(idle_seconds=60.0)
     registry.create("abc")
     first, second = registry.lease("abc"), registry.lease("abc")
 
@@ -686,7 +490,7 @@ def test_overlapping_leases_each_keep_the_session_alive():
 
 
 def test_building_a_lease_takes_nothing_until_it_is_entered():
-    registry, clock = probe_registry(idle_seconds=60.0)
+    registry, clock = registry_with_clock(idle_seconds=60.0)
     registry.create("abc")
 
     registry.lease("abc")
@@ -696,7 +500,7 @@ def test_building_a_lease_takes_nothing_until_it_is_entered():
 
 
 def test_a_lease_is_released_when_its_block_raises():
-    registry, clock = probe_registry(idle_seconds=60.0)
+    registry, clock = registry_with_clock(idle_seconds=60.0)
     registry.create("abc")
 
     with pytest.raises(RuntimeError):
@@ -709,7 +513,7 @@ def test_a_lease_is_released_when_its_block_raises():
 
 
 def test_a_lease_on_an_unknown_session_holds_nothing_and_does_not_leak_a_hold():
-    registry, clock = probe_registry(idle_seconds=60.0)
+    registry, clock = registry_with_clock(idle_seconds=60.0)
 
     with registry.lease("nope"):
         pass
@@ -722,7 +526,7 @@ def test_a_lease_on_an_unknown_session_holds_nothing_and_does_not_leak_a_hold():
 
 
 def test_a_lease_does_not_hold_the_replacement_of_the_session_it_was_taken_on():
-    registry, clock = probe_registry(idle_seconds=60.0)
+    registry, clock = registry_with_clock(idle_seconds=60.0)
     old = registry.create("abc")
     lease = registry.lease("abc")
 
@@ -739,7 +543,7 @@ def test_a_lease_does_not_hold_the_replacement_of_the_session_it_was_taken_on():
 
 
 def test_eviction_prefers_a_session_that_is_not_leased():
-    registry, clock = probe_registry(max_sessions=2)
+    registry, clock = registry_with_clock(max_sessions=2)
     leased = registry.create("leased")
     clock.advance(1.0)
     spare = registry.create("spare")
@@ -754,7 +558,7 @@ def test_eviction_prefers_a_session_that_is_not_leased():
 
 
 def test_eviction_past_capacity_still_ends_a_leased_session_when_all_are_leased():
-    registry, clock = probe_registry(max_sessions=1)
+    registry, clock = registry_with_clock(max_sessions=1)
     leased = registry.create("leased")
 
     with registry.lease("leased"):
@@ -768,7 +572,7 @@ def test_eviction_past_capacity_still_ends_a_leased_session_when_all_are_leased(
 
 
 def test_ending_a_leased_session_by_id_ends_it():
-    registry, _ = probe_registry()
+    registry, _ = registry_with_clock()
     session = registry.create("abc")
 
     with registry.lease("abc"):
@@ -776,35 +580,3 @@ def test_ending_a_leased_session_by_id_ends_it():
 
     assert session.ended == 1
     assert len(registry) == 0
-
-
-def test_a_leased_legacy_session_and_a_training_session_share_the_same_paths():
-    from app.training.session import TrainingSession
-
-    for factory in (Session, TrainingSession):
-        clock = FakeClock()
-        registry = SessionRegistry(max_sessions=2, monotonic=clock, idle_seconds=60.0, factory=factory)
-        held = registry.create("held")
-        idle = registry.create("idle")
-
-        with registry.lease("held"):
-            clock.advance(60.0)
-            assert registry.reclaim_idle() == 1
-
-        assert registry.peek("idle") is None
-        assert registry.peek("held") is held
-
-        registry.create("a")
-        registry.create("b")
-
-        assert len(registry) == 2
-        assert registry.peek("held") is None
-
-        for session in (held, idle):
-            scheduler = (
-                session.training_scheduler if factory is TrainingSession else session.compressor_scheduler
-            )
-            assert scheduler.closed
-
-        registry.end("a")
-        registry.end("b")

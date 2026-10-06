@@ -11,10 +11,9 @@ of **T2-6 a background scheduler, not a browser, advances it**. Controllers
 What is still ahead is everything else the solved plant feeds - alarms,
 trips, scenarios, scoring and the console. Modules for the first four exist
 under `app/` (see the module map below), but **none of them is wired into the
-live step path of the running app**: no `Session` or `Scheduler` the app builds
-today calls them, and the console does not exist. `TrainingSession` (T16-8) is
-the one session that does run them; `app/main.py` does not serve it yet
-(section 1, "The training session").
+live step path of the running app**: the console does not exist. `TrainingSession`
+(T16-8) is the one session that does run them, and `app/main.py` builds it for
+every cookie (T16-10; section 1, "The training session").
 
 For current status and task-level detail see
 [project_state.md](../.workspace/memory/project_state.md); for the rules that constrain changes see
@@ -30,22 +29,25 @@ model).
 This is what actually happens when someone loads the app today.
 
 ```text
-Browser (vanilla JS, 1 s poll - reads only, steps nothing)
-  │   GET  /compressor            GET  /pump
-  │   GET  /api/state             GET  /api/pump/state
-  │   POST /api/start|stop        POST /api/pump/start|stop
-  │   POST /api/load               POST /api/pump/speed
+Browser / API client
+  │   GET /api/snapshot           the caller's plant as a C4 snapshot
+  │   GET /health/live, /health/engine
   ▼
 Flask routes  ·  app/main.py
   │   @before_request resolves a session cookie
-  │   the page render starts that page's scheduler, and only that one
+  │   a page render, not a request, starts the scheduler - none exists until
+  │   the console (T16-9), so no request starts one today
   ▼
-SessionRegistry → Session  ·  app/engine/sessions.py
-  │   one Engine per page over a single-device plant built by the C3 loader,
-  │   and one Scheduler per Engine (compressor_scheduler, pump_scheduler)
+SessionRegistry[TrainingSession]  ·  app/engine/sessions.py
+  │   one TrainingSession per cookie; end() stops and joins its worker,
+  │   called directly, by SessionRegistry.end(), by idle-age reclaim
+  │   (config.SESSION_IDLE_SECONDS, T18-5) or by capacity-bounded LRU
+  │   eviction at config.MAX_SESSIONS
   ▼
-Scheduler  ·  app/engine/scheduler.py        [background thread]
-  │   steps its Engine on its own cadence whether or not anything is polling
+TrainingSession  ·  app/training/session.py     (below)
+  ▼
+Scheduler  ·  app/engine/scheduler.py        [background thread, once started]
+  │   steps the plant on its own cadence whether or not anything is polling
   ▼
 Engine.step(dt)  ·  app/engine/engine.py
   │   ├── clock → elapsed simulated time
@@ -56,34 +58,27 @@ Engine.step(dt)  ·  app/engine/engine.py
   │   ├── DomainTransport.propagate() on every converged domain
   │   └── build_snapshot(...) with the solved nodes and streams
   ▼
-Session.compressor_state() / pump_state()
-  │   reads the latest PUBLISHED snapshot - it does not step anything
+Scheduler.snapshot()  - the latest PUBLISHED snapshot; it steps nothing
   ▼
-JSON  →  browser display
+JSON  →  client
 ```
 
-`/api/step` and `/api/pump/step` survive as manual, test-facing controls. They
-step exactly as before while the matching scheduler is stopped, and return
-HTTP 409 while it is running rather than racing the background worker. A
-Session's schedulers run until `Session.end()` stops and joins both - called
-directly, by `SessionRegistry.end()`, by idle-age reclaim
-(`config.SESSION_IDLE_SECONDS`, T18-5) or by capacity-bounded LRU eviction at
-`config.MAX_SESSIONS`.
+Between T16-10 and T16-11 the app serves no page, only the health probes and
+`/api/snapshot`: the single-machine compressor and pump pages and their
+two-plant `Session` are gone, and the console (T16-9) and landing page (T16-11)
+have not landed.
 
 ### The training session (T16-8)
 
-`TrainingSession` (`app/training/session.py`) is the session the console will
-run on. It is not in the diagram above because `app/main.py` does not build it
-yet: its registry still builds the legacy `Session`, whose routes read a
-compressor and a pump, so one registry cannot serve both to the same cookie
-until T16-10 retires those pages and T16-9 switches the factory.
+`TrainingSession` (`app/training/session.py`) is the session the console runs
+on, and the only session type `app/main.py` builds.
 
 ```text
 SessionRegistry[TrainingSession]  ·  app/engine/sessions.py
   │   built with factory=TrainingSession; lease(session_id) pins a session
   │   against the idle sweep while a console stream is open
   ▼
-TrainingSession  ·  app/training/session.py   (standalone: not a Session)
+TrainingSession  ·  app/training/session.py   (standalone)
   │   free    PlantRuntime of config.FREE_PLAY_PLANT at FREE_PLAY_CONDITION
   │   runner  ScenarioRunner, IDLE until a scenario is loaded
   │   training_scheduler  the one Scheduler, over the session itself
@@ -100,19 +95,7 @@ scenario load, start, abort or unload - is a `Scheduler.command`, so it runs
 under `step_lock` and publishes at once. The runner's own lock nests inside
 `step_lock`. Free play does not advance while a scenario is loaded, and an
 unload hands the published snapshot back to it where it was left. A session
-has one worker; a legacy `Session` has two.
-
-**Interim, until the pages are rewired onto a plant that contains a valve:** a
-page's machine sits between two fixed battery limits with no line resistance
-and no valve in between. Flow is therefore whatever the machine curve gives
-against that fixed differential - above `max_flow`, which nothing clamps any
-more - and the process spread equals the boundary difference. The retired
-standalone solve is where those resistances used to live. T7-1 built the
-valve and a plant that uses it (`config/plants/liquid_valve_train.yaml`) and
-T7-2 put one on K-101's discharge in `config/plants/olefins_lite.yaml`; the
-single-device pages have not been moved onto either, so **the compressor page
-carries no valve control at all** - T7-2 removed the inert slider rather than
-leave one that moves nothing.
+has one worker.
 
 **Still not on the request path:** `EquipmentRegistry` and `SeededRNG` (T2-2).
 Nothing in `app/` draws a random number yet.
@@ -208,7 +191,7 @@ consumers hanging off the snapshot are not.
 Browser / API client
   │   (C5: one action endpoint - POST /api/action {target, action, value})
   ▼
-Session → Scheduler                              [live]
+TrainingSession → Scheduler                       [live]
   ▼
 Engine.step(dt)
   │
@@ -384,7 +367,7 @@ app/
     engine.py             Engine: integrate cadence, coupling, solve, snapshot
     snapshot.py           C4: immutable Snapshot, indicated view + truth
     instruments.py        Instrument: true value → indicated value
-    sessions.py           Session / SessionRegistry (generic, leases)
+    sessions.py           SessionRegistry (generic over the session type, leases)
     coupling.py           Vessel inventory ↔ boundary conditions
     transport.py          Energy transport: node and stream temperatures
     network.py            NetworkSolver (new isolated module, satellite-built)
@@ -423,7 +406,7 @@ app/
     interlocks.py         T11-1: Interlock - condition, delay, latch, reset
     actions.py            T11-2: TripSystem - trip actions as interlock
                           demands on the arbiter; meant to run before each
-                          Engine.step, not yet called from Session/Scheduler
+                          Engine.step, not yet called from Scheduler
   plant/
     topology.py           C2: Node / Branch / Stream / Topology  [SPINE]
     thermo.py             Heat capacity, stream mixing, ThermalDevice hook
@@ -432,7 +415,7 @@ app/
 config/
   schema/plant.schema.json  C3 schema
   plants/*.yaml             Reference fixtures
-templates/, static/       Per-equipment pages. Frozen; replaced at M16.
+static/                   Operator-console assets (M16); no templates yet.
 tests/
   golden_regression.py    Golden harness (scenarios + replay)
   fixtures/golden/*.json  Pinned numbers
@@ -466,7 +449,7 @@ and they have repeatedly been conflated:
 | | Status |
 |---|---|
 | **Models that exist** | `CentrifugalPump`, `GasCompressor`, `ControlValve`, `Vessel`, `HeatExchanger`, `Furnace` and `ReliefValve` are all implemented and registered in the loader's `DEVICE_TYPES`. |
-| **Wired into the browser pages** | Only K-101 and P-101, each alone on a single-device plant between two fixed boundaries. |
+| **Wired into the browser pages** | None: the single-machine pages are retired (T16-10) and the console (T16-9) has not landed. Every session runs `olefins_lite` (free play) or a scenario. |
 | **Present in a reference config** | `liquid_transfer.yaml` and `gas_compression.yaml` (single-domain, T3-4), `liquid_valve_train.yaml` (T7-1), and `olefins_lite.yaml` (T5-5) - the two-domain train coupled through V-101 inventory. It is not yet the full seven-device V1 train: `E-101` is absent, and PV-101/LV-101 are manual. |
 | **Controllers** | The PID block, modes, loop config, loop execution and controller action (T8-1 to T8-4, T8-6) all exist. PIC-101 is configured direct-acting and executes every step, and holds its setpoint in AUTO, but the fixture configures it MANUAL (see its `controllers` comment). LIC-101 is not configured at all - a `controllers.pv` can only name a node's pressure until instruments are in C3. |
 | **Envelopes** | The evaluator, limit config and excursion tracker (T9-1 to T9-3) all exist, and Engine classifies every resolved limit each step (T9-4). Only `V-101.level` resolves - `K-101.discharge_pressure` and `P-101.flow` are configured but unresolvable today, the same tag-to-point gap `LIC-101` above hits, generalised past pressure. |

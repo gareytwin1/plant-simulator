@@ -11,8 +11,10 @@ of **T2-6 a background scheduler, not a browser, advances it**. Controllers
 What is still ahead is everything else the solved plant feeds - alarms,
 trips, scenarios, scoring and the console. Modules for the first four exist
 under `app/` (see the module map below), but **none of them is wired into the
-live step path**: nothing in a `Session` or `Scheduler` builds or calls them
-yet, and the console does not exist.
+live step path of the running app**: no `Session` or `Scheduler` the app builds
+today calls them, and the console does not exist. `TrainingSession` (T16-8) is
+the one session that does run them; `app/main.py` does not serve it yet
+(section 1, "The training session").
 
 For current status and task-level detail see
 [project_state.md](../.workspace/memory/project_state.md); for the rules that constrain changes see
@@ -64,9 +66,41 @@ JSON  →  browser display
 step exactly as before while the matching scheduler is stopped, and return
 HTTP 409 while it is running rather than racing the background worker. A
 Session's schedulers run until `Session.end()` stops and joins both - called
-directly, by `SessionRegistry.end()`, or by capacity-bounded LRU eviction at
-`config.MAX_SESSIONS`. There is deliberately no idle-age expiry yet; that is
-T18-5's scope.
+directly, by `SessionRegistry.end()`, by idle-age reclaim
+(`config.SESSION_IDLE_SECONDS`, T18-5) or by capacity-bounded LRU eviction at
+`config.MAX_SESSIONS`.
+
+### The training session (T16-8)
+
+`TrainingSession` (`app/training/session.py`) is the session the console will
+run on. It is not in the diagram above because `app/main.py` does not build it
+yet: its registry still builds the legacy `Session`, whose routes read a
+compressor and a pump, so one registry cannot serve both to the same cookie
+until T16-10 retires those pages and T16-9 switches the factory.
+
+```text
+SessionRegistry[TrainingSession]  ·  app/engine/sessions.py
+  │   built with factory=TrainingSession; lease(session_id) pins a session
+  │   against the idle sweep while a console stream is open
+  ▼
+TrainingSession  ·  app/training/session.py   (standalone: not a Session)
+  │   free    PlantRuntime of config.FREE_PLAY_PLANT at FREE_PLAY_CONDITION
+  │   runner  ScenarioRunner, IDLE until a scenario is loaded
+  │   training_scheduler  the one Scheduler, over the session itself
+  ▼
+Scheduler  ·  app/engine/scheduler.py        [one background thread]
+  │   step(dt) goes to the runner while its phase is not IDLE, else to free
+  ▼
+PlantRuntime.step  ·  app/training/runtime.py
+  │   TripSystem.update → Engine.step → alarms and history
+```
+
+Every write - an operator action, an interlock reset, an acknowledge, a
+scenario load, start, abort or unload - is a `Scheduler.command`, so it runs
+under `step_lock` and publishes at once. The runner's own lock nests inside
+`step_lock`. Free play does not advance while a scenario is loaded, and an
+unload hands the published snapshot back to it where it was left. A session
+has one worker; a legacy `Session` has two.
 
 **Interim, until the pages are rewired onto a plant that contains a valve:** a
 page's machine sits between two fixed battery limits with no line resistance
@@ -350,7 +384,7 @@ app/
     engine.py             Engine: integrate cadence, coupling, solve, snapshot
     snapshot.py           C4: immutable Snapshot, indicated view + truth
     instruments.py        Instrument: true value → indicated value
-    sessions.py           Session / SessionRegistry
+    sessions.py           Session / SessionRegistry (generic, leases)
     coupling.py           Vessel inventory ↔ boundary conditions
     transport.py          Energy transport: node and stream temperatures
     network.py            NetworkSolver (new isolated module, satellite-built)
@@ -380,6 +414,9 @@ app/
     buffer.py             T17-1: ring-buffer per-tag history
   scenarios/
     triggers.py           T14-2: C8 scenario triggers
+  training/
+    runtime.py            T16-6: PlantRuntime - trips, step, alarms
+    session.py            T16-8: TrainingSession - free play + scenario runner
   scoring/
     actionlog.py          T15-1: operator action log (C6 action events)
   safety/

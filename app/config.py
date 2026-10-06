@@ -66,8 +66,9 @@ TAG_PREFIXES = {
 # Session registry
 #
 # An operational guardrail, not a simulation constant: it bounds how many
-# live sessions (and therefore how many background scheduler workers,
-# two per session) SessionRegistry keeps at once. Beyond capacity the
+# live sessions (and therefore how many background scheduler workers, up
+# to two per legacy session and one per training session) SessionRegistry
+# keeps at once. Beyond capacity the
 # least-recently-touched session is ended to make room. See T2-6.
 
 MAX_SESSIONS = 32
@@ -103,3 +104,13 @@ SESSION_IDLE_SECONDS = 1800.0
 # alarms per upset, so this holds many whole scenario runs. See T16-6.
 
 ALARM_HISTORY_CAPACITY = 1000
+
+
+# Free play
+#
+# What a training session runs while no scenario is loaded: this plant,
+# restored to this initial condition. Both resolve through ScenarioLibrary, so
+# free play reads the same files a scenario of the plant does. See T16-8.
+
+FREE_PLAY_PLANT = "olefins_lite"
+FREE_PLAY_CONDITION = "normal_operation"

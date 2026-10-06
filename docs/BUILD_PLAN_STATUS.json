@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "6 October 2026",
-  "main_sha": "6c53940",
-  "tests_passing_on_main": 3108,
+  "main_sha": "5923b8f",
+  "tests_passing_on_main": 3147,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -98,7 +98,7 @@
     },
     "M16": {
       "name": "Operator Console",
-      "complete": 6,
+      "complete": 7,
       "total": 13
     },
     "M17": {
@@ -119,8 +119,8 @@
   },
   "totals": {
     "tasks": 129,
-    "complete": 113,
-    "startable_now": 11
+    "complete": 114,
+    "startable_now": 10
   },
   "tasks": [
     {
@@ -1953,10 +1953,10 @@
       "files": [
         "static/js/connection.js"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
+      "status": "Ready for Review",
+      "status_key": "review",
       "startable": true,
-      "note": ""
+      "note": "PR #142 (feature/stale-detection, 308f431 + roborev fixes). connection.js state machine (connecting/live/stale/closed), connection.css dimming and indicator, 18 Node-driven tests. 3126 passed, mypy clean, no golden movement, roborev-refine clean. Adds connection.css and tests/test_stale_connection.py beyond the plan's file list. Not mounted until T16-9."
     },
     {
       "id": "T16-6",
@@ -2154,10 +2154,9 @@
         "static/css/landing.css",
         "tests/test_landing.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true,
-      "note": ""
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged to main as 5923b8f (PR #141). 3147 passed post-merge, mypy clean over 81 files, no golden movement, CI test and docker green. GET / landing page, shared base.html header with Auto/Light/Dark theme toggle, scenario title and briefing (config 1.0.1), startup-built ScenarioLibrary.catalogue(), scenario routes registered. Scenario ids still go to /api/scenario/load until T16-12. Not clicked through in a real browser."
     },
     {
       "id": "T16-12",
@@ -2180,10 +2179,7 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "T16-11"
-      ],
+      "startable": true,
       "note": ""
     },
     {

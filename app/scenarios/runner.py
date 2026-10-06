@@ -202,12 +202,16 @@ class ScenarioLibrary:
             entries.append(
                 CatalogueEntry(
                     id=path.stem,
+                    key=scenario_key(path.stem),
                     title=document.get("title", path.stem),
                     briefing=document.get("briefing", ""),
                     difficulty=document["difficulty"],
                     time_limit_s=float(document["time_limit_s"]),
                 ),
             )
+
+        if len({entry.key for entry in entries}) != len(entries):
+            raise ScenarioConfigError("two scenario files share a key")
 
         return tuple(sorted(entries, key=lambda e: (_DIFFICULTY_ORDER[e.difficulty], e.title, e.id)))
 
@@ -227,16 +231,25 @@ class ScenarioLibrary:
 _DIFFICULTY_ORDER = {"easy": 0, "medium": 1, "hard": 2}
 
 
+def scenario_key(scenario_id: str) -> str:
+    """The handle a browser holds for a scenario instead of its id: the first
+    12 hex digits of the id's SHA-256. Deterministic, so it is the same across
+    restarts and needs no field in the scenario file to keep in sync."""
+    return hashlib.sha256(scenario_id.encode()).hexdigest()[:12]
+
+
 @dataclass(frozen=True)
 class CatalogueEntry:
     """What a scenario list may show of a scenario file before it is run.
 
     Never the file's `description`: it carries the diagnosis path, and the id
     of a scenario can name its cause, so a page that shows entries shows
-    `title`, `briefing` and `difficulty`, and posts `id` back to load one.
+    `title`, `briefing` and `difficulty`, and posts `key` back to load one.
+    `id` stays server side until the run ends.
     """
 
     id: str
+    key: str
     title: str
     briefing: str
     difficulty: str

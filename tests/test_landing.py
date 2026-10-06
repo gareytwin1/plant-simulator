@@ -18,7 +18,7 @@ import pytest
 import yaml
 
 from app import main
-from app.scenarios.runner import ScenarioConfigError, ScenarioLibrary
+from app.scenarios.runner import ScenarioConfigError, ScenarioLibrary, scenario_key
 
 ROOT = Path(__file__).resolve().parent.parent
 SCENARIOS = sorted((ROOT / "config" / "scenarios").glob("*.yaml"))
@@ -99,6 +99,12 @@ def test_the_page_shows_each_scenarios_title_briefing_and_difficulty(page):
         assert f"Difficulty: {doc['difficulty']}" in flat, path.name
 
 
+def test_the_page_carries_each_scenarios_key_and_never_its_id(page):
+    for path in SCENARIOS:
+        assert f'data-scenario="{scenario_key(path.stem)}"' in page
+        assert path.stem not in page
+
+
 def test_the_page_offers_free_play_and_one_load_button_per_scenario(page):
     assert 'id="free-play"' in page
     assert page.count('class="load-scenario"') == len(SCENARIOS)
@@ -129,7 +135,7 @@ def test_the_page_starts_in_free_play_at_the_plants_own_time(client, page):
 
 
 def test_the_page_follows_a_loaded_scenario_and_free_play_unloads_it(client):
-    client.post("/api/scenario/load", json={"scenario": "pump_trip"})
+    client.post("/api/scenario/load", json={"scenario": scenario_key("pump_trip")})
 
     loaded = squash(client.get("/").get_data(as_text=True))
     assert 'data-mode="scenario"' in loaded
@@ -210,7 +216,7 @@ def run_js(body, **data):
 
 @needs_node
 def test_the_load_request_posts_the_scenario_the_api_expects(client):
-    request = run_js("return L.buildLoadRequest(data.id);", id="pump_trip")
+    request = run_js("return L.buildLoadRequest(data.key);", key=scenario_key("pump_trip"))
 
     assert request["url"] == "/api/scenario/load"
     assert request["init"]["method"] == "POST"
@@ -237,10 +243,10 @@ def test_a_refusal_is_plain_words_that_never_quote_a_scenario(status):
 
 @needs_node
 def test_a_running_scenario_refusal_is_the_one_the_api_gives(client):
-    client.post("/api/scenario/load", json={"scenario": "pump_trip"})
+    client.post("/api/scenario/load", json={"scenario": scenario_key("pump_trip")})
     client.post("/api/scenario/start")
 
-    refused = client.post("/api/scenario/load", json={"scenario": "blocked_drain"})
+    refused = client.post("/api/scenario/load", json={"scenario": scenario_key("blocked_drain")})
     text = run_js("return L.refusalText(data.status);", status=refused.status_code)
 
     assert refused.status_code == 409

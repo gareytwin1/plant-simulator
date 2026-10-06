@@ -5,7 +5,7 @@ from flask import Flask
 
 from app.api.action import create_action_blueprint
 from app.api.scenario import create_scenario_blueprint
-from app.scenarios.runner import Phase, ScenarioLibrary, ScenarioRunner
+from app.scenarios.runner import Phase, ScenarioLibrary, ScenarioRunner, scenario_key
 
 
 pytestmark = pytest.mark.filterwarnings("ignore:envelope limit")
@@ -23,6 +23,8 @@ SCENARIO = (
     "seed: 7\n"
 )
 
+KEY = scenario_key("pump-trip")
+
 
 @pytest.fixture
 def api(tmp_path):
@@ -34,10 +36,11 @@ def api(tmp_path):
         SCENARIO.replace("pump-trip", "bad-malfunction")
         + "malfunctions:\n  - {target_tag: X-999, parameter: capacity, value: 1}\n",
     )
-    runner = ScenarioRunner(ScenarioLibrary(scenarios=tmp_path))
+    library = ScenarioLibrary(scenarios=tmp_path)
+    runner = ScenarioRunner(library)
 
     app = Flask(__name__)
-    app.register_blueprint(create_scenario_blueprint(lambda: runner))
+    app.register_blueprint(create_scenario_blueprint(lambda: runner, library))
     app.register_blueprint(create_action_blueprint(lambda: runner.engine, lambda: runner.actions, runner.act))
 
     return app.test_client(), runner
@@ -46,20 +49,21 @@ def api(tmp_path):
 def test_load_answers_with_the_armed_result(api):
     client, runner = api
 
-    response = client.post("/api/scenario/load", json={"scenario": "pump-trip"})
+    response = client.post("/api/scenario/load", json={"scenario": KEY})
 
     assert response.status_code == 200
     body = response.get_json()
-    assert body["scenario_id"] == "pump-trip"
+    assert body["key"] == KEY
     assert body["phase"] == "loaded"
-    assert body["outcome"] is None
+    assert "scenario_id" not in body
+    assert "outcome" not in body
     assert body["elapsed_s"] == pytest.approx(0.0)
     assert runner.phase is Phase.LOADED
 
 
 def test_a_full_run_over_http_from_load_to_a_succeeded_result(api):
     client, runner = api
-    client.post("/api/scenario/load", json={"scenario": "pump-trip"})
+    client.post("/api/scenario/load", json={"scenario": KEY})
 
     started = client.post("/api/scenario/start")
     assert started.get_json()["phase"] == "running"
@@ -75,12 +79,13 @@ def test_a_full_run_over_http_from_load_to_a_succeeded_result(api):
     body = client.get("/api/scenario/result").get_json()
     assert body["phase"] == "complete"
     assert body["outcome"] == "succeeded"
+    assert body["scenario_id"] == "pump-trip"
     assert [action["action"] for action in body["actions"]] == ["start", "set_speed_target"]
 
 
 def test_abort_over_http(api):
     client, _ = api
-    client.post("/api/scenario/load", json={"scenario": "pump-trip"})
+    client.post("/api/scenario/load", json={"scenario": KEY})
     client.post("/api/scenario/start")
 
     response = client.post("/api/scenario/abort")
@@ -95,7 +100,7 @@ def test_an_unknown_scenario_is_a_404(api):
     response = client.post("/api/scenario/load", json={"scenario": "nope"})
 
     assert response.status_code == 404
-    assert "nope" in response.get_json()["error"]
+    assert "nope" not in response.get_json()["error"]
 
 
 def test_a_scenario_name_that_climbs_out_of_the_library_is_a_404(api):
@@ -109,10 +114,10 @@ def test_a_scenario_name_that_climbs_out_of_the_library_is_a_404(api):
 def test_a_scenario_naming_a_tag_the_plant_lacks_is_a_400(api):
     client, runner = api
 
-    response = client.post("/api/scenario/load", json={"scenario": "bad-tag"})
+    response = client.post("/api/scenario/load", json={"scenario": scenario_key("bad-tag")})
 
     assert response.status_code == 400
-    assert "X-999" in response.get_json()["error"]
+    assert "X-999" not in response.get_json()["error"]
     assert runner.phase is Phase.IDLE
 
 
@@ -130,11 +135,11 @@ def test_a_call_the_phase_does_not_allow_is_a_409(api):
     assert client.post("/api/scenario/abort").status_code == 409
     assert client.get("/api/scenario/result").status_code == 409
 
-    client.post("/api/scenario/load", json={"scenario": "pump-trip"})
+    client.post("/api/scenario/load", json={"scenario": KEY})
     client.post("/api/scenario/start")
 
     assert client.post("/api/scenario/start").status_code == 409
-    assert client.post("/api/scenario/load", json={"scenario": "pump-trip"}).status_code == 409
+    assert client.post("/api/scenario/load", json={"scenario": KEY}).status_code == 409
 
 
 def test_an_action_with_nothing_loaded_is_a_400_not_a_500(api):
@@ -146,18 +151,18 @@ def test_an_action_with_nothing_loaded_is_a_400_not_a_500(api):
     assert "no scenario" in response.get_json()["error"]
 
 
-def test_a_malfunction_naming_a_tag_the_plant_lacks_is_a_400_with_an_unquoted_message(api):
+def test_a_malfunction_naming_a_tag_the_plant_lacks_is_a_generic_400(api):
     client, _ = api
 
-    response = client.post("/api/scenario/load", json={"scenario": "bad-malfunction"})
+    response = client.post("/api/scenario/load", json={"scenario": scenario_key("bad-malfunction")})
 
     assert response.status_code == 400
-    assert response.get_json()["error"].startswith("no device registered under tag 'X-999'")
+    assert "X-999" not in response.get_json()["error"]
 
 
 def test_unload_over_http_returns_the_runner_to_idle(api):
     client, runner = api
-    client.post("/api/scenario/load", json={"scenario": "pump-trip"})
+    client.post("/api/scenario/load", json={"scenario": KEY})
 
     response = client.post("/api/scenario/unload")
 
@@ -175,7 +180,7 @@ def test_unload_with_nothing_loaded_is_a_no_op_not_an_error(api):
 
 def test_unload_while_running_is_a_409_and_leaves_the_run(api):
     client, runner = api
-    client.post("/api/scenario/load", json={"scenario": "pump-trip"})
+    client.post("/api/scenario/load", json={"scenario": KEY})
     client.post("/api/scenario/start")
 
     response = client.post("/api/scenario/unload")
@@ -189,9 +194,10 @@ def test_a_training_session_serves_the_scenario_and_action_routes(tmp_path):
     from app.training.session import TrainingSession
 
     (tmp_path / "pump-trip.yaml").write_text(SCENARIO)
-    session = TrainingSession(ScenarioLibrary(scenarios=tmp_path))
+    library = ScenarioLibrary(scenarios=tmp_path)
+    session = TrainingSession(library)
     app = Flask(__name__)
-    app.register_blueprint(create_scenario_blueprint(lambda: session))
+    app.register_blueprint(create_scenario_blueprint(lambda: session, library))
     app.register_blueprint(
         create_action_blueprint(
             lambda: session.runner.engine, lambda: session.runner.actions, session.act,
@@ -203,7 +209,7 @@ def test_a_training_session_serves_the_scenario_and_action_routes(tmp_path):
     try:
         free_time = scheduler.snapshot().sim_time
 
-        assert client.post("/api/scenario/load", json={"scenario": "pump-trip"}).status_code == 200
+        assert client.post("/api/scenario/load", json={"scenario": KEY}).status_code == 200
         assert scheduler.snapshot().equipment["P-101"]["running"] is False
         assert scheduler.snapshot().sim_time != free_time
 

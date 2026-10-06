@@ -26,13 +26,13 @@
     return "Something went wrong, so nothing was changed. Try again.";
   };
 
-  api.buildLoadRequest = function (scenarioId) {
+  api.buildLoadRequest = function (scenarioKey) {
     return {
       url: LOAD_URL,
       init: {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ scenario: scenarioId }),
+        body: JSON.stringify({ scenario: scenarioKey }),
       },
     };
   };

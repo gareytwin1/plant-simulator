@@ -38,6 +38,7 @@ cannot start a worker the registry no longer counts.
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import dataclass
 
 from app import config
 from app.alarms.acknowledge import Acknowledged
@@ -51,10 +52,23 @@ from app.scenarios.runner import Phase, ScenarioLibrary, ScenarioResult, Scenari
 from app.training.runtime import PlantRuntime
 
 
+@dataclass(frozen=True)
+class Standing:
+    """Where the session's plant stands, as the landing page shows it: free
+    play, or a scenario in some phase. `title` is the loaded scenario's title,
+    never its id or description."""
+
+    mode: str
+    phase: str
+    sim_time: float
+    title: str | None
+
+
 class TrainingSession:
     def __init__(self, library: ScenarioLibrary | None = None) -> None:
         library = library if library is not None else ScenarioLibrary()
 
+        self._library = library
         self.free = _free_play(library)
         self.runner = ScenarioRunner(library)
         self.training_scheduler = Scheduler(self)
@@ -118,6 +132,21 @@ class TrainingSession:
 
     def result(self) -> ScenarioResult:
         return self.runner.result()
+
+    def standing(self) -> Standing:
+        """Read under `step_lock`, so the mode, phase and time are one moment.
+        Never starts the scheduler."""
+        with self.training_scheduler.step_lock:
+            phase = self.runner.phase
+            sim_time = self.snapshot().sim_time
+
+            if phase is Phase.IDLE:
+                return Standing("free_play", phase.value, sim_time, None)
+
+            scenario_id = self.runner.result().scenario_id
+            titles = {entry.id: entry.title for entry in self._library.catalogue()}
+
+            return Standing("scenario", phase.value, sim_time, titles.get(scenario_id))
 
     def _plant(self) -> PlantRuntime | ScenarioRunner:
         return self.free if self.runner.phase is Phase.IDLE else self.runner

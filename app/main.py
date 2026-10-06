@@ -1,14 +1,16 @@
 import uuid
 
-from flask import Flask, Response, g, has_app_context, jsonify, request
+from flask import Flask, Response, g, has_app_context, jsonify, render_template, request
 from flask.typing import ResponseReturnValue
 
 from app import config
 from app import logging as plant_logging
 from app.api import validate
 from app.api.health import create_health_blueprint
+from app.api.scenario import create_scenario_blueprint
 from app.engine.scheduler import Scheduler
 from app.engine.sessions import SessionRegistry
+from app.scenarios.runner import ScenarioLibrary
 from app.training.session import TrainingSession
 
 
@@ -73,6 +75,18 @@ def load_session() -> None:
     g.plant = session
 
 
+app.register_blueprint(create_scenario_blueprint(lambda: g.plant))
+
+library = ScenarioLibrary()
+
+PHASE_LABEL = {
+    "loaded": "Loaded, not started",
+    "running": "Running",
+    "complete": "Finished",
+    "aborted": "Aborted",
+}
+
+
 @app.after_request
 def persist_session_cookie(response: Response) -> Response:
     # A request refused before load_session ran (rate limit) has no session.
@@ -80,6 +94,19 @@ def persist_session_cookie(response: Response) -> Response:
         response.set_cookie(SESSION_COOKIE, g.session_id, httponly=True)
 
     return response
+
+
+@app.get("/")
+def landing() -> ResponseReturnValue:
+    # Never starts the scheduler: only the console's render does (T16-9).
+    standing = g.plant.standing()
+
+    return render_template(
+        "index.html",
+        standing=standing,
+        phase_label=PHASE_LABEL.get(standing.phase, ""),
+        scenarios=library.catalogue(),
+    )
 
 
 @app.get("/api/snapshot")

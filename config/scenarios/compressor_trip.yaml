@@ -1,5 +1,8 @@
 # Gas compressor trip: K-101 has stopped and the discharge header backflows.
 id: compressor_trip
+title: Rising vessel gas pressure
+briefing: >-
+  V-101 gas pressure is climbing while its level is untouched and the discharge header is sagging. Stabilise the gas side before pressure runs away.
 description: >
   K-101 has just tripped. With no check valve its discharge header backflows
   through the stopped machine into V-101, so the vessel gas pressure creeps up

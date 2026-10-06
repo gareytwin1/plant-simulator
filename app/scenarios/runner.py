@@ -180,6 +180,33 @@ class ScenarioLibrary:
         # Any: decoded YAML or JSON of a shape only the scenario schema knows.
         return _read_document(_find(self.scenarios, name, CONFIG_SUFFIXES, "scenario"))
 
+    def catalogue(self) -> tuple[CatalogueEntry, ...]:
+        """Every scenario file, easiest first and then by title. A file that
+        fails the schema raises `ScenarioConfigError`, so a bad file is found
+        here rather than hidden."""
+        entries = []
+
+        for path in self.scenarios.iterdir():
+            if not path.is_file() or path.suffix.lower() not in CONFIG_SUFFIXES or path.name.startswith("."):
+                continue
+
+            document = _read_document(path)
+            errors = validate(document, _schema())
+            if errors:
+                raise ScenarioConfigError(f"{path.name}: " + "; ".join(errors))
+
+            entries.append(
+                CatalogueEntry(
+                    id=path.stem,
+                    title=document.get("title", path.stem),
+                    briefing=document.get("briefing", ""),
+                    difficulty=document["difficulty"],
+                    time_limit_s=float(document["time_limit_s"]),
+                ),
+            )
+
+        return tuple(sorted(entries, key=lambda e: (_DIFFICULTY_ORDER[e.difficulty], e.title, e.id)))
+
     def plant_path(self, name: str) -> Path:
         return _find(self.plants, name, CONFIG_SUFFIXES, "plant")
 
@@ -191,6 +218,25 @@ class ScenarioLibrary:
         path = self.condition_path(name)
 
         return _decode_condition(path, path.read_bytes())
+
+
+_DIFFICULTY_ORDER = {"easy": 0, "medium": 1, "hard": 2}
+
+
+@dataclass(frozen=True)
+class CatalogueEntry:
+    """What a scenario list may show of a scenario file before it is run.
+
+    Never the file's `description`: it carries the diagnosis path, and the id
+    of a scenario can name its cause, so a page that shows entries shows
+    `title`, `briefing` and `difficulty`, and posts `id` back to load one.
+    """
+
+    id: str
+    title: str
+    briefing: str
+    difficulty: str
+    time_limit_s: float
 
 
 def _decode_condition(path: Path, data: bytes) -> dict[str, JSONValue]:

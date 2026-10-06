@@ -1,5 +1,8 @@
 # Restricted discharge line: FV-201 passes half what its position says.
 id: restricted_discharge
+title: Sagging discharge header
+briefing: >-
+  Thirty seconds into the run the gas discharge header pressure starts to drift down. Find out why and restore it.
 description: >
   At 30 s FV-201's capacity halves, as if the line downstream of K-101 were
   partly choked. Its position indication is unchanged, but less flows through

@@ -1,5 +1,8 @@
 # Stuck drain valve: LV-101 will not move while V-101 is low after a pump trip.
 id: stuck_drain_valve
+title: Vessel level low and still falling
+briefing: >-
+  V-101 is already low and the level is still dropping. Bring it back above the low trip before the vessel empties.
 description: >
   P-101 has tripped and V-101 is already low and falling. The usual first move
   is to close LV-101 to protect the level, but LV-101 is stuck at half travel

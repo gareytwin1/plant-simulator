@@ -617,10 +617,21 @@ def test_manual_step_is_allowed_after_the_worker_stops_on_an_error():
 
 # Real engine
 
+# One compressor between two equal boundary pressures, so an idle machine sits
+# at zero flow.
+COMPRESSOR_PLANT = {
+    "nodes": [
+        {"id": "N-201", "boundary": True, "pressure": 750.0, "domain": "gas"},
+        {"id": "N-202", "boundary": True, "pressure": 750.0, "domain": "gas"},
+    ],
+    "equipment": [
+        {"tag": "K-101", "type": "compressor", "node_in": "N-201", "node_out": "N-202", "design": {}},
+    ],
+}
+
 
 def test_scheduled_engine_matches_manual_stepping():
     from app.plant.loader import load_plant
-    from app.engine.sessions import COMPRESSOR_PLANT
 
     scheduled = Engine.from_plant(load_plant(COMPRESSOR_PLANT))
     manual = Engine.from_plant(load_plant(COMPRESSOR_PLANT))
@@ -654,7 +665,6 @@ def test_scheduled_engine_matches_manual_stepping():
 
 def test_paused_clock_does_not_advance_and_resume_continues():
     from app.plant.loader import load_plant
-    from app.engine.sessions import COMPRESSOR_PLANT
 
     engine = Engine.from_plant(load_plant(COMPRESSOR_PLANT))
     counted = threading.Event()

@@ -66,10 +66,9 @@ TAG_PREFIXES = {
 # Session registry
 #
 # An operational guardrail, not a simulation constant: it bounds how many
-# live sessions (and therefore how many background scheduler workers, up
-# to two per legacy session and one per training session) SessionRegistry
-# keeps at once. Beyond capacity the least-recently-touched session is ended
-# to make room. See T2-6.
+# live sessions (and therefore how many background scheduler workers, one per
+# session) SessionRegistry keeps at once. Beyond capacity the
+# least-recently-touched session is ended to make room. See T2-6.
 
 MAX_SESSIONS = 32
 

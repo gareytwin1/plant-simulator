@@ -41,7 +41,7 @@ python -m pytest tests/test_pump.py -q
 python -m pytest -k "test_pump_half_speed_operating_point" -q
 
 # Run the app
-flask --app app.main run     # http://127.0.0.1:5000/compressor and /pump
+flask --app app.main run     # http://127.0.0.1:5000/api/snapshot (no pages until M16)
 ```
 
 Claude Code's auto-memory belongs in `.workspace/memory-auto/`, so Codex and
@@ -249,7 +249,6 @@ Check this before starting step 5 above.
 | `config/schema/plant.schema.json` | Shared — each top-level key has one owner |
 | `config/plants/*.yaml` | Shared — each top-level key has one owner |
 | `tests/fixtures/golden/*.json` | Regenerate only with explicit justification |
-| `static/compressor.js`, `static/pump.js` | **Frozen** — replaced wholesale at M16. Do not invest in them. |
 
 **The spine** is the three rows marked Spine above. In `app/engine/` that
 means every module on `main` - `ls app/engine/` is the list, deliberately not

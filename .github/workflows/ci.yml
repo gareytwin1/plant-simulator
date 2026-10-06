@@ -36,10 +36,10 @@ jobs:
         run: |
           docker run -d --name plant -p 8000:8000 plant-simulator
           for _ in $(seq 1 30); do
-            curl -fsS -o /dev/null http://localhost:8000/api/state && break
+            curl -fsS -o /dev/null http://localhost:8000/health/live && break
             sleep 1
           done
-          curl -fsS http://localhost:8000/api/state
+          curl -fsS http://localhost:8000/api/snapshot
           # One gunicorn master plus exactly one worker process.
           test "$(docker top plant -eo pid,args | grep -c 'gunicorn')" -eq 2
 

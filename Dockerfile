@@ -20,7 +20,6 @@ FROM base AS runtime
 COPY app ./app
 COPY config ./config
 COPY static ./static
-COPY templates ./templates
 COPY gunicorn.conf.py ./
 RUN useradd --system --no-create-home plant
 USER plant

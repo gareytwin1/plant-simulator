@@ -19,12 +19,19 @@ scenario cannot drift away from the numbers it produced.
 """
 
 import json
+from collections.abc import Mapping
 from pathlib import Path
+from typing import Any
 
 import copy
 
-from app.engine.sessions import COMPRESSOR_PLANT, PUMP_PLANT, Session
+from app.engine.engine import Engine
+from app.engine.scheduler import Scheduler
 from app.equipment.base import Equipment
+from app.equipment.compressor import GasCompressor
+from app.equipment.pump import CentrifugalPump
+from app.plant.loader import load_plant
+from app.statetypes import JSONValue, StateRow
 
 
 # Directory to store golden traces
@@ -169,8 +176,91 @@ def pump_discharge_header_change(pump, step_num):
     return None
 
 
+# The single-machine plants the golden traces were captured on. They are the
+# harness's own copy: the pages and session that once served them are gone, but
+# the traces still pin the device models on exactly these two plants. Equal
+# boundary pressures keep an idle machine at zero flow.
+COMPRESSOR_PLANT: dict[str, Any] = {
+    "nodes": [
+        {"id": "N-201", "boundary": True, "pressure": 750.0, "domain": "gas"},
+        {"id": "N-202", "boundary": True, "pressure": 750.0, "domain": "gas"},
+    ],
+    "equipment": [
+        {"tag": "K-101", "type": "compressor", "node_in": "N-201", "node_out": "N-202", "design": {}},
+    ],
+}
+
+PUMP_PLANT: dict[str, Any] = {
+    "nodes": [
+        {"id": "N-101", "boundary": True, "pressure": 50.0, "domain": "liquid"},
+        {"id": "N-102", "boundary": True, "pressure": 50.0, "domain": "liquid"},
+    ],
+    "equipment": [
+        {"tag": "P-101", "type": "pump", "node_in": "N-101", "node_out": "N-102", "design": {}},
+    ],
+}
+
+
+def _flow_of(streams: Mapping[str, Mapping[str, JSONValue]]) -> float:
+    # The single-device plants have exactly one stream.
+    (stream,) = streams.values()
+
+    return _number(stream["flow"])
+
+
+def _pressure_at(nodes: Mapping[str, Mapping[str, JSONValue]], node_id: str) -> float:
+    return _number(nodes[node_id]["pressure"])
+
+
+def _number(value: JSONValue) -> float:
+    assert isinstance(value, (int, float)) and not isinstance(value, bool)
+
+    return float(value)
+
+
+def _compressor_row(scheduler: Scheduler, compressor: GasCompressor) -> StateRow:
+    """The compressor page's row: the device's own state plus what the solver
+    put on its branch and nodes. One step_lock acquisition covers the snapshot
+    read and both live-device queries, so all three come from one step."""
+    with scheduler.step_lock:
+        snapshot = scheduler.snapshot_locked()
+
+        flow = _flow_of(snapshot.streams)
+        suction = _pressure_at(snapshot.nodes, "N-201")
+        discharge = _pressure_at(snapshot.nodes, "N-202")
+
+        return {
+            **snapshot.equipment["K-101"],
+            "pressure": discharge,
+            "suction_pressure": suction,
+            "discharge_pressure": discharge,
+            "spread": discharge - suction,
+            "temperature": compressor.temperature_at(suction, discharge),
+            "flow": flow,
+            "compressor_pressure_rise": compressor.characteristic(flow),
+        }
+
+
+def _pump_row(scheduler: Scheduler, pump: CentrifugalPump) -> StateRow:
+    with scheduler.step_lock:
+        snapshot = scheduler.snapshot_locked()
+
+        flow = _flow_of(snapshot.streams)
+        suction = _pressure_at(snapshot.nodes, "N-101")
+        discharge = _pressure_at(snapshot.nodes, "N-102")
+
+        return {
+            **snapshot.equipment["P-101"],
+            "flow": flow,
+            "suction_pressure": suction,
+            "discharge_pressure": discharge,
+            "spread": discharge - suction,
+            "pump_pressure_rise": pump.characteristic(flow),
+        }
+
+
 class Rig:
-    """One machine on an Engine, driven and read the way the live page is."""
+    """One machine on an Engine, driven and read the way the live page was."""
 
     device: Equipment
 
@@ -187,16 +277,20 @@ class Rig:
             if pressure is not None:
                 node["pressure"] = pressure
 
+        engine = Engine.from_plant(load_plant(plant))
+        scheduler = Scheduler(engine)
+        self.step = scheduler.step_once
+
         if kind == "compressor":
-            session = Session(compressor_plant=plant)
-            self.device = session.compressor
-            self.step = session.compressor_scheduler.step_once
-            self.get_state = session.compressor_state
+            compressor = engine.equipment["K-101"]
+            assert isinstance(compressor, GasCompressor)
+            self.device = compressor
+            self.get_state = lambda: _compressor_row(scheduler, compressor)
         else:
-            session = Session(pump_plant=plant)
-            self.device = session.pump
-            self.step = session.pump_scheduler.step_once
-            self.get_state = session.pump_state
+            pump = engine.equipment["P-101"]
+            assert isinstance(pump, CentrifugalPump)
+            self.device = pump
+            self.get_state = lambda: _pump_row(scheduler, pump)
 
 
 def compressor_rig() -> Rig:

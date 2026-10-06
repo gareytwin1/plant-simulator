@@ -50,52 +50,55 @@ BAD_BODIES = [
     pytest.param('{"{f}": 0.5, "extra": 1}', "application/json", "unknown field: extra", id="extra-key"),
 ]
 
-NUMBER_ENDPOINTS = [
-    ("/api/load", "load_target"),
-    ("/api/pump/speed", "speed_target"),
-]
+
+def number_client():
+    """A one-route app on the shared request pipeline: a POST that echoes the
+    one number field its body must carry, read the way every writer does."""
+    app = Flask(__name__)
+    validate.install(app, unlimited)
+
+    @app.post("/api/number")
+    def number():
+        body = validate.read_object({"value"})
+        if isinstance(body, tuple):
+            return body
+
+        value = validate.number_field(body, "value")
+        if isinstance(value, tuple):
+            return value
+
+        return {"value": value}
+
+    return app.test_client()
 
 
-@pytest.mark.parametrize("path, field", NUMBER_ENDPOINTS)
 @pytest.mark.parametrize("body, content_type, message", BAD_BODIES)
-def test_number_endpoints_answer_a_bad_body_with_a_4xx_and_a_message(
-    path, field, body, content_type, message,
-):
-    client = main.app.test_client()
-
-    response = raw(client, path, body.replace("{f}", field), content_type)
+def test_a_number_endpoint_answers_a_bad_body_with_a_4xx_and_a_message(body, content_type, message):
+    response = raw(number_client(), "/api/number", body.replace("{f}", "value"), content_type)
 
     assert response.status_code == 400
-    assert response.get_json()["error"].startswith(message.replace("{f}", field))
+    assert response.get_json()["error"].startswith(message.replace("{f}", "value"))
 
 
-@pytest.mark.parametrize("path, field", NUMBER_ENDPOINTS)
-def test_number_endpoints_refuse_an_oversized_body_with_413(path, field):
-    client = main.app.test_client()
+def test_a_number_endpoint_refuses_an_oversized_body_with_413():
     padding = "x" * (config.API_MAX_BODY_BYTES + 1)
 
-    response = raw(client, path, f'{{"{field}": 0.5, "pad": "{padding}"}}')
+    response = raw(number_client(), "/api/number", f'{{"value": 0.5, "pad": "{padding}"}}')
 
     assert response.status_code == 413
     assert "error" in response.get_json()
 
 
-@pytest.mark.parametrize("path, field", NUMBER_ENDPOINTS)
-@pytest.mark.parametrize("value, expected", [(0.5, 0.5), (1, 1.0), (1.5, 1.0), (-0.5, 0.0)])
-def test_number_endpoints_still_accept_a_finite_value_and_clamp_it(path, field, value, expected):
-    client = main.app.test_client()
-
-    response = client.post(path, json={field: value})
+@pytest.mark.parametrize("value", [0.5, 1, 1.5, -0.5])
+def test_a_number_endpoint_accepts_a_finite_value(value):
+    response = number_client().post("/api/number", json={"value": value})
 
     assert response.status_code == 200
-    assert response.get_json()[field] == pytest.approx(expected)
+    assert response.get_json()["value"] == pytest.approx(value)
 
 
-@pytest.mark.parametrize("path", ["/api/start", "/api/stop", "/api/step", "/api/pump/start"])
-def test_a_post_only_route_answers_get_with_a_json_405(path):
-    client = main.app.test_client()
-
-    response = client.get(path)
+def test_a_post_only_route_answers_get_with_a_json_405():
+    response = number_client().get("/api/number")
 
     assert response.status_code == 405
     assert "error" in response.get_json()
@@ -375,8 +378,8 @@ def test_the_live_app_rate_limits_and_refuses_before_creating_a_session(monkeypa
     monkeypatch.setattr(main.sessions, "create", lambda sid: created.append(sid) or real_create(sid))
     client = main.app.test_client()
 
-    first = client.get("/api/state")
-    second = client.get("/api/state")
+    first = client.get("/api/snapshot")
+    second = client.get("/api/snapshot")
 
     assert first.status_code == 200
     assert second.status_code == 429

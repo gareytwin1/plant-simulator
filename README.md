@@ -62,8 +62,8 @@ drive equipment it has never seen before.
   outlet attaches to; gas-phase pressure replaces the boundary at every gas
   attachment, so the machine feeding a drum sees its back-pressure. Flows are
   read back as the net signed flow at each attachment.
-- **Background scheduler** — each `Session` owns a `Scheduler` per `Engine`,
-  started by the page render and stopped by `Session.end()` or by
+- **Background scheduler** — each browser's `TrainingSession` owns one
+  `Scheduler`, started by the page render and stopped by the session's `end()` or by
   capacity-bounded LRU eviction. It advances the plant on its own cadence
   whether or not a browser is polling; the frontend is a pure consumer of
   published snapshots and steps nothing.
@@ -79,7 +79,8 @@ drive equipment it has never seen before.
   numbers yet.
 - **Golden-value regression harness** — pins current numerical behaviour and
   fails loudly on drift.
-- **Flask API and browser pages** for the compressor and the pump.
+- **Flask API**: `GET /api/snapshot` returns the caller's plant as a C4 snapshot. The
+  browser pages arrive with the operator console (M16).
 - A **full passing pytest suite** and a clean `mypy` over `app/`. For the
   current count, run `python -m pytest --collect-only -q` — a number written
   into a document has drifted twice already.
@@ -107,7 +108,7 @@ what is true right now.
 
 ```text
 app/
-  main.py            Flask routes (per-equipment, session-scoped)
+  main.py            Flask app: session cookie, health probes, `/api/snapshot`
   config.py          Timing constants and equipment tag prefixes
   statetypes.py      StateRow — the JSON-safe row every get_state() returns
   equipment/         base.py (C1) · compressor.py · pump.py · valve.py
@@ -118,7 +119,7 @@ app/
   plant/             topology.py (C2) · loader.py · validate.py (C3 validator)
 config/schema/       plant.schema.json (C3)
 config/plants/       Reference plant fixtures
-templates/, static/  Per-equipment pages (replaced wholesale at M16)
+static/              Operator-console assets (M16)
 tests/               pytest suite + golden trace fixtures
 docs/                Architecture, project state, build plan, ADRs, units
 ```
@@ -134,7 +135,8 @@ pip install -r requirements.txt
 flask --app app.main run
 ```
 
-Then open <http://127.0.0.1:5000/compressor> or <http://127.0.0.1:5000/pump>.
+Until the operator console lands (M16) the app serves no page: try
+<http://127.0.0.1:5000/api/snapshot> and <http://127.0.0.1:5000/health/live>.
 
 ## Run tests
 

@@ -235,13 +235,14 @@ def test_engine_probe_without_a_cookie_creates_no_session_and_reports_none(clien
     assert "Set-Cookie" not in response.headers
 
 
-def test_engine_probe_with_a_session_reports_both_engines(client):
-    client.get("/api/state")
-    client.post("/api/step")
+def test_engine_probe_with_a_session_reports_the_training_scheduler(client):
+    client.get("/api/snapshot")
+    session_id = client.get_cookie(main_module.SESSION_COOKIE).value
+    main_module.sessions.get(session_id).training_scheduler.step_once()
     body = client.get("/health/engine").get_json()
 
-    assert set(body["engines"]) == {"compressor", "pump"}
-    assert body["engines"]["compressor"]["sim_time"] > 0
+    assert set(body["engines"]) == {"training"}
+    assert body["engines"]["training"]["sim_time"] > 0
 
 
 def test_health_probes_are_not_rate_limited(client):
@@ -256,7 +257,7 @@ def test_health_probes_are_not_rate_limited(client):
     assert statuses == {200}
 
 
-def test_request_log_sim_time_follows_the_engine_the_route_serves(client):
+def test_request_log_sim_time_follows_the_callers_plant(client):
     import io
 
     from app import logging as plant_logging
@@ -266,39 +267,22 @@ def test_request_log_sim_time_follows_the_engine_the_route_serves(client):
         sim_time=main_module._request_sim_time, request_stream=request_out
     )
     try:
-        client.get("/api/state")
-        for _ in range(3):
-            client.post("/api/pump/step")
-        client.post("/api/pump/step")
-        client.get("/api/state")
-        client.get("/api/pump/state")
+        client.get("/api/snapshot")
+        session_id = client.get_cookie(main_module.SESSION_COOKIE).value
+        scheduler = main_module.sessions.get(session_id).training_scheduler
+        scheduler.step_once()
+        expected = scheduler.snapshot().sim_time
+        client.get("/api/snapshot")
+        client.get("/health/live")
     finally:
         plant_logging.configure(sim_time=main_module._request_sim_time)
 
     rows = [json.loads(line) for line in request_out.getvalue().splitlines()]
-    by_path = {row["path"]: row["sim_time"] for row in rows}
+    snapshots = [row for row in rows if row["path"] == "/api/snapshot"]
 
-    assert by_path["/api/pump/state"] > 0
-    assert by_path["/api/state"] == 0
-
-
-@pytest.mark.parametrize(
-    "path, expected_pump",
-    [("/pump", True), ("/api/pump/state", True), ("/pumpdata", False), ("/api/state", False)],
-)
-def test_pump_routes_are_classified_by_exact_path(path, expected_pump):
-    session_id = "classify-" + path
-    plant = main_module.sessions.create(session_id)
-    try:
-        plant.pump_scheduler.step_once()
-        plant.pump_scheduler.step_once()
-        with main_module.app.test_request_context(path):
-            main_module.g.plant = plant
-            sim_time = main_module._request_sim_time()
-    finally:
-        main_module.sessions.end(session_id)
-
-    assert sim_time == (2.0 if expected_pump else 0.0)
+    assert snapshots[-1]["sim_time"] == expected
+    assert snapshots[0]["sim_time"] != expected
+    assert [row for row in rows if row["path"] == "/health/live"][0]["sim_time"] is None
 
 
 def test_a_snapshot_with_no_solve_degrades_gracefully():
@@ -316,7 +300,9 @@ def test_a_snapshot_with_no_solve_degrades_gracefully():
 
 def test_a_cookie_carrying_probe_neither_touches_its_session_nor_sweeps_others(client, monkeypatch):
     now = [1000.0]
-    registry = SessionRegistry(monotonic=lambda: now[0], idle_seconds=60.0)
+    registry = SessionRegistry(
+        factory=main_module.TrainingSession, monotonic=lambda: now[0], idle_seconds=60.0
+    )
     monkeypatch.setattr(main_module, "sessions", registry)
     registry.create("probed")
     stale = registry.create("stale")
@@ -325,7 +311,7 @@ def test_a_cookie_carrying_probe_neither_touches_its_session_nor_sweeps_others(c
 
     response = client.get("/health/engine")
 
-    assert set(response.get_json()["engines"]) == {"compressor", "pump"}
+    assert set(response.get_json()["engines"]) == {"training"}
     assert len(registry) == 2
-    assert not stale.compressor_scheduler.closed
+    assert not stale.training_scheduler.closed
     assert registry.reclaim_idle() == 2

@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "5 October 2026",
-  "main_sha": "ed5934e",
-  "tests_passing_on_main": 3124,
+  "main_sha": "da9b2d8",
+  "tests_passing_on_main": 3175,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -98,7 +98,7 @@
     },
     "M16": {
       "name": "Operator Console",
-      "complete": 4,
+      "complete": 5,
       "total": 13
     },
     "M17": {
@@ -119,7 +119,7 @@
   },
   "totals": {
     "tasks": 129,
-    "complete": 111,
+    "complete": 112,
     "startable_now": 10
   },
   "tasks": [
@@ -2005,10 +2005,9 @@
         "tests/test_session_load.py",
         "tests/test_scenario_api.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true,
-      "note": ""
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged to main as da9b2d8 (PR #139). 3175 passed post-merge, mypy clean over 81 files, no golden movement. TrainingSession (free play + ScenarioRunner on one Scheduler), generic SessionRegistry with lease(), POST /api/scenario/unload. main.py and the registry's default factory untouched; T16-9 switches them after T16-10. MAX_SESSIONS unchanged: 32 plants step in about 20 ms per round."
     },
     {
       "id": "T16-10",
@@ -2045,10 +2044,7 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "T16-8"
-      ],
+      "startable": true,
       "note": ""
     },
     {

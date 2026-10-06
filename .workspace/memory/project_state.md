@@ -8,11 +8,11 @@ regrowth rule is in [.claude/rules/docs.md](../../.claude/rules/docs.md).
 
 ## Right now
 
-**Last state refresh:** 5 October 2026, at `ed5934e` (Merge T18-9: Stream
-transport under Gunicorn, PR #138) - **this is a snapshot,
-not a live pointer.** Run `git log ed5934e..HEAD --oneline` to see what has
+**Last state refresh:** 5 October 2026, at `da9b2d8` (Merge T16-8: Training
+session, PR #139) - **this is a snapshot,
+not a live pointer.** Run `git log da9b2d8..HEAD --oneline` to see what has
 merged since.
-**Full suite as of this refresh:** **3124 passed** · `python -m mypy` clean over 80 source files · no golden trace movement
+**Full suite as of this refresh:** **3175 passed** · `python -m mypy` clean over 81 source files · no golden trace movement
 **In flight:** nothing.
 **No spine lock is held.** No task is Blocked. CI runs on every PR, and `main` requires its
 `test` check before a merge.
@@ -22,12 +22,12 @@ merged since.
 
 | Task | SHA | What landed |
 |---|---|---|
+| **T16-8** | `da9b2d8` | Training session: `app/training/session.py` `TrainingSession` is a standalone session (not a `Session`) owning a free-play `PlantRuntime` (`config.FREE_PLAY_PLANT` at `FREE_PLAY_CONDITION`), a `ScenarioRunner` and one `Scheduler` over itself; step and snapshot follow the runner while a scenario is loaded, and every write is a scheduler command under `step_lock`. `SessionRegistry` is generic over any `Endable` session with a `factory` (default `Session`) and `lease(session_id)`, which pins a session against the idle sweep (T16-9 passes it as the stream's `hold`); the scenario blueprint takes a `ScenarioControl` protocol and gains `POST /api/scenario/unload`. `main.py` and the registry's default factory are unchanged: T16-9 switches them after T16-10 retires the legacy routes. 32 plants step in ~20 ms per round, so `MAX_SESSIONS` stays 32 (PR #139) |
 | **T18-9** | `ed5934e` | Stream transport under Gunicorn: `_socket_of` also reads `gunicorn.socket`, so a client that stops reading is dropped within the dropout bound under the T18-1 deployment; the socket's prior timeout is restored on response close (after the server's closing write; gthread reuses kept-alive connections); `create_stream_blueprint` takes an optional `hold` context manager, entered before the first event and exited when the stream ends (T16-9 passes the T16-8 session lease). Tested under a real Gunicorn gthread server (PR #138) |
 | **T16-7** | `d2b7583` | Scenarios run on the plant runtime: `ScenarioRunner` builds a `PlantRuntime` after `restore_state` on arm and on abort (the action log is carried over an abort), steps it, and routes `act` through it, so an interlock `reset` is journaled and replayed; adds `acknowledge`, `alarm_entries` and `unload`. Known gap: a scenario malfunction reaches the trip check one step late (needs `PlantRuntime.invalidate()`, T16-6's file). |
 | **T16-6** | `a4c5882` | Plant runtime: `app/training/runtime.py` `PlantRuntime` wraps an `Engine` and is `Steppable`; each step runs `TripSystem.update`, `Engine.step`, then one `EnvelopeEvent` per configured limit into `AlarmManager` and `AlarmHistory` (also once at construction). `act()` is the one operator entry point (device actions, interlock `reset`); one lock covers step, act, acknowledge and history reads. The acknowledge sequence moved to `app/alarms/acknowledge.py` and `create_alarm_blueprint` takes `(get_entries, acknowledge)`. Not wired into any session yet (T16-7, T16-8); `app/training` is orchestration in the layer guard (PR #136) |
 | **T18-6** | `f7a8b7c` | Scheduler log records carry sim time: the slow-step warning stamps the `sim_time` of the snapshot the step just published, the step-failure record the last published snapshot's (null if none), via `extra=` in `Scheduler._run`; no clock, no `Snapshot` field (PR #135) |
 | **T18-7** | `508137c` | Read-only session lookup: `SessionRegistry.peek(session_id)` returns the live session under `_lock` with no idle sweep and no touch (a session past the timeout is still returned until the next `get()` or `create()` sweeps it). `/health/engine` resolves its cookie through it, so a probe no longer keeps its plant alive or ends others' idle plants (PR #134) |
-| **T10-5** | `f90c49e` | Alarm console: `static/js/alarms.js` replays the alarm lifecycle (unack, acked, rtn_unack) from `GET /api/alarms/history` and renders a priority banner plus a sortable summary that acknowledges through `POST /api/alarms/acknowledge`; `static/css/alarms.css` uses only the T16-1 tokens (flash, steady, outline; reduced-motion border). Tested under Node (skipped if `node` is absent) against history from the real manager and blueprint. Not mounted in any template, the alarm blueprint is still unregistered in `main.py`, and not yet viewed in a browser (PR #133) |
 
 **ADRs on `main`:** [0001](../../docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md)
 (+ Amendment 1) and [0002](../../docs/ADR_0002_TYPED_PORTS.md) (+ Amendments
@@ -41,12 +41,12 @@ Complete: **M0-M9, M12, M13, M14, M15, MR**. Open:
 |---|---|---|
 | **M10** Alarms | 4/5 | T10-1, T10-2, T10-3, T10-5; T10-4 startable (V1.1-deferred) |
 | **M11** Interlocks and Trips | 3/4 | T11-1, T11-2, T11-3; T11-4 startable (V1.1-deferred) |
-| **M16** Operator Console | 4/13 | T16-1, T16-2, T16-6, T16-7; T16-3, T16-4, T16-5 and T16-8 startable; T16-10, T16-11, T16-12, T16-13 then T16-9 chain behind T16-8 |
+| **M16** Operator Console | 5/13 | T16-1, T16-2, T16-6, T16-7, T16-8; T16-3, T16-4, T16-5 and T16-10 startable; T16-11, T16-12, T16-13 then T16-9 chain behind T16-10 |
 | **M17** Historian and Trends | 1/4 | T17-1; T17-2 startable (V1.1-deferred) |
 | **M18** Deployment | 8/9 | T18-1 to T18-7, T18-9; T18-8 (rate limit behind a reverse proxy) startable once Opus decides its shape |
 | M19 | 0 | - |
 
-**111 of 129 tasks Complete.** Checkpoints A-C reached. Checkpoint **D** (M8)
+**112 of 129 tasks Complete.** Checkpoints A-C reached. Checkpoint **D** (M8)
 needs only its "loops reject an injected disturbance" gate: PIC-101 switched to
 AUTO in `olefins_lite.yaml`, which T8-6 enabled but no task owns yet.
 
@@ -58,9 +58,9 @@ field). All are Sonnet except T18-8 (Opus: it decides how the rate limiter trust
 T19-2 (startable - its other dependency, T13-1, was already Complete) is
 deferred further still, to **V2**.
 
-**Next by leverage: T16-8, then T16-10, T16-11, T16-12, T16-13 and T16-9** - the chain
+**Next by leverage: T16-10, then T16-11, T16-12, T16-13 and T16-9** - the chain
 that puts the live plant, its trips, alarms and scenarios behind a landing page
-and the console. T16-8 is a standalone training session; T16-10 retires the
+and the console. T16-10 retires the
 single-machine pages and the legacy `Session` (the console does not build on
 them); T16-11 is the landing page at `/` with the shared header; T16-12 keeps
 a scenario's cause out of the browser until the run ends; T16-13 sends the
@@ -72,9 +72,9 @@ fixtures meanwhile.
 **Scheduling notes.** The spine lock is one global lock
 ([DEVELOPMENT.md](../../DEVELOPMENT.md#file-ownership)); it is free. **The container runs
 exactly one Gunicorn worker** (T18-1) - `SessionRegistry` is per-process (R7); never scale it.
-**Trips and alarms run in a scenario run, not yet in a live session**: `PlantRuntime`
-(T16-6) runs both around the engine step and `ScenarioRunner` (T16-7) builds
-one; T16-8 builds the session.
+**Trips and alarms run in `TrainingSession` (T16-8), which the app does not serve yet**:
+`PlantRuntime` (T16-6) runs both around the engine step, `ScenarioRunner` (T16-7)
+builds one, and `main.py` still builds the legacy `Session` until T16-9.
 `RestartGate` (T11-3) must be updated before `TripSystem.update`, and only
 blocks a restart for a trip listed in its `resets`; an ungated trip still lets a
 standing lower-precedence RUN demand restart a machine the moment it releases.

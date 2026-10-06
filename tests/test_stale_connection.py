@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from app.api.stream import MIN_DROPOUT_SECONDS
+from app.api.stream import _dropout_seconds
 
 ROOT = Path(__file__).resolve().parent.parent
 CONNECTION_JS = ROOT / "static" / "js" / "connection.js"
@@ -40,6 +40,7 @@ const snapshots = [];
 function mount(options) {
   return C.mount(consoleEl, indicatorEl, Object.assign({
     EventSource: FakeSource,
+    intervalSeconds: 1,
     now: () => clock.t,
     setInterval: (fn, ms) => { timers.push({ fn, ms }); return timers.length; },
     clearInterval: () => {},
@@ -133,9 +134,10 @@ def test_silence_reads_stale_within_the_bound(interval):
     )
 
     assert result == ["live", "stale"]
-    # Bounded, and long enough that one late tick is not mistaken for a loss.
-    assert bound >= MIN_DROPOUT_SECONDS * 1000
-    assert bound <= max(interval * 1000 * 3, MIN_DROPOUT_SECONDS * 1000)
+    # The operator sees a freeze no later than the server gives up on a wedged
+    # client, and never before one late push could plausibly arrive.
+    assert bound <= _dropout_seconds(interval) * 1000
+    assert bound > interval * 1000
 
 
 @needs_node
@@ -179,7 +181,7 @@ def test_an_error_before_any_snapshot_is_stale_not_connecting():
 
 
 @needs_node
-def test_a_permanent_close_is_closed_and_a_late_message_does_not_clear_it():
+def test_a_browser_that_gives_up_is_closed_and_a_late_message_does_not_clear_it():
     result = run_js("""
         mount();
         push({});
@@ -193,7 +195,7 @@ def test_a_permanent_close_is_closed_and_a_late_message_does_not_clear_it():
     assert result == {
         "afterClose": "closed",
         "afterMessage": "closed",
-        "text": "DISCONNECTED - SESSION ENDED",
+        "text": "DISCONNECTED - RELOAD TO RECONNECT",
     }
 
 
@@ -208,6 +210,16 @@ def test_an_unparseable_event_does_not_count_as_a_live_reading():
     """)
 
     assert result == {"attr": "stale", "snapshots": 1}
+
+
+@needs_node
+def test_mount_refuses_to_guess_the_push_interval():
+    result = run_js("""
+        try { C.mount(consoleEl, indicatorEl, { EventSource: FakeSource }); return "mounted"; }
+        catch (e) { return e.message; }
+    """)
+
+    assert "intervalSeconds" in result
 
 
 @needs_node

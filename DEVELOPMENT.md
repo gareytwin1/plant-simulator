@@ -41,7 +41,7 @@ python -m pytest tests/test_pump.py -q
 python -m pytest -k "test_pump_half_speed_operating_point" -q
 
 # Run the app
-flask --app app.main run     # http://127.0.0.1:5000/api/snapshot (no pages until M16)
+flask --app app.main run     # http://127.0.0.1:5000/ (landing page; the console is M16)
 ```
 
 Claude Code's auto-memory belongs in `.workspace/memory-auto/`, so Codex and

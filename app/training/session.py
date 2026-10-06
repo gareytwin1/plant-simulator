@@ -38,6 +38,7 @@ cannot start a worker the registry no longer counts.
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import dataclass
 
 from app import config
 from app.alarms.acknowledge import Acknowledged
@@ -49,6 +50,18 @@ from app.engine.snapshot import Snapshot
 from app.plant.loader import load_plant, read_plant_config
 from app.scenarios.runner import Phase, ScenarioLibrary, ScenarioResult, ScenarioRunner
 from app.training.runtime import PlantRuntime
+
+
+@dataclass(frozen=True)
+class Standing:
+    """Where the session's plant stands, as the landing page shows it: free
+    play, or a scenario in some phase. `scenario_id` is the loaded scenario's
+    id, for a caller to look its title up: it is never sent to a page."""
+
+    mode: str
+    phase: str
+    sim_time: float
+    scenario_id: str | None
 
 
 class TrainingSession:
@@ -118,6 +131,18 @@ class TrainingSession:
 
     def result(self) -> ScenarioResult:
         return self.runner.result()
+
+    def standing(self) -> Standing:
+        """Read under `step_lock`, so the mode, phase and time are one moment.
+        Never starts the scheduler."""
+        with self.training_scheduler.step_lock:
+            phase = self.runner.phase
+            sim_time = self.snapshot().sim_time
+
+            if phase is Phase.IDLE:
+                return Standing("free_play", phase.value, sim_time, None)
+
+            return Standing("scenario", phase.value, sim_time, self.runner.result().scenario_id)
 
     def _plant(self) -> PlantRuntime | ScenarioRunner:
         return self.free if self.runner.phase is Phase.IDLE else self.runner

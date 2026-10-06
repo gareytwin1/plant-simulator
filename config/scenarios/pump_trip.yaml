@@ -1,5 +1,8 @@
 # Feed pump trip: P-101 has stopped and V-101 is draining back through it.
 id: pump_trip
+title: Falling vessel level
+briefing: >-
+  V-101 level is falling and will not recover on its own. Find out why and hold the vessel above its low-low trip.
 description: >
   P-101 has just tripped. With no check valve, V-101 drains backwards through
   the stopped pump as well as forwards through LV-101, and the level is

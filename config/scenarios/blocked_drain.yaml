@@ -1,5 +1,8 @@
 # Blocked drain: LV-101 passes half the flow its position says it should.
 id: blocked_drain
+title: Rising vessel level
+briefing: >-
+  Thirty seconds into the run V-101 level begins to climb towards its high alarm. Find out why and bring it back to its setpoint.
 description: >
   At 30 s LV-101's capacity halves, as if its trim were partly plugged. At
   the half-open position it was holding, it now drains only about half what

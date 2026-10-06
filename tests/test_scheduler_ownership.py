@@ -46,6 +46,7 @@ def test_full_api_sequence_never_starts_a_scheduler():
     # and none exists until T16-9's /console.
     client = main.app.test_client()
 
+    client.get("/")
     client.get("/api/snapshot")
     client.get("/api/snapshot")
 

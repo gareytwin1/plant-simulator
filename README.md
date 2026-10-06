@@ -135,8 +135,10 @@ pip install -r requirements.txt
 flask --app app.main run
 ```
 
-Until the operator console lands (M16) the app serves no page: try
-<http://127.0.0.1:5000/api/snapshot> and <http://127.0.0.1:5000/health/live>.
+Open <http://127.0.0.1:5000/> for the landing page: free play, or one of the
+authored scenarios. Until the operator console lands (M16) that is the only
+page; also try <http://127.0.0.1:5000/api/snapshot> and
+<http://127.0.0.1:5000/health/live>.
 
 ## Run tests
 

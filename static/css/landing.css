@@ -1,0 +1,176 @@
+/* Shared header and landing page (T16-11). Every colour is a token from
+ * tokens.css (docs/console-standards.md); nothing here is a hex literal.
+ * Load tokens.css first. */
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background-color: var(--surface);
+  color: var(--text);
+  font-family: system-ui, sans-serif;
+  line-height: 1.5;
+}
+
+a {
+  color: var(--text);
+}
+
+:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.site-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1.5rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 2px solid var(--border);
+  background-color: var(--surface-raised);
+}
+
+.site-brand {
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.site-nav {
+  display: flex;
+  flex-wrap: wrap;
+  flex: 1;
+  gap: 0.25rem 1rem;
+}
+
+.site-nav a[aria-current="page"] {
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 0.25em;
+}
+
+main {
+  max-width: 60rem;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+h1 {
+  font-size: 1.6rem;
+  margin: 0.5rem 0 1rem;
+}
+
+h2 {
+  font-size: 1.2rem;
+  margin: 0 0 0.5rem;
+}
+
+h3 {
+  font-size: 1.05rem;
+  margin: 0 0 0.25rem;
+}
+
+.theme-toggle {
+  padding: 0.25rem 0.75rem;
+  font-size: 0.9rem;
+}
+
+.theme-toggle[hidden] {
+  display: none;
+}
+
+.panel {
+  margin: 0 0 1rem;
+  padding: 0.75rem 1rem;
+  border: 2px solid var(--border);
+  border-radius: 4px;
+  background-color: var(--surface-raised);
+}
+
+.panel p {
+  margin: 0.25rem 0 0.75rem;
+}
+
+.standing-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.25rem;
+  margin: 0;
+}
+
+.standing-mode {
+  font-weight: 700;
+}
+
+.standing-phase,
+.standing-time,
+.difficulty {
+  color: var(--text-muted);
+}
+
+.scenario-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 1fr));
+  gap: 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.scenario-list .panel {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+}
+
+.scenario-list button {
+  margin-top: auto;
+  align-self: flex-start;
+}
+
+button {
+  padding: 0.5rem 1rem;
+  border: 2px solid var(--text);
+  border-radius: 4px;
+  background-color: var(--surface-raised);
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  background-color: var(--text);
+  color: var(--surface);
+}
+
+button:disabled {
+  border-color: var(--border);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.notice {
+  margin: 0 0 1rem;
+  padding: 0.5rem 1rem;
+  border: 2px solid var(--border);
+  border-left-width: 0.5rem;
+  background-color: var(--surface-raised);
+  font-weight: 600;
+}
+
+.notice[hidden] {
+  display: none;
+}
+
+.notice[data-kind="refused"] {
+  border-color: var(--alarm-high-mark);
+}
+
+.notice[data-kind="refused"]::before {
+  content: var(--symbol-alarm-high) " ";
+  color: var(--alarm-high-mark);
+}

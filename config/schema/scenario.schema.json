@@ -8,6 +8,16 @@
   "properties": {
     "id": {"type": "string", "minLength": 1},
     "description": {"type": "string"},
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Name shown on the landing page. Descriptive only: it must not name the cause of the fault."
+    },
+    "briefing": {
+      "type": "string",
+      "minLength": 1,
+      "description": "What the operator is told before the run starts. Descriptive only: unlike 'description', which carries the diagnosis path, it must not name the cause of the fault."
+    },
     "plant": {
       "type": "string",
       "minLength": 1,

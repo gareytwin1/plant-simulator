@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block title %}Plant Simulator - Start{% endblock %}
+
+{% block content %}
+<h1>Operator training</h1>
+
+<section class="panel" aria-labelledby="standing-heading" id="standing" data-mode="{{ standing.mode }}" data-phase-labels='{{ phase_labels|tojson }}'>
+  <h2 id="standing-heading">Your plant</h2>
+  <p class="standing-line">
+    <span class="standing-mode" id="standing-mode">{% if standing.mode == "scenario" %}Scenario{% if title %}: {{ title }}{% endif %}{% else %}Free play{% endif %}</span>
+    <span class="standing-phase" id="standing-phase">{{ phase_labels[standing.phase] }}</span>
+    <span class="standing-time">Plant time <span id="standing-time">{{ "%.0f"|format(standing.sim_time) }}</span> s</span>
+  </p>
+</section>
+
+<p class="notice" id="notice" role="status" aria-live="polite" hidden></p>
+
+<section class="panel" aria-labelledby="free-heading">
+  <h2 id="free-heading">Free play</h2>
+  <p>The whole plant at normal operation, with nothing wrong. Run it, change it and see what it does.</p>
+  <button type="button" id="free-play">Start free play</button>
+</section>
+
+<section aria-labelledby="scenarios-heading">
+  <h2 id="scenarios-heading">Scenarios</h2>
+  <ul class="scenario-list">
+    {% for scenario in scenarios %}
+    <li class="panel scenario" data-scenario="{{ scenario.id }}" data-title="{{ scenario.title }}">
+      <h3>{{ scenario.title }}</h3>
+      <p class="difficulty" data-difficulty="{{ scenario.difficulty }}">Difficulty: {{ scenario.difficulty }}</p>
+      <p>{{ scenario.briefing }}</p>
+      <button type="button" class="load-scenario">Load scenario</button>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/landing.js') }}"></script>
+<script>Landing.mount(document);</script>
+{% endblock %}

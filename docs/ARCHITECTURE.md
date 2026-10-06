@@ -63,10 +63,10 @@ Scheduler.snapshot()  - the latest PUBLISHED snapshot; it steps nothing
 JSON  →  client
 ```
 
-Between T16-10 and T16-11 the app serves no page, only the health probes and
-`/api/snapshot`: the single-machine compressor and pump pages and their
-two-plant `Session` are gone, and the console (T16-9) and landing page (T16-11)
-have not landed.
+The app serves one page, the landing page at `/` (T16-11), plus the health
+probes, `/api/snapshot` and the scenario routes. The single-machine compressor
+and pump pages and their two-plant `Session` are gone, and the console (T16-9)
+has not landed. `GET /` never starts a scheduler.
 
 ### The training session (T16-8)
 
@@ -415,7 +415,8 @@ app/
 config/
   schema/plant.schema.json  C3 schema
   plants/*.yaml             Reference fixtures
-static/                   Operator-console assets (M16); no templates yet.
+static/                   Operator-console assets (M16) and the landing page.
+templates/                base.html (shared header) and index.html (landing page).
 tests/
   golden_regression.py    Golden harness (scenarios + replay)
   fixtures/golden/*.json  Pinned numbers

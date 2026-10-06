@@ -1,14 +1,17 @@
+import functools
 import uuid
 
-from flask import Flask, Response, g, has_app_context, jsonify, request
+from flask import Flask, Response, g, has_app_context, jsonify, render_template, request
 from flask.typing import ResponseReturnValue
 
 from app import config
 from app import logging as plant_logging
 from app.api import validate
 from app.api.health import create_health_blueprint
+from app.api.scenario import create_scenario_blueprint
 from app.engine.scheduler import Scheduler
 from app.engine.sessions import SessionRegistry
+from app.scenarios.runner import ScenarioLibrary
 from app.training.session import TrainingSession
 
 
@@ -20,7 +23,9 @@ app = Flask(
 
 SESSION_COOKIE = "plant_session_id"
 
-sessions = SessionRegistry(factory=TrainingSession)
+library = ScenarioLibrary()
+
+sessions = SessionRegistry(factory=functools.partial(TrainingSession, library))
 
 rate_limiter = validate.RateLimiter(config.API_RATE_PER_SECOND, config.API_RATE_BURST)
 
@@ -73,6 +78,22 @@ def load_session() -> None:
     g.plant = session
 
 
+app.register_blueprint(create_scenario_blueprint(lambda: g.plant))
+
+# Read once at import, so a bad scenario file stops the app at startup rather
+# than failing a request. Config is not reloaded while the app runs.
+CATALOGUE = library.catalogue()
+TITLES = {entry.id: entry.title for entry in CATALOGUE}
+
+PHASE_LABELS = {
+    "idle": "",
+    "loaded": "Loaded, not started",
+    "running": "Running",
+    "complete": "Finished",
+    "aborted": "Aborted",
+}
+
+
 @app.after_request
 def persist_session_cookie(response: Response) -> Response:
     # A request refused before load_session ran (rate limit) has no session.
@@ -80,6 +101,20 @@ def persist_session_cookie(response: Response) -> Response:
         response.set_cookie(SESSION_COOKIE, g.session_id, httponly=True)
 
     return response
+
+
+@app.get("/")
+def landing() -> ResponseReturnValue:
+    # Never starts the scheduler: only the console's render does (T16-9).
+    standing = g.plant.standing()
+
+    return render_template(
+        "index.html",
+        standing=standing,
+        title=TITLES.get(standing.scenario_id) if standing.scenario_id else None,
+        phase_labels=PHASE_LABELS,
+        scenarios=CATALOGUE,
+    )
 
 
 @app.get("/api/snapshot")

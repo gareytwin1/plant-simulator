@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
-  "refreshed": "5 October 2026",
-  "main_sha": "da9b2d8",
-  "tests_passing_on_main": 3175,
+  "refreshed": "6 October 2026",
+  "main_sha": "6c53940",
+  "tests_passing_on_main": 3108,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -98,7 +98,7 @@
     },
     "M16": {
       "name": "Operator Console",
-      "complete": 5,
+      "complete": 6,
       "total": 13
     },
     "M17": {
@@ -119,8 +119,8 @@
   },
   "totals": {
     "tasks": 129,
-    "complete": 112,
-    "startable_now": 10
+    "complete": 113,
+    "startable_now": 11
   },
   "tasks": [
     {
@@ -138,7 +138,8 @@
       "status_key": "done",
       "note": "Merged to main as 7b19c31 (ff from chore/retire-duplicate-simulator), 18 Sep. app/simulator.py deleted; grep for PlantSimulator is clean. test_api.py's reset fixture assigned main.simulator, a name main never held \u2014 now builds a fresh GasCompressor on main.compressor. With a real reset, test_api_step's old expectations (load 0.10 / pressure 751.25 / temp 75.04) were exposed as readings of leaked state from test_api_stop; corrected to one clean step (0.05 / 750.3125 / 75.01), which matches test_step_once_with_load in test_compressor.py. Verified: 26 pass full suite, test_api.py passes per-test in isolation and with the whole suite in reverse collection order. Note for T1-1: golden traces must be captured from this tree, not pre-merge main.",
       "planned_files_not_on_main": [
-        "app/simulator.py"
+        "app/simulator.py",
+        "tests/test_api.py"
       ]
     },
     {
@@ -171,7 +172,11 @@
       ],
       "status": "Complete",
       "status_key": "done",
-      "note": "Merged to main as f8501cb (ff from feature/pump-endpoints, after T0-2 merged as 7742609). Module-level `pump` alongside `compressor` in app/main.py; routes mirror the compressor's shape: GET /pump, GET /api/pump/state, POST /api/pump/{start,stop,step,speed}. templates/pump.html + static/pump.js are new throwaway files per the task note. Tests in new tests/test_pump_api.py: state/start/stop/step/set-speed mirroring test_api.py, plus speed-target clamping above 1 and below 0, plus page render. Full suite 42/42 green."
+      "note": "Merged to main as f8501cb (ff from feature/pump-endpoints, after T0-2 merged as 7742609). Module-level `pump` alongside `compressor` in app/main.py; routes mirror the compressor's shape: GET /pump, GET /api/pump/state, POST /api/pump/{start,stop,step,speed}. templates/pump.html + static/pump.js are new throwaway files per the task note. Tests in new tests/test_pump_api.py: state/start/stop/step/set-speed mirroring test_api.py, plus speed-target clamping above 1 and below 0, plus page render. Full suite 42/42 green.",
+      "planned_files_not_on_main": [
+        "templates/pump.html",
+        "static/pump.js"
+      ]
     },
     {
       "id": "T0-4",
@@ -426,7 +431,10 @@
       ],
       "status": "Complete",
       "status_key": "done",
-      "note": "Merged to main (4e48949), PR #38; completion recorded in f8aab59 (PR #39). Session owns a Scheduler per Engine, started by the page render and stopped by Session.end() or LRU eviction past MAX_SESSIONS=32; /api/step and /api/pump/step return 409 while running; Scheduler.snapshot_locked() for coherent live-device reads. File-list correction: static/pump.js also stopped stepping physics. T18-5 still owns idle-session reclamation. Suite 753 green."
+      "note": "Merged to main (4e48949), PR #38; completion recorded in f8aab59 (PR #39). Session owns a Scheduler per Engine, started by the page render and stopped by Session.end() or LRU eviction past MAX_SESSIONS=32; /api/step and /api/pump/step return 409 while running; Scheduler.snapshot_locked() for coherent live-device reads. File-list correction: static/pump.js also stopped stepping physics. T18-5 still owns idle-session reclamation. Suite 753 green.",
+      "planned_files_not_on_main": [
+        "static/compressor.js"
+      ]
     },
     {
       "id": "T3-1",
@@ -863,7 +871,11 @@
       ],
       "status": "Complete",
       "status_key": "done",
-      "note": "Merged to main as 1467dcc (merge commit from fix/request-validation, PR #66). _number_field() helper added to app/main.py, used by /api/load and /api/pump/speed: requires a JSON object with a finite int/float at the named key, rejects missing/null/string/bool/array/NaN/non-JSON body with 400. 16 new DEFECT REPRODUCTION tests across tests/test_api.py and tests/test_pump_api.py, each confirmed to fail against merge-base before the fix. Rebased onto main after R2/R4/R11 merged (dropped the branch's own stale build-plan-status commit, a derived-file conflict only, before rebasing). 1083 passed post-merge, mypy clean, no golden movement. Hands the app/main.py lock to R6."
+      "note": "Merged to main as 1467dcc (merge commit from fix/request-validation, PR #66). _number_field() helper added to app/main.py, used by /api/load and /api/pump/speed: requires a JSON object with a finite int/float at the named key, rejects missing/null/string/bool/array/NaN/non-JSON body with 400. 16 new DEFECT REPRODUCTION tests across tests/test_api.py and tests/test_pump_api.py, each confirmed to fail against merge-base before the fix. Rebased onto main after R2/R4/R11 merged (dropped the branch's own stale build-plan-status commit, a derived-file conflict only, before rebasing). 1083 passed post-merge, mypy clean, no golden movement. Hands the app/main.py lock to R6.",
+      "planned_files_not_on_main": [
+        "tests/test_api.py",
+        "tests/test_pump_api.py"
+      ]
     },
     {
       "id": "R6",
@@ -885,7 +897,11 @@
       ],
       "status": "Complete",
       "status_key": "done",
-      "note": "Merged to main as 617bc9e (merge commit from fix/coherent-commands, PR #71). D5 implemented: Scheduler.command() holds step_lock, applies the operator action, then republishes engine.snapshot() without advancing time - a response read right after a command sees it even while the worker runs. step_once() takes _lifecycle then step_lock; refused (returns None, no step) while the worker is running or once the scheduler is closed; a worker stopped on an error still allows a manual step. close() stops the worker and marks the scheduler permanently closed, so a subsequent manual step answers 409 'session ended' instead of the running-scheduler reason. Every command route and both manual-step routes in app/main.py now go through these two methods; lock order documented on the scheduler's module docstring. Session.step_compressor/step_pump - the unlocked, unpublished bypass behind the defect - are removed; tests/golden_regression.py (not on R6's file list, but a mechanical follow-on of that removal) now steps through scheduler.step_once() instead, fixtures byte-unchanged. 11 new DEFECT REPRODUCTION tests, each confirmed to fail against the merge-base and pass after the fix. 1098 passed post-merge (up from 1083), mypy clean over 26 source files, no golden movement. Releases the spine lock and the app/main.py lock: R7 is next in the queue."
+      "note": "Merged to main as 617bc9e (merge commit from fix/coherent-commands, PR #71). D5 implemented: Scheduler.command() holds step_lock, applies the operator action, then republishes engine.snapshot() without advancing time - a response read right after a command sees it even while the worker runs. step_once() takes _lifecycle then step_lock; refused (returns None, no step) while the worker is running or once the scheduler is closed; a worker stopped on an error still allows a manual step. close() stops the worker and marks the scheduler permanently closed, so a subsequent manual step answers 409 'session ended' instead of the running-scheduler reason. Every command route and both manual-step routes in app/main.py now go through these two methods; lock order documented on the scheduler's module docstring. Session.step_compressor/step_pump - the unlocked, unpublished bypass behind the defect - are removed; tests/golden_regression.py (not on R6's file list, but a mechanical follow-on of that removal) now steps through scheduler.step_once() instead, fixtures byte-unchanged. 11 new DEFECT REPRODUCTION tests, each confirmed to fail against the merge-base and pass after the fix. 1098 passed post-merge (up from 1083), mypy clean over 26 source files, no golden movement. Releases the spine lock and the app/main.py lock: R7 is next in the queue.",
+      "planned_files_not_on_main": [
+        "tests/test_api.py",
+        "tests/test_pump_api.py"
+      ]
     },
     {
       "id": "R7",
@@ -921,7 +937,11 @@
       ],
       "status": "Complete",
       "status_key": "done",
-      "note": "COMPLETE - merged to main as 3ed567a (Merge R8: Flow unit label, PR #91), 26 Sep 2026. 1525 passed on main, mypy clean over 39 source files, no golden trace moved. D8: static/compressor.js:51 and templates/compressor.html:130 changed from MMcfd to SCFM, one token each - the freeze on compressor.js was waived for this fix only, nothing else in that file touched. DEFECT REPRODUCTION: rendered /compressor page confirmed to show MMcfd before the fix and SCFM after. roborev-refine passed clean on first review, no findings."
+      "note": "COMPLETE - merged to main as 3ed567a (Merge R8: Flow unit label, PR #91), 26 Sep 2026. 1525 passed on main, mypy clean over 39 source files, no golden trace moved. D8: static/compressor.js:51 and templates/compressor.html:130 changed from MMcfd to SCFM, one token each - the freeze on compressor.js was waived for this fix only, nothing else in that file touched. DEFECT REPRODUCTION: rendered /compressor page confirmed to show MMcfd before the fix and SCFM after. roborev-refine passed clean on first review, no findings.",
+      "planned_files_not_on_main": [
+        "templates/compressor.html",
+        "static/compressor.js"
+      ]
     },
     {
       "id": "R9",
@@ -2042,10 +2062,18 @@
         "DEVELOPMENT.md",
         "docs/ARCHITECTURE.md"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true,
-      "note": ""
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged to main as 6c53940 (PR #140). 3108 passed post-merge, mypy clean over 81 files, no golden movement, CI test and docker green. Single-machine pages and the legacy Session are gone; main.py builds SessionRegistry(factory=TrainingSession); GET /api/snapshot added. The app serves no page until T16-11.",
+      "planned_files_not_on_main": [
+        "templates/compressor.html",
+        "templates/pump.html",
+        "static/compressor.js",
+        "static/pump.js",
+        "static/style.css",
+        "tests/test_api.py",
+        "tests/test_pump_api.py"
+      ]
     },
     {
       "id": "T16-13",
@@ -2069,10 +2097,7 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "T16-10"
-      ],
+      "startable": true,
       "note": ""
     },
     {
@@ -2131,10 +2156,7 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "T16-10"
-      ],
+      "startable": true,
       "note": ""
     },
     {

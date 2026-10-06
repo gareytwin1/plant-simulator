@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "6 October 2026",
-  "main_sha": "5923b8f",
-  "tests_passing_on_main": 3147,
+  "main_sha": "460ac4b",
+  "tests_passing_on_main": 3165,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -98,7 +98,7 @@
     },
     "M16": {
       "name": "Operator Console",
-      "complete": 7,
+      "complete": 8,
       "total": 13
     },
     "M17": {
@@ -119,7 +119,7 @@
   },
   "totals": {
     "tasks": 129,
-    "complete": 114,
+    "complete": 115,
     "startable_now": 10
   },
   "tasks": [
@@ -1953,10 +1953,9 @@
       "files": [
         "static/js/connection.js"
       ],
-      "status": "Ready for Review",
-      "status_key": "review",
-      "startable": true,
-      "note": "PR #142 (feature/stale-detection, 308f431 + roborev fixes). connection.js state machine (connecting/live/stale/closed), connection.css dimming and indicator, 18 Node-driven tests. 3126 passed, mypy clean, no golden movement, roborev-refine clean. Adds connection.css and tests/test_stale_connection.py beyond the plan's file list. Not mounted until T16-9."
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged to main as 460ac4b (PR #142). 3165 passed post-merge, mypy clean over 81 files, no golden movement, CI test and docker green. static/js/connection.js: connecting/live/stale/closed state machine over /api/stream (stale after max(3 intervals, 2s) or any error; closed needs a reload); connection.css dims data-live-value and shows an indicator; mount requires intervalSeconds. Adds connection.css and tests/test_stale_connection.py beyond the plan's file list. Not mounted on a page until T16-9."
     },
     {
       "id": "T16-6",

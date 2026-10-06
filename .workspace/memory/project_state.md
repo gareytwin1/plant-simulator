@@ -8,12 +8,12 @@ regrowth rule is in [.claude/rules/docs.md](../../.claude/rules/docs.md).
 
 ## Right now
 
-**Last state refresh:** 6 October 2026, at `5923b8f` (Merge T16-11: Landing page,
-PR #141) - **this is a snapshot,
-not a live pointer.** Run `git log 5923b8f..HEAD --oneline` to see what has
+**Last state refresh:** 6 October 2026, at `460ac4b` (Merge T16-5: Stale connection handling,
+PR #142) - **this is a snapshot,
+not a live pointer.** Run `git log 460ac4b..HEAD --oneline` to see what has
 merged since.
-**Full suite as of this refresh:** **3147 passed** · `python -m mypy` clean over 81 source files · no golden trace movement
-**In flight:** T16-5 (stale connection handling) is Ready for Review as PR #142, not yet merged.
+**Full suite as of this refresh:** **3165 passed** · `python -m mypy` clean over 81 source files · no golden trace movement
+**In flight:** nothing.
 **No spine lock is held.** No task is Blocked. CI runs on every PR, and `main` requires its
 `test` check before a merge.
 
@@ -22,12 +22,12 @@ merged since.
 
 | Task | SHA | What landed |
 |---|---|---|
+| **T16-5** | `460ac4b` | Stale connection handling: `static/js/connection.js` tracks `/api/stream` as connecting, live, stale (no snapshot for max(3 intervals, 2s), or any stream error; the next snapshot clears it) or closed (the browser gave up; a reload is needed) and sets `data-connection`; `connection.css` dims `data-live-value` elements and shows an indicator; `mount` requires `intervalSeconds`. Not mounted on a page until T16-9 (PR #142) |
 | **T16-11** | `5923b8f` | Landing page: `GET /` renders free play, the six scenarios by title, briefing and difficulty (never the description) and where the session's plant stands; it never starts a scheduler. `templates/base.html` is the shared header, with an Auto/Light/Dark theme toggle (`static/js/theme.js`). Scenario files gain optional `title` and `briefing` (config 1.0.1); `ScenarioLibrary.catalogue()` is built once at import in `main.py` and refuses an id that is not its file name; `TrainingSession.standing()` reports free play or the loaded scenario id; the scenario routes are registered on the app; the Dockerfile copies `templates` again. Scenario ids still go to `/api/scenario/load` until T16-12 (PR #141) |
 | **T16-10** | `6c53940` | Single-machine pages retired: the compressor and pump pages, routes, scripts and the two-plant `Session` are deleted; `SessionRegistry` takes a required `factory` and `main.py` builds `TrainingSession`; `GET /api/snapshot` (C5) answers the caller's training snapshot and never starts the scheduler; `/health/engine` reports a `training` scheduler. The golden harness owns its own single-machine plants and row assembly (traces byte-unchanged). **The app serves no page, only the health probes and `/api/snapshot`, until T16-11.** The suite dropped from 3175 to 3108 because the legacy API test files went (PR #140) |
 | **T16-8** | `da9b2d8` | Training session: `app/training/session.py` `TrainingSession` is a standalone session (not a `Session`) owning a free-play `PlantRuntime` (`config.FREE_PLAY_PLANT` at `FREE_PLAY_CONDITION`), a `ScenarioRunner` and one `Scheduler` over itself; step and snapshot follow the runner while a scenario is loaded, and every write is a scheduler command under `step_lock`. `SessionRegistry` is generic over any `Endable` session with a `factory` (default `Session`) and `lease(session_id)`, which pins a session against the idle sweep (T16-9 passes it as the stream's `hold`); the scenario blueprint takes a `ScenarioControl` protocol and gains `POST /api/scenario/unload`. `main.py` and the registry's default factory are unchanged: T16-9 switches them after T16-10 retires the legacy routes. 32 plants step in ~20 ms per round, so `MAX_SESSIONS` stays 32 (PR #139) |
 | **T18-9** | `ed5934e` | Stream transport under Gunicorn: `_socket_of` also reads `gunicorn.socket`, so a client that stops reading is dropped within the dropout bound under the T18-1 deployment; the socket's prior timeout is restored on response close (after the server's closing write; gthread reuses kept-alive connections); `create_stream_blueprint` takes an optional `hold` context manager, entered before the first event and exited when the stream ends (T16-9 passes the T16-8 session lease). Tested under a real Gunicorn gthread server (PR #138) |
 | **T16-7** | `d2b7583` | Scenarios run on the plant runtime: `ScenarioRunner` builds a `PlantRuntime` after `restore_state` on arm and on abort (the action log is carried over an abort), steps it, and routes `act` through it, so an interlock `reset` is journaled and replayed; adds `acknowledge`, `alarm_entries` and `unload`. Known gap: a scenario malfunction reaches the trip check one step late (needs `PlantRuntime.invalidate()`, T16-6's file). |
-| **T16-6** | `a4c5882` | Plant runtime: `app/training/runtime.py` `PlantRuntime` wraps an `Engine` and is `Steppable`; each step runs `TripSystem.update`, `Engine.step`, then one `EnvelopeEvent` per configured limit into `AlarmManager` and `AlarmHistory` (also once at construction). `act()` is the one operator entry point (device actions, interlock `reset`); one lock covers step, act, acknowledge and history reads. The acknowledge sequence moved to `app/alarms/acknowledge.py` and `create_alarm_blueprint` takes `(get_entries, acknowledge)`. Not wired into any session yet (T16-7, T16-8); `app/training` is orchestration in the layer guard (PR #136) |
 
 **ADRs on `main`:** [0001](../../docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md)
 (+ Amendment 1) and [0002](../../docs/ADR_0002_TYPED_PORTS.md) (+ Amendments
@@ -41,18 +41,18 @@ Complete: **M0-M9, M12, M13, M14, M15, MR**. Open:
 |---|---|---|
 | **M10** Alarms | 4/5 | T10-1, T10-2, T10-3, T10-5; T10-4 startable (V1.1-deferred) |
 | **M11** Interlocks and Trips | 3/4 | T11-1, T11-2, T11-3; T11-4 startable (V1.1-deferred) |
-| **M16** Operator Console | 7/13 | T16-1, T16-2, T16-6, T16-7, T16-8, T16-10, T16-11; T16-5 Ready for Review (PR #142); T16-3, T16-4, T16-12 and T16-13 startable; T16-9 chains behind T16-12 and T16-13 |
+| **M16** Operator Console | 8/13 | T16-1, T16-2, T16-5, T16-6, T16-7, T16-8, T16-10, T16-11; T16-3, T16-4, T16-12 and T16-13 startable; T16-9 chains behind T16-12 and T16-13 |
 | **M17** Historian and Trends | 1/4 | T17-1; T17-2 startable (V1.1-deferred) |
 | **M18** Deployment | 8/9 | T18-1 to T18-7, T18-9; T18-8 (rate limit behind a reverse proxy) startable once Opus decides its shape |
 | M19 | 0 | - |
 
-**114 of 129 tasks Complete.** Checkpoints A-C reached. Checkpoint **D** (M8)
+**115 of 129 tasks Complete.** Checkpoints A-C reached. Checkpoint **D** (M8)
 needs only its "loops reject an injected disturbance" gate: PIC-101 switched to
 AUTO in `olefins_lite.yaml`, which T8-6 enabled but no task owns yet.
 
 ## The next task
 
-**10 tasks are startable** - list them from
+**9 tasks are startable** - list them from
 [BUILD_PLAN_STATUS.json](../../docs/BUILD_PLAN_STATUS.json) (`startable`
 field). All are Sonnet except T18-8 (Opus: it decides how the rate limiter trusts a proxy header). T10-4, T11-4 and T17-2 are V1.1-deferred;
 T19-2 (startable - its other dependency, T13-1, was already Complete) is

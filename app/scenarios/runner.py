@@ -182,8 +182,9 @@ class ScenarioLibrary:
 
     def catalogue(self) -> tuple[CatalogueEntry, ...]:
         """Every scenario file, easiest first and then by title. A file that
-        fails the schema raises `ScenarioConfigError`, so a bad file is found
-        here rather than hidden."""
+        fails the schema, or whose `id` is not its file name, raises
+        `ScenarioConfigError`, so a bad file is found here rather than hidden.
+        It reads every file: build it once, not per request."""
         entries = []
 
         for path in self.scenarios.iterdir():
@@ -194,6 +195,9 @@ class ScenarioLibrary:
             errors = validate(document, _schema())
             if errors:
                 raise ScenarioConfigError(f"{path.name}: " + "; ".join(errors))
+
+            if document["id"] != path.stem:
+                raise ScenarioConfigError(f"{path.name}: id {document['id']!r} must equal the file name {path.stem!r}")
 
             entries.append(
                 CatalogueEntry(

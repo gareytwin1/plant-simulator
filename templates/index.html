@@ -5,11 +5,11 @@
 {% block content %}
 <h1>Operator training</h1>
 
-<section class="panel" aria-labelledby="standing-heading" id="standing" data-mode="{{ standing.mode }}">
+<section class="panel" aria-labelledby="standing-heading" id="standing" data-mode="{{ standing.mode }}" data-phase-labels='{{ phase_labels|tojson }}'>
   <h2 id="standing-heading">Your plant</h2>
   <p class="standing-line">
-    <span class="standing-mode" id="standing-mode">{% if standing.mode == "scenario" %}Scenario{% if standing.title %}: {{ standing.title }}{% endif %}{% else %}Free play{% endif %}</span>
-    <span class="standing-phase" id="standing-phase">{{ phase_label }}</span>
+    <span class="standing-mode" id="standing-mode">{% if standing.mode == "scenario" %}Scenario{% if title %}: {{ title }}{% endif %}{% else %}Free play{% endif %}</span>
+    <span class="standing-phase" id="standing-phase">{{ phase_labels[standing.phase] }}</span>
     <span class="standing-time">Plant time <span id="standing-time">{{ "%.0f"|format(standing.sim_time) }}</span> s</span>
   </p>
 </section>

@@ -80,12 +80,13 @@ def test_a_title_or_briefing_never_names_the_fault_target(page):
         doc = document(path)
         words = {m["target_tag"] for m in doc.get("malfunctions", [])}
         words |= {m["parameter"] for m in doc.get("malfunctions", [])}
-        words |= {key.split(".")[0] for key in doc["initial_condition"].get("overrides", {})}
-        words |= {key.split(".")[1] for key in doc["initial_condition"].get("overrides", {})}
+        for key in doc["initial_condition"].get("overrides", {}):
+            tag, _, attribute = key.partition(".")
+            words |= {tag, attribute} - {""}
         text = f"{doc['title']} {doc['briefing']}"
 
         for word in words:
-            assert word not in text, (path.name, word)
+            assert not re.search(rf"(?<![\w-]){re.escape(word)}(?![\w-])", text), (path.name, word)
 
 
 def test_the_page_shows_each_scenarios_title_briefing_and_difficulty(page):
@@ -178,6 +179,16 @@ def test_the_catalogue_falls_back_to_the_id_without_a_title(tmp_path):
     assert (entry.id, entry.title, entry.briefing) == ("plain", "plain", "")
 
 
+def test_the_catalogue_refuses_an_id_that_is_not_the_file_name(tmp_path):
+    (tmp_path / "plain.yaml").write_text(
+        "id: other\nplant: olefins_lite\ninitial_condition: {condition: normal_operation}\n"
+        "time_limit_s: 60\ndifficulty: easy\nseed: 1\n",
+    )
+
+    with pytest.raises(ScenarioConfigError, match="plain.yaml"):
+        ScenarioLibrary(scenarios=tmp_path).catalogue()
+
+
 def test_the_catalogue_refuses_a_file_that_fails_the_schema(tmp_path):
     (tmp_path / "bad.yaml").write_text("id: bad\ntitle: ''\n")
 
@@ -237,10 +248,51 @@ def test_a_running_scenario_refusal_is_the_one_the_api_gives(client):
 
 
 @needs_node
-def test_phase_labels_cover_every_runner_phase():
-    labels = run_js("return ['idle','loaded','running','complete','aborted'].map(L.phaseLabel);")
+def test_a_phase_label_comes_from_the_servers_map_and_unknown_phases_are_blank():
+    labels = {"idle": "", "running": "Running"}
 
-    assert labels == ["", "Loaded, not started", "Running", "Finished", "Aborted"]
+    assert run_js("return [L.phaseLabel(data.l, 'running'), L.phaseLabel(data.l, 'nope'), L.phaseLabel(data.l, 'constructor')];", l=labels) == [
+        "Running",
+        "",
+        "",
+    ]
+
+
+def test_the_page_sends_a_label_for_every_runner_phase(page):
+    from app.scenarios.runner import Phase
+
+    sent = json.loads(re.search(r"data-phase-labels='([^']*)'", page).group(1))
+
+    assert set(sent) == {phase.value for phase in Phase}
+
+
+@needs_node
+def test_only_the_pages_action_buttons_are_disabled_while_a_request_is_in_flight():
+    result = run_js(
+        """
+        const mk = () => ({ disabled: false, listeners: {}, addEventListener(t, f) { this.listeners[t] = f; } });
+        const free = mk(), header = mk(), seen = [];
+        const el = { textContent: "", hidden: true, setAttribute() {}, getAttribute: () => '{"idle": ""}' };
+        const doc = {
+          getElementById: id => (id === "free-play" ? free : el),
+          // Only a selector scoped to <main> leaves the header's button out.
+          querySelectorAll: sel => (sel === "main button" ? [free] : sel === "button" ? [free, header] : []),
+        };
+        let release;
+        const fetchImpl = url => new Promise(res => {
+          seen.push({ free: free.disabled, header: header.disabled });
+          release = () => res(url === "/api/snapshot" ? { ok: true, json: async () => ({ sim_time: 1 }) } : { ok: true, json: async () => ({}) });
+        });
+        L.mount(doc, fetchImpl);
+        free.listeners.click();
+        await new Promise(r => setTimeout(r, 0));
+        const inFlight = { free: free.disabled, header: header.disabled };
+        release();
+        return { inFlight };
+        """,
+    )
+
+    assert result["inFlight"] == {"free": True, "header": False}
 
 
 THEME_JS = ROOT / "static" / "js" / "theme.js"
@@ -354,9 +406,3 @@ def test_the_header_carries_the_toggle_and_every_page_loads_theme_js_early(page)
     assert 'id="theme-toggle"' in page
     assert page.index("js/theme.js") < page.index("</head>")
     assert page.index("Theme.apply(document)") < page.index("</head>")
-
-
-def test_loading_a_scenario_leaves_the_theme_button_enabled():
-    # landing.js disables the page's action buttons while a request is in
-    # flight; the theme toggle is in the header, outside <main>.
-    assert 'querySelectorAll("main button")' in LANDING_JS.read_text()

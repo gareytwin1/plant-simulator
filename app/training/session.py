@@ -55,20 +55,19 @@ from app.training.runtime import PlantRuntime
 @dataclass(frozen=True)
 class Standing:
     """Where the session's plant stands, as the landing page shows it: free
-    play, or a scenario in some phase. `title` is the loaded scenario's title,
-    never its id or description."""
+    play, or a scenario in some phase. `scenario_id` is the loaded scenario's
+    id, for a caller to look its title up: it is never sent to a page."""
 
     mode: str
     phase: str
     sim_time: float
-    title: str | None
+    scenario_id: str | None
 
 
 class TrainingSession:
     def __init__(self, library: ScenarioLibrary | None = None) -> None:
         library = library if library is not None else ScenarioLibrary()
 
-        self._library = library
         self.free = _free_play(library)
         self.runner = ScenarioRunner(library)
         self.training_scheduler = Scheduler(self)
@@ -143,10 +142,7 @@ class TrainingSession:
             if phase is Phase.IDLE:
                 return Standing("free_play", phase.value, sim_time, None)
 
-            scenario_id = self.runner.result().scenario_id
-            titles = {entry.id: entry.title for entry in self._library.catalogue()}
-
-            return Standing("scenario", phase.value, sim_time, titles.get(scenario_id))
+            return Standing("scenario", phase.value, sim_time, self.runner.result().scenario_id)
 
     def _plant(self) -> PlantRuntime | ScenarioRunner:
         return self.free if self.runner.phase is Phase.IDLE else self.runner

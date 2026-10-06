@@ -14,14 +14,6 @@
   var UNLOAD_URL = "/api/scenario/unload";
   var SNAPSHOT_URL = "/api/snapshot";
 
-  var PHASE_LABEL = {
-    idle: "",
-    loaded: "Loaded, not started",
-    running: "Running",
-    complete: "Finished",
-    aborted: "Aborted",
-  };
-
   var api = {};
 
   api.refusalText = function (status) {
@@ -49,8 +41,10 @@
     return { url: UNLOAD_URL, init: { method: "POST" } };
   };
 
-  api.phaseLabel = function (phase) {
-    return PHASE_LABEL[phase] || "";
+  /* `labels` is the server's phase-to-text map, sent with the page so the text
+   * has one source. */
+  api.phaseLabel = function (labels, phase) {
+    return Object.prototype.hasOwnProperty.call(labels, phase) ? labels[phase] : "";
   };
 
   api.formatTime = function (seconds) {
@@ -61,6 +55,7 @@
 
   function mount(doc, fetchImpl) {
     var doFetch = fetchImpl || root.fetch.bind(root);
+    var labels = JSON.parse(doc.getElementById("standing").getAttribute("data-phase-labels"));
     var modeEl = doc.getElementById("standing-mode");
     var phaseEl = doc.getElementById("standing-phase");
     var timeEl = doc.getElementById("standing-time");
@@ -111,7 +106,7 @@
     doc.getElementById("free-play").addEventListener("click", function () {
       send(api.buildUnloadRequest(), function () {
         modeEl.textContent = "Free play";
-        phaseEl.textContent = api.phaseLabel("idle");
+        phaseEl.textContent = api.phaseLabel(labels, "idle");
         notice("Free play is ready.", "ok");
       });
     });
@@ -121,7 +116,7 @@
         var title = card.getAttribute("data-title");
         send(api.buildLoadRequest(card.getAttribute("data-scenario")), function (result) {
           modeEl.textContent = "Scenario: " + title;
-          phaseEl.textContent = api.phaseLabel(result.phase);
+          phaseEl.textContent = api.phaseLabel(labels, result.phase);
           notice(title + " is loaded.", "ok");
         });
       });

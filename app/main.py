@@ -1,3 +1,4 @@
+import functools
 import uuid
 
 from flask import Flask, Response, g, has_app_context, jsonify, render_template, request
@@ -22,7 +23,9 @@ app = Flask(
 
 SESSION_COOKIE = "plant_session_id"
 
-sessions = SessionRegistry(factory=TrainingSession)
+library = ScenarioLibrary()
+
+sessions = SessionRegistry(factory=functools.partial(TrainingSession, library))
 
 rate_limiter = validate.RateLimiter(config.API_RATE_PER_SECOND, config.API_RATE_BURST)
 
@@ -77,9 +80,13 @@ def load_session() -> None:
 
 app.register_blueprint(create_scenario_blueprint(lambda: g.plant))
 
-library = ScenarioLibrary()
+# Read once at import, so a bad scenario file stops the app at startup rather
+# than failing a request. Config is not reloaded while the app runs.
+CATALOGUE = library.catalogue()
+TITLES = {entry.id: entry.title for entry in CATALOGUE}
 
-PHASE_LABEL = {
+PHASE_LABELS = {
+    "idle": "",
     "loaded": "Loaded, not started",
     "running": "Running",
     "complete": "Finished",
@@ -104,8 +111,9 @@ def landing() -> ResponseReturnValue:
     return render_template(
         "index.html",
         standing=standing,
-        phase_label=PHASE_LABEL.get(standing.phase, ""),
-        scenarios=library.catalogue(),
+        title=TITLES.get(standing.scenario_id) if standing.scenario_id else None,
+        phase_labels=PHASE_LABELS,
+        scenarios=CATALOGUE,
     )
 
 

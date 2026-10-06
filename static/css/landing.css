@@ -42,6 +42,7 @@ a {
 .site-nav {
   display: flex;
   flex-wrap: wrap;
+  flex: 1;
   gap: 0.25rem 1rem;
 }
 
@@ -70,6 +71,15 @@ h2 {
 h3 {
   font-size: 1.05rem;
   margin: 0 0 0.25rem;
+}
+
+.theme-toggle {
+  padding: 0.25rem 0.75rem;
+  font-size: 0.9rem;
+}
+
+.theme-toggle[hidden] {
+  display: none;
 }
 
 .panel {

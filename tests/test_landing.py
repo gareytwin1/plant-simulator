@@ -241,3 +241,122 @@ def test_phase_labels_cover_every_runner_phase():
     labels = run_js("return ['idle','loaded','running','complete','aborted'].map(L.phaseLabel);")
 
     assert labels == ["", "Loaded, not started", "Running", "Finished", "Aborted"]
+
+
+THEME_JS = ROOT / "static" / "js" / "theme.js"
+
+
+def run_theme(body, **data):
+    script = (
+        f"const T = require({json.dumps(str(THEME_JS))});"
+        "const data = JSON.parse(require('fs').readFileSync(0, 'utf8'));"
+        f"(async () => {{ {body} }})()"
+        ".then(r => process.stdout.write(JSON.stringify(r === undefined ? null : r)))"
+        ".catch(e => { console.error(e); process.exit(1); });"
+    )
+    result = subprocess.run(["node", "-e", script], input=json.dumps(data), capture_output=True, text=True, check=True)
+    return json.loads(result.stdout)
+
+
+# A stand-in for the page: a <html> with attributes, a toggle button, storage.
+STUB = """
+function makeDoc() {
+  const attrs = {};
+  const handlers = [];
+  const button = {
+    hidden: true, textContent: "", attrs: {},
+    setAttribute(k, v) { this.attrs[k] = v; },
+    addEventListener(_, fn) { handlers.push(fn); },
+  };
+  return {
+    attrs, button, click() { handlers.forEach(fn => fn()); },
+    documentElement: {
+      setAttribute(k, v) { attrs[k] = v; },
+      removeAttribute(k) { delete attrs[k]; },
+    },
+    getElementById(id) { return id === "theme-toggle" ? button : null; },
+  };
+}
+function makeWin(store, throws) {
+  return { localStorage: throws
+    ? { getItem() { throw new Error("blocked"); }, setItem() { throw new Error("blocked"); } }
+    : { getItem: k => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = v; } } };
+}
+"""
+
+
+@needs_node
+def test_the_theme_cycles_auto_light_dark_and_back():
+    order = run_theme("let c = 'auto'; const seen = []; for (let i = 0; i < 4; i++) { c = T.next(c); seen.push(c); } return seen;")
+
+    assert order == ["light", "dark", "auto", "light"]
+
+
+@needs_node
+@pytest.mark.parametrize("stored", [None, "", "sepia", "constructor", "__proto__"])
+def test_an_unknown_stored_theme_is_auto(stored):
+    assert run_theme("return T.normalise(data.v);", v=stored) == "auto"
+
+
+@needs_node
+def test_a_saved_theme_is_painted_before_the_page_draws():
+    result = run_theme(STUB + "const d = makeDoc(); T.apply(d, makeWin({plant_theme: 'dark'})); return d.attrs;")
+
+    assert result == {"data-theme": "dark"}
+
+
+@needs_node
+def test_auto_removes_the_override_so_the_os_preference_applies():
+    result = run_theme(STUB + "const d = makeDoc(); d.attrs['data-theme'] = 'dark'; T.apply(d, makeWin({})); return d.attrs;")
+
+    assert result == {}
+
+
+@needs_node
+def test_the_button_cycles_paints_labels_and_saves_the_choice():
+    result = run_theme(
+        STUB
+        + """
+        const d = makeDoc(); const store = {}; const win = makeWin(store);
+        T.mount(d, win);
+        const steps = [{ label: d.button.textContent, hidden: d.button.hidden, theme: d.attrs["data-theme"] ?? null }];
+        for (let i = 0; i < 3; i++) {
+          d.click();
+          steps.push({ label: d.button.textContent, theme: d.attrs["data-theme"] ?? null, saved: store.plant_theme });
+        }
+        return steps;
+        """,
+    )
+
+    assert result == [
+        {"label": "Theme: Auto", "hidden": False, "theme": None},
+        {"label": "Theme: Light", "theme": "light", "saved": "light"},
+        {"label": "Theme: Dark", "theme": "dark", "saved": "dark"},
+        {"label": "Theme: Auto", "theme": None, "saved": "auto"},
+    ]
+
+
+@needs_node
+def test_a_page_with_blocked_storage_still_cycles():
+    result = run_theme(
+        STUB
+        + """
+        const d = makeDoc(); const win = makeWin({}, true);
+        T.apply(d, win); T.mount(d, win); d.click();
+        return [d.button.textContent, d.attrs["data-theme"]];
+        """,
+    )
+
+    assert result == ["Theme: Light", "light"]
+
+
+def test_the_header_carries_the_toggle_and_every_page_loads_theme_js_early(page):
+    assert 'id="theme-toggle"' in page
+    assert page.index("js/theme.js") < page.index("</head>")
+    assert page.index("Theme.apply(document)") < page.index("</head>")
+
+
+def test_loading_a_scenario_leaves_the_theme_button_enabled():
+    # landing.js disables the page's action buttons while a request is in
+    # flight; the theme toggle is in the header, outside <main>.
+    assert 'querySelectorAll("main button")' in LANDING_JS.read_text()

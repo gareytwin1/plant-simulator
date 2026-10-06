@@ -65,7 +65,7 @@
     var phaseEl = doc.getElementById("standing-phase");
     var timeEl = doc.getElementById("standing-time");
     var noticeEl = doc.getElementById("notice");
-    var buttons = Array.prototype.slice.call(doc.querySelectorAll("button"));
+    var buttons = Array.prototype.slice.call(doc.querySelectorAll("main button"));
 
     function notice(text, kind) {
       noticeEl.textContent = text;

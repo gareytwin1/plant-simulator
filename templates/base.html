@@ -6,6 +6,8 @@
   <title>{% block title %}Plant Simulator{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/tokens.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/landing.css') }}">
+  <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+  <script>Theme.apply(document);</script>
   {% block head %}{% endblock %}
 </head>
 <body>
@@ -14,10 +16,12 @@
     <nav class="site-nav" aria-label="Main">
       <a href="{{ url_for('landing') }}"{% if request.endpoint == 'landing' %} aria-current="page"{% endif %}>Home</a>
     </nav>
+    <button type="button" id="theme-toggle" class="theme-toggle" hidden>Theme: Auto</button>
   </header>
   <main>
     {% block content %}{% endblock %}
   </main>
+  <script>Theme.mount(document);</script>
   {% block scripts %}{% endblock %}
 </body>
 </html>

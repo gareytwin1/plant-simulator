@@ -143,3 +143,18 @@ def test_concurrent_read_during_write_is_safe():
 
     assert errors == []
     assert len(historian.history("PT-101")) == capacity
+
+
+def test_a_step_one_float_ulp_short_of_the_period_is_still_recorded():
+    historian = Historian(capacity=10, sample_period=1.0)
+    almost = 0.0
+
+    for _ in range(10):
+        almost += 0.1
+
+    assert almost < 1.0
+
+    historian.record("X.v", 0.0, 1.0)
+    historian.record("X.v", almost, 2.0)
+
+    assert [sample.value for sample in historian.history("X.v")] == [1.0, 2.0]

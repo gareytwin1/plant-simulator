@@ -293,8 +293,15 @@
       fields.OUT.textContent = m.out;
 
       fill.style.width = (m.outPercent === null ? 0 : m.outPercent) + "%";
-      if (m.outPercent === null) bar.removeAttribute("aria-valuenow");
-      else bar.setAttribute("aria-valuenow", m.outPercent.toFixed(1));
+      // A meter must carry a value; with none to show, the bar is hidden from
+      // assistive tech (the OUT reading beside it already says "--").
+      if (m.outPercent === null) {
+        bar.removeAttribute("aria-valuenow");
+        bar.setAttribute("aria-hidden", "true");
+      } else {
+        bar.setAttribute("aria-valuenow", m.outPercent.toFixed(1));
+        bar.removeAttribute("aria-hidden");
+      }
 
       buttons.manual.setAttribute("aria-pressed", String(m.mode === "MANUAL"));
       buttons.auto.setAttribute("aria-pressed", String(m.mode === "AUTO"));

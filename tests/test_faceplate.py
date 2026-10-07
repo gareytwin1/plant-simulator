@@ -426,3 +426,29 @@ def test_a_plant_with_no_loops_says_so():
     )
 
     assert result == "No controllers in this plant."
+
+
+@needs_node
+def test_the_output_bar_is_a_valid_meter_or_hidden_from_assistive_tech(session):
+    snapshot = view(session)
+    unknown = json.loads(json.dumps(snapshot))
+    del unknown["controllers"]["PIC-101"]["out"]
+
+    result = run_glue(
+        """
+        const bar = () => find('PIC-101', n => n.getAttribute('role') === 'meter');
+        const read = () => ({ now: bar().getAttribute('aria-valuenow'), hidden: bar().getAttribute('aria-hidden') });
+        plates.update(data.known);
+        const known = read();
+        plates.update(data.unknown);
+        const missing = read();
+        plates.update(data.known);
+        return { known, missing, back: read() };
+        """,
+        known=snapshot,
+        unknown=unknown,
+    )
+
+    assert result["known"] == {"now": "50.0", "hidden": None}
+    assert result["missing"] == {"now": None, "hidden": "true"}
+    assert result["back"] == result["known"]

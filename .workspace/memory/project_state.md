@@ -8,11 +8,11 @@ regrowth rule is in [.claude/rules/docs.md](../../.claude/rules/docs.md).
 
 ## Right now
 
-**Last state refresh:** 6 October 2026, at `219701d` (Merge T16-12: Keep a scenario's cause out of the browser until the run ends,
-PR #143) - **this is a snapshot,
-not a live pointer.** Run `git log 219701d..HEAD --oneline` to see what has
+**Last state refresh:** 6 October 2026, at `43e7db7` (Merge T16-13: Operator view of the snapshot,
+PR #144) - **this is a snapshot,
+not a live pointer.** Run `git log 43e7db7..HEAD --oneline` to see what has
 merged since.
-**Full suite as of this refresh:** **3193 passed** · `python -m mypy` clean over 81 source files · no golden trace movement
+**Full suite as of this refresh:** **3210 passed** · `python -m mypy` clean over 82 source files · no golden trace movement
 **In flight:** nothing.
 **No spine lock is held.** No task is Blocked. CI runs on every PR, and `main` requires its
 `test` check before a merge.
@@ -22,12 +22,12 @@ merged since.
 
 | Task | SHA | What landed |
 |---|---|---|
+| **T16-13** | `43e7db7` | Operator view: `app/api/visibility.py` holds `VISIBLE`, a per-class allowlist (measurements, run status, the operator's own commands; never a fault flag, a malfunction-writable parameter or a model internal), and `operator_view(snapshot, equipment)`; a class with no entry or an unknown tag shows an empty row. `TrainingSession.operator_view` classes rows by the plant the last command left showing and takes no lock; `/api/snapshot` serves it; `create_stream_blueprint` takes an optional `get_view` whose default stays the full snapshot, **so T16-9 must pass the session's**. Trips, alarms and scenarios still read the full snapshot; `nodes` and `streams` still show every solved point (PR #144) |
 | **T16-12** | `219701d` | Scenario disclosure: the browser holds an opaque `key` (first 12 hex digits of sha256 of the id; a spoiler guard, not a security boundary) and `POST /api/scenario/load` takes it. `public_result` in `app/api/scenario.py` renders every result: while loaded or running it omits the id, seed, trigger and objective ids and outcome; once complete or aborted it adds them plus the description as `debrief` (an abort reveals it at once). Refusals quote no id, tag or parameter (generic 400, detail in the request log). `ScenarioRunner`, replay and scores keep real ids. `main.py` is unchanged, so the blueprint builds its own default `ScenarioLibrary()` (PR #143) |
 | **T16-5** | `460ac4b` | Stale connection handling: `static/js/connection.js` tracks `/api/stream` as connecting, live, stale (no snapshot for max(3 intervals, 2s), or any stream error; the next snapshot clears it) or closed (the browser gave up; a reload is needed) and sets `data-connection`; `connection.css` dims `data-live-value` elements and shows an indicator; `mount` requires `intervalSeconds`. Not mounted on a page until T16-9 (PR #142) |
 | **T16-11** | `5923b8f` | Landing page: `GET /` renders free play, the six scenarios by title, briefing and difficulty (never the description) and where the session's plant stands; it never starts a scheduler. `templates/base.html` is the shared header, with an Auto/Light/Dark theme toggle (`static/js/theme.js`). Scenario files gain optional `title` and `briefing` (config 1.0.1); `ScenarioLibrary.catalogue()` is built once at import in `main.py` and refuses an id that is not its file name; `TrainingSession.standing()` reports free play or the loaded scenario id; the scenario routes are registered on the app; the Dockerfile copies `templates` again. Scenario ids still go to `/api/scenario/load` until T16-12 (PR #141) |
 | **T16-10** | `6c53940` | Single-machine pages retired: the compressor and pump pages, routes, scripts and the two-plant `Session` are deleted; `SessionRegistry` takes a required `factory` and `main.py` builds `TrainingSession`; `GET /api/snapshot` (C5) answers the caller's training snapshot and never starts the scheduler; `/health/engine` reports a `training` scheduler. The golden harness owns its own single-machine plants and row assembly (traces byte-unchanged). **The app serves no page, only the health probes and `/api/snapshot`, until T16-11.** The suite dropped from 3175 to 3108 because the legacy API test files went (PR #140) |
 | **T16-8** | `da9b2d8` | Training session: `app/training/session.py` `TrainingSession` is a standalone session (not a `Session`) owning a free-play `PlantRuntime` (`config.FREE_PLAY_PLANT` at `FREE_PLAY_CONDITION`), a `ScenarioRunner` and one `Scheduler` over itself; step and snapshot follow the runner while a scenario is loaded, and every write is a scheduler command under `step_lock`. `SessionRegistry` is generic over any `Endable` session with a `factory` (default `Session`) and `lease(session_id)`, which pins a session against the idle sweep (T16-9 passes it as the stream's `hold`); the scenario blueprint takes a `ScenarioControl` protocol and gains `POST /api/scenario/unload`. `main.py` and the registry's default factory are unchanged: T16-9 switches them after T16-10 retires the legacy routes. 32 plants step in ~20 ms per round, so `MAX_SESSIONS` stays 32 (PR #139) |
-| **T18-9** | `ed5934e` | Stream transport under Gunicorn: `_socket_of` also reads `gunicorn.socket`, so a client that stops reading is dropped within the dropout bound under the T18-1 deployment; the socket's prior timeout is restored on response close (after the server's closing write; gthread reuses kept-alive connections); `create_stream_blueprint` takes an optional `hold` context manager, entered before the first event and exited when the stream ends (T16-9 passes the T16-8 session lease). Tested under a real Gunicorn gthread server (PR #138) |
 
 **ADRs on `main`:** [0001](../../docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md)
 (+ Amendment 1) and [0002](../../docs/ADR_0002_TYPED_PORTS.md) (+ Amendments
@@ -41,12 +41,12 @@ Complete: **M0-M9, M12, M13, M14, M15, MR**. Open:
 |---|---|---|
 | **M10** Alarms | 4/5 | T10-1, T10-2, T10-3, T10-5; T10-4 startable (V1.1-deferred) |
 | **M11** Interlocks and Trips | 3/4 | T11-1, T11-2, T11-3; T11-4 startable (V1.1-deferred) |
-| **M16** Operator Console | 9/13 | T16-1, T16-2, T16-5, T16-6, T16-7, T16-8, T16-10, T16-11, T16-12; T16-3, T16-4 and T16-13 startable (T16-13 in review, PR #144); T16-9 chains behind T16-13 |
+| **M16** Operator Console | 10/13 | T16-1, T16-2, T16-5, T16-6, T16-7, T16-8, T16-10, T16-11, T16-12, T16-13; T16-3, T16-4 and T16-9 startable |
 | **M17** Historian and Trends | 1/4 | T17-1; T17-2 startable (V1.1-deferred) |
 | **M18** Deployment | 8/9 | T18-1 to T18-7, T18-9; T18-8 (rate limit behind a reverse proxy) startable once Opus decides its shape |
 | M19 | 0 | - |
 
-**116 of 129 tasks Complete.** Checkpoints A-C reached. Checkpoint **D** (M8)
+**117 of 129 tasks Complete.** Checkpoints A-C reached. Checkpoint **D** (M8)
 needs only its "loops reject an injected disturbance" gate: PIC-101 switched to
 AUTO in `olefins_lite.yaml`, which T8-6 enabled but no task owns yet.
 
@@ -58,13 +58,11 @@ field). All are Sonnet except T18-8 (Opus: it decides how the rate limiter trust
 T19-2 (startable - its other dependency, T13-1, was already Complete) is
 deferred further still, to **V2**.
 
-**Next by leverage: T16-13, then T16-9** - the chain
-that puts the live plant, its trips, alarms and scenarios behind the console.
-T16-13 (in review, PR #144) sends the browser an operator view of the snapshot
-(no valve fault flags) and holds the `app/main.py` lock. T16-9 wires the console
-last, passing the shared `library` to `create_scenario_blueprint`. Shapes are
-decided in each task's build-plan note. T16-3 and T16-4 can still build against
-fixtures meanwhile.
+**Next by leverage: T16-9** - console wiring, which finally puts the live plant,
+its trips, alarms and scenarios behind a console. It takes the `app/main.py`
+lock, passes the shared `library` to `create_scenario_blueprint` and
+`get_view=lambda: g.plant.operator_view` to the stream. Its shape is decided in
+its build-plan note. T16-3 and T16-4 can still build against fixtures meanwhile.
 
 **Scheduling notes.** The spine lock is one global lock
 ([DEVELOPMENT.md](../../DEVELOPMENT.md#file-ownership)); it is free. **The container runs

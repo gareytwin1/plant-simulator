@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "6 October 2026",
-  "main_sha": "219701d",
-  "tests_passing_on_main": 3193,
+  "main_sha": "43e7db7",
+  "tests_passing_on_main": 3210,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -98,7 +98,7 @@
     },
     "M16": {
       "name": "Operator Console",
-      "complete": 9,
+      "complete": 10,
       "total": 13
     },
     "M17": {
@@ -119,7 +119,7 @@
   },
   "totals": {
     "tasks": 129,
-    "complete": 116,
+    "complete": 117,
     "startable_now": 9
   },
   "tasks": [
@@ -2094,10 +2094,9 @@
         "tests/test_stream.py",
         "tests/test_training_session.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true,
-      "note": ""
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged to main as 43e7db7 (PR #144). 3210 passed post-merge, mypy clean over 82 files, no golden movement, CI test and docker green. app/api/visibility.py: VISIBLE per-class allowlist and operator_view(); TrainingSession.operator_view classes rows by the plant the last command left showing and takes no lock; create_stream_blueprint takes an optional get_view (default stays the full snapshot, so T16-9 must pass the session's); /api/snapshot serves the operator view. tests/test_snapshot_api.py edited beyond the plan's file list."
     },
     {
       "id": "T16-9",
@@ -2122,10 +2121,7 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "T16-13"
-      ],
+      "startable": true,
       "note": ""
     },
     {

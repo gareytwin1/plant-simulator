@@ -48,7 +48,7 @@ plant_logging.configure(sim_time=_request_sim_time)
 plant_logging.log_requests(app, _request_sim_time)
 
 # First, so a refused request never reaches the session hook below.
-validate.install(app, lambda: rate_limiter)
+validate.install(app, lambda: rate_limiter, trusted_proxies=config.API_TRUSTED_PROXIES)
 
 
 def _health_schedulers() -> dict[str, Scheduler]:

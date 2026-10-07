@@ -1,4 +1,8 @@
+import json
 import math
+import os
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -368,6 +372,191 @@ def test_static_files_are_not_rate_limited():
     statuses = {client.get("/static/test_api_validation.py").status_code for _ in range(5)}
 
     assert statuses == {200}
+
+
+# ---- client key behind a reverse proxy ----
+
+
+PROXY = "10.0.0.5"
+PROXIES = validate.parse_trusted_proxies(["10.0.0.0/24"])
+
+
+def test_with_no_trusted_proxy_the_key_is_the_peer_and_the_header_is_ignored():
+    assert validate.client_key("10.0.0.5", "203.0.113.7", ()) == "10.0.0.5"
+
+
+def test_a_header_from_an_untrusted_peer_is_ignored():
+    assert validate.client_key("198.51.100.9", "203.0.113.7", PROXIES) == "198.51.100.9"
+
+
+def test_behind_a_trusted_proxy_the_key_is_the_forwarded_client():
+    assert validate.client_key(PROXY, "203.0.113.7", PROXIES) == "203.0.113.7"
+
+
+def test_a_client_cannot_choose_its_key_by_sending_its_own_header():
+    # The client sent "1.1.1.1"; the proxy appended the address it really saw.
+    assert validate.client_key(PROXY, "1.1.1.1, 203.0.113.7", PROXIES) == "203.0.113.7"
+
+
+def test_the_walk_skips_every_trusted_hop():
+    assert validate.client_key(PROXY, "203.0.113.7, 10.0.0.9", PROXIES) == "203.0.113.7"
+
+
+def test_an_unparseable_entry_keys_on_the_hop_that_reported_it():
+    assert validate.client_key(PROXY, "203.0.113.7, junk, 10.0.0.9", PROXIES) == "10.0.0.9"
+    assert validate.client_key(PROXY, "", PROXIES) == PROXY
+
+
+def test_a_chain_of_only_trusted_hops_keys_on_the_leftmost():
+    assert validate.client_key(PROXY, "10.0.0.8, 10.0.0.9", PROXIES) == "10.0.0.8"
+
+
+def test_an_ipv4_mapped_peer_matches_an_ipv4_proxy():
+    assert validate.client_key("::ffff:10.0.0.5", "203.0.113.7", PROXIES) == "203.0.113.7"
+
+
+def test_with_no_header_a_trusted_proxy_is_its_own_key():
+    assert validate.client_key(PROXY, None, PROXIES) == PROXY
+
+
+@pytest.mark.parametrize("entry", ["not-an-address", "10.0.0.0/33", ""])
+def test_a_bad_trusted_proxy_entry_is_refused_at_startup(entry):
+    with pytest.raises(ValueError):
+        validate.parse_trusted_proxies([entry])
+
+
+def proxied_client(trusted, burst=1.0):
+    app = Flask(__name__)
+    limiter = validate.RateLimiter(rate=1.0, burst=burst, clock=FakeClock())
+    validate.install(app, lambda: limiter, trusted_proxies=trusted)
+
+    @app.get("/api/ping")
+    def ping():
+        return {"ok": True}
+
+    client = app.test_client()
+
+    def get(peer, forwarded_for=None):
+        headers = {"X-Forwarded-For": forwarded_for} if forwarded_for else {}
+        return client.get("/api/ping", headers=headers, environ_base={"REMOTE_ADDR": peer}).status_code
+
+    return get
+
+
+def test_without_a_trusted_proxy_clients_behind_one_share_its_bucket():
+    get = proxied_client(trusted=())
+
+    assert get(PROXY, "203.0.113.7") == 200
+    assert get(PROXY, "203.0.113.8") == 429
+
+
+def test_with_a_trusted_proxy_clients_behind_it_get_separate_buckets():
+    get = proxied_client(trusted=["10.0.0.0/24"])
+
+    assert get(PROXY, "203.0.113.7") == 200
+    assert get(PROXY, "203.0.113.8") == 200
+    assert get(PROXY, "203.0.113.7") == 429
+
+
+def test_a_spoofed_header_from_an_untrusted_peer_neither_evades_nor_shifts_the_limit():
+    get = proxied_client(trusted=["10.0.0.0/24"])
+
+    assert get("198.51.100.9", "203.0.113.7") == 200
+    assert get("198.51.100.9", "203.0.113.8") == 429
+    assert get(PROXY, "203.0.113.7") == 200
+
+
+def test_the_trusted_proxies_are_read_from_a_comma_separated_setting():
+    assert config.trusted_proxies_from_env(" 10.0.0.5, fd00::/8 ,") == ("10.0.0.5", "fd00::/8")
+    assert config.trusted_proxies_from_env("") == ()
+
+
+@pytest.mark.parametrize(
+    "header, expected",
+    [
+        ("203.0.113.7:51234", "203.0.113.7"),
+        ("[2001:db8::1]:443", "2001:db8::1"),
+        ("[2001:db8::1]", "2001:db8::1"),
+        (" 203.0.113.7 ", "203.0.113.7"),
+        ("203.0.113.7:5000, 10.0.0.9:4000", "203.0.113.7"),
+        ("[::ffff:203.0.113.7]:80", "203.0.113.7"),
+    ],
+)
+def test_a_forwarded_entry_may_carry_a_port_or_brackets(header, expected):
+    assert validate.client_key(PROXY, header, PROXIES) == expected
+
+
+def test_a_trusted_proxy_written_in_ipv4_mapped_form_still_matches():
+    proxies = validate.parse_trusted_proxies(["::ffff:10.0.0.0/120", "::ffff:10.1.0.5"])
+
+    assert validate.client_key("10.0.0.7", "203.0.113.7", proxies) == "203.0.113.7"
+    assert validate.client_key("10.1.0.5", "203.0.113.7", proxies) == "203.0.113.7"
+    assert validate.client_key("10.1.0.6", "203.0.113.7", proxies) == "10.1.0.6"
+
+
+@pytest.mark.parametrize("entry", ["::ffff:0:0/80", "::/0"])
+def test_a_range_straddling_the_ipv4_mapped_space_is_refused_at_startup(entry):
+    with pytest.raises(ValueError, match="straddles"):
+        validate.parse_trusted_proxies([entry])
+
+
+@pytest.mark.parametrize("entry", ["[1.2.3.4]", "[1.2.3.4]:80", "[::1", "[::1]x", "1.2.3.4:abc", "1.2.3.4:", "[::1]:", "[::1]:x", "1.2.3.4:99999", "[::1]:99999", "1.2.3.4:\u00b2", "1.2.3.4:" + "9" * 5000, "[::1]:" + "9" * 5000])
+def test_a_malformed_forwarded_entry_stops_the_walk_at_the_hop_that_wrote_it(entry):
+    assert validate.client_key(PROXY, f"203.0.113.7, {entry}", PROXIES) == PROXY
+
+
+def test_one_peer_gets_one_key_whatever_the_header():
+    keys = {
+        validate.client_key("::ffff:10.0.0.5", header, ())
+        for header in (None, "", "junk", "203.0.113.7")
+    }
+    keys |= {validate.client_key("::ffff:10.0.0.5", header, PROXIES) for header in (None, "", "junk")}
+
+    assert keys == {"10.0.0.5"}
+
+
+def test_the_live_app_wires_the_configured_proxies_into_the_limiter():
+    script = """
+import json
+
+from app import main, config
+from app.api import validate
+
+main.rate_limiter = validate.RateLimiter(rate=1.0, burst=1.0, clock=lambda: 0.0)
+client = main.app.test_client()
+
+
+def get(peer, forwarded_for):
+    response = client.get(
+        "/api/snapshot",
+        headers={"X-Forwarded-For": forwarded_for},
+        environ_base={"REMOTE_ADDR": peer},
+    )
+    return response.status_code
+
+
+statuses = [
+    get("10.0.0.5", "203.0.113.7"),
+    get("10.0.0.5", "203.0.113.8"),
+    get("198.51.100.9", "203.0.113.9"),
+    get("198.51.100.9", "203.0.113.10"),
+]
+print(json.dumps({"proxies": list(config.API_TRUSTED_PROXIES), "statuses": statuses}))
+"""
+    env = {**os.environ, "PLANT_TRUSTED_PROXIES": "10.0.0.0/24", "PYTHONPATH": str(Path(__file__).parent.parent)}
+
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        env=env,
+        capture_output=True,
+        text=True,
+        cwd=Path(__file__).parent.parent,
+        timeout=60,
+    )
+
+    assert result.returncode == 0, result.stderr
+    reported = json.loads(result.stdout.splitlines()[-1])
+    assert reported == {"proxies": ["10.0.0.0/24"], "statuses": [200, 200, 200, 429]}
 
 
 def test_the_live_app_rate_limits_and_refuses_before_creating_a_session(monkeypatch):

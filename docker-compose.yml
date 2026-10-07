@@ -5,8 +5,10 @@
 # per-process, so a second process splits one browser's session across two
 # plants. Scale with threads.
 #
-# Behind a reverse proxy the API rate limit is per client address, so every
-# client may share one bucket. Proxy-header handling is not done here.
+# Behind a reverse proxy, set PLANT_TRUSTED_PROXIES to the proxy's addresses or
+# CIDRs (comma-separated) so the API rate limit is per client, not per proxy.
+# Unset, X-Forwarded-For is ignored and every client behind the proxy shares
+# one bucket. See API_TRUSTED_PROXIES in app/config.py.
 services:
   plant-simulator:
     build:
@@ -15,4 +17,6 @@ services:
     image: plant-simulator
     ports:
       - "8000:8000"
+    environment:
+      PLANT_TRUSTED_PROXIES: ${PLANT_TRUSTED_PROXIES:-}
     restart: unless-stopped

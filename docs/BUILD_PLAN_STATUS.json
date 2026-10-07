@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "7 October 2026",
-  "main_sha": "67b8ee8",
-  "tests_passing_on_main": 3487,
+  "main_sha": "d9d00d2",
+  "tests_passing_on_main": 3545,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -103,7 +103,7 @@
     },
     "M17": {
       "name": "Historian and Trends",
-      "complete": 2,
+      "complete": 3,
       "total": 4
     },
     "M18": {
@@ -119,7 +119,7 @@
   },
   "totals": {
     "tasks": 130,
-    "complete": 123,
+    "complete": 124,
     "startable_now": 5
   },
   "tasks": [
@@ -2249,12 +2249,21 @@
         "T17-2"
       ],
       "files": [
-        "app/api/trend.py"
+        "app/api/trend.py",
+        "app/historian/points.py",
+        "app/training/runtime.py",
+        "app/scenarios/runner.py",
+        "app/training/session.py",
+        "app/main.py",
+        "app/config.py",
+        "tests/test_trend_api.py",
+        "tests/test_trend_points.py",
+        "tests/test_scheduler_ownership.py",
+        "docs/ARCHITECTURE.md"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true,
-      "note": ""
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged d9d00d2 (PR #153). Full suite 3545 passed on main, mypy clean, no golden movement. Shape decided by Opus 2026-10-07 (9678465)."
     },
     {
       "id": "T17-4",
@@ -2271,10 +2280,7 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "T17-3"
-      ],
+      "startable": true,
       "note": ""
     },
     {

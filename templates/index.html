@@ -26,7 +26,7 @@
   <h2 id="scenarios-heading">Scenarios</h2>
   <ul class="scenario-list">
     {% for scenario in scenarios %}
-    <li class="panel scenario" data-scenario="{{ scenario.id }}" data-title="{{ scenario.title }}">
+    <li class="panel scenario" data-scenario="{{ scenario.key }}" data-title="{{ scenario.title }}">
       <h3>{{ scenario.title }}</h3>
       <p class="difficulty" data-difficulty="{{ scenario.difficulty }}">Difficulty: {{ scenario.difficulty }}</p>
       <p>{{ scenario.briefing }}</p>

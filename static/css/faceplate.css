@@ -69,9 +69,9 @@
   margin: 0;
   font-variant-numeric: tabular-nums;
   font-weight: 700;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  /* A long reading wraps its unit onto a second line, never to an ellipsis:
+   * the number has no space to break at, and the unit must stay readable. */
+  overflow-wrap: normal;
 }
 
 .faceplate-bar {

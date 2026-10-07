@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "7 October 2026",
-  "main_sha": "23dd190",
-  "tests_passing_on_main": 3253,
+  "main_sha": "bcaae4c",
+  "tests_passing_on_main": 3294,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -99,7 +99,7 @@
     "M16": {
       "name": "Operator Console",
       "complete": 12,
-      "total": 13
+      "total": 14
     },
     "M17": {
       "name": "Historian and Trends",
@@ -108,7 +108,7 @@
     },
     "M18": {
       "name": "Deployment and Operations",
-      "complete": 8,
+      "complete": 9,
       "total": 9
     },
     "M19": {
@@ -118,9 +118,9 @@
     }
   },
   "totals": {
-    "tasks": 129,
-    "complete": 119,
-    "startable_now": 7
+    "tasks": 130,
+    "complete": 120,
+    "startable_now": 5
   },
   "tasks": [
     {
@@ -1930,15 +1930,23 @@
       "branch": "feature/faceplates",
       "depends_on": [
         "T16-1",
-        "T8-2"
+        "T8-2",
+        "T16-14"
       ],
       "files": [
-        "static/js/faceplate.js"
+        "static/js/faceplate.js",
+        "static/css/faceplate.css",
+        "templates/console.html",
+        "tests/test_faceplate.py",
+        "tests/test_console_api.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true,
-      "note": ""
+      "status": "Blocked",
+      "status_key": "block",
+      "startable": false,
+      "blocked_by": [
+        "T16-14"
+      ],
+      "note": "Blocked on T16-14: no operator action reached a loop, and the controllers row lacked tuning, output range and unit. Faceplate front end is being built on feature/faceplates on top of feature/loop-actions; it rebases onto main once T16-14 merges."
     },
     {
       "id": "T16-5",
@@ -2174,6 +2182,38 @@
       "note": "Merged to main as 219701d (PR #143). 3193 passed post-merge, mypy clean over 81 files, no golden movement, CI test and docker green. Scenario key (first 12 hex digits of sha256 of the id) replaces the id in the browser; POST /api/scenario/load takes it. One public_result renderer withholds id, seed, trigger and objective ids and outcome while a run is loaded or running, and reveals them plus the description as debrief once it is complete or aborted; refusals quote no id, tag or parameter (generic 400, detail in the request log); a finished run whose file changed gives an empty debrief, not a 500. Aborting reveals the debrief at once. The key is a spoiler guard, not a security boundary. app/main.py is unchanged, so the blueprint builds its own default ScenarioLibrary(); T16-9 can pass the shared one. Not viewed in a browser."
     },
     {
+      "id": "T16-14",
+      "milestone": "M16",
+      "name": "Operator loop actions",
+      "category": "core",
+      "branch": "feature/loop-actions",
+      "depends_on": [
+        "T8-4",
+        "T15-1",
+        "T16-9"
+      ],
+      "files": [
+        "app/api/action.py",
+        "app/training/runtime.py",
+        "app/controls/pid.py",
+        "app/controls/loader.py",
+        "app/engine/engine.py",
+        "config/schema/plant.schema.json",
+        "config/plants/olefins_lite.yaml",
+        "config/VERSION",
+        "tests/fixtures/config_version.json",
+        "tests/test_action.py",
+        "tests/test_pid.py",
+        "tests/test_loop_loader.py",
+        "tests/test_loop_execution.py",
+        "docs/ARCHITECTURE.md"
+      ],
+      "status": "In Progress",
+      "status_key": "prog",
+      "startable": true,
+      "note": "Shape decided by Opus 2026-10-07 (see the task). Holds the SPINE LOCK (app/engine/engine.py). Branch feature/loop-actions, worktree ../plant-simulator-loop-actions. Opus implements."
+    },
+    {
       "id": "T17-1",
       "milestone": "M17",
       "name": "Ring-buffer historian",
@@ -2397,10 +2437,9 @@
         "app/main.py",
         "tests/test_api_validation.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true,
-      "note": ""
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged to main as bcaae4c (PR #148). 3294 passed post-merge, mypy clean over 82 files, no golden movement. Allow-list shape (not ProxyFix): API_TRUSTED_PROXIES from env PLANT_TRUSTED_PROXIES, default empty = T18-3 behaviour; validate.client_key walks X-Forwarded-For right to left past trusted hops from a trusted peer. X-Forwarded-For only; request.remote_addr not rewritten. docker-compose.yml also edited. app/main.py lock released."
     },
     {
       "id": "T18-9",

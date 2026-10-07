@@ -170,7 +170,8 @@ def test_the_server_side_result_keeps_the_real_ids():
     assert result.scenario_id == "pump_trip"
 
 
-def test_a_finished_run_whose_file_has_gone_still_answers_without_a_debrief(tmp_path):
+@pytest.mark.parametrize("replacement", [None, b"", b"- a\n- list\n", b"\xff\xfe not utf-8"])
+def test_a_finished_run_whose_file_changed_still_answers_without_a_debrief(tmp_path, replacement):
     from flask import Flask
 
     from app.api.scenario import create_scenario_blueprint
@@ -185,10 +186,39 @@ def test_a_finished_run_whose_file_has_gone_still_answers_without_a_debrief(tmp_
     client = app.test_client()
     client.post("/api/scenario/load", json={"scenario": scenario_key("pump_trip")})
     client.post("/api/scenario/start")
-    target.unlink()
+    if replacement is None:
+        target.unlink()
+    else:
+        target.write_bytes(replacement)
 
     response = client.post("/api/scenario/abort")
 
     assert response.status_code == 200
     assert response.get_json()["debrief"] == ""
     assert client.get("/api/scenario/result").status_code == 200
+
+
+def test_a_finished_run_whose_file_cannot_be_read_still_answers_without_a_debrief(tmp_path, monkeypatch):
+    from flask import Flask
+
+    from app.api.scenario import create_scenario_blueprint
+    from app.scenarios.runner import ScenarioRunner
+
+    (tmp_path / "pump_trip.yaml").write_text((ScenarioLibrary().scenarios / "pump_trip.yaml").read_text())
+    library = ScenarioLibrary(scenarios=tmp_path)
+    runner = ScenarioRunner(library)
+    app = Flask(__name__)
+    app.register_blueprint(create_scenario_blueprint(lambda: runner, library))
+    client = app.test_client()
+    client.post("/api/scenario/load", json={"scenario": scenario_key("pump_trip")})
+    client.post("/api/scenario/start")
+
+    def unreadable(self, name):
+        raise OSError("disk gone")
+
+    monkeypatch.setattr(ScenarioLibrary, "scenario", unreadable)
+
+    response = client.post("/api/scenario/abort")
+
+    assert response.status_code == 200
+    assert response.get_json()["debrief"] == ""

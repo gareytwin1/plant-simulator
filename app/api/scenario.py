@@ -56,7 +56,6 @@ from app.logging import REQUEST_LOGGER
 from app.scenarios.runner import (
     CatalogueEntry,
     Phase,
-    ScenarioConfigError,
     ScenarioLibrary,
     ScenarioNotFound,
     ScenarioResult,
@@ -108,7 +107,7 @@ def _debrief(library: ScenarioLibrary, scenario_id: str) -> str:
     after the run was armed: the result is still final, only the text is lost."""
     try:
         document = library.scenario(scenario_id)
-    except (ScenarioNotFound, ScenarioConfigError, OSError) as error:
+    except (LookupError, ValueError, OSError) as error:
         logger.warning("scenario %s has no debrief: %s", scenario_key(scenario_id), error)
 
         return ""

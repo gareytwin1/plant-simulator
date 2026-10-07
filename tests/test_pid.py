@@ -361,8 +361,12 @@ def test_retune_refuses_a_negative_ki_and_changes_nothing():
     assert pid.checkpoint() == before
 
 
-@pytest.mark.parametrize("gains", [(-1.0, 0.5, 0.0), (1.0, 0.5, -0.1)], ids=["kp", "kd"])
-def test_retune_refuses_a_negative_kp_or_kd_and_changes_nothing(gains):
+@pytest.mark.parametrize(
+    "gains",
+    [(-1.0, 0.5, 0.0), (1.0, 0.5, -0.1), (float("nan"), 0.0, 0.0), (1.0, 0.0, float("inf"))],
+    ids=["negative-kp", "negative-kd", "nan-kp", "inf-kd"],
+)
+def test_retune_refuses_a_negative_or_non_finite_gain_and_changes_nothing(gains):
     pid = mid_run_pid()
     before = pid.checkpoint()
 

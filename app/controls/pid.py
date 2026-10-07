@@ -169,8 +169,8 @@ class PID:
         takes Action.DIRECT (see the module docstring).
         """
         for name, gain in (("kp", kp), ("ki", ki), ("kd", kd)):
-            if gain < 0.0:
-                raise ValueError(f"{name} must be non-negative, got {gain}")
+            if not math.isfinite(gain) or gain < 0.0:
+                raise ValueError(f"{name} must be finite and non-negative, got {gain}")
 
         held = self.ki * self._integral
 

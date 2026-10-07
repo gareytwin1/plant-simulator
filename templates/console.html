@@ -11,6 +11,10 @@
 <div id="console" data-connection="connecting" data-interval-seconds="{{ stream_interval_seconds }}">
   <h1>Console</h1>
   <p class="connection-indicator" id="connection-indicator" role="status">CONNECTING</p>
+  <section aria-labelledby="plant-heading">
+    <h2 id="plant-heading">Plant</h2>
+    <div id="process-graphic" data-live-value></div>
+  </section>
   <section aria-labelledby="alarms-heading">
     <h2 id="alarms-heading">Alarms</h2>
     <div id="alarm-banner"></div>
@@ -22,6 +26,7 @@
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/alarms.js') }}"></script>
 <script src="{{ url_for('static', filename='js/connection.js') }}"></script>
+<script src="{{ url_for('static', filename='js/graphic.js') }}"></script>
 <script>
   (function () {
     var consoleEl = document.getElementById("console");
@@ -30,8 +35,12 @@
       document.getElementById("alarm-summary"),
       { pollMs: Number(consoleEl.getAttribute("data-interval-seconds")) * 1000 }
     );
+    var graphic = ProcessGraphic.mount(document.getElementById("process-graphic"), {
+      url: "{{ url_for('static', filename='graphics/plant.svg') }}"
+    });
     ConnectionMonitor.mount(consoleEl, document.getElementById("connection-indicator"), {
-      intervalSeconds: Number(consoleEl.getAttribute("data-interval-seconds"))
+      intervalSeconds: Number(consoleEl.getAttribute("data-interval-seconds")),
+      onSnapshot: graphic.update
     });
   })();
 </script>

@@ -79,6 +79,18 @@ def test_the_console_renders_and_starts_the_sessions_scheduler(client):
     assert "alarms.js" in body and "alarms.css" in body and "tokens.css" in body
 
 
+def test_the_console_mounts_the_graphic_on_the_connection_stream(client):
+    body = client.get("/console").get_data(as_text=True)
+
+    assert "graphic.js" in body
+    assert '<div id="process-graphic" data-live-value>' in body
+    assert "/static/graphics/plant.svg" in body
+    assert "onSnapshot: graphic.update" in body
+    assert body.count("new EventSource") == 0
+    assert client.get("/static/graphics/plant.svg").status_code == 200
+    assert client.get("/static/js/graphic.js").status_code == 200
+
+
 def test_the_console_and_a_repeat_visit_share_one_worker(client):
     before = len(live_workers())
 

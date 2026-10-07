@@ -48,9 +48,12 @@
   color: var(--surface-raised);
 }
 
+/* Three across while each reading fits; a narrow card reflows to two rows
+ * rather than cutting a unit off or spilling into the next column. A long
+ * reading wraps its unit onto a second line at the space before it. */
 .faceplate-values {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(5.5rem, 1fr));
   gap: 0.5rem;
   margin: 0;
 }
@@ -69,9 +72,6 @@
   margin: 0;
   font-variant-numeric: tabular-nums;
   font-weight: 700;
-  /* A long reading wraps its unit onto a second line, never to an ellipsis:
-   * the number has no space to break at, and the unit must stay readable. */
-  overflow-wrap: normal;
 }
 
 .faceplate-bar {

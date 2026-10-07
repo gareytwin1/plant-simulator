@@ -168,6 +168,7 @@ def test_an_output_entry_outside_manual_is_refused(session):
     assert parse("out", "50", row) == {"error": "Switch to MAN to set the output."}
 
 
+@needs_node
 def test_the_server_bounds_the_output_too(session, client):
     send(client, {"action": "manual"})
 
@@ -226,6 +227,7 @@ def test_entries_round_trip_to_the_engine(session, client):
     assert shown["gains"]["kp"] == "0.02"
 
 
+@needs_node
 def test_a_refusal_comes_back_as_text_the_faceplate_can_show(session, client):
     refused = send(client, {"action": "set_kp", "value": -1.0})
 

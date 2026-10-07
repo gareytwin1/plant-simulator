@@ -1,10 +1,10 @@
 /* Landing page (T16-11): free play and scenario choice, then on to the console.
  *
- * Talks to the scenario API (app/api/scenario.py). A refusal is shown in this file's own plain words, chosen by
- * status code, and never the server's text: a scenario's id and its fault must
- * not reach the page through an error. Everything above the "browser glue"
- * marker is pure so it runs under Node without a DOM; tests/test_landing.py
- * drives it that way.
+ * Talks to the scenario API (app/api/scenario.py). A refusal is shown in this
+ * file's own plain words, chosen by status code, and never the server's text:
+ * a scenario's id and its fault must not reach the page through an error.
+ * Everything above the "browser glue" marker is pure so it runs under Node
+ * without a DOM; tests/test_landing.py drives it that way.
  */
 (function (root) {
   "use strict";
@@ -46,10 +46,6 @@
    * has one source. */
   api.phaseLabel = function (labels, phase) {
     return Object.prototype.hasOwnProperty.call(labels, phase) ? labels[phase] : "";
-  };
-
-  api.formatTime = function (seconds) {
-    return String(Math.round(seconds));
   };
 
   /* browser glue */

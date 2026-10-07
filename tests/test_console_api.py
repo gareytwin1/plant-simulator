@@ -11,7 +11,7 @@ import time
 
 import pytest
 
-from app import main
+from app import config, main
 from app.engine.sessions import SessionRegistry
 from app.scenarios.runner import scenario_key
 from app.training.session import TrainingSession
@@ -152,11 +152,10 @@ def test_an_action_blueprint_needs_apply_or_both_getters():
             create_action_blueprint(**kwargs)
 
 
-def test_the_console_polls_alarms_at_the_stream_interval(client):
+def test_the_console_carries_the_stream_interval_for_its_scripts(client):
     body = client.get("/console").get_data(as_text=True)
 
-    assert 'data-interval-seconds="1.0"' in body
-    assert "pollMs: Number(" in body
+    assert f'data-interval-seconds="{config.STREAM_INTERVAL_SECONDS}"' in body
 
 
 def test_a_refused_action_answers_400(client):

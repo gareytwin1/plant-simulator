@@ -135,6 +135,19 @@ def test_loading_a_scenario_switches_the_published_snapshot_in_the_same_command(
     assert published(session).sim_time != free_time
 
 
+def test_the_operator_view_cuts_rows_by_the_plant_the_snapshot_shows(session):
+    from app.api.visibility import VISIBLE
+    from app.equipment.pump import CentrifugalPump
+
+    session.load("pump-trip")
+
+    view = session.operator_view(published(session))
+
+    assert set(view["equipment"]["P-101"]) == VISIBLE[CentrifugalPump]
+    assert view["equipment"]["P-101"]["running"] is False
+    assert "max_flow" in published(session).equipment["P-101"]
+
+
 def test_unloading_hands_the_snapshot_back_to_free_play_where_it_was_left(session):
     session.training_scheduler.step_once()
     left = published(session).sim_time

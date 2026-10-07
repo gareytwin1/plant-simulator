@@ -43,12 +43,14 @@ from dataclasses import dataclass
 from app import config
 from app.alarms.acknowledge import Acknowledged
 from app.alarms.history import HistoryEntry
+from app.api.visibility import operator_view
 from app.engine.engine import Engine
 from app.engine.persistence import restore_state
 from app.engine.scheduler import Scheduler
 from app.engine.snapshot import Snapshot
 from app.plant.loader import load_plant, read_plant_config
 from app.scenarios.runner import Phase, ScenarioLibrary, ScenarioResult, ScenarioRunner
+from app.statetypes import JSONValue
 from app.training.runtime import PlantRuntime
 
 
@@ -86,6 +88,16 @@ class TrainingSession:
 
     def snapshot(self) -> Snapshot:
         return self._plant().snapshot()
+
+    def operator_view(self, snapshot: Snapshot) -> dict[str, JSONValue]:
+        """`snapshot` as a browser may see it: each equipment row cut to what
+        its device class lists as operator-visible. Classes come from the
+        plant the snapshot shows, read under `step_lock` so the phase is
+        stable; a tag that plant does not have shows an empty row."""
+        with self.training_scheduler.step_lock:
+            equipment = self._plant().engine.equipment
+
+            return operator_view(snapshot, equipment)
 
     def act(self, target: str, action: str, value: float | None) -> None:
         """One operator action on the plant the snapshot shows. Refusals are

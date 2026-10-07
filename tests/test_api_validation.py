@@ -1,3 +1,4 @@
+import json
 import math
 import os
 import subprocess
@@ -485,7 +486,20 @@ def test_a_forwarded_entry_may_carry_a_port_or_brackets(header, expected):
     assert validate.client_key(PROXY, header, PROXIES) == expected
 
 
-@pytest.mark.parametrize("entry", ["[::1", "[::1]x", "1.2.3.4:abc", "1.2.3.4:", "[::1]:", "[::1]:x"])
+def test_a_trusted_proxy_written_in_ipv4_mapped_form_still_matches():
+    proxies = validate.parse_trusted_proxies(["::ffff:10.0.0.0/120", "::ffff:10.1.0.5"])
+
+    assert validate.client_key("10.0.0.7", "203.0.113.7", proxies) == "203.0.113.7"
+    assert validate.client_key("10.1.0.5", "203.0.113.7", proxies) == "203.0.113.7"
+    assert validate.client_key("10.1.0.6", "203.0.113.7", proxies) == "10.1.0.6"
+
+
+def test_a_mapped_range_wider_than_the_ipv4_space_is_refused_at_startup():
+    with pytest.raises(ValueError):
+        validate.parse_trusted_proxies(["::ffff:0:0/80"])
+
+
+@pytest.mark.parametrize("entry", ["[1.2.3.4]", "[1.2.3.4]:80", "[::1", "[::1]x", "1.2.3.4:abc", "1.2.3.4:", "[::1]:", "[::1]:x"])
 def test_a_malformed_forwarded_entry_stops_the_walk_at_the_hop_that_wrote_it(entry):
     assert validate.client_key(PROXY, f"203.0.113.7, {entry}", PROXIES) == PROXY
 
@@ -502,6 +516,8 @@ def test_one_peer_gets_one_key_whatever_the_header():
 
 def test_the_live_app_wires_the_configured_proxies_into_the_limiter():
     script = """
+import json
+
 from app import main, config
 from app.api import validate
 
@@ -518,15 +534,27 @@ def get(peer, forwarded_for):
     return response.status_code
 
 
-print(config.API_TRUSTED_PROXIES, get("10.0.0.5", "203.0.113.7"), get("10.0.0.5", "203.0.113.8"),
-      get("198.51.100.9", "203.0.113.9"), get("198.51.100.9", "203.0.113.10"))
+statuses = [
+    get("10.0.0.5", "203.0.113.7"),
+    get("10.0.0.5", "203.0.113.8"),
+    get("198.51.100.9", "203.0.113.9"),
+    get("198.51.100.9", "203.0.113.10"),
+]
+print(json.dumps({"proxies": list(config.API_TRUSTED_PROXIES), "statuses": statuses}))
 """
     env = {**os.environ, "PLANT_TRUSTED_PROXIES": "10.0.0.0/24", "PYTHONPATH": str(Path(__file__).parent.parent)}
 
-    result = subprocess.run([sys.executable, "-c", script], env=env, capture_output=True, text=True, check=True)
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        env=env,
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=60,
+    )
 
-    assert result.stdout.split()[-4:] == ["200", "200", "200", "429"]
-    assert "10.0.0.0/24" in result.stdout
+    reported = json.loads(result.stdout.splitlines()[-1])
+    assert reported == {"proxies": ["10.0.0.0/24"], "statuses": [200, 200, 200, 429]}
 
 
 def test_the_live_app_rate_limits_and_refuses_before_creating_a_session(monkeypatch):

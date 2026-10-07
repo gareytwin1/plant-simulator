@@ -162,12 +162,27 @@ class RateLimiter:
 
 
 Address = ipaddress.IPv4Address | ipaddress.IPv6Address
+_MAPPED_IPV4 = ipaddress.IPv6Network("::ffff:0:0/96")
 TrustedProxies = tuple[ipaddress.IPv4Network | ipaddress.IPv6Network, ...]
 
 
 def parse_trusted_proxies(entries: Iterable[str]) -> TrustedProxies:
-    """Each entry as a network; an address or CIDR, anything else raises ValueError."""
-    return tuple(ipaddress.ip_network(entry.strip(), strict=False) for entry in entries)
+    """Each entry as a network; an address or CIDR, anything else raises ValueError.
+
+    A network written in IPv4-mapped form is stored as the IPv4 network it
+    names, since `_address` unwraps a mapped hop before matching.
+    """
+    networks = []
+    for entry in entries:
+        network = ipaddress.ip_network(entry.strip(), strict=False)
+        if isinstance(network, ipaddress.IPv6Network) and network.overlaps(_MAPPED_IPV4):
+            mapped = network.network_address.ipv4_mapped
+            if mapped is None or network.prefixlen < _MAPPED_IPV4.prefixlen:
+                raise ValueError(f"{entry!r} straddles the IPv4-mapped range; list IPv4 and IPv6 separately")
+            network = ipaddress.IPv4Network((mapped, network.prefixlen - 96), strict=False)
+        networks.append(network)
+
+    return tuple(networks)
 
 
 def _address(text: str) -> Address | None:
@@ -188,6 +203,9 @@ def _address(text: str) -> Address | None:
     try:
         address = ipaddress.ip_address(host)
     except ValueError:
+        return None
+
+    if bracket and not isinstance(address, ipaddress.IPv6Address):
         return None
 
     if isinstance(address, ipaddress.IPv6Address) and address.ipv4_mapped is not None:

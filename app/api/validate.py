@@ -171,8 +171,15 @@ def parse_trusted_proxies(entries: Iterable[str]) -> TrustedProxies:
 
 
 def _address(text: str) -> Address | None:
+    """An address from a bare literal or from the `a.b.c.d:port`, `[v6]` and `[v6]:port` forms."""
+    text = text.strip()
+    if text.startswith("["):
+        text = text[1:].partition("]")[0]
+    elif text.count(":") == 1:
+        text = text.partition(":")[0]
+
     try:
-        address = ipaddress.ip_address(text.strip())
+        address = ipaddress.ip_address(text)
     except ValueError:
         return None
 

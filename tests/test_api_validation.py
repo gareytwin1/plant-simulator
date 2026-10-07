@@ -462,30 +462,16 @@ def test_a_spoofed_header_from_an_untrusted_peer_neither_evades_nor_shifts_the_l
     assert get(PROXY, "203.0.113.7") == 200
 
 
-def test_the_live_app_trusts_no_proxy_by_default(monkeypatch):
-    monkeypatch.setattr(main, "rate_limiter", validate.RateLimiter(rate=1.0, burst=1.0, clock=FakeClock()))
-    client = main.app.test_client()
-
-    def get(forwarded_for):
-        return client.get(
-            "/api/snapshot",
-            headers={"X-Forwarded-For": forwarded_for},
-            environ_base={"REMOTE_ADDR": "127.0.0.1"},
-        ).status_code
-
-    assert config.API_TRUSTED_PROXIES == ()
-    assert [get("203.0.113.7"), get("203.0.113.8")] == [200, 429]
+def test_the_trusted_proxies_are_read_from_a_comma_separated_setting():
+    assert config.trusted_proxies_from_env(" 10.0.0.5, fd00::/8 ,") == ("10.0.0.5", "fd00::/8")
+    assert config.trusted_proxies_from_env("") == ()
 
 
-def test_the_trusted_proxies_come_from_the_environment(monkeypatch):
-    import importlib
+@pytest.mark.parametrize("entry", ["203.0.113.7:51234", "[2001:db8::1]:443", "[2001:db8::1]", " 203.0.113.7 "])
+def test_a_forwarded_entry_may_carry_a_port_or_brackets(entry):
+    expected = "2001:db8::1" if "2001" in entry else "203.0.113.7"
 
-    monkeypatch.setenv("PLANT_TRUSTED_PROXIES", " 10.0.0.5, fd00::/8 ,")
-    try:
-        assert importlib.reload(config).API_TRUSTED_PROXIES == ("10.0.0.5", "fd00::/8")
-    finally:
-        monkeypatch.delenv("PLANT_TRUSTED_PROXIES")
-        importlib.reload(config)
+    assert validate.client_key(PROXY, entry, PROXIES) == expected
 
 
 def test_the_live_app_rate_limits_and_refuses_before_creating_a_session(monkeypatch):

@@ -8,12 +8,12 @@ regrowth rule is in [.claude/rules/docs.md](../../.claude/rules/docs.md).
 
 ## Right now
 
-**Last state refresh:** 7 October 2026, at `cdab8f3` (Merge T16-14: Operator loop actions,
-PR #149) - **this is a snapshot,
-not a live pointer.** Run `git log cdab8f3..HEAD --oneline` to see what has
+**Last state refresh:** 7 October 2026, at `f90be61` (Merge T16-4: Controller faceplates,
+PR #150) - **this is a snapshot,
+not a live pointer.** Run `git log f90be61..HEAD --oneline` to see what has
 merged since.
-**Full suite as of this refresh:** **3338 passed** · `python -m mypy` clean over 82 source files · no golden trace movement
-**In flight:** T16-4 (faceplates, front end only), built on `feature/faceplates` and waiting to rebase onto this merge. The spine lock and the `app/main.py` lock are free.
+**Full suite as of this refresh:** **3369 passed** · `python -m mypy` clean over 82 source files · no golden trace movement
+**In flight:** PR #151 (`fix/console-layout`, two console layout fixes with no task ID: the graphic's empty band and the alarm table overflowing a phone), green and waiting to merge. The spine lock and the `app/main.py` lock are free.
 No task is Blocked. CI runs on every PR, and `main` requires its
 `test` check before a merge.
 
@@ -22,12 +22,12 @@ No task is Blocked. CI runs on every PR, and `main` requires its
 
 | Task | SHA | What landed |
 |---|---|---|
+| **T16-4** | `f90be61` | Controller faceplates: `static/js/faceplate.js` renders one faceplate per `controllers` row of the operator view (tag and mode, PV/SP/OUT, an output bar, MAN/AUTO, setpoint and output entry in percent of range, MANUAL only, and Kp/Ki/Kd tuning locked unless the loop is `tunable`). Every command goes through `POST /api/action` and a server refusal is shown as worded; a snapshot never overwrites typing, and one with no `controllers` section is ignored. `console.html` fans `onSnapshot` out to the graphic and the faceplates, each in its own try/catch. Seen only in headless Firefox (PR #150) |
 | **T16-14** | `cdab8f3` | Operator loop actions: a loop tag is an `/api/action` target (`LOOP_ACTIONS`: `manual`, `auto`, `set_setpoint`, `set_output` in MANUAL within the output range, `set_kp`/`set_ki`/`set_kd` on a loop whose config says `tunable`); a device a loop drives refuses direct actions, naming the loop, because the loop re-posts its demand every step. `apply_action` takes `loops=` as a required keyword and `PlantRuntime.act` passes `engine.loops`. `PID.retune` keeps a Kp or Ki change bumpless in AUTO (a new ki of 0 is not). C3 gains optional `tunable` (default false; PIC-101 is tunable; config 1.1.0) and each `controllers` row gains `kp`, `ki`, `kd`, `out_min`, `out_max`, `tunable`, `pv_unit`. No setpoint upper bound: no config carries a range (PR #149) |
 | **T18-8** | `bcaae4c` | Rate limit behind a reverse proxy: `config.API_TRUSTED_PROXIES` (env `PLANT_TRUSTED_PROXIES`, comma-separated addresses or CIDRs, empty by default = no trust, exactly the T18-3 behaviour) lists the proxies whose `X-Forwarded-For` is believed. `validate.client_key` keys on the peer unless it is trusted, then walks the header right to left past trusted hops; a malformed entry stops the walk at the hop that wrote it. An allow-list, not `ProxyFix`, so a client reaching Gunicorn directly cannot spoof its key. A bad or straddling (`::/0`) entry fails at startup. Only `X-Forwarded-For` is read and `request.remote_addr` is not rewritten, so access logs still show the proxy. `docker-compose.yml` passes the variable through (PR #148) |
 | **T16-3** | `23dd190` | Process graphic: `static/graphics/plant.svg` draws the reference train and `static/js/graphic.js` binds the operator view to it through `data-*` attributes only (`data-tag` sets state and worst envelope band, `data-bind` a value, `data-flow` pipe direction, `data-fill` the vessel level), so new equipment is new markup and no JavaScript; unknown tags show `--`, and snapshot equipment the SVG does not draw is listed. Mounted into `/console` by PR #147 (`2274eb9`, a follow-up with no task ID; the graphic is fed from `connection.js`'s `onSnapshot`, and the page was seen in headless Firefox, which does not close CP-G). There is no tripped equipment state (the snapshot does not publish interlock trips): a trip shows as the envelope trip band and a stopped machine as STOP. Rendered only in headless Firefox, not on the console page (PR #146) |
 | **T16-9** | `03d8a70` | Console wiring: `app/main.py` registers the stream (operator view via `get_view`, session lease as `hold`, `config.STREAM_INTERVAL_SECONDS`), action (`create_action_blueprint(apply=...)`; `get_engine` and `get_log` optional when `apply` is given) and alarm blueprints against `g.plant`. `GET /console` renders `templates/console.html` (alarm console plus the T16-5 connection indicator) and is the **first route that starts a scheduler**; `GET /` and `/api/snapshot` still do not. The header links Console and `landing.js` goes there after a load or free-play call. **CP-G's browser view of `/console` is not yet recorded** (PR #145) |
 | **T16-13** | `43e7db7` | Operator view: `app/api/visibility.py` holds `VISIBLE`, a per-class allowlist (measurements, run status, the operator's own commands; never a fault flag, a malfunction-writable parameter or a model internal), and `operator_view(snapshot, equipment)`; a class with no entry or an unknown tag shows an empty row. `TrainingSession.operator_view` classes rows by the plant the last command left showing and takes no lock; `/api/snapshot` serves it; `create_stream_blueprint` takes an optional `get_view` whose default stays the full snapshot, **so T16-9 must pass the session's**. Trips, alarms and scenarios still read the full snapshot; `nodes` and `streams` still show every solved point (PR #144) |
-| **T16-12** | `219701d` | Scenario disclosure: the browser holds an opaque `key` (first 12 hex digits of sha256 of the id; a spoiler guard, not a security boundary) and `POST /api/scenario/load` takes it. `public_result` in `app/api/scenario.py` renders every result: while loaded or running it omits the id, seed, trigger and objective ids and outcome; once complete or aborted it adds them plus the description as `debrief` (an abort reveals it at once). Refusals quote no id, tag or parameter (generic 400, detail in the request log). `ScenarioRunner`, replay and scores keep real ids. `main.py` is unchanged, so the blueprint builds its own default `ScenarioLibrary()` (PR #143) |
 
 **ADRs on `main`:** [0001](../../docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md)
 (+ Amendment 1) and [0002](../../docs/ADR_0002_TYPED_PORTS.md) (+ Amendments
@@ -35,28 +35,27 @@ No task is Blocked. CI runs on every PR, and `main` requires its
 
 ## Milestone progress
 
-Complete: **M0-M9, M12, M13, M14, M15, M18, MR**. Open:
+Complete: **M0-M9, M12-M16, M18, MR**. Open:
 
 | Milestone | Done | Complete / startable |
 |---|---|---|
 | **M10** Alarms | 4/5 | T10-1, T10-2, T10-3, T10-5; T10-4 startable (V1.1-deferred) |
 | **M11** Interlocks and Trips | 3/4 | T11-1, T11-2, T11-3; T11-4 startable (V1.1-deferred) |
-| **M16** Operator Console | 13/14 | T16-1, T16-2, T16-3, T16-5, T16-6, T16-7, T16-8, T16-9, T16-10, T16-11, T16-12, T16-13, T16-14; T16-4 startable |
 | **M17** Historian and Trends | 1/4 | T17-1; T17-2 startable (V1.1-deferred) |
 | M19 | 0 | - |
 
-**121 of 130 tasks Complete.** Checkpoints A-C reached. Checkpoint **D** (M8)
+**122 of 130 tasks Complete.** Checkpoints A-C reached. Checkpoint **D** (M8)
 needs only its "loops reject an injected disturbance" gate: PIC-101 switched to
 AUTO in `olefins_lite.yaml`, which T8-6 enabled but no task owns yet.
 
 ## The next task
 
-**Nothing but T16-4 is startable now** - list them from
+**Nothing is startable now except the deferred tasks** - list them from
 [BUILD_PLAN_STATUS.json](../../docs/BUILD_PLAN_STATUS.json) (`startable`
 field). The rest are deferred: T10-4, T11-4 and T17-2 are V1.1-deferred;
 T19-1 and T19-2 are deferred further still, to **V2**.
 
-**Next by leverage: T16-4** (faceplates, front end only; code is on `feature/faceplates`, rebase it onto `main`, rerun the suite and open its PR). `app/main.py` and `app/config.py` are free. CP-G still needs `/console` viewed in a real browser session.
+**Next by leverage:** merge PR #151, then **close CP-G** by viewing `/console` in a real browser with the controls present (`flask --app app.main run`, load `pump_trip` for alarms); only headless Firefox has seen it. Then Checkpoint D's remaining gate (PIC-101 in AUTO, which T8-6 enabled and no task owns). `app/main.py` and `app/config.py` are free.
 
 **Scheduling notes.** The spine lock is one global lock
 ([DEVELOPMENT.md](../../DEVELOPMENT.md#file-ownership)); it is free. **The container runs

@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "7 October 2026",
-  "main_sha": "cdab8f3",
-  "tests_passing_on_main": 3338,
+  "main_sha": "f90be61",
+  "tests_passing_on_main": 3369,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -98,7 +98,7 @@
     },
     "M16": {
       "name": "Operator Console",
-      "complete": 13,
+      "complete": 14,
       "total": 14
     },
     "M17": {
@@ -119,8 +119,8 @@
   },
   "totals": {
     "tasks": 130,
-    "complete": 121,
-    "startable_now": 6
+    "complete": 122,
+    "startable_now": 5
   },
   "tasks": [
     {
@@ -1940,10 +1940,9 @@
         "tests/test_faceplate.py",
         "tests/test_console_api.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true,
-      "note": "Startable: T16-14 merged (cdab8f3). Code is complete on feature/faceplates (pushed; stacked on T16-14's branch), 3366 passed there, mypy clean, roborev range review Pass (job 740), seen in headless Firefox at desktop and phone width in both themes. Next: rebase onto main, rerun suite and mypy, open the PR. Also fixes two console layout defects (empty band above the graphic; alarm table overflowing at phone width)."
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged to main as f90be61 (Merge T16-4: Controller faceplates, PR #150). 3369 passed post-merge, mypy clean over 82 files, no golden movement, CI test and docker green, roborev branch review Pass (job 761). static/js/faceplate.js renders one faceplate per controllers row of the operator view: tag and mode, PV, SP and OUT, an output bar, MAN and AUTO, setpoint and output entry (percent of range, MANUAL only), and Kp/Ki/Kd tuning locked unless the loop is tunable. Every command goes through POST /api/action; a server refusal is shown as worded. Typing is never overwritten by a snapshot, and a snapshot with no controllers section is ignored. console.html fans onSnapshot out to the graphic and the faceplates, each in its own try/catch. Only headless Firefox has seen it: CP-G's real-browser check of /console is still open. The two console layout fixes found along the way (graphic viewBox, alarm table overflow at phone width) are in PR #151, not here."
     },
     {
       "id": "T16-5",

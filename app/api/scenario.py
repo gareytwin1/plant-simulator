@@ -122,6 +122,8 @@ def create_scenario_blueprint(
     library: ScenarioLibrary | None = None,
 ) -> Blueprint:
     blueprint = Blueprint("scenario", __name__)
+    # Read once, like config: a scenario file added while the app runs is not
+    # offered until a restart.
     library = library or ScenarioLibrary()
     by_key = {entry.key: entry for entry in library.catalogue()}
     by_id = {entry.id: entry for entry in by_key.values()}

@@ -391,3 +391,13 @@ def test_a_kd_only_retune_leaves_the_integral_alone():
     pid.retune(kp=before.kp, ki=before.ki, kd=0.3)
 
     assert pid.checkpoint() == dataclasses.replace(before, kd=0.3)
+
+
+def test_retune_refuses_a_ki_too_small_to_hold_the_output_and_changes_nothing():
+    pid = mid_run_pid()
+    before = pid.checkpoint()
+
+    with pytest.raises(ValueError, match="too small"):
+        pid.retune(kp=before.kp, ki=1e-320, kd=0.0)
+
+    assert pid.checkpoint() == before

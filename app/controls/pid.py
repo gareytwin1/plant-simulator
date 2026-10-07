@@ -43,6 +43,7 @@ handoff is bumpless whenever it happens.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from enum import StrEnum
 
@@ -176,13 +177,17 @@ class PID:
         if self._prev_measurement is not None:
             held += (self.kp - kp) * self._error(self._prev_measurement)
 
+        integral = held / ki if ki != 0.0 else self._integral
+
+        # A vanishing ki re-solves to an integral too large to be a float,
+        # which would poison every output after it. Refused before any write.
+        if not math.isfinite(integral):
+            raise ValueError(f"ki {ki} is too small to hold the output; its integral would be {integral}")
+
         self.kp = kp
-        self.kd = kd
-
-        if ki != 0.0:
-            self._integral = held / ki
-
         self.ki = ki
+        self.kd = kd
+        self._integral = integral
 
     def checkpoint(self) -> PIDCheckpoint:
         return PIDCheckpoint(

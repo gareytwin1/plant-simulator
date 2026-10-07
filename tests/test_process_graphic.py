@@ -375,6 +375,25 @@ def test_mount_loads_the_svg_and_applies_a_snapshot_given_before_it_arrived(view
 
 
 @needs_node
+def test_a_binding_error_leaves_the_loaded_graphic_in_place():
+    out = run_js(
+        """
+        const container = {
+          innerHTML: '', textContent: '',
+          querySelectorAll() { throw new Error('boom'); },
+          setAttribute() {},
+        };
+        const fetch = async () => ({ ok: true, text: async () => '<svg></svg>' });
+        const mounted = G.mount(container, { fetch });
+        const failure = await mounted.ready.then(() => null, e => e.message);
+        return { html: container.innerHTML, text: container.textContent, failure };
+        """
+    )
+
+    assert out == {"html": "<svg></svg>", "text": "", "failure": "boom"}
+
+
+@needs_node
 def test_mount_says_so_when_the_svg_cannot_be_loaded():
     out = run_js(
         """
@@ -422,6 +441,12 @@ def test_every_device_the_svg_draws_is_in_the_plant_and_every_one_in_it_is_drawn
     drawn = {tag for tag in svg_paths("data-tag")}
 
     assert drawn == set(views["normal"]["equipment"])
+
+
+def test_every_solved_node_the_plant_publishes_has_a_pressure_readout(views):
+    shown = {path.split(".")[1] for path in svg_paths("data-bind") if path.startswith("nodes.")}
+
+    assert shown == set(views["normal"]["nodes"])
 
 
 def test_the_svg_binds_only_fields_the_operator_view_publishes(views):

@@ -246,21 +246,27 @@
       if (loaded && latest !== null) update(elements, latest);
     }
 
+    // Only a failed load says so; a binding error must not wipe a graphic that
+    // is already on screen.
+    function unavailable() {
+      container.textContent = "Process graphic unavailable";
+      container.setAttribute("role", "status");
+    }
+
     var ready = doFetch(settings.url || SVG_URL)
       .then(function (response) {
         if (!response.ok) throw new Error("HTTP " + response.status);
         return response.text();
       })
-      .then(function (markup) {
-        container.innerHTML = markup;
-        elements = collect(container);
-        loaded = true;
-        draw();
-      })
-      .catch(function () {
-        container.textContent = "Process graphic unavailable";
-        container.setAttribute("role", "status");
-      });
+      .then(
+        function (markup) {
+          container.innerHTML = markup;
+          elements = collect(container);
+          loaded = true;
+          draw();
+        },
+        unavailable
+      );
 
     return {
       ready: ready,

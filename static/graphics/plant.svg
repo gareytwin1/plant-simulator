@@ -20,7 +20,7 @@
     @media (prefers-reduced-motion: reduce) { .plant-graphic .pipe { animation: none !important; } }
 
     .plant-graphic .body { fill: var(--surface-raised); stroke: var(--border); stroke-width: 2; }
-    .plant-graphic .liquid { fill: var(--band-warning-tint); stroke: none; }
+    .plant-graphic .liquid { fill: var(--border); fill-opacity: 0.35; stroke: none; }
     .plant-graphic .boundary { fill: var(--text-muted); stroke: none; }
     .plant-graphic .junction { fill: var(--text); }
 
@@ -59,7 +59,10 @@
     <path class="body" d="M 81 80 L 109 100 L 109 80 L 81 100 Z" />
     <text class="tag" x="95" y="62">FV-201</text>
     <text x="95" y="124" data-bind="equipment.FV-201.position" data-format="percent">--</text>
-    <text x="95" y="142" data-bind="streams.B-FV-201.flow" data-unit="SCFM">--</text>
+  </g>
+  <g class="node">
+    <text x="136" y="114">N-204</text>
+    <text x="136" y="130" data-bind="nodes.N-204.pressure" data-format="fixed:0" data-unit="psia">--</text>
   </g>
   <g class="eq" data-tag="K-101">
     <circle class="body" cx="190" cy="90" r="24" />
@@ -100,6 +103,10 @@
     <text x="335" y="212" style="text-anchor: start" data-bind="equipment.V-101.level" data-format="percent">--</text>
     <text x="335" y="230" style="text-anchor: start" data-bind="equipment.V-101.pressure" data-format="fixed:0" data-unit="psia">--</text>
     <text x="335" y="250" style="text-anchor: start" data-band-of="V-101"></text>
+  </g>
+  <g class="node">
+    <text x="190" y="274">N-102</text>
+    <text x="190" y="290" data-bind="nodes.N-102.pressure" data-format="fixed:0" data-unit="psia">--</text>
   </g>
   <g class="node">
     <rect class="boundary" x="20" y="293" width="14" height="14" />

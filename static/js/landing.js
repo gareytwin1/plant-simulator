@@ -1,7 +1,6 @@
 /* Landing page (T16-11): free play and scenario choice, then on to the console.
  *
- * Talks to the scenario API (app/api/scenario.py) and reads /api/snapshot for
- * the plant time. A refusal is shown in this file's own plain words, chosen by
+ * Talks to the scenario API (app/api/scenario.py). A refusal is shown in this file's own plain words, chosen by
  * status code, and never the server's text: a scenario's id and its fault must
  * not reach the page through an error. Everything above the "browser glue"
  * marker is pure so it runs under Node without a DOM; tests/test_landing.py
@@ -12,7 +11,6 @@
 
   var LOAD_URL = "/api/scenario/load";
   var UNLOAD_URL = "/api/scenario/unload";
-  var SNAPSHOT_URL = "/api/snapshot";
   var CONSOLE_URL = "/console";
 
   var api = {};
@@ -66,7 +64,6 @@
     var labels = JSON.parse(doc.getElementById("standing").getAttribute("data-phase-labels"));
     var modeEl = doc.getElementById("standing-mode");
     var phaseEl = doc.getElementById("standing-phase");
-    var timeEl = doc.getElementById("standing-time");
     var noticeEl = doc.getElementById("notice");
     var buttons = Array.prototype.slice.call(doc.querySelectorAll("main button"));
 
@@ -82,17 +79,6 @@
       });
     }
 
-    async function refreshTime() {
-      try {
-        var response = await doFetch(SNAPSHOT_URL);
-        if (!response.ok) return;
-        var snapshot = await response.json();
-        timeEl.textContent = api.formatTime(snapshot.sim_time);
-      } catch (error) {
-        // The time is a convenience; the action already succeeded.
-      }
-    }
-
     async function send(request, onSuccess) {
       setBusy(true);
       try {
@@ -103,7 +89,6 @@
         }
         var body = await response.json();
         onSuccess(body);
-        await refreshTime();
         goTo(CONSOLE_URL);
       } catch (error) {
         notice(api.refusalText(0), "refused");

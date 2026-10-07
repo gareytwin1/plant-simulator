@@ -28,7 +28,7 @@
     AlarmConsole.mount(
       document.getElementById("alarm-banner"),
       document.getElementById("alarm-summary"),
-      { pollMs: 1000 }
+      { pollMs: Number(consoleEl.getAttribute("data-interval-seconds")) * 1000 }
     );
     ConnectionMonitor.mount(consoleEl, document.getElementById("connection-indicator"), {
       intervalSeconds: Number(consoleEl.getAttribute("data-interval-seconds"))

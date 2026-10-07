@@ -80,10 +80,12 @@ def test_the_console_renders_and_starts_the_sessions_scheduler(client):
 
 
 def test_the_console_and_a_repeat_visit_share_one_worker(client):
+    before = len(live_workers())
+
     client.get("/console")
     client.get("/console")
 
-    assert len(live_workers()) == 1
+    assert len(live_workers()) == before + 1
 
 
 def test_the_landing_page_and_snapshot_still_start_nothing(client):
@@ -140,6 +142,21 @@ def test_an_action_shows_in_a_later_stream_event(client):
         response.close()
 
     assert stopped
+
+
+def test_an_action_blueprint_needs_apply_or_both_getters():
+    from app.api.action import create_action_blueprint
+
+    for kwargs in ({}, {"get_engine": lambda: None}, {"get_log": lambda: None}):
+        with pytest.raises(ValueError):
+            create_action_blueprint(**kwargs)
+
+
+def test_the_console_polls_alarms_at_the_stream_interval(client):
+    body = client.get("/console").get_data(as_text=True)
+
+    assert 'data-interval-seconds="1.0"' in body
+    assert "pollMs: Number(" in body
 
 
 def test_a_refused_action_answers_400(client):

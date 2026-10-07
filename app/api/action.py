@@ -156,7 +156,8 @@ def _apply_loop(binding: LoopBinding, action: str, value: float | None) -> None:
             loop.mode = MODES[action]
         return
 
-    assert value is not None  # every other loop action takes a value
+    if value is None:  # _checked_value already refused this; kept so -O cannot drop it
+        raise ValueError(f"{tag}.{action} requires a value")
 
     if action == "set_setpoint":
         # A loop's pv is an absolute pressure (binding.pv_unit), which cannot

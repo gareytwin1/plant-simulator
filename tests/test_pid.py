@@ -305,8 +305,8 @@ def test_a_direct_acting_track_reproduces_the_held_output():
 # ---- retune (T16-14) ----
 
 
-def mid_run_pid():
-    pid = PID(kp=1.0, ki=0.5, kd=0.0, output_min=-100.0, output_max=100.0, setpoint=10.0)
+def mid_run_pid(action=Action.REVERSE):
+    pid = PID(kp=1.0, ki=0.5, kd=0.0, output_min=-100.0, output_max=100.0, setpoint=10.0, action=action)
 
     for measurement in (0.0, 2.0, 4.0):
         pid.compute(measurement, 1.0)
@@ -314,17 +314,19 @@ def mid_run_pid():
     return pid
 
 
-def test_retune_moves_the_next_output_only_by_the_new_integral_action():
-    # Mid-run with an error of 6: a bare gain change would jump the output by
-    # (3 - 1) * 6 plus the rescaled integral. Retuned, the next output at the
-    # same measurement differs from the untouched block's only by the extra
-    # integral action the new Ki takes on that error over one step.
-    pid = mid_run_pid()
+@pytest.mark.parametrize("action", [Action.REVERSE, Action.DIRECT])
+def test_retune_moves_the_next_output_only_by_the_new_integral_action(action):
+    # Mid-run with an error of 6 (-6 direct-acting): a bare gain change would
+    # jump the output by (3 - 1) * error plus the rescaled integral. Retuned,
+    # the next output at the same measurement differs from the untouched
+    # block's only by the extra integral action the new Ki takes on that error
+    # over one step.
+    pid = mid_run_pid(action)
     untouched = copy.deepcopy(pid)
 
     pid.retune(kp=3.0, ki=2.0, kd=0.0)
 
-    error = 10.0 - 4.0
+    error = (10.0 - 4.0) * (1.0 if action is Action.REVERSE else -1.0)
     assert pid.compute(4.0, 1.0) == pytest.approx(untouched.compute(4.0, 1.0) + (2.0 - 0.5) * error)
 
 
@@ -380,3 +382,12 @@ def test_retune_to_no_integral_action_drops_the_integral_contribution():
     error = 10.0 - 4.0
     assert pid.compute(4.0, 1.0) == pytest.approx(1.0 * error)
     assert untouched.compute(4.0, 1.0) != pytest.approx(1.0 * error)
+
+
+def test_a_kd_only_retune_leaves_the_integral_alone():
+    pid = mid_run_pid()
+    before = pid.checkpoint()
+
+    pid.retune(kp=before.kp, ki=before.ki, kd=0.3)
+
+    assert pid.checkpoint() == dataclasses.replace(before, kd=0.3)

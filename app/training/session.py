@@ -93,7 +93,11 @@ class TrainingSession:
         """`snapshot` as a browser may see it: each equipment row cut to what
         its device class lists as operator-visible. Classes come from the
         plant the snapshot shows, read under `step_lock` so the phase is
-        stable; a tag that plant does not have shows an empty row."""
+        stable; a tag that plant does not have shows an empty row. The caller
+        must not hold `step_lock` (it is not reentrant). A scenario load or
+        unload between the caller reading `snapshot` and this lookup can pair
+        a snapshot with the other plant's classes; that fails closed (empty or
+        narrower rows) for the one event it affects."""
         with self.training_scheduler.step_lock:
             equipment = self._plant().engine.equipment
 

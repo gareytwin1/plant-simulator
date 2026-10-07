@@ -256,8 +256,9 @@ worth stating plainly:
   `tests/test_truth_isolation.py` fails the build on any other reader in
   `app/`. Without that, an instrument fault could not be a hidden cause.
 - **A browser reads the operator view, not the snapshot.** Every route that
-  sends plant state to a browser (`/api/snapshot` and every `/api/stream`
-  event) sends `app/api/visibility.py::operator_view`: the same shape, with each
+  sends plant state to a browser (`/api/snapshot`, and `/api/stream` through
+  the `get_view` its blueprint is built with - the console wiring passes the
+  session's, T16-9) sends `app/api/visibility.py::operator_view`: the same shape, with each
   equipment row cut to the fields its device class lists in `VISIBLE` -
   measurements, run status and the operator's own commands, never a fault flag,
   a malfunction-writable parameter, a design constant or a model internal. A

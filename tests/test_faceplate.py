@@ -240,7 +240,10 @@ def test_a_refusal_comes_back_as_text_the_faceplate_can_show(session, client):
 
 def test_the_stylesheet_uses_tokens_only():
     css = FACEPLATE_CSS.read_text()
+    # A name the stylesheet declares itself (a spacing variable) is its own;
+    # every other var() must be a token.
     defined = set(re.findall(r"(--[\w-]+)\s*:", TOKENS_CSS.read_text()))
+    defined |= set(re.findall(r"(--[\w-]+)\s*:", css))
 
     assert not re.search(r"#[0-9a-fA-F]{3,8}\b", css)
     assert not re.search(r"\b(rgb|hsl)a?\(", css)

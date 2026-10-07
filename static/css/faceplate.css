@@ -13,9 +13,10 @@
 }
 
 .faceplate {
+  --faceplate-gap: 0.6rem;
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
+  gap: var(--faceplate-gap);
   padding: 0.75rem;
   border: 2px solid var(--border);
   border-radius: 4px;
@@ -167,7 +168,7 @@
  * the accessibility tree, and a screen reader may not announce text put into
  * a region it never saw); a negative margin cancels the card's flex gap. */
 .faceplate-message:empty {
-  margin-top: -0.6rem;
+  margin-top: calc(-1 * var(--faceplate-gap));
 }
 
 .faceplate-message[data-kind="refused"] {

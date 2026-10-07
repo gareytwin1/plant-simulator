@@ -8,11 +8,11 @@ regrowth rule is in [.claude/rules/docs.md](../../.claude/rules/docs.md).
 
 ## Right now
 
-**Last state refresh:** 7 October 2026, at `23dd190` (Merge T16-3: Process graphic bound
-to the snapshot by tag, PR #146) - **this is a snapshot,
-not a live pointer.** Run `git log 23dd190..HEAD --oneline` to see what has
+**Last state refresh:** 7 October 2026, at `2274eb9` (Merge: Mount the process graphic into
+/console, PR #147) - **this is a snapshot,
+not a live pointer.** Run `git log 2274eb9..HEAD --oneline` to see what has
 merged since.
-**Full suite as of this refresh:** **3253 passed** · `python -m mypy` clean over 82 source files · no golden trace movement
+**Full suite as of this refresh:** **3254 passed** · `python -m mypy` clean over 82 source files · no golden trace movement
 **In flight:** nothing.
 **No spine lock is held.** No task is Blocked. CI runs on every PR, and `main` requires its
 `test` check before a merge.
@@ -22,7 +22,7 @@ merged since.
 
 | Task | SHA | What landed |
 |---|---|---|
-| **T16-3** | `23dd190` | Process graphic: `static/graphics/plant.svg` draws the reference train and `static/js/graphic.js` binds the operator view to it through `data-*` attributes only (`data-tag` sets state and worst envelope band, `data-bind` a value, `data-flow` pipe direction, `data-fill` the vessel level), so new equipment is new markup and no JavaScript; unknown tags show `--`, and snapshot equipment the SVG does not draw is listed. **Not mounted yet:** `templates/console.html` needs a short follow-up that mounts it and adds the template to T16-3's file list. There is no tripped equipment state (the snapshot does not publish interlock trips): a trip shows as the envelope trip band and a stopped machine as STOP. Rendered only in headless Firefox, not on the console page (PR #146) |
+| **T16-3** | `23dd190` | Process graphic: `static/graphics/plant.svg` draws the reference train and `static/js/graphic.js` binds the operator view to it through `data-*` attributes only (`data-tag` sets state and worst envelope band, `data-bind` a value, `data-flow` pipe direction, `data-fill` the vessel level), so new equipment is new markup and no JavaScript; unknown tags show `--`, and snapshot equipment the SVG does not draw is listed. Mounted into `/console` by PR #147 (`2274eb9`, a follow-up with no task ID; the graphic is fed from `connection.js`'s `onSnapshot`, and the page was seen in headless Firefox, which does not close CP-G). There is no tripped equipment state (the snapshot does not publish interlock trips): a trip shows as the envelope trip band and a stopped machine as STOP. Rendered only in headless Firefox, not on the console page (PR #146) |
 | **T16-9** | `03d8a70` | Console wiring: `app/main.py` registers the stream (operator view via `get_view`, session lease as `hold`, `config.STREAM_INTERVAL_SECONDS`), action (`create_action_blueprint(apply=...)`; `get_engine` and `get_log` optional when `apply` is given) and alarm blueprints against `g.plant`. `GET /console` renders `templates/console.html` (alarm console plus the T16-5 connection indicator) and is the **first route that starts a scheduler**; `GET /` and `/api/snapshot` still do not. The header links Console and `landing.js` goes there after a load or free-play call. **CP-G's browser view of `/console` is not yet recorded** (PR #145) |
 | **T16-13** | `43e7db7` | Operator view: `app/api/visibility.py` holds `VISIBLE`, a per-class allowlist (measurements, run status, the operator's own commands; never a fault flag, a malfunction-writable parameter or a model internal), and `operator_view(snapshot, equipment)`; a class with no entry or an unknown tag shows an empty row. `TrainingSession.operator_view` classes rows by the plant the last command left showing and takes no lock; `/api/snapshot` serves it; `create_stream_blueprint` takes an optional `get_view` whose default stays the full snapshot, **so T16-9 must pass the session's**. Trips, alarms and scenarios still read the full snapshot; `nodes` and `streams` still show every solved point (PR #144) |
 | **T16-12** | `219701d` | Scenario disclosure: the browser holds an opaque `key` (first 12 hex digits of sha256 of the id; a spoiler guard, not a security boundary) and `POST /api/scenario/load` takes it. `public_result` in `app/api/scenario.py` renders every result: while loaded or running it omits the id, seed, trigger and objective ids and outcome; once complete or aborted it adds them plus the description as `debrief` (an abort reveals it at once). Refusals quote no id, tag or parameter (generic 400, detail in the request log). `ScenarioRunner`, replay and scores keep real ids. `main.py` is unchanged, so the blueprint builds its own default `ScenarioLibrary()` (PR #143) |
@@ -57,9 +57,8 @@ AUTO in `olefins_lite.yaml`, which T8-6 enabled but no task owns yet.
 field). All are Sonnet except T18-8 (Opus: it decides how the rate limiter trusts a proxy header). T10-4, T11-4 and T17-2 are V1.1-deferred;
 T19-1 and T19-2 are deferred further still, to **V2**.
 
-**Next by leverage: T16-4** (faceplates, Sonnet, `static/js/faceplate.js` only) alongside
-the **T16-3 mount** into `templates/console.html`, a short follow-up now that T16-9 has landed. **T18-8** (Opus) edits `app/main.py` and `app/config.py`, which are
-free again. CP-G still needs `/console` viewed in a browser, which no one has done.
+**Next by leverage: T16-4** (faceplates, Sonnet, `static/js/faceplate.js` plus its mount in `templates/console.html`). **T18-8** (Opus) edits `app/main.py` and `app/config.py`, which are
+free again. CP-G still needs `/console` viewed in a real browser session.
 
 **Scheduling notes.** The spine lock is one global lock
 ([DEVELOPMENT.md](../../DEVELOPMENT.md#file-ownership)); it is free. **The container runs

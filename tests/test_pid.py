@@ -1,3 +1,6 @@
+import copy
+import dataclasses
+
 import pytest
 
 from app.controls.pid import PID, Action
@@ -297,3 +300,60 @@ def test_a_direct_acting_track_reproduces_the_held_output():
         measurement += 2.0
 
     assert pid.compute(last_measurement, dt) == pytest.approx(5.0)
+
+
+# ---- retune (T16-14) ----
+
+
+def mid_run_pid():
+    pid = PID(kp=1.0, ki=0.5, kd=0.0, output_min=-100.0, output_max=100.0, setpoint=10.0)
+
+    for measurement in (0.0, 2.0, 4.0):
+        pid.compute(measurement, 1.0)
+
+    return pid
+
+
+def test_retune_moves_the_next_output_only_by_the_new_integral_action():
+    # Mid-run with an error of 6: a bare gain change would jump the output by
+    # (3 - 1) * 6 plus the rescaled integral. Retuned, the next output at the
+    # same measurement differs from the untouched block's only by the extra
+    # integral action the new Ki takes on that error over one step.
+    pid = mid_run_pid()
+    untouched = copy.deepcopy(pid)
+
+    pid.retune(kp=3.0, ki=2.0, kd=0.0)
+
+    error = 10.0 - 4.0
+    assert pid.compute(4.0, 1.0) == pytest.approx(untouched.compute(4.0, 1.0) + (2.0 - 0.5) * error)
+
+
+def test_retune_from_no_integral_action_is_bumpless():
+    pid = PID(kp=1.0, ki=0.0, kd=0.0, output_min=-100.0, output_max=100.0, setpoint=10.0)
+    for measurement in (0.0, 2.0, 4.0):
+        pid.compute(measurement, 1.0)
+    untouched = copy.deepcopy(pid)
+
+    pid.retune(kp=1.0, ki=0.5, kd=0.0)
+
+    assert pid.compute(4.0, 1.0) == pytest.approx(untouched.compute(4.0, 1.0) + 0.5 * 6.0)
+
+
+def test_retune_before_any_measurement_holds_the_integral_term():
+    pid = PID(kp=1.0, ki=0.5, kd=0.0, output_min=-100.0, output_max=100.0)
+    pid.restore_checkpoint(dataclasses.replace(pid.checkpoint(), integral=8.0, prev_measurement=None))
+
+    pid.retune(kp=3.0, ki=2.0, kd=0.0)
+
+    held = pid.checkpoint()
+    assert held.ki * held.integral == pytest.approx(0.5 * 8.0)
+
+
+def test_retune_refuses_a_negative_ki_and_changes_nothing():
+    pid = mid_run_pid()
+    before = pid.checkpoint()
+
+    with pytest.raises(ValueError):
+        pid.retune(kp=2.0, ki=-1.0, kd=0.0)
+
+    assert pid.checkpoint() == before

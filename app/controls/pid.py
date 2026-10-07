@@ -151,6 +151,33 @@ class PID:
         if self.ki != 0.0:
             self._integral = (target - self.kp * error) / self.ki - error * dt
 
+    def retune(self, kp: float, ki: float, kd: float) -> None:
+        """Change the gains without bumping the output (T16-14).
+
+        The integral is re-solved so the proportional plus integral
+        contribution at the last measurement is what it was, the same
+        equation track() solves: a Kp or Ki change in AUTO moves the output
+        only through what the next error does. With no measurement yet the
+        integral term alone is held. A Kd change is not compensated - the
+        derivative acts on the next measurement step, never on a stored one.
+        With ki == 0 there is no integral to re-solve through, as in track().
+        """
+        if ki < 0.0:
+            raise ValueError(f"ki must be non-negative, got {ki}")
+
+        held = self.ki * self._integral
+
+        if self._prev_measurement is not None:
+            held += (self.kp - kp) * self._error(self._prev_measurement)
+
+        self.kp = kp
+        self.kd = kd
+
+        if ki != 0.0:
+            self._integral = held / ki
+
+        self.ki = ki
+
     def checkpoint(self) -> PIDCheckpoint:
         return PIDCheckpoint(
             kp=self.kp,

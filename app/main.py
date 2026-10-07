@@ -120,7 +120,9 @@ def landing() -> ResponseReturnValue:
 @app.get("/api/snapshot")
 def api_snapshot() -> ResponseReturnValue:
     # Never starts the scheduler: only a page render does (T16-9).
-    return jsonify(g.plant.training_scheduler.snapshot().as_dict())
+    plant = g.plant
+
+    return jsonify(plant.operator_view(plant.training_scheduler.snapshot()))
 
 
 if __name__ == "__main__":

@@ -50,6 +50,12 @@ that never regains control cannot run any check written after it:
   client's next request. A WSGI server that exposes its socket under neither key has no
   backstop against that specific case.
 
+`create_stream_blueprint` also takes an optional `get_view`, resolved in the
+view like `get_source`, which turns each Snapshot into the dict an event
+carries. The default is `Snapshot.as_dict`; a browser-facing stream passes the
+session's operator view (T16-13), so no event carries more than an operator
+would see.
+
 `create_stream_blueprint` also takes an optional `hold`, a context manager
 the stream holds open for its whole life (the training session's lease, once
 a session owns the stream).
@@ -112,8 +118,20 @@ def _dropout_seconds(interval_seconds: float, dropout_intervals: float = DROPOUT
     return max(interval_seconds * dropout_intervals, MIN_DROPOUT_SECONDS)
 
 
-def format_event(snapshot: Snapshot, retry_ms: int | None = None) -> str:
-    """One SSE event: a `data:` line carrying a Snapshot's C4 JSON, closed
+SnapshotView = Callable[[Snapshot], dict[str, JSONValue]]
+
+
+def _full(snapshot: Snapshot) -> dict[str, JSONValue]:
+    return snapshot.as_dict()
+
+
+def format_event(
+    snapshot: Snapshot,
+    retry_ms: int | None = None,
+    view: SnapshotView = _full,
+) -> str:
+    """One SSE event: a `data:` line carrying a Snapshot's C4 JSON (or, given
+    `view`, whatever `view` makes of it), closed
     by the blank line the protocol requires between events. `retry_ms`,
     given only on the first event of a connection, sets EventSource's
     reconnect delay explicitly rather than leaving a dropped stream to its
@@ -127,7 +145,7 @@ def format_event(snapshot: Snapshot, retry_ms: int | None = None) -> str:
     mapped to `null`, rather than silently shipping a payload the client
     cannot parse."""
     retry_line = f"retry: {retry_ms}\n" if retry_ms is not None else ""
-    payload = snapshot.as_dict()
+    payload = view(snapshot)
 
     try:
         body = json.dumps(payload, allow_nan=False)
@@ -176,6 +194,7 @@ def stream_events(
     sleep: Callable[[float], None] = time.sleep,
     monotonic: Callable[[], float] = time.monotonic,
     dropout_intervals: float = DROPOUT_INTERVALS,
+    view: SnapshotView = _full,
 ) -> Iterator[str]:
     """Yield one formatted SSE event per `interval_seconds`, starting
     immediately on connect, until the source is dead or the consumer is
@@ -214,7 +233,7 @@ def stream_events(
             return
 
         started = monotonic()
-        event = format_event(source.snapshot(), retry_ms=retry_ms if first else None)
+        event = format_event(source.snapshot(), retry_ms=retry_ms if first else None, view=view)
         first = False
 
         before = monotonic()
@@ -256,6 +275,7 @@ def create_stream_blueprint(
     get_source: Callable[[], SnapshotSource],
     interval_seconds: float,
     hold: Callable[[], AbstractContextManager[Any]] | None = None,
+    get_view: Callable[[], SnapshotView] | None = None,
 ) -> Blueprint:
     """Build the `/api/stream` blueprint against a `SnapshotSource` resolved
     on demand - once per request, so each call to `get_source` reaches
@@ -269,6 +289,9 @@ def create_stream_blueprint(
     ends, however it ends. A body that is never iterated (HEAD) never
     enters it, and a 204 builds none; still, do not acquire anything
     before `__enter__`.
+
+    `get_view`, when given, is called once per request, under the request
+    context, and the callable it returns shapes every event of that stream.
     """
     if interval_seconds <= 0:
         raise ValueError(f"interval_seconds must be positive, got {interval_seconds}")
@@ -281,6 +304,7 @@ def create_stream_blueprint(
         # generate()'s closure - stream_events never touches flask.g or
         # flask.request itself, so it needs no stream_with_context.
         source = get_source()
+        view = get_view() if get_view is not None else _full
         # Only a permanent close gets 204; see _is_closed vs. _is_dead.
         if _is_closed(source):
             return Response(status=204)
@@ -311,7 +335,7 @@ def create_stream_blueprint(
                     bounded.append(sock.gettimeout())
                     sock.settimeout(_dropout_seconds(interval_seconds))
 
-                yield from stream_events(source, interval_seconds)
+                yield from stream_events(source, interval_seconds, view=view)
 
         response = Response(
             generate(),

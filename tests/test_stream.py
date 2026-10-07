@@ -386,6 +386,35 @@ def test_get_stream_is_an_event_stream_of_snapshots():
         response.close()
 
 
+def test_get_stream_shapes_every_event_with_the_view_it_is_given():
+    source = FakeSource()
+    source.sim_time = 3.0
+    app = Flask(__name__)
+    app.register_blueprint(
+        create_stream_blueprint(
+            lambda: source,
+            0.01,
+            get_view=lambda: lambda snapshot: {"sim_time": snapshot.sim_time, "viewed": True},
+        ),
+    )
+
+    response = app.test_client().get("/api/stream")
+    try:
+        payloads = _read_events(response, 2)
+
+        assert payloads == [{"sim_time": 3.0, "viewed": True}] * 2
+    finally:
+        response.close()
+
+
+def test_format_event_carries_what_the_view_makes_of_the_snapshot():
+    snapshot = FakeSource().snapshot()
+
+    event = format_event(snapshot, view=lambda s: {"only": 1})
+
+    assert _payload(event) == {"only": 1}
+
+
 def test_get_stream_disconnect_and_reconnect_each_see_the_current_state():
     app, source = build_app()
     client = app.test_client()

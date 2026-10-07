@@ -19,7 +19,8 @@ def test_snapshot_answers_a_c4_snapshot_of_the_free_play_plant():
     body = response.get_json()
     assert {"sim_time", "equipment", "nodes", "streams", "alarms"} <= set(body)
     assert {"K-101", "P-101"} <= set(body["equipment"])
-    assert body == session_for(client).training_scheduler.snapshot().as_dict()
+    session = session_for(client)
+    assert body == session.operator_view(session.training_scheduler.snapshot())
 
 
 def test_the_registry_builds_training_sessions():

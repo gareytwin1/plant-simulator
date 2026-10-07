@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "6 October 2026",
-  "main_sha": "460ac4b",
-  "tests_passing_on_main": 3165,
+  "main_sha": "219701d",
+  "tests_passing_on_main": 3193,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -98,7 +98,7 @@
     },
     "M16": {
       "name": "Operator Console",
-      "complete": 8,
+      "complete": 9,
       "total": 13
     },
     "M17": {
@@ -119,8 +119,8 @@
   },
   "totals": {
     "tasks": 129,
-    "complete": 115,
-    "startable_now": 10
+    "complete": 116,
+    "startable_now": 9
   },
   "tasks": [
     {
@@ -2124,7 +2124,6 @@
       "status_key": "todo",
       "startable": false,
       "blocked_by": [
-        "T16-12",
         "T16-13"
       ],
       "note": ""
@@ -2176,10 +2175,9 @@
         "tests/test_landing.py",
         "tests/test_scenario_disclosure.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true,
-      "note": ""
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged to main as 219701d (PR #143). 3193 passed post-merge, mypy clean over 81 files, no golden movement, CI test and docker green. Scenario key (first 12 hex digits of sha256 of the id) replaces the id in the browser; POST /api/scenario/load takes it. One public_result renderer withholds id, seed, trigger and objective ids and outcome while a run is loaded or running, and reveals them plus the description as debrief once it is complete or aborted; refusals quote no id, tag or parameter (generic 400, detail in the request log); a finished run whose file changed gives an empty debrief, not a 500. Aborting reveals the debrief at once. The key is a spoiler guard, not a security boundary. app/main.py is unchanged, so the blueprint builds its own default ScenarioLibrary(); T16-9 can pass the shared one. Not viewed in a browser."
     },
     {
       "id": "T17-1",

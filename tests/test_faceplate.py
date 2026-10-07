@@ -429,6 +429,47 @@ def test_a_plant_with_no_loops_says_so():
 
 
 @needs_node
+def test_text_typed_while_a_command_is_in_flight_is_not_cleared(session):
+    result = run_glue(
+        """
+        plates.update(data.snapshot);
+        const sp = form('PIC-101', 'sp');
+        const input = sp.querySelector('input');
+        input.value = '195';
+        sp.fire('submit');
+        input.value = '196';   // typed before the reply comes back
+        await settle(); await settle();
+        return { input: input.value, posted };
+        """,
+        snapshot=view(session),
+    )
+
+    assert result["input"] == "196"
+    assert result["posted"][0]["body"]["value"] == 195
+
+
+@needs_node
+def test_a_snapshot_with_no_controllers_section_leaves_the_faceplates_alone(session):
+    result = run_glue(
+        """
+        plates.update(data.snapshot);
+        const first = plate('PIC-101');
+        const out = form('PIC-101', 'out').querySelector('input');
+        out.value = '40';
+        plates.update({});
+        plates.update({ controllers: undefined });
+        const kept = { same: plate('PIC-101') === first, typed: out.value };
+        plates.update({ controllers: {} });
+        return { kept, afterEmpty: container.textContent };
+        """,
+        snapshot=view(session),
+    )
+
+    assert result["kept"] == {"same": True, "typed": "40"}
+    assert result["afterEmpty"] == "No controllers in this plant."
+
+
+@needs_node
 def test_the_output_bar_is_a_valid_meter_or_hidden_from_assistive_tech(session):
     snapshot = view(session)
     unknown = json.loads(json.dumps(snapshot))

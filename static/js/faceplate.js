@@ -265,13 +265,16 @@
       var input = form.querySelector("input");
       form.addEventListener("submit", function (event) {
         event.preventDefault();
-        var parsed = parseEntry(kind, input.value, row);
+        var sent = input.value;
+        var parsed = parseEntry(kind, sent, row);
         if (parsed.error) {
           say(parsed.error, "refused");
           return;
         }
         send(parsed.action, parsed.value, function () {
-          input.value = "";
+          // Only what was sent is cleared: text typed while the request was in
+          // flight is the operator's next entry and stays.
+          if (input.value === sent) input.value = "";
         });
       });
     });
@@ -352,6 +355,11 @@
     }
 
     function update(snapshot) {
+      // A snapshot with no controllers section at all is not "no loops" (that
+      // is an empty section): leave the faceplates, and whatever the operator
+      // has typed into them, as they are.
+      if (!isObject(snapshot) || !isObject(snapshot.controllers)) return;
+
       var tags = controllerTags(snapshot);
       var key = tags.join("\n");
 

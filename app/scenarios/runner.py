@@ -234,7 +234,9 @@ _DIFFICULTY_ORDER = {"easy": 0, "medium": 1, "hard": 2}
 def scenario_key(scenario_id: str) -> str:
     """The handle a browser holds for a scenario instead of its id: the first
     12 hex digits of the id's SHA-256. Deterministic, so it is the same across
-    restarts and needs no field in the scenario file to keep in sync."""
+    restarts and needs no field in the scenario file to keep in sync. It stops
+    a trainee reading the cause off the page, not one who hashes guessed ids:
+    it is a spoiler guard, not a security boundary."""
     return hashlib.sha256(scenario_id.encode()).hexdigest()[:12]
 
 

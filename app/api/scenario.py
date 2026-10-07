@@ -103,6 +103,21 @@ def public_result(result: ScenarioResult, entry: CatalogueEntry | None, debrief:
     }
 
 
+def _debrief(library: ScenarioLibrary, scenario_id: str) -> str:
+    """The scenario's description, or "" when its file changed or went away
+    after the run was armed: the result is still final, only the text is lost."""
+    try:
+        document = library.scenario(scenario_id)
+    except (ScenarioNotFound, ScenarioConfigError, OSError) as error:
+        logger.warning("scenario %s has no debrief: %s", scenario_key(scenario_id), error)
+
+        return ""
+
+    description = document.get("description", "") if isinstance(document, dict) else ""
+
+    return str(description).strip()
+
+
 def create_scenario_blueprint(
     get_runner: Callable[[], ScenarioControl],
     library: ScenarioLibrary | None = None,
@@ -116,12 +131,7 @@ def create_scenario_blueprint(
         debrief = ""
 
         if result.phase in _OVER:
-            try:
-                debrief = str(library.scenario(result.scenario_id).get("description", "")).strip()
-            except (ScenarioNotFound, ScenarioConfigError) as error:
-                # The file changed or went away after the run was armed: the
-                # result is still final, only its debrief text is lost.
-                logger.warning("scenario %s has no debrief: %s", scenario_key(result.scenario_id), error)
+            debrief = _debrief(library, result.scenario_id)
 
         return jsonify(public_result(result, by_id.get(result.scenario_id), debrief)), 200
 

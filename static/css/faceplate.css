@@ -1,0 +1,185 @@
+/* Controller faceplates (T16-4). Every colour is a token from tokens.css
+ * (docs/console-standards.md); nothing here is a hex literal. Load tokens.css
+ * and landing.css (buttons, focus ring) first.
+ *
+ * A faceplate stays neutral: mode is a word and a pressed button, never a
+ * colour alone, and the output bar is drawn in --text on --surface. */
+
+.faceplates {
+  margin-bottom: 1.5rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr));
+  gap: 1rem;
+}
+
+.faceplate {
+  --faceplate-gap: 0.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--faceplate-gap);
+  padding: 0.75rem;
+  border: 2px solid var(--border);
+  border-radius: 4px;
+  background-color: var(--surface-raised);
+}
+
+.faceplate-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.faceplate-tag {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.faceplate-mode {
+  padding: 0.05em 0.5em;
+  border: 2px solid var(--text);
+  border-radius: 3px;
+  font-weight: 700;
+  font-size: 0.85rem;
+  letter-spacing: 0.04em;
+}
+
+.faceplate[data-mode="MANUAL"] .faceplate-mode {
+  background-color: var(--text);
+  color: var(--surface-raised);
+}
+
+/* Three across while each reading fits; a narrow card reflows to two rows
+ * rather than cutting a unit off or spilling into the next column. A long
+ * reading wraps its unit onto a second line at the space before it. */
+.faceplate-values {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(5.5rem, 1fr));
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.faceplate-value {
+  min-width: 0;
+}
+
+.faceplate-value dt {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.faceplate-value dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.faceplate-bar {
+  height: 0.75rem;
+  border: 2px solid var(--border);
+  border-radius: 2px;
+  background-color: var(--surface);
+  overflow: hidden;
+}
+
+.faceplate-bar-fill {
+  width: 0;
+  height: 100%;
+  background-color: var(--text);
+}
+
+.faceplate-modes {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.faceplate-modes button {
+  flex: 1;
+  padding: 0.35rem 0.5rem;
+}
+
+.faceplate-modes button[aria-pressed="true"] {
+  background-color: var(--text);
+  color: var(--surface-raised);
+}
+
+.faceplate-entry {
+  display: grid;
+  grid-template-columns: 4rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.faceplate-entry label {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.faceplate-entry input {
+  width: 100%;
+  min-width: 0;
+  padding: 0.3rem 0.4rem;
+  border: 2px solid var(--border);
+  border-radius: 3px;
+  background-color: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+.faceplate-entry input::placeholder {
+  color: var(--text-muted);
+}
+
+.faceplate-entry input:disabled {
+  cursor: not-allowed;
+}
+
+.faceplate-entry button {
+  padding: 0.3rem 0.75rem;
+}
+
+.faceplate-tuning {
+  border-top: 2px solid var(--border);
+  padding-top: 0.5rem;
+}
+
+.faceplate-tuning summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.faceplate-tuning[open] summary {
+  margin-bottom: 0.5rem;
+}
+
+.faceplate-tuning .faceplate-entry + .faceplate-entry {
+  margin-top: 0.5rem;
+}
+
+.faceplate-message {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+/* Empty, the status region stays rendered (display: none would drop it from
+ * the accessibility tree, and a screen reader may not announce text put into
+ * a region it never saw); a negative margin cancels the card's flex gap. */
+.faceplate-message:empty {
+  margin-top: calc(-1 * var(--faceplate-gap));
+}
+
+.faceplate-message[data-kind="refused"] {
+  font-weight: 600;
+}
+
+.faceplate-message[data-kind="refused"]::before {
+  content: var(--symbol-alarm-high) " ";
+  color: var(--alarm-high-mark);
+}
+
+.faceplate-empty {
+  color: var(--text-muted);
+}

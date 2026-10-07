@@ -5,6 +5,7 @@
 {% block head %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/alarms.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/connection.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/faceplate.css') }}">
 {% endblock %}
 
 {% block content %}
@@ -14,6 +15,10 @@
   <section aria-labelledby="plant-heading">
     <h2 id="plant-heading">Plant</h2>
     <div id="process-graphic" data-live-value></div>
+  </section>
+  <section aria-labelledby="controllers-heading">
+    <h2 id="controllers-heading">Controllers</h2>
+    <div id="faceplates" class="faceplates"><p class="faceplate-empty">Waiting for the plant.</p></div>
   </section>
   <section aria-labelledby="alarms-heading">
     <h2 id="alarms-heading">Alarms</h2>
@@ -27,6 +32,7 @@
 <script src="{{ url_for('static', filename='js/alarms.js') }}"></script>
 <script src="{{ url_for('static', filename='js/connection.js') }}"></script>
 <script src="{{ url_for('static', filename='js/graphic.js') }}"></script>
+<script src="{{ url_for('static', filename='js/faceplate.js') }}"></script>
 <script>
   (function () {
     var consoleEl = document.getElementById("console");
@@ -38,9 +44,15 @@
     var graphic = ProcessGraphic.mount(document.getElementById("process-graphic"), {
       url: "{{ url_for('static', filename='graphics/plant.svg') }}"
     });
+    var faceplates = Faceplates.mount(document.getElementById("faceplates"));
     ConnectionMonitor.mount(consoleEl, document.getElementById("connection-indicator"), {
       intervalSeconds: Number(consoleEl.getAttribute("data-interval-seconds")),
-      onSnapshot: graphic.update
+      // Each consumer is isolated: connection.js does not guard this callback,
+      // so a graphic that throws must not leave the controls on a stale snapshot.
+      onSnapshot: function (snapshot) {
+        try { graphic.update(snapshot); } catch (error) { console.error(error); }
+        try { faceplates.update(snapshot); } catch (error) { console.error(error); }
+      }
     });
   })();
 </script>

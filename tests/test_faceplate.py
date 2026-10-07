@@ -245,13 +245,6 @@ def test_the_stylesheet_uses_tokens_only():
     assert set(re.findall(r"var\((--[\w-]+)\)", css)) <= defined
 
 
-def test_live_values_dim_when_the_stream_goes_stale():
-    js = FACEPLATE_JS.read_text()
-
-    for part in ("faceplate-mode", "faceplate-values", "faceplate-bar"):
-        assert re.search(part + r'["\'][^}]*"data-live-value"', js), part
-
-
 # ---- The browser glue, over a minimal DOM ----
 #
 # Just enough of a DOM for faceplate.js's glue: elements with attributes,
@@ -402,3 +395,29 @@ def test_controls_follow_mode_and_tunability(session):
     assert result["auto"]["kpEnabled"] is False
     assert result["auto"]["summary"] == "Tuning (locked)"
     assert result["auto"]["manPressed"] == "false"
+
+
+@needs_node
+def test_live_values_carry_the_attribute_that_dims_them_when_stale(session):
+    result = run_glue(
+        """
+        plates.update(data.snapshot);
+        return ['faceplate-mode', 'faceplate-values', 'faceplate-bar'].map(cls =>
+          find('PIC-101', n => n.getAttribute('class') === cls).getAttribute('data-live-value'));
+        """,
+        snapshot=view(session),
+    )
+
+    assert result == ["", "", ""]
+
+
+@needs_node
+def test_a_plant_with_no_loops_says_so():
+    result = run_glue(
+        """
+        plates.update({ controllers: {} });
+        return container.textContent;
+        """,
+    )
+
+    assert result == "No controllers in this plant."

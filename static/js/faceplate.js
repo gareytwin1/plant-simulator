@@ -321,7 +321,7 @@
     var doFetch = settings.fetch || root.fetch.bind(root);
     var doc = container.ownerDocument;
     var plates = {};
-    var order = "";
+    var order = null; // never equal to a snapshot's key, so the first one always builds
 
     // Resolves to the server's refusal text, or null when the action was taken.
     function post(tag, action, value) {

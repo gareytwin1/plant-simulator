@@ -129,7 +129,10 @@ class PlantRuntime:
                 self.trips.interlocks[target].reset()
                 self.actions.record(tag=target, action=RESET, value=None, sim_time=sim_time)
             else:
-                apply_action(self.engine.equipment, self.actions, sim_time, target, action, value)
+                apply_action(
+                    self.engine.equipment, self.actions, sim_time, target, action, value,
+                    loops=self.engine.loops,
+                )
 
             self._published = None
 

@@ -250,8 +250,11 @@ def test_an_action_applied_straight_to_the_runner_log_is_replayed_too():
     live = started()
     steps(live, 5)
     engine = live.engine
-    apply_action(engine.equipment, live.actions, engine.clock.sim_time, "P-101", "start", None)
-    apply_action(engine.equipment, live.actions, engine.clock.sim_time, "P-101", "set_speed_target", 1.0)
+    sim_time = engine.clock.sim_time
+    apply_action(engine.equipment, live.actions, sim_time, "P-101", "start", None, loops=engine.loops)
+    apply_action(
+        engine.equipment, live.actions, sim_time, "P-101", "set_speed_target", 1.0, loops=engine.loops,
+    )
     run_out(live)
 
     replayed = replay(Recording.of(live))

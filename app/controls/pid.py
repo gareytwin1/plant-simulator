@@ -43,6 +43,7 @@ handoff is bumpless whenever it happens.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from enum import StrEnum
 
@@ -150,6 +151,43 @@ class PID:
         # already have moved past the target by ki * error * dt.
         if self.ki != 0.0:
             self._integral = (target - self.kp * error) / self.ki - error * dt
+
+    def retune(self, kp: float, ki: float, kd: float) -> None:
+        """Change the gains without bumping the output (T16-14).
+
+        The integral is re-solved so the proportional plus integral
+        contribution at the last measurement is what it was, the same
+        equation track() solves: a Kp or Ki change in AUTO moves the output
+        only through what the next error does. With no measurement yet the
+        integral term alone is held. A Kd change is not compensated - the
+        derivative acts on the next measurement step, never on a stored one.
+
+        Not bumpless with a new ki of 0: there is no integral to re-solve
+        through, as in track(), so the old integral contribution and any Kp
+        change at the held error step the output. Every gain must be
+        non-negative; a loop that needs its output to move the other way
+        takes Action.DIRECT (see the module docstring).
+        """
+        for name, gain in (("kp", kp), ("ki", ki), ("kd", kd)):
+            if not math.isfinite(gain) or gain < 0.0:
+                raise ValueError(f"{name} must be finite and non-negative, got {gain}")
+
+        held = self.ki * self._integral
+
+        if self._prev_measurement is not None:
+            held += (self.kp - kp) * self._error(self._prev_measurement)
+
+        integral = held / ki if ki != 0.0 else self._integral
+
+        # A vanishing ki re-solves to an integral too large to be a float,
+        # which would poison every output after it. Refused before any write.
+        if not math.isfinite(integral):
+            raise ValueError(f"ki {ki} is too small to hold the output; its integral would be {integral}")
+
+        self.kp = kp
+        self.ki = ki
+        self.kd = kd
+        self._integral = integral
 
     def checkpoint(self) -> PIDCheckpoint:
         return PIDCheckpoint(

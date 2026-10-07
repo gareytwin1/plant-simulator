@@ -54,7 +54,7 @@ def run(scenario_id, script=None, limit=2000):
         for target, action, *value in script.get(tick, ()):
             apply_action(
                 engine.equipment, runner.actions, engine.clock.sim_time,
-                target, action, value[0] if value else None,
+                target, action, value[0] if value else None, loops=engine.loops,
             )
 
         runner.step(DT)

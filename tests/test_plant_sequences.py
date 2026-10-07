@@ -71,7 +71,8 @@ class Plant:
         self.sequences = load_sequences(SEQUENCES, self.snapshot, operable(self.engine))
 
     def act(self, tag, action, value):
-        apply_action(self.engine.equipment, self.log, self.engine.clock.sim_time, tag, action, value)
+        engine = self.engine
+        apply_action(engine.equipment, self.log, engine.clock.sim_time, tag, action, value, loops=engine.loops)
 
     def run(self, name, machine):
         return SequenceRun(self.sequences.procedures[name], machine, self.act)

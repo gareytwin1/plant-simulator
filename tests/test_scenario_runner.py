@@ -82,7 +82,7 @@ def started(config=None):
 
 def act(runner, target, action, value=None):
     engine = runner.engine
-    apply_action(engine.equipment, runner.actions, engine.clock.sim_time, target, action, value)
+    apply_action(engine.equipment, runner.actions, engine.clock.sim_time, target, action, value, loops=engine.loops)
 
 
 def run_out(runner, limit=1000):

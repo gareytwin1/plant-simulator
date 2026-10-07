@@ -104,7 +104,8 @@ An `Engine` built with no topology - `Engine(devices)`, the form that predates
 T4-4 - still integrates and nothing more; its snapshot reports the trivial
 converged placeholder and empty `nodes` and `streams`. The snapshot's
 `controllers` section carries one row per loop the engine executes (T8-4),
-so it is empty for a plant with no `controllers` key; `envelope` carries one
+with the gains, output range, tunable flag and pv unit a faceplate reads
+(T16-14), so it is empty for a plant with no `controllers` key; `envelope` carries one
 row per `(tag, variable)` currently outside its configured limits (T9-4), so
 it is empty for a plant with no `limits` key **or** whose configured points
 all read NORMAL - and empty too for a `limits` entry naming a `variable`
@@ -400,7 +401,9 @@ app/
     state.py              T10-1: ISA alarm state machine (C7)
     manager.py            T10-2: envelope band changes → C6 alarm events
   api/
-    action.py             T15-1: C5 POST /api/action, not yet wired into main.py
+    action.py             T15-1: C5 POST /api/action; a target is a device or,
+                          since T16-14, a loop (LOOP_ACTIONS); a device a
+                          loop drives is commanded only through the loop
   disturbances/
     malfunction.py        T13-1/T13-2: C8 faults on devices and instrument
                           bias; WRITABLE allowlist, MalfunctionRegistry

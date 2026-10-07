@@ -433,7 +433,8 @@ def test_the_controllers_section_carries_pv_sp_out_and_mode():
 
     row = engine.step(DT).as_dict()["controllers"]["PIC-101"]
 
-    assert set(row) == {"pv", "sp", "out", "mode"}
+    # The faceplate fields T16-14 added are pinned in their own test below.
+    assert {"pv", "sp", "out", "mode"} <= set(row)
     assert row["pv"] == pytest.approx(SETPOINT)
     assert row["sp"] == SETPOINT
     assert row["out"] == pytest.approx(DESIGN_TRAVEL)
@@ -503,3 +504,31 @@ def test_a_measurement_that_is_not_a_number_is_refused_by_name():
 
     with pytest.raises(ValueError, match="loop PIC-101 .* not a number"):
         _reading(view, ("equipment", "PV-101", "signal_ok"), "loop PIC-101")
+
+
+# --------------------------------------------------------------------------
+# What a faceplate reads (T16-14)
+# --------------------------------------------------------------------------
+
+
+def test_the_controllers_row_carries_what_a_faceplate_needs():
+    _plant, engine = running(config())
+
+    row = engine.snapshot().controllers["PIC-101"]
+
+    assert set(row) == {"pv", "sp", "out", "mode", "kp", "ki", "kd", "out_min", "out_max", "tunable", "pv_unit"}
+    assert (row["kp"], row["ki"], row["kd"]) == (KP, KI, 0.0)
+    assert (row["out_min"], row["out_max"]) == (0.0, 1.0)
+    assert row["tunable"] is False
+    assert row["pv_unit"] == "psia"
+
+
+def test_the_controllers_row_follows_a_retune():
+    cfg = config()
+    cfg["controllers"][0]["tunable"] = True
+    _plant, engine = running(cfg)
+
+    engine.loops["PIC-101"].loop.pid.retune(kp=0.02, ki=KI, kd=0.0)
+
+    assert engine.snapshot().controllers["PIC-101"]["kp"] == 0.02
+    assert engine.snapshot().controllers["PIC-101"]["tunable"] is True

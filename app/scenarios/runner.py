@@ -98,7 +98,7 @@ import json
 import math
 import re
 import threading
-from collections.abc import Callable, Iterator, Mapping
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from enum import Enum
@@ -114,6 +114,7 @@ from app.disturbances.profiles import profile_from_config, start_condition_from_
 from app.engine.engine import Engine
 from app.engine.persistence import capture_state, restore_state
 from app.engine.snapshot import Snapshot
+from app.historian.buffer import Sample
 from app.equipment.registry import EquipmentRegistry
 from app.plant.loader import CONFIG_SUFFIXES, Plant, load_plant, read_plant_config
 from app.plant.validate import validate
@@ -605,6 +606,17 @@ class ScenarioRunner:
         """The loaded run's alarm history, oldest first."""
         with self._lock:
             return self._loaded().runtime.alarm_entries()
+
+    def trend_points(self) -> tuple[str, ...]:
+        """The loaded run's trend points, under the runner lock."""
+        with self._lock:
+            return self._loaded().runtime.trend_points()
+
+    def trend_history(self, points: Sequence[str]) -> dict[str, tuple[Sample, ...]]:
+        """The loaded run's samples of `points`, on the engine's clock like
+        the snapshots it publishes. `KeyError` for a point it does not have."""
+        with self._lock:
+            return self._loaded().runtime.trend_history(points)
 
     def unload(self) -> None:
         """Forget the loaded run, returning the runner to IDLE."""

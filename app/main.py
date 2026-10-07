@@ -12,6 +12,7 @@ from app.api.alarms import create_alarm_blueprint
 from app.api.health import create_health_blueprint
 from app.api.scenario import create_scenario_blueprint
 from app.api.stream import create_stream_blueprint
+from app.api.trend import create_trend_blueprint
 from app.engine.scheduler import Scheduler
 from app.engine.sessions import SessionRegistry
 from app.scenarios.runner import ScenarioLibrary
@@ -87,6 +88,12 @@ app.register_blueprint(
     create_alarm_blueprint(
         lambda: g.plant.alarm_entries(),
         lambda alarm_id: g.plant.acknowledge(alarm_id),
+    ),
+)
+app.register_blueprint(
+    create_trend_blueprint(
+        lambda: g.plant.trend_points(),
+        lambda points: g.plant.trend_history(points),
     ),
 )
 app.register_blueprint(

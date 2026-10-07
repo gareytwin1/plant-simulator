@@ -37,7 +37,7 @@ cannot start a worker the registry no longer counts.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
 from app import config
@@ -48,6 +48,7 @@ from app.engine.engine import Engine
 from app.engine.persistence import restore_state
 from app.engine.scheduler import Scheduler
 from app.engine.snapshot import Snapshot
+from app.historian.buffer import Sample
 from app.plant.loader import load_plant, read_plant_config
 from app.scenarios.runner import Phase, ScenarioLibrary, ScenarioResult, ScenarioRunner
 from app.statetypes import JSONValue
@@ -131,6 +132,17 @@ class TrainingSession:
                 return self.free.alarm_entries()
 
             return self.runner.alarm_entries()
+
+    def trend_points(self) -> tuple[str, ...]:
+        """The trend points of the plant the snapshot shows, sorted."""
+        with self.training_scheduler.step_lock:
+            return self._plant().trend_points()
+
+    def trend_history(self, points: Sequence[str]) -> dict[str, tuple[Sample, ...]]:
+        """The samples of `points` from the plant the snapshot shows.
+        `KeyError` for a point that plant does not publish."""
+        with self.training_scheduler.step_lock:
+            return self._plant().trend_history(points)
 
     def load(self, scenario_id: str) -> ScenarioResult:
         return self._command(lambda: self.runner.load(scenario_id))

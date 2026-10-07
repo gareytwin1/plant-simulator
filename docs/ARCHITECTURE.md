@@ -87,7 +87,7 @@ Scheduler  ·  app/engine/scheduler.py        [one background thread]
   │   step(dt) goes to the runner while its phase is not IDLE, else to free
   ▼
 PlantRuntime.step  ·  app/training/runtime.py
-  │   TripSystem.update → Engine.step → alarms and history
+  │   TripSystem.update → Engine.step → alarms, alarm history, trend history
 ```
 
 Every write - an operator action, an interlock reset, an acknowledge, a
@@ -229,7 +229,7 @@ Engine.step(dt)
             ├── envelopes          normal bands + excursion time [live, T9-4]
             ├── alarms (C6/C7)     symptom-named events          [M10]
             ├── trips/interlocks   protective actions            [M11]
-            ├── historian/trends   ring buffer                   [M17]
+            ├── historian/trends   ring buffer                   [live, T17-3; display M17]
             ├── scoring            reads snapshot only           [M15]
             └── operator console   process graphic + faceplates  [M16]
 ```
@@ -404,11 +404,14 @@ app/
     action.py             T15-1: C5 POST /api/action; a target is a device or,
                           since T16-14, a loop (LOOP_ACTIONS); a device a
                           loop drives is commanded only through the loop
+    trend.py              T17-3: C5 GET /api/trend and /api/trend/points
   disturbances/
     malfunction.py        T13-1/T13-2: C8 faults on devices and instrument
                           bias; WRITABLE allowlist, MalfunctionRegistry
   historian/
     buffer.py             T17-1: ring-buffer per-tag history
+    decimate.py           T17-2: peak-preserving decimation
+    points.py             T17-3: which operator-view values a trend may draw
   scenarios/
     triggers.py           T14-2: C8 scenario triggers
   training/

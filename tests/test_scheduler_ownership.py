@@ -49,6 +49,7 @@ def test_full_api_sequence_never_starts_a_scheduler():
     client.get("/")
     client.get("/api/snapshot")
     client.get("/api/snapshot")
+    client.get("/api/trend/points")
 
     session = session_for(client)
 

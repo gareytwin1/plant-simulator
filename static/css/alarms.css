@@ -108,6 +108,12 @@
 
 /* Summary */
 
+/* The summary scrolls inside its own box at phone width rather than pushing
+ * the whole page sideways. */
+.alarm-summary-scroll {
+  overflow-x: auto;
+}
+
 .alarm-summary {
   width: 100%;
   border-collapse: collapse;

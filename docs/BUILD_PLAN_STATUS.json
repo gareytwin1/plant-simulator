@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
-  "refreshed": "6 October 2026",
-  "main_sha": "43e7db7",
-  "tests_passing_on_main": 3210,
+  "refreshed": "7 October 2026",
+  "main_sha": "03d8a70",
+  "tests_passing_on_main": 3226,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -98,7 +98,7 @@
     },
     "M16": {
       "name": "Operator Console",
-      "complete": 10,
+      "complete": 11,
       "total": 13
     },
     "M17": {
@@ -119,8 +119,8 @@
   },
   "totals": {
     "tasks": 129,
-    "complete": 117,
-    "startable_now": 9
+    "complete": 118,
+    "startable_now": 7
   },
   "tasks": [
     {
@@ -1918,10 +1918,10 @@
         "static/js/graphic.js",
         "static/graphics/*.svg"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
+      "status": "Ready for Review",
+      "status_key": "review",
       "startable": true,
-      "note": ""
+      "note": "PR #146, branch feature/process-graphic (bc060a2), rebased on main f990192. 3237 passed, mypy clean, no golden movement, roborev 689 and 693 Pass (Lows addressed or dismissed). static/graphics/plant.svg + static/js/graphic.js bind the operator view by data-* tag; tests/test_process_graphic.py runs the real SVG under Node. Not mounted: templates/console.html waits for T16-9, then a short follow-up adds the mount and the file-list note. No tripped equipment state (snapshot does not publish interlock trips); trips show as the envelope trip band."
     },
     {
       "id": "T16-4",
@@ -2119,10 +2119,9 @@
         "static/js/landing.js",
         "tests/test_console_api.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true,
-      "note": ""
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged to main as 03d8a70 (PR #145). 3226 passed post-merge, mypy clean. Browser view of /console (CP-G) not yet recorded."
     },
     {
       "id": "T16-11",

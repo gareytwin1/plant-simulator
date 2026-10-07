@@ -8,12 +8,12 @@ regrowth rule is in [.claude/rules/docs.md](../../.claude/rules/docs.md).
 
 ## Right now
 
-**Last state refresh:** 6 October 2026, at `43e7db7` (Merge T16-13: Operator view of the snapshot,
-PR #144) - **this is a snapshot,
-not a live pointer.** Run `git log 43e7db7..HEAD --oneline` to see what has
+**Last state refresh:** 7 October 2026, at `03d8a70` (Merge T16-9: Console wiring,
+PR #145) - **this is a snapshot,
+not a live pointer.** Run `git log 03d8a70..HEAD --oneline` to see what has
 merged since.
-**Full suite as of this refresh:** **3210 passed** · `python -m mypy` clean over 82 source files · no golden trace movement
-**In flight:** nothing.
+**Full suite as of this refresh:** **3226 passed** · `python -m mypy` clean over 82 source files · no golden trace movement
+**In flight:** T16-3 (PR #146, Ready for Review).
 **No spine lock is held.** No task is Blocked. CI runs on every PR, and `main` requires its
 `test` check before a merge.
 
@@ -22,12 +22,12 @@ merged since.
 
 | Task | SHA | What landed |
 |---|---|---|
+| **T16-9** | `03d8a70` | Console wiring: `app/main.py` registers the stream (operator view via `get_view`, session lease as `hold`, `config.STREAM_INTERVAL_SECONDS`), action (`create_action_blueprint(apply=...)`; `get_engine` and `get_log` optional when `apply` is given) and alarm blueprints against `g.plant`. `GET /console` renders `templates/console.html` (alarm console plus the T16-5 connection indicator) and is the **first route that starts a scheduler**; `GET /` and `/api/snapshot` still do not. The header links Console and `landing.js` goes there after a load or free-play call. **CP-G's browser view of `/console` is not yet recorded** (PR #145) |
 | **T16-13** | `43e7db7` | Operator view: `app/api/visibility.py` holds `VISIBLE`, a per-class allowlist (measurements, run status, the operator's own commands; never a fault flag, a malfunction-writable parameter or a model internal), and `operator_view(snapshot, equipment)`; a class with no entry or an unknown tag shows an empty row. `TrainingSession.operator_view` classes rows by the plant the last command left showing and takes no lock; `/api/snapshot` serves it; `create_stream_blueprint` takes an optional `get_view` whose default stays the full snapshot, **so T16-9 must pass the session's**. Trips, alarms and scenarios still read the full snapshot; `nodes` and `streams` still show every solved point (PR #144) |
 | **T16-12** | `219701d` | Scenario disclosure: the browser holds an opaque `key` (first 12 hex digits of sha256 of the id; a spoiler guard, not a security boundary) and `POST /api/scenario/load` takes it. `public_result` in `app/api/scenario.py` renders every result: while loaded or running it omits the id, seed, trigger and objective ids and outcome; once complete or aborted it adds them plus the description as `debrief` (an abort reveals it at once). Refusals quote no id, tag or parameter (generic 400, detail in the request log). `ScenarioRunner`, replay and scores keep real ids. `main.py` is unchanged, so the blueprint builds its own default `ScenarioLibrary()` (PR #143) |
 | **T16-5** | `460ac4b` | Stale connection handling: `static/js/connection.js` tracks `/api/stream` as connecting, live, stale (no snapshot for max(3 intervals, 2s), or any stream error; the next snapshot clears it) or closed (the browser gave up; a reload is needed) and sets `data-connection`; `connection.css` dims `data-live-value` elements and shows an indicator; `mount` requires `intervalSeconds`. Not mounted on a page until T16-9 (PR #142) |
 | **T16-11** | `5923b8f` | Landing page: `GET /` renders free play, the six scenarios by title, briefing and difficulty (never the description) and where the session's plant stands; it never starts a scheduler. `templates/base.html` is the shared header, with an Auto/Light/Dark theme toggle (`static/js/theme.js`). Scenario files gain optional `title` and `briefing` (config 1.0.1); `ScenarioLibrary.catalogue()` is built once at import in `main.py` and refuses an id that is not its file name; `TrainingSession.standing()` reports free play or the loaded scenario id; the scenario routes are registered on the app; the Dockerfile copies `templates` again. Scenario ids still go to `/api/scenario/load` until T16-12 (PR #141) |
 | **T16-10** | `6c53940` | Single-machine pages retired: the compressor and pump pages, routes, scripts and the two-plant `Session` are deleted; `SessionRegistry` takes a required `factory` and `main.py` builds `TrainingSession`; `GET /api/snapshot` (C5) answers the caller's training snapshot and never starts the scheduler; `/health/engine` reports a `training` scheduler. The golden harness owns its own single-machine plants and row assembly (traces byte-unchanged). **The app serves no page, only the health probes and `/api/snapshot`, until T16-11.** The suite dropped from 3175 to 3108 because the legacy API test files went (PR #140) |
-| **T16-8** | `da9b2d8` | Training session: `app/training/session.py` `TrainingSession` is a standalone session (not a `Session`) owning a free-play `PlantRuntime` (`config.FREE_PLAY_PLANT` at `FREE_PLAY_CONDITION`), a `ScenarioRunner` and one `Scheduler` over itself; step and snapshot follow the runner while a scenario is loaded, and every write is a scheduler command under `step_lock`. `SessionRegistry` is generic over any `Endable` session with a `factory` (default `Session`) and `lease(session_id)`, which pins a session against the idle sweep (T16-9 passes it as the stream's `hold`); the scenario blueprint takes a `ScenarioControl` protocol and gains `POST /api/scenario/unload`. `main.py` and the registry's default factory are unchanged: T16-9 switches them after T16-10 retires the legacy routes. 32 plants step in ~20 ms per round, so `MAX_SESSIONS` stays 32 (PR #139) |
 
 **ADRs on `main`:** [0001](../../docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md)
 (+ Amendment 1) and [0002](../../docs/ADR_0002_TYPED_PORTS.md) (+ Amendments
@@ -41,35 +41,34 @@ Complete: **M0-M9, M12, M13, M14, M15, MR**. Open:
 |---|---|---|
 | **M10** Alarms | 4/5 | T10-1, T10-2, T10-3, T10-5; T10-4 startable (V1.1-deferred) |
 | **M11** Interlocks and Trips | 3/4 | T11-1, T11-2, T11-3; T11-4 startable (V1.1-deferred) |
-| **M16** Operator Console | 10/13 | T16-1, T16-2, T16-5, T16-6, T16-7, T16-8, T16-10, T16-11, T16-12, T16-13; T16-3, T16-4 and T16-9 startable |
+| **M16** Operator Console | 11/13 | T16-1, T16-2, T16-5, T16-6, T16-7, T16-8, T16-9, T16-10, T16-11, T16-12, T16-13; T16-3 in review; T16-4 startable |
 | **M17** Historian and Trends | 1/4 | T17-1; T17-2 startable (V1.1-deferred) |
 | **M18** Deployment | 8/9 | T18-1 to T18-7, T18-9; T18-8 (rate limit behind a reverse proxy) startable once Opus decides its shape |
 | M19 | 0 | - |
 
-**117 of 129 tasks Complete.** Checkpoints A-C reached. Checkpoint **D** (M8)
+**118 of 129 tasks Complete.** Checkpoints A-C reached. Checkpoint **D** (M8)
 needs only its "loops reject an injected disturbance" gate: PIC-101 switched to
 AUTO in `olefins_lite.yaml`, which T8-6 enabled but no task owns yet.
 
 ## The next task
 
-**9 tasks are startable** - list them from
+**7 tasks are startable** - list them from
 [BUILD_PLAN_STATUS.json](../../docs/BUILD_PLAN_STATUS.json) (`startable`
 field). All are Sonnet except T18-8 (Opus: it decides how the rate limiter trusts a proxy header). T10-4, T11-4 and T17-2 are V1.1-deferred;
 T19-2 (startable - its other dependency, T13-1, was already Complete) is
 deferred further still, to **V2**.
 
-**Next by leverage: T16-9** - console wiring, which finally puts the live plant,
-its trips, alarms and scenarios behind a console. It takes the `app/main.py`
-lock, passes the shared `library` to `create_scenario_blueprint` and
-`get_view=lambda: g.plant.operator_view` to the stream. Its shape is decided in
-its build-plan note. T16-3 and T16-4 can still build against fixtures meanwhile.
+**Next by leverage: T16-4** (faceplates, Sonnet, `static/js/faceplate.js` only) alongside
+**T16-3** once PR #146 merges, whose mount into `templates/console.html` is a short follow-up
+now that T16-9 has landed. **T18-8** (Opus) edits `app/main.py` and `app/config.py`, which are
+free again. CP-G still needs `/console` viewed in a browser, which no one has done.
 
 **Scheduling notes.** The spine lock is one global lock
 ([DEVELOPMENT.md](../../DEVELOPMENT.md#file-ownership)); it is free. **The container runs
 exactly one Gunicorn worker** (T18-1) - `SessionRegistry` is per-process (R7); never scale it.
-**Trips and alarms run in `TrainingSession` (T16-8), which the app builds but serves no console for yet**:
+**Trips and alarms run in `TrainingSession` (T16-8), which `/console` (T16-9) now serves**:
 `PlantRuntime` (T16-6) runs both around the engine step, `ScenarioRunner` (T16-7)
-builds one, and `main.py` builds it for every cookie (T16-10); the only page is the landing page (T16-11) until T16-9 adds the console.
+builds one, and `main.py` builds it for every cookie (T16-10); the pages are the landing page (T16-11) and the console (T16-9).
 `RestartGate` (T11-3) must be updated before `TripSystem.update`, and only
 blocks a restart for a trip listed in its `resets`; an ungated trip still lets a
 standing lower-precedence RUN demand restart a machine the moment it releases.

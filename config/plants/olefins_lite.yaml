@@ -216,4 +216,8 @@ controllers:
   # Configured MANUAL: the plant's own tests pin its open-loop response to
   # valve and machine moves, which a loop in AUTO would reject. Switching the
   # reference plant to AUTO is its own decision, not a side effect of this one.
-  - {tag: PIC-101, pv: N-201, sp: 200.0, out: PV-101, mode: MANUAL, action: DIRECT, kp: 0.01, ki: 0.005, kd: 0.0}
+  #
+  # tunable (T16-14): an operator may retune PIC-101 from its faceplate. Its
+  # gains were set for a stable response, never tuned, which is exactly what
+  # a trainee is meant to be able to try.
+  - {tag: PIC-101, pv: N-201, sp: 200.0, out: PV-101, mode: MANUAL, action: DIRECT, kp: 0.01, ki: 0.005, kd: 0.0, tunable: true}

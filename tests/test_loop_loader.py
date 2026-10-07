@@ -5,7 +5,7 @@ import pytest
 from app.controls.loader import LoopBinding, LoopConfigError, load_loops
 from app.controls.modes import Mode
 from app.controls.pid import Action
-from app.plant.loader import load_plant
+from app.plant.loader import PlantConfigError, load_plant
 
 
 def valid_config():
@@ -265,3 +265,32 @@ def test_every_bad_entry_is_reported_together():
     errors = rejected(config)
 
     assert len(errors) == 2
+
+
+def test_a_loop_is_not_tunable_unless_its_entry_says_so():
+    binding = load_loops(load_plant(valid_config()))["PIC-101"]
+
+    assert binding.tunable is False
+
+
+def test_an_entry_marked_tunable_loads_tunable():
+    config = valid_config()
+    config["controllers"][0]["tunable"] = True
+
+    binding = load_loops(load_plant(config))["PIC-101"]
+
+    assert binding.tunable is True
+
+
+def test_tunable_must_be_a_boolean():
+    config = valid_config()
+    config["controllers"][0]["tunable"] = "yes"
+
+    with pytest.raises(PlantConfigError, match=r"controllers\[0\]\.tunable"):
+        load_plant(config)
+
+
+def test_the_pv_unit_is_psia():
+    binding = load_loops(load_plant(valid_config()))["PIC-101"]
+
+    assert binding.pv_unit == "psia"

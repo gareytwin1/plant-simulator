@@ -2,7 +2,8 @@
 Loop configuration and tag wiring (T8-3): plant config `controllers` -> real `Loop`s.
 
 The C3 schema (already frozen by T3-1) shapes a `controllers` entry as
-`{tag, pv, sp, out, mode, kp, ki, kd}`, plus an optional `action` (T8-6) — one string tag for the measurement,
+`{tag, pv, sp, out, mode, kp, ki, kd}`, plus an optional `action` (T8-6) and
+an optional `tunable` (T16-14) — one string tag for the measurement,
 one for the output, no separate "variable" field on either. That shape is
 this module's whole design constraint, and it resolves cleanly against what
 C3 already has, with no new key:
@@ -34,6 +35,10 @@ C3 already has, with no new key:
     `OUTPUTS` entry therefore also names the attribute holding the device's
     current command, read once here to seed the loop's output and manual
     output, so binding a loop moves nothing.
+
+  - **An operator may retune a loop only when its entry says `tunable:
+    true`** (T16-14). The default is false, so every earlier config loads
+    unchanged and no loop is opened to retuning by accident.
 
   - **The PID's output range is a fixed [0.0, 1.0]**, not introspected per
     device. A loop's output is a normalized 0-100% demand; `ControlValve`
@@ -83,6 +88,10 @@ ACTIONS: dict[str, Action] = {
 OUTPUT_MIN = 0.0
 OUTPUT_MAX = 1.0
 
+# A loop's pv is always a node pressure (see the module docstring), and every
+# pressure is psia (docs/UNITS_CONVENTION.md).
+PV_UNIT = "psia"
+
 
 @dataclass(frozen=True)
 class Output:
@@ -122,6 +131,7 @@ class LoopBinding:
     pv_node: Node
     out_tag: str
     output_setter: Callable[[float], None]
+    tunable: bool = False
 
     @property
     def pv_point(self) -> tuple[str, str, str]:
@@ -129,6 +139,10 @@ class LoopBinding:
         field - the same shape as an `Instrument.point`. A node's one
         measured quantity is its pressure (see the module docstring)."""
         return ("nodes", self.pv_tag, "pressure")
+
+    @property
+    def pv_unit(self) -> str:
+        return PV_UNIT
 
 
 def load_loops(plant: Plant) -> dict[str, LoopBinding]:
@@ -226,6 +240,7 @@ def load_loops(plant: Plant) -> dict[str, LoopBinding]:
             pv_node=node,
             out_tag=entry["out"],
             output_setter=getattr(device, output.setter),
+            tunable=entry.get("tunable", False),
         )
 
     if errors:

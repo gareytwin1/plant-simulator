@@ -357,3 +357,26 @@ def test_retune_refuses_a_negative_ki_and_changes_nothing():
         pid.retune(kp=2.0, ki=-1.0, kd=0.0)
 
     assert pid.checkpoint() == before
+
+
+@pytest.mark.parametrize("gains", [(-1.0, 0.5, 0.0), (1.0, 0.5, -0.1)], ids=["kp", "kd"])
+def test_retune_refuses_a_negative_kp_or_kd_and_changes_nothing(gains):
+    pid = mid_run_pid()
+    before = pid.checkpoint()
+
+    with pytest.raises(ValueError, match="non-negative"):
+        pid.retune(*gains)
+
+    assert pid.checkpoint() == before
+
+
+def test_retune_to_no_integral_action_drops_the_integral_contribution():
+    # Documented, not bumpless: with ki == 0 there is nothing to re-solve.
+    pid = mid_run_pid()
+    untouched = copy.deepcopy(pid)
+
+    pid.retune(kp=1.0, ki=0.0, kd=0.0)
+
+    error = 10.0 - 4.0
+    assert pid.compute(4.0, 1.0) == pytest.approx(1.0 * error)
+    assert untouched.compute(4.0, 1.0) != pytest.approx(1.0 * error)

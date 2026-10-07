@@ -420,6 +420,28 @@ def test_set_output_takes_either_end_of_the_range(value):
     assert engine.loops["PIC-101"].loop.manual_output == value
 
 
+def test_pressing_manual_again_keeps_an_output_just_set():
+    engine = loop_plant(mode="MANUAL")
+    log = ActionLog()
+
+    act(engine, log, "PIC-101", "set_output", 0.8)
+    act(engine, log, "PIC-101", "manual")
+
+    assert engine.loops["PIC-101"].loop.manual_output == 0.8
+    assert [event.data["action"] for event in log.events] == ["set_output", "manual"]
+
+
+def test_a_negative_setpoint_is_refused():
+    engine = loop_plant()
+    log = ActionLog()
+
+    with pytest.raises(ValueError, match="non-negative psia"):
+        act(engine, log, "PIC-101", "set_setpoint", -1.0)
+
+    assert engine.snapshot().controllers["PIC-101"]["sp"] == SETPOINT
+    assert len(log) == 0
+
+
 def test_set_output_in_auto_is_refused():
     engine = loop_plant(mode="AUTO")
     log = ActionLog()

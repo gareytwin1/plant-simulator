@@ -148,12 +148,24 @@ def _apply_loop(binding: LoopBinding, action: str, value: float | None) -> None:
     tag = binding.tag
 
     if action in MODES:
-        loop.mode = MODES[action]
+        # Only a real transition goes through the setter: re-entering MANUAL
+        # would reseed manual_output from the last computed output and undo a
+        # set_output taken since. The press is still logged, as an operator's
+        # intent.
+        if loop.mode is not MODES[action]:
+            loop.mode = MODES[action]
         return
 
     assert value is not None  # every other loop action takes a value
 
     if action == "set_setpoint":
+        # A loop's pv is an absolute pressure (binding.pv_unit), which cannot
+        # be negative; no configuration carries a tighter setpoint range yet.
+        if value < 0.0:
+            raise ValueError(
+                f"{tag}.set_setpoint value must be non-negative {binding.pv_unit}, got {value!r}",
+            )
+
         pid.setpoint = value
     elif action == "set_output":
         if loop.mode is not Mode.MANUAL:
@@ -170,12 +182,13 @@ def _apply_loop(binding: LoopBinding, action: str, value: float | None) -> None:
         if not binding.tunable:
             raise UnknownAction(f"{tag} is not open to operator tuning, so {action!r} is refused")
 
-        if value < 0.0:
-            raise ValueError(f"{tag}.{action} value must be non-negative, got {value!r}")
-
         gains = {"kp": pid.kp, "ki": pid.ki, "kd": pid.kd}
         gains[GAINS[action]] = value
-        pid.retune(**gains)
+
+        try:
+            pid.retune(**gains)
+        except ValueError as error:
+            raise ValueError(f"{tag}.{action}: {error}") from error
 
 
 def apply_action(

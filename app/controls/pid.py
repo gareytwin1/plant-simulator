@@ -160,10 +160,16 @@ class PID:
         only through what the next error does. With no measurement yet the
         integral term alone is held. A Kd change is not compensated - the
         derivative acts on the next measurement step, never on a stored one.
-        With ki == 0 there is no integral to re-solve through, as in track().
+
+        Not bumpless with a new ki of 0: there is no integral to re-solve
+        through, as in track(), so the old integral contribution and any Kp
+        change at the held error step the output. Every gain must be
+        non-negative; a loop that needs its output to move the other way
+        takes Action.DIRECT (see the module docstring).
         """
-        if ki < 0.0:
-            raise ValueError(f"ki must be non-negative, got {ki}")
+        for name, gain in (("kp", kp), ("ki", ki), ("kd", kd)):
+            if gain < 0.0:
+                raise ValueError(f"{name} must be non-negative, got {gain}")
 
         held = self.ki * self._integral
 

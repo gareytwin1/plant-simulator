@@ -370,6 +370,124 @@ def test_static_files_are_not_rate_limited():
     assert statuses == {200}
 
 
+# ---- client key behind a reverse proxy ----
+
+
+PROXY = "10.0.0.5"
+PROXIES = validate.parse_trusted_proxies(["10.0.0.0/24"])
+
+
+def test_with_no_trusted_proxy_the_key_is_the_peer_and_the_header_is_ignored():
+    assert validate.client_key("10.0.0.5", "203.0.113.7", ()) == "10.0.0.5"
+
+
+def test_a_header_from_an_untrusted_peer_is_ignored():
+    assert validate.client_key("198.51.100.9", "203.0.113.7", PROXIES) == "198.51.100.9"
+
+
+def test_behind_a_trusted_proxy_the_key_is_the_forwarded_client():
+    assert validate.client_key(PROXY, "203.0.113.7", PROXIES) == "203.0.113.7"
+
+
+def test_a_client_cannot_choose_its_key_by_sending_its_own_header():
+    # The client sent "1.1.1.1"; the proxy appended the address it really saw.
+    assert validate.client_key(PROXY, "1.1.1.1, 203.0.113.7", PROXIES) == "203.0.113.7"
+
+
+def test_the_walk_skips_every_trusted_hop():
+    assert validate.client_key(PROXY, "203.0.113.7, 10.0.0.9", PROXIES) == "203.0.113.7"
+
+
+def test_an_unparseable_entry_keys_on_the_hop_that_reported_it():
+    assert validate.client_key(PROXY, "203.0.113.7, junk, 10.0.0.9", PROXIES) == "10.0.0.9"
+    assert validate.client_key(PROXY, "", PROXIES) == PROXY
+
+
+def test_a_chain_of_only_trusted_hops_keys_on_the_leftmost():
+    assert validate.client_key(PROXY, "10.0.0.8, 10.0.0.9", PROXIES) == "10.0.0.8"
+
+
+def test_an_ipv4_mapped_peer_matches_an_ipv4_proxy():
+    assert validate.client_key("::ffff:10.0.0.5", "203.0.113.7", PROXIES) == "203.0.113.7"
+
+
+def test_with_no_header_a_trusted_proxy_is_its_own_key():
+    assert validate.client_key(PROXY, None, PROXIES) == PROXY
+
+
+@pytest.mark.parametrize("entry", ["not-an-address", "10.0.0.0/33", ""])
+def test_a_bad_trusted_proxy_entry_is_refused_at_startup(entry):
+    with pytest.raises(ValueError):
+        validate.parse_trusted_proxies([entry])
+
+
+def proxied_client(trusted, burst=1.0):
+    app = Flask(__name__)
+    limiter = validate.RateLimiter(rate=1.0, burst=burst, clock=FakeClock())
+    validate.install(app, lambda: limiter, trusted_proxies=trusted)
+
+    @app.get("/api/ping")
+    def ping():
+        return {"ok": True}
+
+    client = app.test_client()
+
+    def get(peer, forwarded_for=None):
+        headers = {"X-Forwarded-For": forwarded_for} if forwarded_for else {}
+        return client.get("/api/ping", headers=headers, environ_base={"REMOTE_ADDR": peer}).status_code
+
+    return get
+
+
+def test_without_a_trusted_proxy_clients_behind_one_share_its_bucket():
+    get = proxied_client(trusted=())
+
+    assert get(PROXY, "203.0.113.7") == 200
+    assert get(PROXY, "203.0.113.8") == 429
+
+
+def test_with_a_trusted_proxy_clients_behind_it_get_separate_buckets():
+    get = proxied_client(trusted=["10.0.0.0/24"])
+
+    assert get(PROXY, "203.0.113.7") == 200
+    assert get(PROXY, "203.0.113.8") == 200
+    assert get(PROXY, "203.0.113.7") == 429
+
+
+def test_a_spoofed_header_from_an_untrusted_peer_neither_evades_nor_shifts_the_limit():
+    get = proxied_client(trusted=["10.0.0.0/24"])
+
+    assert get("198.51.100.9", "203.0.113.7") == 200
+    assert get("198.51.100.9", "203.0.113.8") == 429
+    assert get(PROXY, "203.0.113.7") == 200
+
+
+def test_the_live_app_trusts_no_proxy_by_default(monkeypatch):
+    monkeypatch.setattr(main, "rate_limiter", validate.RateLimiter(rate=1.0, burst=1.0, clock=FakeClock()))
+    client = main.app.test_client()
+
+    def get(forwarded_for):
+        return client.get(
+            "/api/snapshot",
+            headers={"X-Forwarded-For": forwarded_for},
+            environ_base={"REMOTE_ADDR": "127.0.0.1"},
+        ).status_code
+
+    assert config.API_TRUSTED_PROXIES == ()
+    assert [get("203.0.113.7"), get("203.0.113.8")] == [200, 429]
+
+
+def test_the_trusted_proxies_come_from_the_environment(monkeypatch):
+    import importlib
+
+    monkeypatch.setenv("PLANT_TRUSTED_PROXIES", " 10.0.0.5, fd00::/8 ,")
+    try:
+        assert importlib.reload(config).API_TRUSTED_PROXIES == ("10.0.0.5", "fd00::/8")
+    finally:
+        monkeypatch.delenv("PLANT_TRUSTED_PROXIES")
+        importlib.reload(config)
+
+
 def test_the_live_app_rate_limits_and_refuses_before_creating_a_session(monkeypatch):
     clock = FakeClock()
     monkeypatch.setattr(main, "rate_limiter", validate.RateLimiter(rate=1.0, burst=1.0, clock=clock))

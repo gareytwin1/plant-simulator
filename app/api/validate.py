@@ -20,14 +20,23 @@ before it can create a session.
 `time.time()` - so a test drives it with a fake one. The limiter state is
 per process, which matches the one-worker deployment `SessionRegistry`
 already assumes.
+
+`client_key` names the bucket (T18-8). X-Forwarded-For is client-supplied, so
+it is read only when the peer itself is a configured trusted proxy, and then
+only right to left past trusted hops: everything left of the first untrusted
+entry was written by whoever that client is. With no trusted proxy the key is
+the peer address, as before. An allow-list of addresses rather than werkzeug's
+ProxyFix hop count, because a hop count trusts the header from any peer, and
+the Gunicorn port may be reachable without the proxy.
 """
 
 from __future__ import annotations
 
+import ipaddress
 import math
 import threading
 import time
-from collections.abc import Callable, Collection
+from collections.abc import Callable, Collection, Iterable
 
 from flask import Flask, Response, jsonify, request
 from flask.typing import ResponseReturnValue
@@ -152,13 +161,72 @@ class RateLimiter:
             return wait
 
 
-def install(app: Flask, limiter: Callable[[], RateLimiter]) -> None:
+Address = ipaddress.IPv4Address | ipaddress.IPv6Address
+TrustedProxies = tuple[ipaddress.IPv4Network | ipaddress.IPv6Network, ...]
+
+
+def parse_trusted_proxies(entries: Iterable[str]) -> TrustedProxies:
+    """Each entry as a network; an address or CIDR, anything else raises ValueError."""
+    return tuple(ipaddress.ip_network(entry.strip(), strict=False) for entry in entries)
+
+
+def _address(text: str) -> Address | None:
+    try:
+        address = ipaddress.ip_address(text.strip())
+    except ValueError:
+        return None
+
+    if isinstance(address, ipaddress.IPv6Address) and address.ipv4_mapped is not None:
+        return address.ipv4_mapped
+
+    return address
+
+
+def _is_trusted(address: Address, proxies: TrustedProxies) -> bool:
+    return any(address in network for network in proxies)
+
+
+def client_key(
+    remote_addr: str | None,
+    forwarded_for: str | None,
+    proxies: TrustedProxies,
+) -> str:
+    """The rate-limit key for a request: the nearest address no trusted proxy vouches for.
+
+    An entry that is not an address stops the walk, and the key is the
+    trusted hop that reported it - never a value the client could choose.
+    """
+    peer = remote_addr or "unknown"
+    hop = _address(peer)
+
+    if forwarded_for is None or hop is None or not _is_trusted(hop, proxies):
+        return peer
+
+    for entry in reversed(forwarded_for.split(",")):
+        address = _address(entry)
+        if address is None:
+            break
+
+        hop = address
+        if not _is_trusted(hop, proxies):
+            break
+
+    return str(hop)
+
+
+def install(
+    app: Flask,
+    limiter: Callable[[], RateLimiter],
+    trusted_proxies: Iterable[str] = (),
+) -> None:
     """Add the body cap, JSON API errors and rate limit to `app`.
 
     `limiter` is resolved on every request, so a caller can swap the live
-    limiter without re-registering the hook.
+    limiter without re-registering the hook. `trusted_proxies` are the peers
+    whose X-Forwarded-For is believed; a bad entry raises here, at startup.
     """
     app.config["MAX_CONTENT_LENGTH"] = config.API_MAX_BODY_BYTES
+    proxies = parse_trusted_proxies(trusted_proxies)
 
     @app.before_request
     def enforce_rate_limit() -> ResponseReturnValue | None:
@@ -166,7 +234,10 @@ def install(app: Flask, limiter: Callable[[], RateLimiter]) -> None:
         if request.endpoint == "static" or request.blueprint == "health":
             return None
 
-        wait = limiter().acquire(request.remote_addr or "unknown")
+        forwarded = request.headers.getlist("X-Forwarded-For")
+        key = client_key(request.remote_addr, ",".join(forwarded) if forwarded else None, proxies)
+
+        wait = limiter().acquire(key)
         if wait == 0.0:
             return None
 

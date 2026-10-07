@@ -1,3 +1,6 @@
+import os
+
+
 # Simulation timing
 
 SIMULATION_STEP_SECONDS = 1.0
@@ -75,15 +78,23 @@ MAX_SESSIONS = 32
 
 # API boundary
 #
-# The rate limit is per client address. Behind a reverse proxy or a shared NAT
-# every client shares one bucket, so a deployment there needs proxy-header
-# handling or larger values. A console polls once a second and sends
-# at most ten slider updates a second.
+# The rate limit is per client address. A console polls once a second and
+# sends at most ten slider updates a second. Behind a reverse proxy, list the
+# proxy's addresses or CIDRs in API_TRUSTED_PROXIES (env PLANT_TRUSTED_PROXIES,
+# comma-separated) and each client behind it gets its own bucket, read from
+# X-Forwarded-For. Empty trusts no one: every request keys on its peer address
+# and the header is ignored. Clients behind a shared NAT still share a bucket.
+# See T18-8.
 
 API_MAX_BODY_BYTES = 4096
 API_MAX_MAGNITUDE = 1_000_000.0
 API_RATE_PER_SECOND = 20.0
 API_RATE_BURST = 100.0
+API_TRUSTED_PROXIES = tuple(
+    entry.strip()
+    for entry in os.environ.get("PLANT_TRUSTED_PROXIES", "").split(",")
+    if entry.strip()
+)
 
 
 # Session lifecycle

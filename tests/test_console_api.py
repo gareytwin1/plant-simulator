@@ -85,10 +85,21 @@ def test_the_console_mounts_the_graphic_on_the_connection_stream(client):
     assert "graphic.js" in body
     assert '<div id="process-graphic" data-live-value>' in body
     assert "/static/graphics/plant.svg" in body
-    assert "onSnapshot: graphic.update" in body
+    assert "graphic.update(snapshot)" in body
     assert body.count("new EventSource") == 0
     assert client.get("/static/graphics/plant.svg").status_code == 200
     assert client.get("/static/js/graphic.js").status_code == 200
+
+
+def test_the_console_mounts_the_faceplates_on_the_same_stream(client):
+    body = client.get("/console").get_data(as_text=True)
+
+    assert "faceplate.js" in body and "faceplate.css" in body
+    assert 'id="faceplates"' in body
+    assert "faceplates.update(snapshot)" in body
+    assert body.count("new EventSource") == 0
+    assert client.get("/static/js/faceplate.js").status_code == 200
+    assert client.get("/static/css/faceplate.css").status_code == 200
 
 
 def test_the_console_and_a_repeat_visit_share_one_worker(client):

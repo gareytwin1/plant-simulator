@@ -73,6 +73,9 @@ class TrainingSession:
         self.free = _free_play(library)
         self.runner = ScenarioRunner(library)
         self.training_scheduler = Scheduler(self)
+        # Which plant's devices a view classes rows by. Replaced, never
+        # mutated, after every command, so a reader needs no lock.
+        self._shown = self.free.engine.equipment
 
     def end(self) -> None:
         """Close the scheduler, stopping and joining its worker. Permanent and
@@ -91,17 +94,13 @@ class TrainingSession:
 
     def operator_view(self, snapshot: Snapshot) -> dict[str, JSONValue]:
         """`snapshot` as a browser may see it: each equipment row cut to what
-        its device class lists as operator-visible. Classes come from the
-        plant the snapshot shows, read under `step_lock` so the phase is
-        stable; a tag that plant does not have shows an empty row. The caller
-        must not hold `step_lock` (it is not reentrant). A scenario load or
-        unload between the caller reading `snapshot` and this lookup can pair
-        a snapshot with the other plant's classes; that fails closed (empty or
-        narrower rows) for the one event it affects."""
-        with self.training_scheduler.step_lock:
-            equipment = self._plant().engine.equipment
-
-            return operator_view(snapshot, equipment)
+        its device class lists as operator-visible. Takes no lock, so a stream
+        tick never waits on a step. Classes come from the plant the last
+        command left showing; a scenario load or unload between the caller
+        reading `snapshot` and this call can pair a snapshot with the other
+        plant's classes, which fails closed (empty or narrower rows) for the
+        one event it affects."""
+        return operator_view(snapshot, self._shown)
 
     def act(self, target: str, action: str, value: float | None) -> None:
         """One operator action on the plant the snapshot shows. Refusals are
@@ -169,7 +168,13 @@ class TrainingSession:
         publishes nothing."""
         outcome: list[T] = []
 
-        self.training_scheduler.command(lambda: outcome.append(apply()))
+        def run() -> None:
+            try:
+                outcome.append(apply())
+            finally:
+                self._shown = self._plant().engine.equipment
+
+        self.training_scheduler.command(run)
 
         return outcome[0]
 

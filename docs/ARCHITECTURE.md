@@ -258,9 +258,9 @@ worth stating plainly:
 - **A browser reads the operator view, not the snapshot.** Every route that
   sends plant state to a browser (`/api/snapshot`, and `/api/stream` through
   the `get_view` its blueprint is built with - the console wiring passes the
-  session's, T16-9) sends `app/api/visibility.py::operator_view`: the same shape, with each
-  equipment row cut to the fields its device class lists in `VISIBLE` -
-  measurements, run status and the operator's own commands, never a fault flag,
+  session's, T16-9) sends `app/api/visibility.py::operator_view`: the same
+  shape, with each equipment row cut to the fields its device class lists in
+  `VISIBLE` - measurements, run status and the operator's own commands, never a fault flag,
   a malfunction-writable parameter, a design constant or a model internal. A
   class with no entry shows an empty row. Trips, alarms, scenarios, scoring and
   replay read the full snapshot. `nodes` and `streams` still show every solved

@@ -2,6 +2,7 @@
 
 import inspect
 import json
+import threading
 
 import pytest
 from flask import Flask
@@ -152,3 +153,17 @@ def test_a_stream_event_is_the_operator_view(session):
 
     assert set(equipment["LV-101"]) == VISIBLE[valve.ControlValve]
     assert not FAULT_FIELDS & {name for row in equipment.values() for name in row}
+
+
+def test_the_view_never_waits_on_the_step_lock(session):
+    snapshot = session.snapshot()
+    done = threading.Event()
+
+    def read():
+        session.operator_view(snapshot)
+        done.set()
+
+    with session.training_scheduler.step_lock:
+        threading.Thread(target=read, daemon=True).start()
+
+        assert done.wait(timeout=2.0)

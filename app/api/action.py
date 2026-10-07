@@ -11,13 +11,10 @@ operator may reach through this endpoint: same shape and same reason as
 a device's operable surface is listed, never inferred from a method that
 merely happens to exist under that name.
 
-`create_action_blueprint` takes its `Engine` and `ActionLog` as callables
-rather than reading them off `flask.g` directly. No session shape that
-carries a config-loaded, multi-device plant exists on `main.py` yet - only
-the legacy per-device `Session` - so this module makes no assumption about
-where its `Engine` comes from. Whoever wires this blueprint into `main.py`
-decides that; coordinate with them before assuming a shape (see the task's
-own note in the build plan).
+`create_action_blueprint` takes its `Engine` and `ActionLog`, or an `apply`
+callable that replaces both, as callables rather than reading them off
+`flask.g` directly, so this module makes no assumption about where a plant
+comes from. `main.py` passes the training session's `act`.
 """
 
 from __future__ import annotations
@@ -127,8 +124,8 @@ def apply_action(
 
 
 def create_action_blueprint(
-    get_engine: Callable[[], Engine],
-    get_log: Callable[[], ActionLog],
+    get_engine: Callable[[], Engine] | None = None,
+    get_log: Callable[[], ActionLog] | None = None,
     apply: Callable[[str, str, float | None], None] | None = None,
 ) -> Blueprint:
     """Build the `/api/action` blueprint against an `Engine` and `ActionLog`
@@ -140,8 +137,13 @@ def create_action_blueprint(
     and log: a caller whose plant can be swapped or stepped on another thread
     (`ScenarioRunner.act`) supplies one that holds its own lock across the
     whole action, which two per-request getters cannot. It raises the same
-    `KeyError`, `UnknownAction` and `ValueError` `apply_action` does.
+    `KeyError`, `UnknownAction` and `ValueError` `apply_action` does. With
+    `apply`, `get_engine` and `get_log` are not used and may be left out;
+    without it both are required.
     """
+    if apply is None and (get_engine is None or get_log is None):
+        raise ValueError("create_action_blueprint needs apply, or both get_engine and get_log")
+
     blueprint = Blueprint("action", __name__)
 
     @blueprint.post("/api/action")
@@ -158,13 +160,12 @@ def create_action_blueprint(
         if not isinstance(target, str) or not isinstance(action, str):
             return validate.error_response("target and action must be strings")
 
-        engine = get_engine() if apply is None else None
-
         try:
             if apply is not None:
                 apply(target, action, value)
             else:
-                assert engine is not None
+                assert get_engine is not None and get_log is not None
+                engine = get_engine()
                 apply_action(engine.equipment, get_log(), engine.clock.sim_time, target, action, value)
         except (KeyError, UnknownAction, ValueError) as error:
             return jsonify({"error": str(error)}), 400

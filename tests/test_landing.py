@@ -115,8 +115,13 @@ def test_the_header_links_only_to_pages_that_exist(client, page):
     links.feed(page)
 
     assert links.hrefs
-    for href in links.hrefs:
-        assert client.get(href).status_code == 200, href
+    try:
+        for href in links.hrefs:
+            assert client.get(href).status_code == 200, href
+    finally:
+        # The console link starts the session's scheduler; end it so the
+        # worker does not outlive the test.
+        main.sessions.end(client.get_cookie(main.SESSION_COOKIE).value)
 
 
 def test_rendering_the_page_does_not_start_a_scheduler(client):

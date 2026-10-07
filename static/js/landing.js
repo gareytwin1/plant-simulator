@@ -1,4 +1,4 @@
-/* Landing page (T16-11): free play and scenario choice.
+/* Landing page (T16-11): free play and scenario choice, then on to the console.
  *
  * Talks to the scenario API (app/api/scenario.py) and reads /api/snapshot for
  * the plant time. A refusal is shown in this file's own plain words, chosen by
@@ -13,6 +13,7 @@
   var LOAD_URL = "/api/scenario/load";
   var UNLOAD_URL = "/api/scenario/unload";
   var SNAPSHOT_URL = "/api/snapshot";
+  var CONSOLE_URL = "/console";
 
   var api = {};
 
@@ -25,6 +26,8 @@
     if (status === 429) return "Too many requests. Wait a moment and try again.";
     return "Something went wrong, so nothing was changed. Try again.";
   };
+
+  api.CONSOLE_URL = CONSOLE_URL;
 
   api.buildLoadRequest = function (scenarioKey) {
     return {
@@ -53,8 +56,13 @@
 
   /* browser glue */
 
-  function mount(doc, fetchImpl) {
+  /* `navigate` exists so a test can see where the page goes; the page itself
+   * leaves for the console once its load or free-play call succeeds. */
+  function mount(doc, fetchImpl, navigate) {
     var doFetch = fetchImpl || root.fetch.bind(root);
+    var goTo = navigate || function (url) {
+      if (root.location) root.location.assign(url);
+    };
     var labels = JSON.parse(doc.getElementById("standing").getAttribute("data-phase-labels"));
     var modeEl = doc.getElementById("standing-mode");
     var phaseEl = doc.getElementById("standing-phase");
@@ -96,6 +104,7 @@
         var body = await response.json();
         onSuccess(body);
         await refreshTime();
+        goTo(CONSOLE_URL);
       } catch (error) {
         notice(api.refusalText(0), "refused");
       } finally {

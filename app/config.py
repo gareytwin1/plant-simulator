@@ -113,3 +113,12 @@ ALARM_HISTORY_CAPACITY = 1000
 
 FREE_PLAY_PLANT = "olefins_lite"
 FREE_PLAY_CONDITION = "normal_operation"
+
+
+# Console stream
+#
+# Seconds between the snapshots /api/stream pushes to a console. The page's
+# connection indicator reads the same value to decide when data has gone stale.
+# See T16-9.
+
+STREAM_INTERVAL_SECONDS = 1.0

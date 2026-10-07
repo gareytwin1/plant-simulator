@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block title %}Plant Simulator - Console{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/alarms.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/connection.css') }}">
+{% endblock %}
+
+{% block content %}
+<div id="console" data-connection="connecting" data-interval-seconds="{{ stream_interval_seconds }}">
+  <h1>Console</h1>
+  <p class="connection-indicator" id="connection-indicator" role="status">CONNECTING</p>
+  <section aria-labelledby="alarms-heading">
+    <h2 id="alarms-heading">Alarms</h2>
+    <div id="alarm-banner"></div>
+    <div id="alarm-summary"></div>
+  </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/alarms.js') }}"></script>
+<script src="{{ url_for('static', filename='js/connection.js') }}"></script>
+<script>
+  (function () {
+    var consoleEl = document.getElementById("console");
+    AlarmConsole.mount(
+      document.getElementById("alarm-banner"),
+      document.getElementById("alarm-summary"),
+      { pollMs: 1000 }
+    );
+    ConnectionMonitor.mount(consoleEl, document.getElementById("connection-indicator"), {
+      intervalSeconds: Number(consoleEl.getAttribute("data-interval-seconds"))
+    });
+  })();
+</script>
+{% endblock %}

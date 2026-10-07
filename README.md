@@ -79,8 +79,9 @@ drive equipment it has never seen before.
   numbers yet.
 - **Golden-value regression harness** — pins current numerical behaviour and
   fails loudly on drift.
-- **Flask API**: `GET /api/snapshot` returns the caller's plant as a C4 snapshot. The
-  browser pages arrive with the operator console (M16).
+- **Flask API**: `GET /api/snapshot` returns the caller's plant as a C4 snapshot, and
+  `/console` is the first page that runs it. The rest of the operator console
+  arrives with M16.
 - A **full passing pytest suite** and a clean `mypy` over `app/`. For the
   current count, run `python -m pytest --collect-only -q` — a number written
   into a document has drifted twice already.
@@ -136,8 +137,9 @@ flask --app app.main run
 ```
 
 Open <http://127.0.0.1:5000/> for the landing page: free play, or one of the
-authored scenarios. Until the operator console lands (M16) that is the only
-page; also try <http://127.0.0.1:5000/api/snapshot> and
+authored scenarios. Choosing one leaves for the console at
+<http://127.0.0.1:5000/console>, which starts the plant and shows its alarms
+and the live connection state; also try <http://127.0.0.1:5000/api/snapshot> and
 <http://127.0.0.1:5000/health/live>.
 
 ## Run tests

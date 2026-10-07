@@ -81,7 +81,9 @@ in this order and no other:
      just wrote;
   4. couple and solve, as above;
   5. publish the snapshot, whose controllers section carries each loop's
-     output from step 2 against the measurement standing after step 4.
+     output from step 2 against the measurement standing after step 4, with
+     what a faceplate needs beside them (T16-14): its gains, output range,
+     whether an operator may retune it, and its measurement's unit.
 
 Nothing in step 2 can see a mid-solve value, because no solve has started:
 a loop reads only what the last step published, and the solve that follows
@@ -406,6 +408,13 @@ class Engine:
                 "sp": binding.loop.pid.setpoint,
                 "out": binding.loop.output,
                 "mode": binding.loop.mode.name,
+                "kp": binding.loop.pid.kp,
+                "ki": binding.loop.pid.ki,
+                "kd": binding.loop.pid.kd,
+                "out_min": binding.loop.pid.output_min,
+                "out_max": binding.loop.pid.output_max,
+                "tunable": binding.tunable,
+                "pv_unit": binding.pv_unit,
             }
             for tag, binding in self.loops.items()
         }

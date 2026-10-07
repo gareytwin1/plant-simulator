@@ -168,3 +168,27 @@ def test_the_server_side_result_keeps_the_real_ids():
 
     assert isinstance(result, ScenarioResult)
     assert result.scenario_id == "pump_trip"
+
+
+def test_a_finished_run_whose_file_has_gone_still_answers_without_a_debrief(tmp_path):
+    from flask import Flask
+
+    from app.api.scenario import create_scenario_blueprint
+    from app.scenarios.runner import ScenarioRunner
+
+    target = tmp_path / "pump_trip.yaml"
+    target.write_text((ScenarioLibrary().scenarios / "pump_trip.yaml").read_text())
+    library = ScenarioLibrary(scenarios=tmp_path)
+    runner = ScenarioRunner(library)
+    app = Flask(__name__)
+    app.register_blueprint(create_scenario_blueprint(lambda: runner, library))
+    client = app.test_client()
+    client.post("/api/scenario/load", json={"scenario": scenario_key("pump_trip")})
+    client.post("/api/scenario/start")
+    target.unlink()
+
+    response = client.post("/api/scenario/abort")
+
+    assert response.status_code == 200
+    assert response.get_json()["debrief"] == ""
+    assert client.get("/api/scenario/result").status_code == 200

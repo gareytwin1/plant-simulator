@@ -35,6 +35,9 @@ A refusal is one of three, so a client can tell them apart:
     400  the scenario itself is bad: it fails the schema, names a tag the
          plant lacks, or asks for something the engine refuses
 
+Aborting reveals the debrief at once: the reveal is tied to the run being over,
+not to how far it got, so a trainee can read it by aborting immediately.
+
 No body quotes an id, file name, tag or parameter: the 400 is one generic
 sentence, and the detail goes to the request log.
 """
@@ -53,6 +56,7 @@ from app.logging import REQUEST_LOGGER
 from app.scenarios.runner import (
     CatalogueEntry,
     Phase,
+    ScenarioConfigError,
     ScenarioLibrary,
     ScenarioNotFound,
     ScenarioResult,
@@ -112,7 +116,12 @@ def create_scenario_blueprint(
         debrief = ""
 
         if result.phase in _OVER:
-            debrief = str(library.scenario(result.scenario_id).get("description", "")).strip()
+            try:
+                debrief = str(library.scenario(result.scenario_id).get("description", "")).strip()
+            except (ScenarioNotFound, ScenarioConfigError) as error:
+                # The file changed or went away after the run was armed: the
+                # result is still final, only its debrief text is lost.
+                logger.warning("scenario %s has no debrief: %s", scenario_key(result.scenario_id), error)
 
         return jsonify(public_result(result, by_id.get(result.scenario_id), debrief)), 200
 

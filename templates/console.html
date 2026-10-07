@@ -47,9 +47,11 @@
     var faceplates = Faceplates.mount(document.getElementById("faceplates"));
     ConnectionMonitor.mount(consoleEl, document.getElementById("connection-indicator"), {
       intervalSeconds: Number(consoleEl.getAttribute("data-interval-seconds")),
+      // Each consumer is isolated: connection.js does not guard this callback,
+      // so a graphic that throws must not leave the controls on a stale snapshot.
       onSnapshot: function (snapshot) {
-        graphic.update(snapshot);
-        faceplates.update(snapshot);
+        try { graphic.update(snapshot); } catch (error) { console.error(error); }
+        try { faceplates.update(snapshot); } catch (error) { console.error(error); }
       }
     });
   })();

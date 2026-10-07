@@ -1,4 +1,7 @@
 import math
+import os
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -467,11 +470,63 @@ def test_the_trusted_proxies_are_read_from_a_comma_separated_setting():
     assert config.trusted_proxies_from_env("") == ()
 
 
-@pytest.mark.parametrize("entry", ["203.0.113.7:51234", "[2001:db8::1]:443", "[2001:db8::1]", " 203.0.113.7 "])
-def test_a_forwarded_entry_may_carry_a_port_or_brackets(entry):
-    expected = "2001:db8::1" if "2001" in entry else "203.0.113.7"
+@pytest.mark.parametrize(
+    "header, expected",
+    [
+        ("203.0.113.7:51234", "203.0.113.7"),
+        ("[2001:db8::1]:443", "2001:db8::1"),
+        ("[2001:db8::1]", "2001:db8::1"),
+        (" 203.0.113.7 ", "203.0.113.7"),
+        ("203.0.113.7:5000, 10.0.0.9:4000", "203.0.113.7"),
+        ("[::ffff:203.0.113.7]:80", "203.0.113.7"),
+    ],
+)
+def test_a_forwarded_entry_may_carry_a_port_or_brackets(header, expected):
+    assert validate.client_key(PROXY, header, PROXIES) == expected
 
-    assert validate.client_key(PROXY, entry, PROXIES) == expected
+
+@pytest.mark.parametrize("entry", ["[::1", "[::1]x", "1.2.3.4:abc", "1.2.3.4:", "[::1]:", "[::1]:x"])
+def test_a_malformed_forwarded_entry_stops_the_walk_at_the_hop_that_wrote_it(entry):
+    assert validate.client_key(PROXY, f"203.0.113.7, {entry}", PROXIES) == PROXY
+
+
+def test_one_peer_gets_one_key_whatever_the_header():
+    keys = {
+        validate.client_key("::ffff:10.0.0.5", header, ())
+        for header in (None, "", "junk", "203.0.113.7")
+    }
+    keys |= {validate.client_key("::ffff:10.0.0.5", header, PROXIES) for header in (None, "", "junk")}
+
+    assert keys == {"10.0.0.5"}
+
+
+def test_the_live_app_wires_the_configured_proxies_into_the_limiter():
+    script = """
+from app import main, config
+from app.api import validate
+
+main.rate_limiter = validate.RateLimiter(rate=1.0, burst=1.0, clock=lambda: 0.0)
+client = main.app.test_client()
+
+
+def get(peer, forwarded_for):
+    response = client.get(
+        "/api/snapshot",
+        headers={"X-Forwarded-For": forwarded_for},
+        environ_base={"REMOTE_ADDR": peer},
+    )
+    return response.status_code
+
+
+print(config.API_TRUSTED_PROXIES, get("10.0.0.5", "203.0.113.7"), get("10.0.0.5", "203.0.113.8"),
+      get("198.51.100.9", "203.0.113.9"), get("198.51.100.9", "203.0.113.10"))
+"""
+    env = {**os.environ, "PLANT_TRUSTED_PROXIES": "10.0.0.0/24", "PYTHONPATH": str(Path(__file__).parent.parent)}
+
+    result = subprocess.run([sys.executable, "-c", script], env=env, capture_output=True, text=True, check=True)
+
+    assert result.stdout.split()[-4:] == ["200", "200", "200", "429"]
+    assert "10.0.0.0/24" in result.stdout
 
 
 def test_the_live_app_rate_limits_and_refuses_before_creating_a_session(monkeypatch):

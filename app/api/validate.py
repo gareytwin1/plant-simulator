@@ -173,13 +173,20 @@ def parse_trusted_proxies(entries: Iterable[str]) -> TrustedProxies:
 def _address(text: str) -> Address | None:
     """An address from a bare literal or from the `a.b.c.d:port`, `[v6]` and `[v6]:port` forms."""
     text = text.strip()
-    if text.startswith("["):
-        text = text[1:].partition("]")[0]
+    host, bracket, rest = text[1:].partition("]") if text.startswith("[") else (text, "", "")
+
+    if bracket:
+        if rest and not (rest.startswith(":") and rest[1:].isdigit()):
+            return None
+    elif text.startswith("["):
+        return None
     elif text.count(":") == 1:
-        text = text.partition(":")[0]
+        host, _, port = text.partition(":")
+        if not port.isdigit():
+            return None
 
     try:
-        address = ipaddress.ip_address(text)
+        address = ipaddress.ip_address(host)
     except ValueError:
         return None
 
@@ -203,11 +210,13 @@ def client_key(
     An entry that is not an address stops the walk, and the key is the
     trusted hop that reported it - never a value the client could choose.
     """
-    peer = remote_addr or "unknown"
-    hop = _address(peer)
+    hop = _address(remote_addr or "")
 
-    if forwarded_for is None or hop is None or not _is_trusted(hop, proxies):
-        return peer
+    if hop is None:
+        return remote_addr or "unknown"
+
+    if forwarded_for is None or not _is_trusted(hop, proxies):
+        return str(hop)
 
     for entry in reversed(forwarded_for.split(",")):
         address = _address(entry)

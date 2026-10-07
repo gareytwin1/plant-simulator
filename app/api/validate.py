@@ -185,19 +185,23 @@ def parse_trusted_proxies(entries: Iterable[str]) -> TrustedProxies:
     return tuple(networks)
 
 
+def _is_port(text: str) -> bool:
+    return text.isascii() and text.isdigit() and int(text) <= 65535
+
+
 def _address(text: str) -> Address | None:
     """An address from a bare literal or from the `a.b.c.d:port`, `[v6]` and `[v6]:port` forms."""
     text = text.strip()
     host, bracket, rest = text[1:].partition("]") if text.startswith("[") else (text, "", "")
 
     if bracket:
-        if rest and not (rest.startswith(":") and rest[1:].isdigit()):
+        if rest and not (rest.startswith(":") and _is_port(rest[1:])):
             return None
     elif text.startswith("["):
         return None
     elif text.count(":") == 1:
         host, _, port = text.partition(":")
-        if not port.isdigit():
+        if not _is_port(port):
             return None
 
     try:

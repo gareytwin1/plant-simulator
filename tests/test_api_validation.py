@@ -499,7 +499,7 @@ def test_a_mapped_range_wider_than_the_ipv4_space_is_refused_at_startup():
         validate.parse_trusted_proxies(["::ffff:0:0/80"])
 
 
-@pytest.mark.parametrize("entry", ["[1.2.3.4]", "[1.2.3.4]:80", "[::1", "[::1]x", "1.2.3.4:abc", "1.2.3.4:", "[::1]:", "[::1]:x"])
+@pytest.mark.parametrize("entry", ["[1.2.3.4]", "[1.2.3.4]:80", "[::1", "[::1]x", "1.2.3.4:abc", "1.2.3.4:", "[::1]:", "[::1]:x", "1.2.3.4:99999", "[::1]:99999", "1.2.3.4:\u00b2"])
 def test_a_malformed_forwarded_entry_stops_the_walk_at_the_hop_that_wrote_it(entry):
     assert validate.client_key(PROXY, f"203.0.113.7, {entry}", PROXIES) == PROXY
 
@@ -549,10 +549,11 @@ print(json.dumps({"proxies": list(config.API_TRUSTED_PROXIES), "statuses": statu
         env=env,
         capture_output=True,
         text=True,
-        check=True,
+        cwd=Path(__file__).parent.parent,
         timeout=60,
     )
 
+    assert result.returncode == 0, result.stderr
     reported = json.loads(result.stdout.splitlines()[-1])
     assert reported == {"proxies": ["10.0.0.0/24"], "statuses": [200, 200, 200, 429]}
 

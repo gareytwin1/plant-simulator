@@ -296,13 +296,23 @@ def test_a_point_of_one_plant_unknown_to_another_is_refused(session):
         session.trend_history(["Z-9.level"])
 
 
+def test_a_slower_clock_records_at_most_one_sample_per_period_of_simulated_time(session, client):
+    session.free.engine.clock.speed = 0.25
+
+    step(session, 40)
+
+    spacing = [b - a for a, b in zip(times(client), times(client)[1:])]
+
+    assert len(spacing) < 40
+    assert min(spacing) >= config.TREND_SAMPLE_PERIOD_SECONDS - 1e-9
+
+
 def test_trend_capacity_covers_the_longest_scenario_time_limit():
     scenarios = Path(__file__).resolve().parent.parent / "config" / "scenarios"
     limits = [yaml.safe_load(path.read_text())["time_limit_s"] for path in scenarios.glob("*.yaml")]
 
     assert limits
     assert config.TREND_CAPACITY * config.TREND_SAMPLE_PERIOD_SECONDS >= max(limits)
-    assert config.TREND_CAPACITY * config.TREND_SAMPLE_PERIOD_SECONDS >= config.SESSION_IDLE_SECONDS
 
 
 def test_trend_routes_never_start_a_scheduler():

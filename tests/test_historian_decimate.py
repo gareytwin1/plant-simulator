@@ -93,3 +93,39 @@ def test_decimates_a_historian_history():
         historian.record("PT-101", float(i), 3.0 if i != 321 else 8.0)
 
     assert Sample(321.0, 8.0) in decimate(historian.history("PT-101"), 6)
+
+
+def test_nan_at_bucket_start_does_not_hide_the_real_extremes():
+    nan = float("nan")
+    samples = _ramp(20, lambda i: 1.0)
+    samples[0] = Sample(0.0, nan)
+    samples[7] = Sample(7.0, 9.0)
+    samples[3] = Sample(3.0, -4.0)
+
+    result = decimate(samples, 2)
+
+    assert Sample(7.0, 9.0) in result
+    assert Sample(3.0, -4.0) in result
+
+
+def test_nan_mid_bucket_is_ignored_when_picking_extremes():
+    nan = float("nan")
+    samples = _ramp(20, lambda i: float(i))
+    samples[10] = Sample(10.0, nan)
+
+    result = decimate(samples, 2)
+
+    assert [s.value for s in result] == [0.0, 19.0]
+
+
+def test_all_nan_or_single_finite_bucket_keeps_two_distinct_samples():
+    nan = float("nan")
+    all_nan = _ramp(10, lambda i: nan)
+    one_finite = _ramp(10, lambda i: nan)
+    one_finite[4] = Sample(4.0, 2.0)
+
+    assert len(decimate(all_nan, 2)) == 2
+    kept = decimate(one_finite, 2)
+    assert len(kept) == 2
+    assert kept[0] != kept[1]
+    assert Sample(4.0, 2.0) in kept

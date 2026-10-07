@@ -39,6 +39,14 @@ def equipment_classes():
     }
 
 
+def liquid_only_fields(device):
+    """A vessel publishes pressure only while it holds gas."""
+    if isinstance(device, vessel.Vessel) and not device.gas_active:
+        return {"pressure"}
+
+    return set()
+
+
 @pytest.fixture
 def session():
     made = TrainingSession()
@@ -62,22 +70,17 @@ def test_no_visible_field_is_malfunction_writable():
 def test_visible_fields_are_published_by_the_class_they_belong_to(session):
     rows = session.snapshot().equipment
 
-    # A vessel publishes pressure only while it holds gas.
-    conditional = {vessel.Vessel: {"pressure"}}
-
     for tag, device in free_equipment(session).items():
-        required = VISIBLE[type(device)] - conditional.get(type(device), set())
-
-        assert required <= set(rows[tag]), tag
+        assert VISIBLE[type(device)] - liquid_only_fields(device) <= set(rows[tag]), tag
 
 
 def test_an_operator_view_row_holds_exactly_its_classs_visible_fields(session):
     view = session.operator_view(session.snapshot())
 
     for tag, device in free_equipment(session).items():
-        published = set(session.snapshot().equipment[tag])
+        expected = VISIBLE[type(device)] - liquid_only_fields(device)
 
-        assert set(view["equipment"][tag]) == VISIBLE[type(device)] & published, tag
+        assert set(view["equipment"][tag]) == expected, tag
         assert not FAULT_FIELDS & set(view["equipment"][tag])
 
 

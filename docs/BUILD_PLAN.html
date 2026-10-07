@@ -744,7 +744,7 @@ equipment:   [{tag, type, node_in, node_out, design: {...}}]
              [{tag, type, ports: {name: node | {node, phase, purpose, control?, direction?}},
                paths: [{from, to}], design: {...}}]
 limits:      [{tag, variable, lo_lo, lo, hi, hi_hi, trip, deadband}]
-controllers: [{tag, pv, sp, out, mode, kp, ki, kd}]
+controllers: [{tag, pv, sp, out, mode, kp, ki, kd, action?, tunable?}]
 interlocks:  [{tag, condition, delay_s, actions, reset}]</pre>
       <p>Each top-level key is owned by a different milestone, which is deliberate &mdash; two agents editing different keys of the same file conflict only on whitespace.</p>
       <p><strong>Ports.</strong> A <code>ports</code> entry is a node-id string (untyped) or a typed object carrying <code>node</code>, <code>phase</code>, <code>purpose</code> and optionally <code>control</code> (T3-6, T3-7). <strong>Configured-port mode is ruled but not yet implemented:</strong> <span class="path">docs/ADR_0002_TYPED_PORTS.md</span> Amendment 3 lets a device class that explicitly opts in &mdash; only <code>Vessel</code> &mdash; take its structural port set from configuration. Every entry is then a typed object carrying <code>direction</code> (<code>inlet</code> or <code>outlet</code>), and the loader builds the ports in config order. With no <code>direction</code> anywhere the device keeps its fixed ports. <code>direction</code> on only some entries, or on fixed-port equipment, is rejected. T5-7 implements this.</p>
@@ -760,7 +760,9 @@ interlocks:  [{tag, condition, delay_s, actions, reset}]</pre>
   "equipment":   {"K-101": {...}, "P-101": {...}},
   "nodes":       {"N-01": {"pressure": 750.2}},
   "streams":     {"S-01": {"flow": 98.4, "temperature": 88.1}},
-  "controllers": {"PIC-101": {"pv":..,"sp":..,"out":..,"mode":"AUTO"}},
+  "controllers": {"PIC-101": {"pv":..,"sp":..,"out":..,"mode":"AUTO",
+                  "kp":..,"ki":..,"kd":..,"out_min":0.0,"out_max":1.0,
+                  "tunable":true,"pv_unit":"psia"}},
   "envelope":    {"K-101.discharge_pressure": {"band":"hi","since":1790.0}},
   "alarms":      [ <i>Event</i> ],
   "solver":      {"converged": true, "iterations": 4, "residual": 1.2e-9}
@@ -780,6 +782,7 @@ GET  /api/trend   ?tags=&amp;from=&amp;to=  -> {tag: [[t,v],...]}
 POST /api/alarm/ack  {alarm_id}
 POST /api/scenario/{load|start|abort}
 GET  /api/scenario/result           -> ScenarioResult</pre>
+      <p><strong>A target is a device, an interlock or a loop</strong> (loops decided 2026-10-07, built by T16-14). A loop takes manual, auto, set_setpoint, set_output and, where configured tunable, set_kp, set_ki and set_kd. A device that a loop drives is commanded through the loop, never directly.</p>
     </div>
   </details>
 
@@ -1806,10 +1809,10 @@ Scenario(initial_condition, malfunctions[], triggers[],
 
   {id:"T16-4",m:"M16",cat:"dep",n:"Controller faceplates",
    p:"PV, SP, OUT, mode switching and tuning access, in the standard faceplate layout operators already know.",
-   d:["T16-1","T8-2"],f:["static/js/faceplate.js"],b:"feature/faceplates",
+   d:["T16-1","T8-2","T16-14"],f:["static/js/faceplate.js","static/css/faceplate.css","templates/console.html","tests/test_faceplate.py","tests/test_console_api.py"],b:"feature/faceplates",
    w:["Mode switching works","Tuning editable where permitted"],
    t:["Faceplate reflects loop state","Mode change round-trips to the engine","Manual output entry is bounded"],
-   x:"None."},
+   x:"Shape decided by Opus on 2026-10-07: pure front end over T16-14, which it waits on. No spine or main.py lock. (1) static/js/faceplate.js, in the pattern of alarms.js and graphic.js: a pure half that runs under Node (the display model of one controllers row, entry parsing, the /api/action request) and a thin browser glue. One faceplate per controllers row of the operator view, in snapshot order, driven by the row and never by a known tag; the DOM for a loop is built once and only its values are rewritten per snapshot, so a value the operator is typing is never clobbered. (2) Layout: tag and mode; PV, SP and OUT numerically, with the PV unit from the row; an OUT bar over out_min..out_max; MAN and AUTO buttons, the active one pressed; SP entry; OUT entry in percent, enabled only in MANUAL and refused before posting outside out_min..out_max; a tuning panel with Kp, Ki and Kd, editable only when the row says tunable, otherwise shown read-only and marked locked. A refused action shows the API's error text on that faceplate. (3) Every live number carries data-live-value; colour only from tokens.css through static/css/faceplate.css. (4) templates/console.html: a Controllers section, and onSnapshot fans out to the graphic and the faceplates; still no second EventSource. (5) tests/test_faceplate.py: the pure half under Node over a real operator-view row, and end to end - the request faceplate.js builds is posted to /api/action on a real session and a later snapshot shows the change."},
 
   {id:"T16-5",m:"M16",cat:"dep",n:"Stale connection handling",
    p:"A frozen console showing confident numbers is worse than an obviously broken one, because the operator keeps trusting it.",
@@ -1873,6 +1876,13 @@ Scenario(initial_condition, malfunctions[], triggers[],
    w:["While a scenario is loaded or running, nothing the browser receives names its cause: not the id, a trigger id, an objective id, a malfunction target or parameter, or the description","Once the run is complete or aborted, the result carries everything, including the id and the description as the debrief","Inside the server nothing changes: ScenarioResult, the runner, replay, recordings and scores keep the real ids, so config/VERSION does not move"],
    t:["For every authored scenario: load it by key, start it, step it, and assert that no body from /api/scenario/* or GET / contains its id, a trigger id, an objective id, a malfunction parameter name or a line of its description","After abort, and after a run that completes, /api/scenario/result carries the id and the debrief text","An unknown key answers 404 with a message naming no scenario","A scenario file that fails to load answers 400 with a generic message, and the detail is in the request log","The key for an id is the same across restarts","Replay and scoring tests pass unchanged","Golden traces do not move"],
    x:"Shape decided by Opus on 2026-10-05; Sonnet implements. Not a spine task, no main.py change. (1) Key: ScenarioLibrary.catalogue() entries (T16-11) gain key, the first 12 hex digits of sha256 of the id: deterministic and stable across restarts, with no new config field to keep in sync. The landing page posts the key, and POST /api/scenario/load takes {'scenario': key}, resolved to the id through the catalogue; ScenarioRunner.load still takes the id, so replay, recordings and tests that call the runner directly are unchanged. (2) Public result: app/api/scenario.py renders every result through one function. While LOADED or RUNNING it returns key, title, phase, elapsed_s, time_limit_s, difficulty, the objectives as status and ended_at in file order with no ids, and the operator's own actions. scenario_id, seed, triggers_fired and objective ids are left out. Once COMPLETE or ABORTED it returns all of ScenarioResult.as_dict plus title and debrief (the scenario's description). (3) Refusals: no 404, 409 or 400 body quotes a scenario's id, file name, tag or parameter; a scenario that fails to arm answers a generic 400 and logs the detail through app.logging's request stream. (4) tests/test_scenario_disclosure.py walks every file in config/scenarios, so a new scenario is covered without editing the test. Not here: the live snapshot's equipment rows carry fault state - ControlValve publishes stuck, action_reversed and signal_ok, and effective_capacity, which a capacity malfunction moves - so the stream itself can show a valve fault; T16-13 owns that."},
+
+  {id:"T16-14",m:"M16",cat:"core",n:"Operator loop actions",
+   p:"A faceplate is how an operator runs a loop, and no operator action reaches one: /api/action's ACTIONS lists device classes, and a loop is not a device. The controllers row carries too little for a faceplate - no tuning, no output range, no unit. And an operator's direct action on a loop's own output valve is overwritten the next step, because the loop re-posts its demand every step in every mode.",
+   d:["T8-4","T15-1","T16-9"],f:["app/api/action.py","app/training/runtime.py","app/controls/pid.py","app/controls/loader.py","app/engine/engine.py","config/schema/plant.schema.json","config/plants/olefins_lite.yaml","config/VERSION","tests/fixtures/config_version.json","tests/test_action.py","tests/test_pid.py","tests/test_loop_loader.py","tests/test_loop_execution.py","docs/ARCHITECTURE.md"],b:"feature/loop-actions",
+   w:["A loop tag is a /api/action target: mode, setpoint, manual output and tuning, each logged and replayed like any other action","Manual output is refused outside the loop's output range and outside MANUAL","Tuning is refused unless the loop is configured tunable, and a gain change in AUTO does not bump the output","A direct action on a device a loop drives is refused, naming the loop","The controllers row carries what a faceplate needs"],
+   t:["Each loop action reaches the loop through POST /api/action on a training session and shows in the next snapshot's controllers row","set_output above out_max, below out_min, or in AUTO is a 400 and moves nothing","set_kp on a loop without tunable is a 400; on a tunable loop in AUTO the next step's output equals the last within float rounding","set_position_target on PV-101 is a 400 naming PIC-101","A scenario run with loop actions replays bit for bit","Golden traces do not move"],
+   x:"Shape decided by Opus on 2026-10-07. Spine task (app/engine/engine.py): takes the spine lock, not the main.py lock. C5's shape is unchanged - still {target, action, value} with a number or null - and C3 and C4 each gain additive fields. (1) Actions, in app/api/action.py as an explicit LOOP_ACTIONS allowlist beside ACTIONS: manual and auto (no value) set the mode; set_setpoint (value) sets the PID setpoint; set_output (value) sets manual_output, refused unless the loop is in MANUAL and unless out_min <= value <= out_max; set_kp, set_ki and set_kd (value >= 0) retune, refused unless the loop is tunable. No cascade action: no configuration builds a cascade loop yet. apply_action takes the engine's loops beside its equipment; a loop tag resolves before a device tag, and a device that a loop drives refuses every device action with a message naming the loop, since the loop's next demand would overwrite it. PlantRuntime.act passes engine.loops, so the scenario runner, replay and scoring see loop actions with no change of their own. (2) PID.retune(kp, ki, kd) re-solves the integral so the proportional and integral contribution at the last measurement is unchanged, which makes a Kp or Ki change bumpless in AUTO (a Kd change acts on the next measurement step only). In MANUAL tracking already re-derives the integral every step. (3) C3: a controllers entry takes an optional tunable boolean, default false, so every existing config loads unchanged and an operator cannot retune a loop nobody opened for it. PIC-101 is configured tunable. config/VERSION takes a MINOR bump and the T18-5 fixture is re-recorded. (4) C4: each controllers row gains kp, ki, kd, out_min, out_max, tunable and pv_unit (psia: a loop's pv is a node pressure, app/controls/loader.py). The operator view passes the section through unchanged. Not here: setpoint limits (no config carries any), a cascade action, and the faceplate itself (T16-4)."},
 
   // ---------------- M17 ----------------
   {id:"T17-1",m:"M17",cat:"ind",n:"Ring-buffer historian",
@@ -2135,7 +2145,7 @@ Scenario(initial_condition, malfunctions[], triggers[],
     "T13-1":"Opus","T13-5":"Sonnet",
     "T14-5":"Opus",
     "T15-4":"Sonnet",
-    "T16-5":"Sonnet","T16-8":"Sonnet","T16-10":"Sonnet","T16-13":"Sonnet",
+    "T16-5":"Sonnet","T16-8":"Sonnet","T16-10":"Sonnet","T16-13":"Sonnet","T16-14":"Opus",
     "T17-1":"Sonnet",
     "T18-2":"Sonnet",
     "T18-8":"Opus",

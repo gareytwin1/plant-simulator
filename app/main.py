@@ -7,8 +7,11 @@ from flask.typing import ResponseReturnValue
 from app import config
 from app import logging as plant_logging
 from app.api import validate
+from app.api.action import create_action_blueprint
+from app.api.alarms import create_alarm_blueprint
 from app.api.health import create_health_blueprint
 from app.api.scenario import create_scenario_blueprint
+from app.api.stream import create_stream_blueprint
 from app.engine.scheduler import Scheduler
 from app.engine.sessions import SessionRegistry
 from app.scenarios.runner import ScenarioLibrary
@@ -79,6 +82,21 @@ def load_session() -> None:
 
 
 app.register_blueprint(create_scenario_blueprint(lambda: g.plant))
+app.register_blueprint(create_action_blueprint(apply=lambda target, action, value: g.plant.act(target, action, value)))
+app.register_blueprint(
+    create_alarm_blueprint(
+        lambda: g.plant.alarm_entries(),
+        lambda alarm_id: g.plant.acknowledge(alarm_id),
+    ),
+)
+app.register_blueprint(
+    create_stream_blueprint(
+        lambda: g.plant.training_scheduler,
+        config.STREAM_INTERVAL_SECONDS,
+        hold=lambda: sessions.lease(g.session_id),
+        get_view=lambda: g.plant.operator_view,
+    ),
+)
 
 # Read once at import, so a bad scenario file stops the app at startup rather
 # than failing a request. Config is not reloaded while the app runs.
@@ -105,7 +123,7 @@ def persist_session_cookie(response: Response) -> Response:
 
 @app.get("/")
 def landing() -> ResponseReturnValue:
-    # Never starts the scheduler: only the console's render does (T16-9).
+    # Never starts the scheduler: only the console's render does.
     standing = g.plant.standing()
 
     return render_template(
@@ -117,9 +135,18 @@ def landing() -> ResponseReturnValue:
     )
 
 
+@app.get("/console")
+def console() -> ResponseReturnValue:
+    # The first route that starts a scheduler: the page's stream and alarm
+    # polling read a plant that advances on its own clock. Idempotent.
+    g.plant.training_scheduler.start()
+
+    return render_template("console.html", stream_interval_seconds=config.STREAM_INTERVAL_SECONDS)
+
+
 @app.get("/api/snapshot")
 def api_snapshot() -> ResponseReturnValue:
-    # Never starts the scheduler: only a page render does (T16-9).
+    # Never starts the scheduler: only the console's render does.
     plant = g.plant
 
     return jsonify(plant.operator_view(plant.training_scheduler.snapshot()))

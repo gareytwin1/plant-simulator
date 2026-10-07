@@ -1,18 +1,17 @@
-/* Landing page (T16-11): free play and scenario choice.
+/* Landing page (T16-11): free play and scenario choice, then on to the console.
  *
- * Talks to the scenario API (app/api/scenario.py) and reads /api/snapshot for
- * the plant time. A refusal is shown in this file's own plain words, chosen by
- * status code, and never the server's text: a scenario's id and its fault must
- * not reach the page through an error. Everything above the "browser glue"
- * marker is pure so it runs under Node without a DOM; tests/test_landing.py
- * drives it that way.
+ * Talks to the scenario API (app/api/scenario.py). A refusal is shown in this
+ * file's own plain words, chosen by status code, and never the server's text:
+ * a scenario's id and its fault must not reach the page through an error.
+ * Everything above the "browser glue" marker is pure so it runs under Node
+ * without a DOM; tests/test_landing.py drives it that way.
  */
 (function (root) {
   "use strict";
 
   var LOAD_URL = "/api/scenario/load";
   var UNLOAD_URL = "/api/scenario/unload";
-  var SNAPSHOT_URL = "/api/snapshot";
+  var CONSOLE_URL = "/console";
 
   var api = {};
 
@@ -25,6 +24,8 @@
     if (status === 429) return "Too many requests. Wait a moment and try again.";
     return "Something went wrong, so nothing was changed. Try again.";
   };
+
+  api.CONSOLE_URL = CONSOLE_URL;
 
   api.buildLoadRequest = function (scenarioKey) {
     return {
@@ -47,18 +48,18 @@
     return Object.prototype.hasOwnProperty.call(labels, phase) ? labels[phase] : "";
   };
 
-  api.formatTime = function (seconds) {
-    return String(Math.round(seconds));
-  };
-
   /* browser glue */
 
-  function mount(doc, fetchImpl) {
+  /* `navigate` exists so a test can see where the page goes; the page itself
+   * leaves for the console once its load or free-play call succeeds. */
+  function mount(doc, fetchImpl, navigate) {
     var doFetch = fetchImpl || root.fetch.bind(root);
+    var goTo = navigate || function (url) {
+      if (root.location) root.location.assign(url);
+    };
     var labels = JSON.parse(doc.getElementById("standing").getAttribute("data-phase-labels"));
     var modeEl = doc.getElementById("standing-mode");
     var phaseEl = doc.getElementById("standing-phase");
-    var timeEl = doc.getElementById("standing-time");
     var noticeEl = doc.getElementById("notice");
     var buttons = Array.prototype.slice.call(doc.querySelectorAll("main button"));
 
@@ -74,17 +75,6 @@
       });
     }
 
-    async function refreshTime() {
-      try {
-        var response = await doFetch(SNAPSHOT_URL);
-        if (!response.ok) return;
-        var snapshot = await response.json();
-        timeEl.textContent = api.formatTime(snapshot.sim_time);
-      } catch (error) {
-        // The time is a convenience; the action already succeeded.
-      }
-    }
-
     async function send(request, onSuccess) {
       setBusy(true);
       try {
@@ -95,7 +85,7 @@
         }
         var body = await response.json();
         onSuccess(body);
-        await refreshTime();
+        goTo(CONSOLE_URL);
       } catch (error) {
         notice(api.refusalText(0), "refused");
       } finally {

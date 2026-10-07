@@ -15,6 +15,7 @@
     <a class="site-brand" href="{{ url_for('landing') }}">Plant Simulator</a>
     <nav class="site-nav" aria-label="Main">
       <a href="{{ url_for('landing') }}"{% if request.endpoint == 'landing' %} aria-current="page"{% endif %}>Home</a>
+      <a href="{{ url_for('console') }}"{% if request.endpoint == 'console' %} aria-current="page"{% endif %}>Console</a>
     </nav>
     <button type="button" id="theme-toggle" class="theme-toggle" hidden>Theme: Auto</button>
   </header>

@@ -135,3 +135,23 @@ FREE_PLAY_CONDITION = "normal_operation"
 # See T16-9.
 
 STREAM_INTERVAL_SECONDS = 1.0
+
+
+# Trend history
+#
+# What each plant's Historian keeps for /api/trend: at most one sample per point
+# per TREND_SAMPLE_PERIOD_SECONDS of simulated time (one per step at speed 1),
+# the last TREND_CAPACITY of them. 1800 samples at one a second is 30
+# simulated minutes, which covers the longest scenario (1200 s). Memory is
+# about 5.5 MB per runtime at 27 points, and a session holds a free-play
+# runtime plus at most one scenario's, so the worst case is about
+# MAX_SESSIONS * 2 * 5.5 MB, roughly 350 MB, accepted for now; a slotted
+# Sample or per-tag arrays would cut it if sessions grow. A request is
+# bounded by the three limits below and refused, not clamped, beyond them.
+# See T17-3.
+
+TREND_SAMPLE_PERIOD_SECONDS = 1.0
+TREND_CAPACITY = 1800
+TREND_DEFAULT_POINTS = 500
+TREND_MAX_POINTS = 2000
+TREND_MAX_TAGS = 8

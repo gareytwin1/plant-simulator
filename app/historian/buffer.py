@@ -26,6 +26,11 @@ from collections import deque
 from dataclasses import dataclass
 
 
+# Simulated time is a float sum, so a step of exactly one period can arrive as
+# 0.9999999999999999 of it; without slack that sample would be dropped.
+_PERIOD_TOLERANCE = 1e-9
+
+
 @dataclass(frozen=True)
 class Sample:
     timestamp: float
@@ -84,7 +89,7 @@ class Historian:
             self._last_seen[tag] = timestamp
 
             last_recorded = self._last_recorded.get(tag)
-            if last_recorded is not None and timestamp - last_recorded < self._sample_period:
+            if last_recorded is not None and timestamp - last_recorded < self._sample_period - _PERIOD_TOLERANCE:
                 return
 
             buffer = self._buffers.get(tag)

@@ -32,6 +32,12 @@ the first step.
 logged either way: a reset that took no effect is still something the operator
 did. The trip system releases the interlock's demands on the next step.
 
+**Every step is also recorded for the trend API (T17-3).** `trends` is one
+`Historian`, and `_observe` records every point of the operator view
+(`app.historian.points`) at the snapshot's `sim_time`, the construction
+snapshot included. Recording lives here, never in `Engine`, and changes no
+plant state. A rebuilt runtime (a scenario abort) starts a fresh history.
+
 **One lock covers step, act, acknowledge and the history read**, so an
 acknowledge can never land between a step's events and their record.
 
@@ -44,15 +50,19 @@ which is a C4 change.
 from __future__ import annotations
 
 import threading
+from collections.abc import Sequence
 
 from app import config
 from app.alarms.acknowledge import Acknowledged, acknowledge_alarm
 from app.alarms.history import AlarmHistory, HistoryEntry
 from app.alarms.manager import AlarmManager, EnvelopeEvent
 from app.api.action import UnknownAction, apply_action
+from app.api.visibility import operator_view
 from app.engine.engine import Engine
 from app.engine.snapshot import Snapshot
 from app.envelope.evaluator import Severity, Side, isa_band
+from app.historian.buffer import Historian, Sample
+from app.historian.points import trend_values
 from app.plant.loader import Plant
 from app.safety.actions import TripSystem
 from app.scoring.actionlog import ActionLog
@@ -88,6 +98,8 @@ class PlantRuntime:
         self.alarms = AlarmManager() if alarms is None else alarms
         self.history = AlarmHistory(alarm_history_capacity)
         self.actions = ActionLog()
+        self.trends = Historian(config.TREND_CAPACITY, config.TREND_SAMPLE_PERIOD_SECONDS)
+        self._trend_points = tuple(sorted(self._trend_values(engine.snapshot())))
 
         self._lock = threading.RLock()
         self._published: Snapshot | None = None
@@ -146,7 +158,30 @@ class PlantRuntime:
         with self._lock:
             return self.history.entries()
 
+    def trend_points(self) -> tuple[str, ...]:
+        """Every point `trend_history` can answer for, sorted. Fixed at
+        construction."""
+        return self._trend_points
+
+    def trend_history(self, points: Sequence[str]) -> dict[str, tuple[Sample, ...]]:
+        """The retained samples of each of `points`, oldest first. Raises
+        `KeyError` naming the first point this plant does not publish."""
+        known = set(self._trend_points)
+
+        for point in points:
+            if point not in known:
+                raise KeyError(point)
+
+        with self._lock:
+            return {point: self.trends.history(point) for point in points}
+
+    def _trend_values(self, snapshot: Snapshot) -> dict[str, float]:
+        return trend_values(operator_view(snapshot, self.engine.equipment))
+
     def _observe(self, snapshot: Snapshot) -> None:
+        for point, value in self._trend_values(snapshot).items():
+            self.trends.record(point, snapshot.sim_time, value)
+
         events: list[EnvelopeEvent] = []
 
         for tag, variable in self.engine.limits:

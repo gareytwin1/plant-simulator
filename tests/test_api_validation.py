@@ -494,9 +494,10 @@ def test_a_trusted_proxy_written_in_ipv4_mapped_form_still_matches():
     assert validate.client_key("10.1.0.6", "203.0.113.7", proxies) == "10.1.0.6"
 
 
-def test_a_mapped_range_wider_than_the_ipv4_space_is_refused_at_startup():
-    with pytest.raises(ValueError):
-        validate.parse_trusted_proxies(["::ffff:0:0/80"])
+@pytest.mark.parametrize("entry", ["::ffff:0:0/80", "::/0"])
+def test_a_range_straddling_the_ipv4_mapped_space_is_refused_at_startup(entry):
+    with pytest.raises(ValueError, match="straddles"):
+        validate.parse_trusted_proxies([entry])
 
 
 @pytest.mark.parametrize("entry", ["[1.2.3.4]", "[1.2.3.4]:80", "[::1", "[::1]x", "1.2.3.4:abc", "1.2.3.4:", "[::1]:", "[::1]:x", "1.2.3.4:99999", "[::1]:99999", "1.2.3.4:\u00b2"])

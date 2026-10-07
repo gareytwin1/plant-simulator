@@ -178,7 +178,10 @@ def parse_trusted_proxies(entries: Iterable[str]) -> TrustedProxies:
         if isinstance(network, ipaddress.IPv6Network) and network.overlaps(_MAPPED_IPV4):
             mapped = network.network_address.ipv4_mapped
             if mapped is None or network.prefixlen < _MAPPED_IPV4.prefixlen:
-                raise ValueError(f"{entry!r} straddles the IPv4-mapped range; list IPv4 and IPv6 separately")
+                raise ValueError(
+                    f"{entry!r} straddles the IPv4-mapped range (a wildcard such as ::/0 does); "
+                    "list IPv4 and IPv6 proxies separately"
+                )
             network = ipaddress.IPv4Network((mapped, network.prefixlen - 96), strict=False)
         networks.append(network)
 

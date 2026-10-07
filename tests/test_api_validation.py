@@ -500,7 +500,7 @@ def test_a_range_straddling_the_ipv4_mapped_space_is_refused_at_startup(entry):
         validate.parse_trusted_proxies([entry])
 
 
-@pytest.mark.parametrize("entry", ["[1.2.3.4]", "[1.2.3.4]:80", "[::1", "[::1]x", "1.2.3.4:abc", "1.2.3.4:", "[::1]:", "[::1]:x", "1.2.3.4:99999", "[::1]:99999", "1.2.3.4:\u00b2"])
+@pytest.mark.parametrize("entry", ["[1.2.3.4]", "[1.2.3.4]:80", "[::1", "[::1]x", "1.2.3.4:abc", "1.2.3.4:", "[::1]:", "[::1]:x", "1.2.3.4:99999", "[::1]:99999", "1.2.3.4:\u00b2", "1.2.3.4:" + "9" * 5000, "[::1]:" + "9" * 5000])
 def test_a_malformed_forwarded_entry_stops_the_walk_at_the_hop_that_wrote_it(entry):
     assert validate.client_key(PROXY, f"203.0.113.7, {entry}", PROXIES) == PROXY
 

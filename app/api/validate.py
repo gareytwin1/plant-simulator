@@ -189,7 +189,7 @@ def parse_trusted_proxies(entries: Iterable[str]) -> TrustedProxies:
 
 
 def _is_port(text: str) -> bool:
-    return text.isascii() and text.isdigit() and int(text) <= 65535
+    return text.isascii() and text.isdigit() and len(text) <= 5 and int(text) <= 65535
 
 
 def _address(text: str) -> Address | None:

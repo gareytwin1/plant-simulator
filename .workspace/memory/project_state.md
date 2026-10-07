@@ -8,12 +8,12 @@ regrowth rule is in [.claude/rules/docs.md](../../.claude/rules/docs.md).
 
 ## Right now
 
-**Last state refresh:** 7 October 2026, at `f90be61` (Merge T16-4: Controller faceplates,
-PR #150) - **this is a snapshot,
-not a live pointer.** Run `git log f90be61..HEAD --oneline` to see what has
+**Last state refresh:** 7 October 2026, at `87edb9b` (Merge: Fix console layout, PR #151,
+no task ID: the graphic's empty band and the alarm table overflowing a phone) - **this is a snapshot,
+not a live pointer.** Run `git log 87edb9b..HEAD --oneline` to see what has
 merged since.
 **Full suite as of this refresh:** **3369 passed** · `python -m mypy` clean over 82 source files · no golden trace movement
-**In flight:** PR #151 (`fix/console-layout`, two console layout fixes with no task ID: the graphic's empty band and the alarm table overflowing a phone), green and waiting to merge. The spine lock and the `app/main.py` lock are free.
+**In flight:** nothing. The spine lock and the `app/main.py` lock are free.
 No task is Blocked. CI runs on every PR, and `main` requires its
 `test` check before a merge.
 

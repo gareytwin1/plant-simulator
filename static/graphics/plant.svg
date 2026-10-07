@@ -61,8 +61,8 @@
     <text x="95" y="124" data-bind="equipment.FV-201.position" data-format="percent">--</text>
   </g>
   <g class="node">
-    <text x="136" y="114">N-204</text>
-    <text x="136" y="130" data-bind="nodes.N-204.pressure" data-format="fixed:0" data-unit="psia">--</text>
+    <text x="140" y="114">N-204</text>
+    <text x="140" y="130" data-bind="nodes.N-204.pressure" data-format="fixed:0" data-unit="psia">--</text>
   </g>
   <g class="eq" data-tag="K-101">
     <circle class="body" cx="190" cy="90" r="24" />

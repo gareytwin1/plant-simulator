@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "7 October 2026",
-  "main_sha": "bcaae4c",
-  "tests_passing_on_main": 3294,
+  "main_sha": "cdab8f3",
+  "tests_passing_on_main": 3338,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -98,7 +98,7 @@
     },
     "M16": {
       "name": "Operator Console",
-      "complete": 12,
+      "complete": 13,
       "total": 14
     },
     "M17": {
@@ -119,8 +119,8 @@
   },
   "totals": {
     "tasks": 130,
-    "complete": 120,
-    "startable_now": 5
+    "complete": 121,
+    "startable_now": 6
   },
   "tasks": [
     {
@@ -1940,13 +1940,10 @@
         "tests/test_faceplate.py",
         "tests/test_console_api.py"
       ],
-      "status": "Blocked",
-      "status_key": "block",
-      "startable": false,
-      "blocked_by": [
-        "T16-14"
-      ],
-      "note": "Blocked on T16-14: no operator action reached a loop, and the controllers row lacked tuning, output range and unit. Faceplate front end is being built on feature/faceplates on top of feature/loop-actions; it rebases onto main once T16-14 merges."
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": true,
+      "note": "Startable: T16-14 merged (cdab8f3). Code is complete on feature/faceplates (pushed; stacked on T16-14's branch), 3366 passed there, mypy clean, roborev range review Pass (job 740), seen in headless Firefox at desktop and phone width in both themes. Next: rebase onto main, rerun suite and mypy, open the PR. Also fixes two console layout defects (empty band above the graphic; alarm table overflowing at phone width)."
     },
     {
       "id": "T16-5",
@@ -2208,10 +2205,9 @@
         "tests/test_loop_execution.py",
         "docs/ARCHITECTURE.md"
       ],
-      "status": "In Progress",
-      "status_key": "prog",
-      "startable": true,
-      "note": "Shape decided by Opus 2026-10-07 (see the task). Holds the SPINE LOCK (app/engine/engine.py). Branch feature/loop-actions, worktree ../plant-simulator-loop-actions. Opus implements."
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged to main as cdab8f3 (Merge T16-14: Operator loop actions, PR #149). 3338 passed post-merge, mypy clean over 82 files, no golden movement, CI test and docker green, roborev branch review Pass (job 730). A loop tag is an /api/action target: manual, auto, set_setpoint, set_output (MANUAL only, within the output range) and set_kp/ki/kd (tunable loops only, finite and non-negative). A device a loop drives refuses direct actions, naming the loop. PID.retune re-solves the integral so a Kp or Ki change in AUTO is bumpless (a new ki of 0 is not). C3: optional tunable on a controllers entry (config 1.1.0). C4: controllers rows gain kp, ki, kd, out_min, out_max, tunable, pv_unit. apply_action takes loops as a required keyword. Not here: a setpoint upper bound (no configured range), a cascade action. Spine lock released."
     },
     {
       "id": "T17-1",

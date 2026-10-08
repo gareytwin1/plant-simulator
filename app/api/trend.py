@@ -2,9 +2,13 @@
 Trend API (T17-3, contract C5's trend routes).
 
     GET /api/trend?tags=&from=&to=&max_points=   -> {point: [[t, v], ...]}
-    GET /api/trend/points                        -> {"points": [point, ...]}
+    GET /api/trend/points   -> {"points": [point, ...], "limits": {point: {bound: v}}, "max_tags": n}
 
-A tag is a point, `<id>.<field>` (`app.historian.points`). Like the alarm
+A tag is a point, `<id>.<field>` (`app.historian.points`). `limits` carries the
+configured envelope bounds of each point the engine evaluates, under the
+`app.envelope.evaluator.Limits` field names and only those that are set, so a
+display can draw bands without duplicating a limit; `max_tags` is the tag
+bound of `/api/trend`. Like the alarm
 blueprint, `create_trend_blueprint` takes the plant's points and history as
 callables resolved once per request, so this module assumes nothing about
 where they live, and neither route starts a scheduler.
@@ -82,6 +86,7 @@ def _pair(sample: Sample) -> list[float | None]:
 def create_trend_blueprint(
     get_points: Callable[[], Sequence[str]],
     get_history: Callable[[Sequence[str]], dict[str, tuple[Sample, ...]]],
+    get_limits: Callable[[], dict[str, dict[str, float]]],
 ) -> Blueprint:
     """Build the `/api/trend*` blueprint against the points and history of
     whichever plant the caller's session machinery has resolved for this
@@ -91,7 +96,11 @@ def create_trend_blueprint(
 
     @blueprint.get("/api/trend/points")
     def get_trend_points() -> ResponseReturnValue:
-        return jsonify({"points": list(get_points())}), 200
+        return jsonify({
+            "points": list(get_points()),
+            "limits": get_limits(),
+            "max_tags": config.TREND_MAX_TAGS,
+        }), 200
 
     @blueprint.get("/api/trend")
     def get_trend() -> ResponseReturnValue:

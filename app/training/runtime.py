@@ -50,6 +50,7 @@ which is a C4 change.
 from __future__ import annotations
 
 import threading
+from dataclasses import asdict
 from collections.abc import Sequence
 
 from app import config
@@ -162,6 +163,28 @@ class PlantRuntime:
         """Every point `trend_history` can answer for, sorted. Fixed at
         construction."""
         return self._trend_points
+
+    def trend_limits(self) -> dict[str, dict[str, float]]:
+        """The configured bounds of each trend point the engine evaluates
+        (`Engine.limits`), keyed by point and holding only the bounds that are
+        set, under the `Limits` field names. A limit the engine cannot resolve
+        is not in `Engine.limits`, so it draws no band."""
+        known = set(self._trend_points)
+        limits: dict[str, dict[str, float]] = {}
+
+        for (tag, variable), evaluator in self.engine.limits.items():
+            point = f"{tag}.{variable}"
+
+            if point not in known:
+                continue
+
+            limits[point] = {
+                name: bound
+                for name, bound in asdict(evaluator.limits).items()
+                if bound is not None
+            }
+
+        return limits
 
     def trend_history(self, points: Sequence[str]) -> dict[str, tuple[Sample, ...]]:
         """The retained samples of each of `points`, oldest first. Raises

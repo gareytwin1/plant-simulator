@@ -601,8 +601,7 @@ def test_the_first_snapshot_draws_the_default_pens_with_their_bands(free):
 
 
 @needs_node
-@pytest.mark.parametrize("running", [True, False])
-def test_a_timer_tick_asks_for_the_list_the_window_and_the_alarm_record(free, running):
+def test_a_timer_tick_asks_for_the_list_the_window_and_the_alarm_record_even_when_paused(free):
     result = run_glue(
         """
         await start();
@@ -610,7 +609,7 @@ def test_a_timer_tick_asks_for_the_list_the_window_and_the_alarm_record(free, ru
         await trends.poll();
         return calls.map(c => c.split('?')[0]).sort();
         """,
-        served=served(free), snapshot={**free["snapshot"], "running": running},
+        served=served(free), snapshot={**free["snapshot"], "running": False},
     )
 
     assert result == ["/api/alarms/history", "/api/trend", "/api/trend/points"]
@@ -945,3 +944,31 @@ def test_a_span_change_before_the_point_list_arrives_is_kept_and_a_pen_edit_is_t
     assert result["afterSpan"] == {"span": 5, "selection": [LEVEL], "focus": LEVEL}
     assert result["snapped"] is True
     assert result["stored"] == result["afterSpan"]
+
+
+@needs_node
+def test_a_tab_that_comes_back_to_the_front_refreshes_at_once(free):
+    result = run_glue(
+        """
+        let onChange;
+        globalThis.document = { hidden: true, addEventListener: (type, fn) => { onChange = fn; },
+                                removeEventListener: () => { onChange = null; } };
+        const host = new Node('div');
+        const shown = T.mount(host, { fetch, storage: null, width: 640, pollMs: 60000 });
+        await shown.ready;
+        await shown.update(data.snapshot);
+        calls.length = 0;
+        await onChange();
+        const whileHidden = calls.length;
+        document.hidden = false;
+        await onChange();
+        const afterShown = calls.length;
+        shown.stop();
+        const removed = onChange === null;
+        delete globalThis.document;
+        return { whileHidden, afterShown, removed };
+        """,
+        served=served(free), snapshot=free["snapshot"],
+    )
+
+    assert result == {"whileHidden": 0, "afterShown": 3, "removed": True}

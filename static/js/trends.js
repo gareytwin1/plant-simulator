@@ -2,7 +2,7 @@
  *
  * The console surface for the trend API (app/api/trend.py) and the alarm
  * record (app/api/alarms.py):
- *   GET /api/trend/points  -> {points, limits, max_tags}
+ *   GET /api/trend/points  -> {points, limits, max_tags, max_points}
  *   GET /api/trend         -> {point: [[t, v], ...]}
  *   GET /api/alarms/history
  *
@@ -17,6 +17,9 @@
  * plot. The focused pen gives the y-axis and the envelope bands behind it; a
  * band is a labelled rule as well as a tint, and a pen is a dash pattern and a
  * number as well as a stroke, so nothing rests on colour alone.
+ *
+ * The drawing is sized when it is drawn (the next tick, at most 2 s after a
+ * resize or a rotation); in between the SVG scales with its container.
  *
  * Everything above the "browser glue" marker is pure (data in, numbers or an
  * HTML/SVG string out) so it runs under Node without a DOM;
@@ -852,6 +855,10 @@
     var ready = refresh();
     if (pollMs) timer = root.setInterval(poll, pollMs);
 
+    // A tab that comes back to the front catches up at once, not on the next tick.
+    var listening = pollMs && root.document && root.document.addEventListener;
+    if (listening) root.document.addEventListener("visibilitychange", poll);
+
     return {
       ready: ready,
       update: update,
@@ -859,6 +866,7 @@
       poll: poll,
       stop: function () {
         if (timer !== null) root.clearInterval(timer);
+        if (listening) root.document.removeEventListener("visibilitychange", poll);
       },
     };
   }

@@ -188,6 +188,7 @@ def test_points_lists_what_the_plant_publishes():
 
     assert body["points"] == ["A.v", "B.v"]
     assert body["max_tags"] == config.TREND_MAX_TAGS
+    assert body["max_points"] == config.TREND_MAX_POINTS
 
 
 def test_points_carry_the_limits_the_plant_reports():
@@ -372,8 +373,11 @@ def test_a_limit_the_engine_cannot_resolve_draws_no_band(client):
 
 
 def test_limits_follow_the_plant_the_snapshot_shows(session, client):
-    session.load("pump-trip")
+    free_limits = client.get("/api/trend/points").get_json()["limits"]
 
+    session.load("pump-trip")
     body = client.get("/api/trend/points").get_json()
 
-    assert set(body["limits"]) <= set(body["points"])
+    assert free_limits
+    assert set(body["limits"]) == {POINT}
+    assert body["limits"][POINT] == free_limits[POINT]

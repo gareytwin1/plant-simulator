@@ -2,13 +2,14 @@
 Trend API (T17-3, contract C5's trend routes).
 
     GET /api/trend?tags=&from=&to=&max_points=   -> {point: [[t, v], ...]}
-    GET /api/trend/points   -> {"points": [point, ...], "limits": {point: {bound: v}}, "max_tags": n}
+    GET /api/trend/points                        -> {"points": [point, ...],
+        "limits": {point: {bound: v}}, "max_tags": n, "max_points": n}
 
 A tag is a point, `<id>.<field>` (`app.historian.points`). `limits` carries the
 configured envelope bounds of each point the engine evaluates, under the
 `app.envelope.evaluator.Limits` field names and only those that are set, so a
-display can draw bands without duplicating a limit; `max_tags` is the tag
-bound of `/api/trend`. Like the alarm
+display can draw bands without duplicating a limit; `max_tags` and
+`max_points` are the bounds of `/api/trend`. Like the alarm
 blueprint, `create_trend_blueprint` takes the plant's points and history as
 callables resolved once per request, so this module assumes nothing about
 where they live, and neither route starts a scheduler.
@@ -100,6 +101,7 @@ def create_trend_blueprint(
             "points": list(get_points()),
             "limits": get_limits(),
             "max_tags": config.TREND_MAX_TAGS,
+            "max_points": config.TREND_MAX_POINTS,
         }), 200
 
     @blueprint.get("/api/trend")

@@ -19,7 +19,7 @@ from flask import Flask
 from app import config
 from app.api.alarms import create_alarm_blueprint
 from app.api.trend import create_trend_blueprint
-from app.envelope.evaluator import Severity
+from app.envelope.evaluator import Severity, isa_band
 from app.scenarios.runner import ScenarioLibrary
 from app.training.session import TrainingSession
 from tests.test_alarm_console import Plant
@@ -148,12 +148,18 @@ def test_the_window_ends_at_the_latest_time_and_reaches_the_span_back():
 
 
 @needs_node
+def test_the_window_never_starts_before_simulated_time_zero():
+    assert run_js("return T.windowFor(90, 10);") == {"from": 0, "to": 90}
+    assert run_js("return T.windowFor(0, 10);") == {"from": 0, "to": 0}
+
+
+@needs_node
 def test_the_request_the_display_builds_is_accepted_by_the_real_endpoint(session, client):
     step(session, 90)
     sim_time = session.training_scheduler.snapshot().sim_time
     url = run_js(
-        "return T.buildTrendUrl(data.tags, T.windowFor(data.t, 1), T.pointsFor(data.width));",
-        tags=[LEVEL, "PIC-101.pv"], t=sim_time, width=300,
+        "return T.buildTrendUrl(data.tags, T.windowFor(data.t, 1), T.pointsFor(data.width, data.max_points));",
+        tags=[LEVEL, "PIC-101.pv"], t=sim_time, width=300, max_points=config.TREND_MAX_POINTS,
     )
 
     response = client.get(url)
@@ -166,8 +172,9 @@ def test_the_request_the_display_builds_is_accepted_by_the_real_endpoint(session
 
 
 @needs_node
-def test_the_requested_point_count_follows_the_plot_width_within_the_servers_bounds():
-    assert run_js("return [T.pointsFor(1), T.pointsFor(333.4), T.pointsFor(99999)];") == [2, 333, config.TREND_MAX_POINTS]
+def test_the_requested_point_count_follows_the_plot_width_within_the_servers_bound():
+    assert run_js("return [T.pointsFor(1, 2000), T.pointsFor(333.4, 2000), T.pointsFor(99999, 2000)];") == [2, 333, 2000]
+    assert run_js("return T.pointsFor(900, 500);") == 500
 
 
 # ---- Scaling ----
@@ -223,19 +230,23 @@ def test_bands_fill_each_bound_outward_to_the_next_and_label_every_rule(free):
     ])
     rules = sorted(shading["rules"], key=lambda r: r["value"])
     assert [(r["label"], r["severity"]) for r in rules] == [
-        ("LLL", "trip"), ("L", "warning"), ("H", "warning"), ("HHH", "trip"),
+        ("LOLOLO", "trip"), ("LO", "warning"), ("HI", "warning"), ("HIHIHI", "trip"),
     ]
     assert [r["value"] for r in rules] == pytest.approx([0.1, 0.2, 0.8, 0.9])
 
 
 @needs_node
-def test_the_rule_labels_follow_the_isa_ladder_of_the_envelope_bands():
+def test_the_rule_labels_are_the_alarm_messages_own_ladder():
     shading = run_js(
         "return T.bandsFor({warning_hi: 5, alarm_hi: 6, trip_hi: 7, warning_lo: 3, alarm_lo: 2, trip_lo: 1}, {lo: 0, hi: 8});",
     )
 
-    assert sorted(r["label"] for r in shading["rules"]) == ["H", "HH", "HHH", "L", "LL", "LLL"]
-    assert Severity.WARNING < Severity.ALARM < Severity.TRIP
+    by_value = {r["value"]: r["label"] for r in shading["rules"]}
+    assert by_value == {
+        1: isa_band(Severity.TRIP, "lo").upper(), 2: isa_band(Severity.ALARM, "lo").upper(),
+        3: isa_band(Severity.WARNING, "lo").upper(), 5: isa_band(Severity.WARNING, "hi").upper(),
+        6: isa_band(Severity.ALARM, "hi").upper(), 7: isa_band(Severity.TRIP, "hi").upper(),
+    }
 
 
 @needs_node
@@ -323,6 +334,18 @@ def test_pen_numbers_sit_in_the_right_margin_and_never_overlap():
 
 
 @needs_node
+def test_pen_numbers_pushed_past_the_plot_bottom_are_packed_back_inside_it():
+    pens = [{"point": f"X.p{i}", "samples": [[0, 0], [100, 0]]} for i in range(3)]
+    pens += [{"point": "X.low", "samples": [[0, 1], [100, 0]]}]
+
+    svg = render(pens, focus="X.low")
+
+    ys = sorted(float(y) for y in re.findall(r'class="trend-pen-number" data-pen="\d" x="[\d.]+" y="([\d.]+)"', svg))
+    assert max(ys) <= 260 - 26
+    assert all(b - a >= 11 - 0.01 for a, b in zip(ys, ys[1:]))
+
+
+@needs_node
 def test_a_time_label_that_would_be_clipped_at_an_edge_is_not_drawn():
     svg = render([{"point": "X.p", "samples": [[0, 1], [100, 2]]}], width=320, window={"from": 0, "to": 100})
 
@@ -364,6 +387,13 @@ def test_markers_are_the_raised_alarms_inside_the_window():
     assert [(m["time"], m["tag"]) for m in inside] == [(50.0, "K-101")]
     assert [(m["time"], m["tag"]) for m in later] == [(500.0, "V-101")]
     assert {entry["type"] for entry in entries} == {"alarm", "clear"}
+
+
+@needs_node
+def test_an_alarm_without_a_known_priority_is_drawn_as_low():
+    entries = [{"type": "alarm", "id": "a", "sim_time": 5, "tag": "X", "message": "m", "priority": None}]
+
+    assert run_js("return T.markersFor(data.entries, {from: 0, to: 10});", entries=entries)[0]["priority"] == "low"
 
 
 @needs_node
@@ -481,6 +511,18 @@ class Node {
   set textContent(t) { this._text = String(t); }
   get textContent() { return this._text; }
   addEventListener(type, fn) { (this.listeners[type] = this.listeners[type] || []).push(fn); }
+  // Just the live values of a legend: a node whose text can be rewritten in place.
+  querySelectorAll(sel) {
+    if (sel !== '[data-live-value]') return [];
+    const host = this;
+    const found = [...this._html.matchAll(/data-live-value data-value-point="([^"]*)"/g)].map(m => m[1]);
+    return found.map(point => ({
+      getAttribute: a => (a === 'data-value-point' ? point : null),
+      set textContent(text) {
+        host._html = host._html.replace(new RegExp('(data-value-point="' + point + '">)[^<]*'), '$1' + text);
+      },
+    }));
+  }
   async fire(type, event) { for (const fn of this.listeners[type] || []) await fn(event); }
 }
 const doc = { createElement: tag => new Node(tag) };
@@ -546,44 +588,64 @@ def test_the_first_snapshot_draws_the_default_pens_with_their_bands(free):
 
     assert result["pens"] == [LEVEL, "PIC-101.pv", "PIC-101.sp"]
     assert 'class="trend-band"' in result["chart"]
-    assert "H 0.8" in result["chart"] and "LLL 0.1" in result["chart"]
+    assert "HI 0.8" in result["chart"] and "LOLOLO 0.1" in result["chart"]
     assert result["legend"].count("trend-pen-row") == 3
     assert any(call.startswith("/api/trend?tags=V-101.level,PIC-101.pv,PIC-101.sp&from=") for call in result["calls"])
 
 
 @needs_node
-def test_a_tick_asks_for_three_requests_and_a_paused_unchanged_plant_only_for_the_list(free):
-    snapshot = {**free["snapshot"], "running": False}
+@pytest.mark.parametrize("running", [True, False])
+def test_a_timer_tick_asks_for_the_list_the_window_and_the_alarm_record(free, running):
     result = run_glue(
         """
         await start();
         calls.length = 0;
-        await trends.refresh();
-        const forced = calls.map(c => c.split('?')[0]);
-        calls.length = 0;
-        await trends.update(data.snapshot);
-        return { forced };
+        await trends.poll();
+        return calls.map(c => c.split('?')[0]).sort();
         """,
-        served=served(free), snapshot=snapshot,
+        served=served(free), snapshot={**free["snapshot"], "running": running},
     )
 
-    assert sorted(result["forced"]) == ["/api/alarms/history", "/api/trend", "/api/trend/points"]
+    assert result == ["/api/alarms/history", "/api/trend", "/api/trend/points"]
 
 
 @needs_node
-def test_a_running_plant_refetches_on_each_tick(free):
+def test_a_hidden_tab_makes_no_requests(free):
     result = run_glue(
         """
         await start();
         calls.length = 0;
-        await trends.update({ ...data.snapshot, sim_time: data.snapshot.sim_time + 1 });
-        await trends.refresh();
-        return calls.map(c => c.split('?')[0]).sort();
+        globalThis.document = { hidden: true };
+        await trends.poll();
+        const hidden = calls.length;
+        globalThis.document = { hidden: false };
+        await trends.poll();
+        delete globalThis.document;
+        return { hidden, visible: calls.length };
         """,
         served=served(free), snapshot=free["snapshot"],
     )
 
-    assert result == ["/api/alarms/history", "/api/trend", "/api/trend/points"]
+    assert result == {"hidden": 0, "visible": 3}
+
+
+@needs_node
+def test_a_swap_that_leaves_a_paused_plants_time_unchanged_still_replaces_the_samples(free):
+    swapped = json.loads(json.dumps(served(free)))
+    swapped["series"][LEVEL] = [[t, v + 0.1] for t, v in swapped["series"][LEVEL]]
+
+    result = run_glue(
+        """
+        await start();
+        const before = pathsOf();
+        served = data.swapped;
+        await trends.poll();
+        return { before, after: pathsOf() };
+        """,
+        served=served(free), swapped=swapped, snapshot={**free["snapshot"], "running": False},
+    )
+
+    assert result["before"][LEVEL] != result["after"][LEVEL]
 
 
 @needs_node
@@ -713,19 +775,42 @@ def test_storage_that_throws_does_not_stop_the_display(free):
 
 
 @needs_node
-def test_a_tick_does_not_rebuild_a_selector_the_operator_may_have_open(free):
+def test_a_tick_rebuilds_neither_a_selector_nor_the_legend_the_operator_may_be_using(free):
+    moved = json.loads(json.dumps(served(free)))
+    moved["series"][LEVEL] = [[t, 0.25] for t, _ in moved["series"][LEVEL]]
+
     result = run_glue(
         """
         await start();
-        const before = selectors().sets;
-        await trends.update({ ...data.snapshot, sim_time: data.snapshot.sim_time + 1 });
-        await trends.refresh();
-        return { before, after: selectors().sets };
+        const before = { selectors: selectors().sets, legend: part('trend-legend-box').sets };
+        const shown = legend();
+        served = data.moved;
+        await trends.poll();
+        return { before, after: { selectors: selectors().sets, legend: part('trend-legend-box').sets },
+                 shown, now: legend() };
+        """,
+        served=served(free), moved=moved, snapshot=free["snapshot"],
+    )
+
+    assert result["after"] == result["before"]
+    assert result["now"] != result["shown"]
+    assert re.search(r'data-value-point="V-101.level">0.25<', result["now"])
+
+
+@needs_node
+def test_changing_the_focus_or_a_pen_does_rebuild_the_legend(free):
+    result = run_glue(
+        """
+        await start();
+        const before = part('trend-legend-box').sets;
+        await click(part('trend-legend-box'), 'data-focus-point', 'PIC-101.pv');
+        return { before, after: part('trend-legend-box').sets, legend: legend() };
         """,
         served=served(free), snapshot=free["snapshot"],
     )
 
-    assert result["after"] == result["before"]
+    assert result["after"] == result["before"] + 1
+    assert re.search(r'data-pen="2" data-focus="true"', result["legend"])
 
 
 @needs_node

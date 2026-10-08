@@ -50,8 +50,8 @@ which is a C4 change.
 from __future__ import annotations
 
 import threading
-from dataclasses import fields
 from collections.abc import Sequence
+from dataclasses import fields
 
 from app import config
 from app.alarms.acknowledge import Acknowledged, acknowledge_alarm

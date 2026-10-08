@@ -34,7 +34,6 @@
   var SPANS = [1, 5, 10, 30];
   var DEFAULT_SPAN = 10;
   var MIN_POINTS = 2;
-  var MAX_POINTS = 2000;
   var PAD = 0.05;
 
   // Outermost last. A bound fills from its value outward to the next one.
@@ -48,7 +47,8 @@
     { key: "alarm_lo", severity: "alarm" },
     { key: "trip_lo", severity: "trip" },
   ];
-  // app.envelope.evaluator.isa_band: the side repeated once per severity step.
+  // app.envelope.evaluator.isa_band, upper-cased as the alarm messages spell
+  // it: the side repeated once per severity step (HI, HIHI, HIHIHI).
   var SEVERITY_STEPS = { warning: 1, alarm: 2, trip: 3 };
 
   // Mirrors --symbol-alarm-* in tokens.css (tests/test_trend_display.py).
@@ -139,13 +139,15 @@
   /* ---- requests ---------------------------------------------------------- */
 
   /* The window ends at the latest simulated time and reaches `span` minutes
-   * back. */
+   * back, but never before simulated time zero. */
   function windowFor(simTime, spanMinutes) {
-    return { from: simTime - spanMinutes * 60, to: simTime };
+    return { from: Math.max(0, simTime - spanMinutes * 60), to: simTime };
   }
 
-  function pointsFor(plotWidth) {
-    return Math.min(MAX_POINTS, Math.max(MIN_POINTS, Math.round(plotWidth)));
+  /* The plot's pixel width, kept within 2 and the server's `max_points`. */
+  function pointsFor(plotWidth, maxPoints) {
+    var wanted = Math.max(MIN_POINTS, Math.round(plotWidth));
+    return isNumber(maxPoints) ? Math.min(maxPoints, wanted) : wanted;
   }
 
   function buildTrendUrl(tags, win, maxPoints) {
@@ -209,14 +211,15 @@
    *
    * Each bound fills outward to the next outer bound or the edge of the plot
    * (warning to alarm to trip), and every bound is also a rule labelled with
-   * the ISA ladder: H, HH, HHH on the high side, L, LL, LLL on the low side.
+   * the ISA ladder as the alarm messages spell it: HI, HIHI, HIHIHI on the high
+   * side, LO, LOLO, LOLOLO on the low side.
    * Bounds outside the visible range draw no rule, but the band they begin
    * still reaches into view if its tint does. */
   function bandsFor(limits, scale) {
     var bands = [];
     var rules = [];
 
-    function side(bounds, outwardIsUp, letter) {
+    function side(bounds, outwardIsUp, word) {
       var present = bounds.filter(function (bound) {
         return limits && isNumber(limits[bound.key]);
       });
@@ -236,14 +239,14 @@
           rules.push({
             severity: bound.severity,
             value: value,
-            label: new Array(SEVERITY_STEPS[bound.severity] + 1).join(letter),
+            label: new Array(SEVERITY_STEPS[bound.severity] + 1).join(word),
           });
         }
       });
     }
 
-    side(HIGH_BOUNDS, true, "H");
-    side(LOW_BOUNDS, false, "L");
+    side(HIGH_BOUNDS, true, "HI");
+    side(LOW_BOUNDS, false, "LO");
 
     return { bands: bands, rules: rules };
   }
@@ -259,7 +262,12 @@
         );
       })
       .map(function (entry) {
-        return { time: entry.sim_time, priority: entry.priority, tag: entry.tag, message: entry.message };
+        return {
+          time: entry.sim_time,
+          priority: PRIORITY_GLYPH[entry.priority] ? entry.priority : "low",
+          tag: entry.tag,
+          message: entry.message,
+        };
       })
       .sort(function (a, b) {
         return a.time - b.time;
@@ -268,8 +276,8 @@
 
   /* ---- drawing ----------------------------------------------------------- */
 
-  /* An SVG path through `samples`, scaled into the plot. A null reading, or
-   * one outside the window, breaks the line rather than being bridged. */
+  /* An SVG path through `samples`, scaled into the plot. A null reading
+   * breaks the line rather than being bridged. */
   function pathFor(samples, toX, toY) {
     var parts = [];
     var pen = false;
@@ -412,10 +420,15 @@
     numbers.forEach(function (number, i) {
       if (i > 0) number.y = Math.max(number.y, numbers[i - 1].y + NUMBER_GAP);
     });
+    // The push down can run past the plot: clamp, then pack back upward.
+    for (var n = numbers.length - 1; n >= 0; n--) {
+      var limit = n === numbers.length - 1 ? top + plotH : numbers[n + 1].y - NUMBER_GAP;
+      numbers[n].y = Math.min(numbers[n].y, limit);
+    }
     numbers.forEach(function (number) {
       svg.push(
         '<text class="trend-pen-number" data-pen="' + (number.index + 1) + '" x="' + (left + plotW + 4) +
-        '" y="' + round(Math.min(number.y, top + plotH)) + '" dominant-baseline="middle">' + (number.index + 1) + "</text>"
+        '" y="' + round(number.y) + '" dominant-baseline="middle">' + (number.index + 1) + "</text>"
       );
     });
 
@@ -487,7 +500,7 @@
         (dash ? ' stroke-dasharray="' + dash + '"' : "") + "/></svg>" +
         '<span class="trend-pen-index">' + (index + 1) + "</span>" +
         '<span class="trend-pen-point">' + escapeHtml(point) + "</span>" +
-        '<span class="trend-pen-value" data-live-value>' + formatValue((view.latest || {})[point]) + "</span></button>" +
+        '<span class="trend-pen-value" data-live-value data-value-point="' + escapeHtml(point) + '">' + formatValue((view.latest || {})[point]) + "</span></button>" +
         '<button type="button" class="trend-remove" data-remove-point="' + escapeHtml(point) +
         '" aria-label="Remove ' + escapeHtml(point) + '" title="Remove">\u00D7</button></li>'
       );
@@ -554,7 +567,7 @@
   /* Mount the trend into `container`. `options.fetch`, `options.pollMs`,
    * `options.storage` and `options.width` exist so a page or test can supply
    * its own transport, timer, storage and size. Returns {ready, update,
-   * refresh, stop}: feed it every snapshot with `update`; `ready` resolves
+   * refresh, poll, stop}: feed it every snapshot with `update`; `ready` resolves
    * once the first fetch has been drawn. */
   function mount(container, options) {
     var settings = options || {};
@@ -571,16 +584,16 @@
       points: [],
       limits: {},
       maxTags: 8,
+      maxPoints: null,
       data: {},
       markers: [],
       simTime: null,
-      running: true,
       controllers: {},
-      drawnSignature: null,
       problem: "",
     };
     var ticket = 0;
     var drawnSelectors = null;
+    var drawnLegend = null;
     var timer = null;
 
     var controlsEl = doc.createElement("div");
@@ -637,7 +650,16 @@
         drawnSelectors = selectors;
         controlsEl.innerHTML = selectors;
       }
-      legendEl.innerHTML = renderLegend(view);
+      // The legend is rebuilt only when its rows change, so keyboard focus
+      // survives a tick; values are rewritten in place.
+      var legend = renderLegend({ span: view.span, selection: chosen, focus: focus, latest: {} });
+      if (legend !== drawnLegend) {
+        drawnLegend = legend;
+        legendEl.innerHTML = legend;
+      }
+      legendEl.querySelectorAll("[data-live-value]").forEach(function (node) {
+        node.textContent = formatValue(latestValues[node.getAttribute("data-value-point")]);
+      });
 
       if (state.simTime === null) {
         chartEl.innerHTML = '<p class="trend-empty">Waiting for the plant.</p>';
@@ -664,11 +686,12 @@
       return response.json();
     }
 
-    /* Refetch the point list always (it is cheap and decides what a pen may
-     * be), and the window and the alarm record unless nothing can have moved:
-     * a paused plant with the same selection and span. A newer refresh
-     * supersedes an older one still in flight. */
-    async function refresh(force) {
+    /* Refetch the point list, the window of the selected pens and the alarm
+     * record, and replace what is drawn with them. Nothing is skipped for a
+     * paused plant: a history swap can leave simulated time where it was, so
+     * only a fetch can tell. A newer refresh supersedes an older one still in
+     * flight. */
+    async function refresh() {
       var mine = ++ticket;
 
       try {
@@ -678,25 +701,23 @@
         state.points = Array.isArray(listing.points) ? listing.points : [];
         state.limits = isObject(listing.limits) ? listing.limits : {};
         state.maxTags = isNumber(listing.max_tags) ? listing.max_tags : state.maxTags;
+        state.maxPoints = isNumber(listing.max_points) ? listing.max_points : state.maxPoints;
 
         var chosen = selection();
-        var signature = JSON.stringify([state.simTime, chosen, state.span, width(), state.points.length]);
 
         if (state.simTime === null || !chosen.length) {
           state.data = {};
           state.markers = [];
-          state.drawnSignature = null;
-        } else if (force || state.running || signature !== state.drawnSignature) {
+        } else {
           var win = windowFor(state.simTime, state.span);
           var results = await Promise.all([
-            get(buildTrendUrl(chosen, win, pointsFor(width() - MARGIN.left - MARGIN.right))),
+            get(buildTrendUrl(chosen, win, pointsFor(width() - MARGIN.left - MARGIN.right, state.maxPoints))),
             get(ALARMS_URL),
           ]);
           if (mine !== ticket) return;
 
           state.data = isObject(results[0]) ? results[0] : {};
           state.markers = markersFor(results[1], win);
-          state.drawnSignature = signature;
         }
 
         state.problem = "";
@@ -711,9 +732,8 @@
     function edit(change) {
       change();
       persist();
-      state.drawnSignature = null;
       draw();
-      return refresh(true);
+      return refresh();
     }
 
     legendEl.addEventListener("click", function (event) {
@@ -757,9 +777,10 @@
       }
     });
 
-    function tick() {
+    /* One timer tick: a refresh, unless the page is in a hidden tab. */
+    function poll() {
       if (root.document && root.document.hidden) return;
-      return refresh(false);
+      return refresh();
     }
 
     /* Called with every snapshot: remembers the clock and the loops. The first
@@ -769,21 +790,19 @@
 
       var first = state.simTime === null;
       state.simTime = snapshot.sim_time;
-      state.running = snapshot.running !== false;
       if (isObject(snapshot.controllers)) state.controllers = snapshot.controllers;
-      if (first) return refresh(true);
+      if (first) return refresh();
     }
 
     draw();
-    var ready = refresh(true);
-    if (pollMs) timer = root.setInterval(tick, pollMs);
+    var ready = refresh();
+    if (pollMs) timer = root.setInterval(poll, pollMs);
 
     return {
       ready: ready,
       update: update,
-      refresh: function () {
-        return refresh(true);
-      },
+      refresh: refresh,
+      poll: poll,
       stop: function () {
         if (timer !== null) root.clearInterval(timer);
       },

@@ -972,3 +972,17 @@ def test_a_tab_that_comes_back_to_the_front_refreshes_at_once(free):
     )
 
     assert result == {"whileHidden": 0, "afterShown": 3, "removed": True}
+
+
+@needs_node
+def test_a_stored_selection_the_plant_no_longer_publishes_falls_back_to_the_defaults(free):
+    result = run_glue(
+        """
+        await start();
+        return pens();
+        """,
+        served=served(free), snapshot=free["snapshot"],
+        stored={"span": 10, "selection": ["GONE.a", "GONE.b"], "focus": "GONE.a"},
+    )
+
+    assert result == [LEVEL, "PIC-101.pv", "PIC-101.sp"]

@@ -346,7 +346,7 @@
     var svg = [];
     svg.push(
       '<svg class="trend-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + width + " " + height +
-      '" width="' + width + '" height="' + height + '" role="img" aria-label="' +
+      '" width="' + width + '" height="' + height + '" role="group" aria-label="' +
       escapeHtml(chartLabel(input.pens, win)) + '">'
     );
 
@@ -621,11 +621,15 @@
       if (storage) writeStored(storage, { span: state.span, selection: state.selection, focus: state.focus });
     }
 
+    /* The operator's pens, or the defaults until they choose any. A stored
+     * selection the plant no longer publishes a single point of falls back to
+     * the defaults too; one the operator emptied on purpose stays empty. */
     function selection() {
-      var chosen = state.selection === null
-        ? defaultSelection(state.points, state.limits, state.controllers, state.maxTags)
-        : sanitizeSelection(state.selection, state.points, state.maxTags);
-      return chosen;
+      var defaults = defaultSelection(state.points, state.limits, state.controllers, state.maxTags);
+      if (state.selection === null) return defaults;
+
+      var kept = sanitizeSelection(state.selection, state.points, state.maxTags);
+      return !kept.length && state.selection.length && state.points.length ? defaults : kept;
     }
 
     function width() {
@@ -691,9 +695,9 @@
      * one is given a deadline and aborted where the transport allows. */
     async function get(url) {
       var controller = typeof AbortController === "function" ? new AbortController() : null;
-      var timer;
+      var deadlineTimer;
       var deadline = new Promise(function (resolve, reject) {
-        timer = root.setTimeout(function () {
+        deadlineTimer = root.setTimeout(function () {
           if (controller) controller.abort();
           reject(new Error("timed out"));
         }, timeoutMs);
@@ -704,7 +708,7 @@
         if (!response.ok) throw new Error("HTTP " + response.status);
         return await Promise.race([response.json(), deadline]);
       } finally {
-        root.clearTimeout(timer);
+        root.clearTimeout(deadlineTimer);
       }
     }
 

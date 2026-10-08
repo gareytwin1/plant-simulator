@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
-  "refreshed": "7 October 2026",
-  "main_sha": "d9d00d2",
-  "tests_passing_on_main": 3545,
+  "refreshed": "8 October 2026",
+  "main_sha": "2fc84e4",
+  "tests_passing_on_main": 3610,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -103,7 +103,7 @@
     },
     "M17": {
       "name": "Historian and Trends",
-      "complete": 3,
+      "complete": 4,
       "total": 4
     },
     "M18": {
@@ -119,8 +119,8 @@
   },
   "totals": {
     "tasks": 130,
-    "complete": 124,
-    "startable_now": 5
+    "complete": 125,
+    "startable_now": 4
   },
   "tasks": [
     {
@@ -2276,12 +2276,20 @@
         "T16-1"
       ],
       "files": [
-        "static/js/trends.js"
+        "static/js/trends.js",
+        "static/css/trends.css",
+        "templates/console.html",
+        "app/api/trend.py",
+        "app/training/runtime.py",
+        "app/training/session.py",
+        "app/scenarios/runner.py",
+        "app/main.py",
+        "tests/test_trend_api.py",
+        "tests/test_trend_display.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true,
-      "note": ""
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged 2fc84e4 (PR #154). Full suite 3610 passed on main, mypy clean, no golden movement. Shape decided by Opus 2026-10-08 (b841ee9). Not yet seen with a real alarm marker in a browser (CP-G pass)."
     },
     {
       "id": "T18-1",

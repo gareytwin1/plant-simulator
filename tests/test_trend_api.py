@@ -19,14 +19,14 @@ pytestmark = pytest.mark.filterwarnings("ignore:envelope limit", "ignore:interlo
 POINT = "V-101.level"
 
 
-def fake_app(histories):
+def fake_app(histories, limits=None):
     """The blueprint over hand-fed histories, to pin the route's own rules."""
 
     def get_history(points):
         return {point: histories[point] for point in points}
 
     app = Flask(__name__)
-    app.register_blueprint(create_trend_blueprint(lambda: sorted(histories), get_history))
+    app.register_blueprint(create_trend_blueprint(lambda: sorted(histories), get_history, lambda: limits or {}))
 
     return app.test_client()
 
@@ -184,7 +184,18 @@ def test_more_tags_than_the_limit_is_refused_not_trimmed():
 def test_points_lists_what_the_plant_publishes():
     client = fake_app({"B.v": feed(range(3)), "A.v": feed(range(3))})
 
-    assert client.get("/api/trend/points").get_json() == {"points": ["A.v", "B.v"]}
+    body = client.get("/api/trend/points").get_json()
+
+    assert body["points"] == ["A.v", "B.v"]
+    assert body["max_tags"] == config.TREND_MAX_TAGS
+    assert body["max_points"] == config.TREND_MAX_POINTS
+
+
+def test_points_carry_the_limits_the_plant_reports():
+    limits = {"A.v": {"warning_hi": 0.8, "trip_hi": 0.9}}
+    client = fake_app({"A.v": feed(range(3))}, limits)
+
+    assert client.get("/api/trend/points").get_json()["limits"] == limits
 
 
 def test_a_point_that_vanishes_between_the_two_lookups_is_a_400():
@@ -192,7 +203,7 @@ def test_a_point_that_vanishes_between_the_two_lookups_is_a_400():
         raise KeyError("X.v")
 
     app = Flask(__name__)
-    app.register_blueprint(create_trend_blueprint(lambda: ["X.v"], get_history))
+    app.register_blueprint(create_trend_blueprint(lambda: ["X.v"], get_history, lambda: {}))
 
     response = app.test_client().get("/api/trend?tags=X.v")
 
@@ -216,7 +227,7 @@ def session(tmp_path):
 @pytest.fixture
 def client(session):
     app = Flask(__name__)
-    app.register_blueprint(create_trend_blueprint(session.trend_points, session.trend_history))
+    app.register_blueprint(create_trend_blueprint(session.trend_points, session.trend_history, session.trend_limits))
 
     return app.test_client()
 
@@ -339,3 +350,34 @@ def test_the_app_serves_the_trend_over_the_cookie_session():
 
     assert response.status_code == 200
     assert len(response.get_json()[POINT]) == 1
+
+
+def test_limits_list_exactly_the_evaluated_trend_points_with_only_set_bounds(client):
+    limits = client.get("/api/trend/points").get_json()["limits"]
+
+    assert limits == {
+        POINT: {
+            "trip_lo": pytest.approx(0.1),
+            "warning_lo": pytest.approx(0.2),
+            "warning_hi": pytest.approx(0.8),
+            "trip_hi": pytest.approx(0.9),
+        },
+    }
+
+
+def test_a_limit_the_engine_cannot_resolve_draws_no_band(client):
+    limits = client.get("/api/trend/points").get_json()["limits"]
+
+    assert "K-101.discharge_pressure" not in limits
+    assert "P-101.flow" not in limits
+
+
+def test_limits_follow_the_plant_the_snapshot_shows(session, client):
+    free_limits = client.get("/api/trend/points").get_json()["limits"]
+
+    session.load("pump-trip")
+    body = client.get("/api/trend/points").get_json()
+
+    assert free_limits
+    assert set(body["limits"]) == {POINT}
+    assert body["limits"][POINT] == free_limits[POINT]

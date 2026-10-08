@@ -612,6 +612,11 @@ class ScenarioRunner:
         with self._lock:
             return self._loaded().runtime.trend_points()
 
+    def trend_limits(self) -> dict[str, dict[str, float]]:
+        """The loaded run's evaluated envelope bounds, under the runner lock."""
+        with self._lock:
+            return self._loaded().runtime.trend_limits()
+
     def trend_history(self, points: Sequence[str]) -> dict[str, tuple[Sample, ...]]:
         """The loaded run's samples of `points`, on the engine's clock like
         the snapshots it publishes. `KeyError` for a point it does not have."""

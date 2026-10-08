@@ -94,6 +94,7 @@ app.register_blueprint(
     create_trend_blueprint(
         lambda: g.plant.trend_points(),
         lambda points: g.plant.trend_history(points),
+        lambda: g.plant.trend_limits(),
     ),
 )
 app.register_blueprint(

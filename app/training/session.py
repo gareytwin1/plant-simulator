@@ -138,6 +138,11 @@ class TrainingSession:
         with self.training_scheduler.step_lock:
             return self._plant().trend_points()
 
+    def trend_limits(self) -> dict[str, dict[str, float]]:
+        """The evaluated envelope bounds of the plant the snapshot shows."""
+        with self.training_scheduler.step_lock:
+            return self._plant().trend_limits()
+
     def trend_history(self, points: Sequence[str]) -> dict[str, tuple[Sample, ...]]:
         """The samples of `points` from the plant the snapshot shows.
         `KeyError` for a point that plant does not publish."""

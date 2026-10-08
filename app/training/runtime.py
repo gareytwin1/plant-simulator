@@ -50,7 +50,7 @@ which is a C4 change.
 from __future__ import annotations
 
 import threading
-from dataclasses import asdict
+from dataclasses import fields
 from collections.abc import Sequence
 
 from app import config
@@ -179,9 +179,9 @@ class PlantRuntime:
                 continue
 
             limits[point] = {
-                name: bound
-                for name, bound in asdict(evaluator.limits).items()
-                if bound is not None
+                field.name: bound
+                for field in fields(evaluator.limits)
+                if (bound := getattr(evaluator.limits, field.name)) is not None
             }
 
         return limits

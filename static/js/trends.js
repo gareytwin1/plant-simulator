@@ -587,6 +587,7 @@
       maxPoints: null,
       data: {},
       markers: [],
+      win: null,
       simTime: null,
       controllers: {},
       problem: "",
@@ -594,6 +595,7 @@
     var ticket = 0;
     var drawnSelectors = null;
     var drawnLegend = null;
+    var polling = false;
     var timer = null;
 
     var controlsEl = doc.createElement("div");
@@ -669,7 +671,7 @@
         chartEl.innerHTML = renderChart({
           width: drawnWidth,
           height: drawnWidth < 480 ? 220 : 280,
-          window: windowFor(state.simTime, state.span),
+          window: state.win || windowFor(state.simTime, state.span),
           pens: pens,
           limits: state.limits,
           focus: focus,
@@ -708,7 +710,10 @@
         if (state.simTime === null || !chosen.length) {
           state.data = {};
           state.markers = [];
+          state.win = null;
         } else {
+          // The window the data is fetched for is the window it is drawn in,
+          // however far a later snapshot has moved the clock meanwhile.
           var win = windowFor(state.simTime, state.span);
           var results = await Promise.all([
             get(buildTrendUrl(chosen, win, pointsFor(width() - MARGIN.left - MARGIN.right, state.maxPoints))),
@@ -718,6 +723,7 @@
 
           state.data = isObject(results[0]) ? results[0] : {};
           state.markers = markersFor(results[1], win);
+          state.win = win;
         }
 
         state.problem = "";
@@ -730,10 +736,21 @@
     }
 
     function edit(change) {
+      // Before the point list arrives every selection reads as empty, and
+      // would overwrite the operator's stored one.
+      if (!state.points.length) return;
       change();
       persist();
       draw();
       return refresh();
+    }
+
+    /* A rebuilt legend loses the focused button; give focus back to the focus
+     * button of `point`, so a keyboard user can press on. */
+    function refocus(point) {
+      if (!point) return;
+      var button = legendEl.querySelector('[data-focus-point="' + point + '"]');
+      if (button && button.focus) button.focus();
     }
 
     legendEl.addEventListener("click", function (event) {
@@ -745,17 +762,23 @@
         state.focus = focusButton.getAttribute("data-focus-point");
         persist();
         draw();
+        refocus(state.focus);
         return;
       }
 
       var removeButton = target.closest("[data-remove-point]");
       if (removeButton) {
         var gone = removeButton.getAttribute("data-remove-point");
-        return edit(function () {
-          state.selection = selection().filter(function (point) {
+        var before = selection();
+        var result = edit(function () {
+          state.selection = before.filter(function (point) {
             return point !== gone;
           });
         });
+        // The row that held focus is gone: hand it to the pen that took its place.
+        var rest = state.selection === null ? [] : state.selection;
+        refocus(rest[Math.min(before.indexOf(gone), rest.length - 1)]);
+        return result;
       }
     });
 
@@ -777,10 +800,17 @@
       }
     });
 
-    /* One timer tick: a refresh, unless the page is in a hidden tab. */
-    function poll() {
-      if (root.document && root.document.hidden) return;
-      return refresh();
+    /* One timer tick: a refresh, unless the page is in a hidden tab or the
+     * last tick is still waiting on a slow server (a user's edit may still
+     * supersede it, a later tick never does). */
+    async function poll() {
+      if ((root.document && root.document.hidden) || polling) return;
+      polling = true;
+      try {
+        await refresh();
+      } finally {
+        polling = false;
+      }
     }
 
     /* Called with every snapshot: remembers the clock and the loops. The first

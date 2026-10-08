@@ -523,8 +523,14 @@ class Node {
       },
     }));
   }
+  querySelector(sel) {
+    const m = /^\[data-focus-point="([^"]*)"\]$/.exec(sel);
+    if (!m || !this._html.includes('data-focus-point="' + m[1] + '"')) return null;
+    return { focus: () => focusLog.push(m[1]) };
+  }
   async fire(type, event) { for (const fn of this.listeners[type] || []) await fn(event); }
 }
+const focusLog = [];
 const doc = { createElement: tag => new Node(tag) };
 const container = new Node('div');
 const part = cls => container.children.find(c => c.attrs['class'] === cls);
@@ -832,3 +838,74 @@ def test_a_scenario_alarm_shows_as_a_marker_on_the_trend(session, client):
     assert result.count('class="trend-marker"') == len(
         [e for e in raised if snapshot["sim_time"] - 600 <= e["sim_time"] <= snapshot["sim_time"]]
     )
+
+
+@needs_node
+def test_keyboard_focus_goes_back_to_the_legend_after_a_press_rebuilds_it(free):
+    result = run_glue(
+        """
+        await start();
+        await click(part('trend-legend-box'), 'data-focus-point', 'PIC-101.pv');
+        const afterFocus = [...focusLog];
+        await click(part('trend-legend-box'), 'data-remove-point', 'PIC-101.pv');
+        return { afterFocus, afterRemove: [...focusLog] };
+        """,
+        served=served(free), snapshot=free["snapshot"],
+    )
+
+    assert result["afterFocus"] == ["PIC-101.pv"]
+    assert result["afterRemove"][-1] == "PIC-101.sp"
+
+
+@needs_node
+def test_a_tick_while_the_last_one_is_still_waiting_is_skipped_so_the_display_still_draws(free):
+    result = run_glue(
+        """
+        await start();
+        let sent = 0;
+        const slowFetch = async url => { sent += 1; await new Promise(r => setTimeout(r, 30)); return fetch(url); };
+        const host = new Node('div');
+        const shown = T.mount(host, { fetch: slowFetch, storage: null, width: 640, pollMs: 0 });
+        await shown.ready;
+        await shown.update(data.snapshot);
+        sent = 0;
+        const first = shown.poll();
+        const second = shown.poll();
+        await Promise.all([first, second]);
+        return { sent, drawn: host.children.find(c => c.attrs['class'] === 'trend-chart').innerHTML.includes('trend-pen') };
+        """,
+        served=served(free), snapshot=free["snapshot"],
+    )
+
+    assert result == {"sent": 3, "drawn": True}
+
+
+@needs_node
+def test_an_edit_before_the_point_list_arrives_does_not_wipe_the_stored_selection(free):
+    result = run_glue(
+        """
+        const host = new Node('div');
+        const early = T.mount(host, { fetch: () => new Promise(() => {}), storage, width: 640, pollMs: 0 });
+        await change(host.children[0], 'data-span', '5');
+        return storageData['plant-simulator.trends'];
+        """,
+        served=served(free), snapshot=free["snapshot"],
+        stored={"span": 30, "selection": [LEVEL], "focus": LEVEL},
+    )
+
+    assert json.loads(result) == {"span": 30, "selection": [LEVEL], "focus": LEVEL}
+
+
+@needs_node
+def test_the_chart_keeps_the_window_its_data_was_fetched_for(free):
+    result = run_glue(
+        """
+        await start();
+        const drawn = chart();
+        await trends.update({ ...data.snapshot, sim_time: data.snapshot.sim_time + 500 });
+        return { drawn, same: chart() === drawn };
+        """,
+        served=served(free), snapshot=free["snapshot"],
+    )
+
+    assert result["same"] is True

@@ -513,6 +513,12 @@ class Node {
   addEventListener(type, fn) { (this.listeners[type] = this.listeners[type] || []).push(fn); }
   // Just the live values of a legend: a node whose text can be rewritten in place.
   querySelectorAll(sel) {
+    if (sel === '[data-focus-point]') {
+      return [...this._html.matchAll(/data-focus-point="([^"]*)"/g)].map(m => ({
+        getAttribute: a => (a === 'data-focus-point' ? m[1] : null),
+        focus: () => focusLog.push(m[1]),
+      }));
+    }
     if (sel !== '[data-live-value]') return [];
     const host = this;
     const found = [...this._html.matchAll(/data-live-value data-value-point="([^"]*)"/g)].map(m => m[1]);
@@ -522,11 +528,6 @@ class Node {
         host._html = host._html.replace(new RegExp('(data-value-point="' + point + '">)[^<]*'), '$1' + text);
       },
     }));
-  }
-  querySelector(sel) {
-    const m = /^\[data-focus-point="([^"]*)"\]$/.exec(sel);
-    if (!m || !this._html.includes('data-focus-point="' + m[1] + '"')) return null;
-    return { focus: () => focusLog.push(m[1]) };
   }
   async fire(type, event) { for (const fn of this.listeners[type] || []) await fn(event); }
 }
@@ -881,31 +882,66 @@ def test_a_tick_while_the_last_one_is_still_waiting_is_skipped_so_the_display_st
 
 
 @needs_node
-def test_an_edit_before_the_point_list_arrives_does_not_wipe_the_stored_selection(free):
-    result = run_glue(
-        """
-        const host = new Node('div');
-        const early = T.mount(host, { fetch: () => new Promise(() => {}), storage, width: 640, pollMs: 0 });
-        await change(host.children[0], 'data-span', '5');
-        return storageData['plant-simulator.trends'];
-        """,
-        served=served(free), snapshot=free["snapshot"],
-        stored={"span": 30, "selection": [LEVEL], "focus": LEVEL},
-    )
-
-    assert json.loads(result) == {"span": 30, "selection": [LEVEL], "focus": LEVEL}
-
-
-@needs_node
 def test_the_chart_keeps_the_window_its_data_was_fetched_for(free):
     result = run_glue(
         """
         await start();
         const drawn = chart();
         await trends.update({ ...data.snapshot, sim_time: data.snapshot.sim_time + 500 });
-        return { drawn, same: chart() === drawn };
+        // Something else draws (a focus press) after the clock has moved.
+        await click(part('trend-legend-box'), 'data-focus-point', 'PIC-101.pv');
+        // The time axis only: the value axis follows whichever pen is focused.
+        const ticks = html => JSON.stringify(html.match(/<text class="trend-tick"[^>]*text-anchor="middle">[^<]*<\\/text>/g));
+        const paths = html => JSON.stringify((html.match(/<path class="trend-pen"[^>]*>/g) || [])
+          .map(m => [m.match(/data-point="([^"]*)"/)[1], m.match(/ d="([^"]*)"/)[1]]).sort());
+        return { sameTicks: ticks(chart()) === ticks(drawn), samePaths: paths(chart()) === paths(drawn),
+                 hasTicks: ticks(drawn).length > 10 };
         """,
         served=served(free), snapshot=free["snapshot"],
     )
 
-    assert result["same"] is True
+    assert result == {"sameTicks": True, "samePaths": True, "hasTicks": True}
+
+
+@needs_node
+def test_a_request_that_never_settles_times_out_and_the_next_tick_recovers(free):
+    result = run_glue(
+        """
+        await start();
+        let hang = true;
+        const flaky = url => (hang ? new Promise(() => {}) : fetch(url));
+        const host = new Node('div');
+        const shown = T.mount(host, { fetch: flaky, storage: null, width: 640, pollMs: 0, timeoutMs: 40 });
+        await shown.update(data.snapshot);
+        await shown.poll();
+        const status = host.children.find(c => c.attrs['class'] === 'trend-status').textContent;
+        hang = false;
+        await shown.poll();
+        return { status, drawn: host.children.find(c => c.attrs['class'] === 'trend-chart').innerHTML.includes('trend-pen') };
+        """,
+        served=served(free), snapshot=free["snapshot"],
+    )
+
+    assert result == {"status": "Trend unavailable: timed out", "drawn": True}
+
+
+@needs_node
+def test_a_span_change_before_the_point_list_arrives_is_kept_and_a_pen_edit_is_turned_away(free):
+    result = run_glue(
+        """
+        const host = new Node('div');
+        const early = T.mount(host, { fetch: () => new Promise(() => {}), storage, width: 640, pollMs: 0, timeoutMs: 20 });
+        await change(host.children[0], 'data-span', '5');
+        const afterSpan = JSON.parse(storageData['plant-simulator.trends']);
+        const setsBefore = host.children[0].sets;
+        await change(host.children[0], 'data-add', 'N-101.pressure');
+        return { afterSpan, snapped: host.children[0].sets === setsBefore + 1,
+                 stored: JSON.parse(storageData['plant-simulator.trends']) };
+        """,
+        served=served(free), snapshot=free["snapshot"],
+        stored={"span": 30, "selection": [LEVEL], "focus": LEVEL},
+    )
+
+    assert result["afterSpan"] == {"span": 5, "selection": [LEVEL], "focus": LEVEL}
+    assert result["snapped"] is True
+    assert result["stored"] == result["afterSpan"]

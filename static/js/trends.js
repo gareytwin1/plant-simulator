@@ -537,6 +537,7 @@
 
   var STORAGE_KEY = "plant-simulator.trends";
   var TICK_MS = 2000;
+  var FETCH_TIMEOUT_MS = 4 * TICK_MS;
   var FALLBACK_WIDTH = 640;
 
   function readStored(storage) {
@@ -574,6 +575,7 @@
     var doFetch = settings.fetch || root.fetch.bind(root);
     var storage = settings.storage === undefined ? defaultStorage() : settings.storage;
     var pollMs = settings.pollMs === undefined ? TICK_MS : settings.pollMs;
+    var timeoutMs = settings.timeoutMs || FETCH_TIMEOUT_MS;
     var doc = container.ownerDocument || root.document;
     var stored = storage ? readStored(storage) : {};
 
@@ -682,10 +684,25 @@
       statusEl.textContent = state.problem;
     }
 
+    /* A request that never settles would hold the poll flag for good, so each
+     * one is given a deadline and aborted where the transport allows. */
     async function get(url) {
-      var response = await doFetch(url);
-      if (!response.ok) throw new Error("HTTP " + response.status);
-      return response.json();
+      var controller = typeof AbortController === "function" ? new AbortController() : null;
+      var timer;
+      var deadline = new Promise(function (resolve, reject) {
+        timer = root.setTimeout(function () {
+          if (controller) controller.abort();
+          reject(new Error("timed out"));
+        }, timeoutMs);
+      });
+
+      try {
+        var response = await Promise.race([doFetch(url, controller ? { signal: controller.signal } : undefined), deadline]);
+        if (!response.ok) throw new Error("HTTP " + response.status);
+        return await Promise.race([response.json(), deadline]);
+      } finally {
+        root.clearTimeout(timer);
+      }
     }
 
     /* Refetch the point list, the window of the selected pens and the alarm
@@ -735,10 +752,16 @@
       draw();
     }
 
-    function edit(change) {
-      // Before the point list arrives every selection reads as empty, and
-      // would overwrite the operator's stored one.
-      if (!state.points.length) return;
+    /* Apply an edit, persist it and refetch. A change to the selection waits
+     * for the point list: before it arrives every selection reads as empty,
+     * and would overwrite the operator's stored one. An edit turned away is
+     * drawn over, so a select snaps back to the real state. */
+    function edit(change, selects) {
+      if (selects && !state.points.length) {
+        drawnSelectors = null;
+        draw();
+        return;
+      }
       change();
       persist();
       draw();
@@ -749,8 +772,9 @@
      * button of `point`, so a keyboard user can press on. */
     function refocus(point) {
       if (!point) return;
-      var button = legendEl.querySelector('[data-focus-point="' + point + '"]');
-      if (button && button.focus) button.focus();
+      Array.prototype.forEach.call(legendEl.querySelectorAll("[data-focus-point]"), function (button) {
+        if (button.getAttribute("data-focus-point") === point && button.focus) button.focus();
+      });
     }
 
     legendEl.addEventListener("click", function (event) {
@@ -774,7 +798,7 @@
           state.selection = before.filter(function (point) {
             return point !== gone;
           });
-        });
+        }, true);
         // The row that held focus is gone: hand it to the pen that took its place.
         var rest = state.selection === null ? [] : state.selection;
         refocus(rest[Math.min(before.indexOf(gone), rest.length - 1)]);
@@ -796,7 +820,7 @@
         return edit(function () {
           state.selection = selection().concat([target.value]).slice(0, state.maxTags);
           state.focus = target.value;
-        });
+        }, true);
       }
     });
 

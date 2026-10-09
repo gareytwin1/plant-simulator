@@ -413,3 +413,19 @@ def test_overfilling_the_separator_raises_alarms_then_trips_the_feed_pump():
     vessel = [event for event in raised if event.message.startswith("V-101")]
     assert len(vessel) >= 2
     assert any("HIHI" in event.message for event in vessel)
+
+
+def test_a_machines_generic_point_is_named_as_the_operator_names_it():
+    limits = [{"tag": "P-1", "variable": "outlet_pressure", "hi": 0.0}]
+
+    runtime = build(limits=limits, interlocks=())
+
+    assert [entry.message for entry in runtime.alarm_entries()] == ["P-1 discharge pressure HI"]
+
+
+def test_a_point_with_no_descriptor_keeps_its_field_with_spaces():
+    runtime = build(interlocks=())
+
+    assert runtime.alarm_entries()[0].message == "XV-1 position HIHI"
+    assert runtime.trend_descriptors()["P-1.outlet_pressure"] == "discharge pressure"
+    assert runtime.trend_descriptors()["XV-1.position"] == "position"

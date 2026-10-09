@@ -56,7 +56,7 @@ from app.alarms.acknowledge import Acknowledged, acknowledge_alarm
 from app.alarms.history import AlarmHistory, HistoryEntry
 from app.alarms.manager import AlarmManager, EnvelopeEvent
 from app.api.action import UnknownAction, apply_action
-from app.api.visibility import operator_view
+from app.api.visibility import descriptor, operator_view
 from app.engine.engine import Engine
 from app.engine.snapshot import Snapshot
 from app.envelope.evaluator import Severity, Side, isa_band
@@ -99,6 +99,11 @@ class PlantRuntime:
         self.actions = ActionLog()
         self.trends = Historian(config.TREND_CAPACITY, config.TREND_SAMPLE_PERIOD_SECONDS)
         self._trend_points = tuple(sorted(self._trend_values(engine.snapshot())))
+        self._trend_descriptors = {
+            point: descriptor(engine.equipment.get(row_id), field)
+            for point in self._trend_points
+            for row_id, _, field in [point.rpartition(".")]
+        }
 
         self._lock = threading.RLock()
         self._published: Snapshot | None = None
@@ -162,6 +167,13 @@ class PlantRuntime:
         construction."""
         return self._trend_points
 
+    def trend_descriptors(self) -> dict[str, str]:
+        """The operator's word for each trend point, keyed by point. An
+        equipment point takes its class's descriptor; any other (node, stream,
+        controller) its field with underscores as spaces. Fixed at
+        construction."""
+        return self._trend_descriptors
+
     def trend_limits(self) -> dict[str, dict[str, float]]:
         """The configured bounds of each trend point the engine evaluates
         (`Engine.limits`), keyed by point and holding only the bounds that are
@@ -208,7 +220,7 @@ class PlantRuntime:
         for tag, variable in self.engine.limits:
             point = f"{tag}.{variable}"
             row = snapshot.envelope.get(point)
-            pv = variable.replace("_", " ")
+            pv = descriptor(self.engine.equipment.get(tag), variable)
 
             if row is None:
                 events.append(EnvelopeEvent(tag=tag, pv=pv, severity=Severity.NORMAL))

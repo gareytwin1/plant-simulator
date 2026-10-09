@@ -138,6 +138,11 @@ class TrainingSession:
         with self.training_scheduler.step_lock:
             return self._plant().trend_points()
 
+    def trend_descriptors(self) -> dict[str, str]:
+        """The operator's word for each trend point of the plant the snapshot shows."""
+        with self.training_scheduler.step_lock:
+            return self._plant().trend_descriptors()
+
     def trend_limits(self) -> dict[str, dict[str, float]]:
         """The evaluated envelope bounds of the plant the snapshot shows."""
         with self.training_scheduler.step_lock:

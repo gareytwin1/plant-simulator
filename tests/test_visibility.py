@@ -168,3 +168,26 @@ def test_the_view_never_waits_on_the_step_lock(session):
         threading.Thread(target=read, daemon=True).start()
 
         assert done.wait(timeout=2.0)
+
+
+def test_a_machines_generic_points_have_the_operators_words(session):
+    equipment = free_equipment(session)
+
+    assert visibility.descriptor(equipment["K-101"], "outlet_pressure") == "discharge pressure"
+    assert visibility.descriptor(equipment["K-101"], "inlet_pressure") == "suction pressure"
+    assert visibility.descriptor(equipment["P-101"], "outlet_pressure") == "discharge pressure"
+    assert visibility.descriptor(equipment["P-101"], "inlet_pressure") == "suction pressure"
+
+
+def test_a_descriptor_falls_back_to_the_field_with_spaces(session):
+    equipment = free_equipment(session)
+
+    assert visibility.descriptor(equipment["K-101"], "load_target") == "load target"
+    assert visibility.descriptor(equipment["V-101"], "level") == "level"
+    assert visibility.descriptor(equipment["V-101"], "outlet_pressure") == "outlet pressure"
+    assert visibility.descriptor(None, "outlet_pressure") == "outlet pressure"
+
+
+def test_every_described_field_is_visible_on_its_class():
+    for cls, words in visibility.DESCRIPTORS.items():
+        assert set(words) <= VISIBLE[cls], cls.__name__

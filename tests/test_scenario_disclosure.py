@@ -13,7 +13,6 @@ import yaml
 from app import main
 from app.scenarios.runner import ScenarioLibrary, ScenarioResult, scenario_key
 
-pytestmark = pytest.mark.filterwarnings("ignore:envelope limit", "ignore:interlock")
 
 SCENARIOS = sorted(ScenarioLibrary().scenarios.glob("*.yaml"))
 IDS = [path.stem for path in SCENARIOS]

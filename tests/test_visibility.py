@@ -25,8 +25,6 @@ from app.equipment.base import Equipment
 from app.training.session import TrainingSession
 
 
-pytestmark = pytest.mark.filterwarnings("ignore:envelope limit", "ignore:interlock")
-
 FAULT_FIELDS = {"stuck", "action_reversed", "signal_ok", "effective_capacity"}
 
 

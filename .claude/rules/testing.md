@@ -13,7 +13,7 @@ paths:
 below the 1% drift the harness exists to catch.
 
 **Do not regenerate a golden trace to make a test pass.** If a trace moves, stop
-and explain why. A moved trace means behaviour changed — either that was the
+and explain why. A moved trace means behaviour changed - either that was the
 point of the task and it needs justifying in the PR, or you have a bug.
 Regenerating is legitimate for a non-numeric change, such as a recorded
 command-description string that names a renamed attribute, or for an approved
@@ -25,7 +25,7 @@ comparison in the PR.
 - Flat `def test_*` functions. No classes.
 - `pytest.approx` for **every** float comparison.
 - Name the test for the behaviour it pins, not the function it calls.
-- Tests are outside the `mypy` scope and stay lightly typed — annotate only
+- Tests are outside the `mypy` scope and stay lightly typed - annotate only
   where it makes the test clearer.
 
 ## Traps this suite has already fallen into
@@ -36,7 +36,7 @@ These are recorded because a session rediscovered each one the expensive way.
 (60 → 480 psia), raising `K-101`'s load 0.8 → 0.9 → 1.0 gives −121.7, −73.8,
 +70.7 SCFM. Flow does rise at every step, so a naive assertion passes while the
 machine is running backwards. **Assert `flow > 0` in every compared state**, and
-pick a boundary difference the machines clear — 60 → 300 psia gives forward flow
+pick a boundary difference the machines clear - 60 → 300 psia gives forward flow
 on the series gas plant from about 0.75 load.
 
 **Assert only on settled states.** Load ramps at 0.05 per second, so a mid-ramp
@@ -48,7 +48,7 @@ reads exactly `0.0`, but a *stopped* one settles just off zero and stays there
 (0.055 GPM pump, 0.004 SCFM compressor). At shutoff the branch curve is flat, so
 the root is a double root and the solver's psia tolerance maps to
 `sqrt(tolerance / resistance)` of flow. Assert against a bound **derived** from
-the tolerance, never a recorded residual value — the value inside that bound is
+the tolerance, never a recorded residual value - the value inside that bound is
 path-dependent.
 
 **Do not shorten a horizon to make a conservation test pass.** Stopping a run
@@ -63,7 +63,7 @@ final-flow assertion is phase-dependent and will flake.
 
 `tests/test_equipment_contract.py` and `tests/test_registry.py` discover
 `Equipment` subclasses dynamically, so **adding one device class raises the
-total by far more than the tests you wrote** — and removing one drops it the
+total by far more than the tests you wrote** - and removing one drops it the
 same way. Re-measure with `python -m pytest --collect-only -q`; never adjust a
 test count by hand.
 

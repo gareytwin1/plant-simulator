@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "9 October 2026",
-  "main_sha": "edf8e8f",
-  "tests_passing_on_main": 3652,
+  "main_sha": "91c5b46",
+  "tests_passing_on_main": 3665,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -63,8 +63,8 @@
     },
     "M9": {
       "name": "Operating Envelopes",
-      "complete": 4,
-      "total": 4
+      "complete": 5,
+      "total": 5
     },
     "M10": {
       "name": "Alarm System",
@@ -118,8 +118,8 @@
     }
   },
   "totals": {
-    "tasks": 131,
-    "complete": 126,
+    "tasks": 132,
+    "complete": 127,
     "startable_now": 4
   },
   "tasks": [
@@ -1359,6 +1359,40 @@
       "status": "Complete",
       "status_key": "done",
       "note": "Merged to main at 73ff965d6c35f1ad5418f53dab3ef4ea0393ba5a (PR #104). Post-merge full suite: 1736 passed."
+    },
+    {
+      "id": "T9-5",
+      "milestone": "M9",
+      "name": "Device points in the snapshot",
+      "category": "core",
+      "branch": "feature/device-points",
+      "depends_on": [
+        "T9-4",
+        "T11-3",
+        "T13-2",
+        "T16-13",
+        "T17-4"
+      ],
+      "files": [
+        "app/engine/engine.py",
+        "app/engine/snapshot.py",
+        "app/api/visibility.py",
+        "app/safety/actions.py",
+        "app/safety/permissives.py",
+        "app/plant/states.py",
+        "config/plants/olefins_lite.yaml",
+        "static/graphics/plant.svg",
+        "docs/ARCHITECTURE.md",
+        "tests/test_device_points.py",
+        "tests/test_envelope_snapshot.py",
+        "tests/test_interlocks.py",
+        "tests/test_trip_actions.py",
+        "tests/test_trend_api.py",
+        "tests/test_process_graphic.py"
+      ],
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged 91c5b46 (PR #156). Full suite 3665 passed on main, mypy clean, no golden movement. Shape decided by Opus 2026-10-09 (5cb69f9): the engine publishes flow, inlet_pressure and outlet_pressure on each single-branch device's equipment row, and an unresolvable limit, interlock, permissive or plant-state gate is a build error. K-101 hi moved 320 to 330 psia (cold start peaks at 323); config 2.0.0; PSHH-101 and the K-101 and P-101 limits now evaluate live. Scenario outcomes unchanged; new P-101 flow LOLOLO alarm in pump_trip and stuck_drain_valve."
     },
     {
       "id": "T10-1",

@@ -8,10 +8,10 @@ regrowth rule is in [.claude/rules/docs.md](../../.claude/rules/docs.md).
 
 ## Right now
 
-**Last state refresh:** 9 October 2026, at `edf8e8f` (Merge T16-15, PR #155: scenario run controls) - **this is a snapshot,
-not a live pointer.** Run `git log edf8e8f..HEAD --oneline` to see what has
+**Last state refresh:** 9 October 2026, at `91c5b46` (Merge T9-5, PR #156: device points in the snapshot) - **this is a snapshot,
+not a live pointer.** Run `git log 91c5b46..HEAD --oneline` to see what has
 merged since.
-**Full suite as of this refresh:** **3652 passed** · `python -m mypy` clean over 85 source files · no golden trace movement
+**Full suite as of this refresh:** **3665 passed** · `python -m mypy` clean over 85 source files · no golden trace movement
 **In flight:** nothing. The spine lock and the `app/main.py` lock are free.
 No task is Blocked. CI runs on every PR, and `main` requires its
 `test` check before a merge.
@@ -21,12 +21,12 @@ No task is Blocked. CI runs on every PR, and `main` requires its
 
 | Task | SHA | What landed |
 |---|---|---|
+| **T9-5** | `91c5b46` | Device points in the snapshot: `Engine._truth` adds `flow`, `inlet_pressure` and `outlet_pressure` to the equipment row of every device that sits in exactly one branch (from that branch and its two nodes; by direction, never port name; the device holds none, and a device's own field of that name wins). A limit, interlock condition, restart-gate permissive or plant-state gate naming an unpublished field now raises at construction instead of warning. PSHH-101 and the `K-101.outlet_pressure` (renamed from `discharge_pressure`) and `P-101.flow` limits evaluate live; K-101 `hi` moved 320 to 330 psia because the cold start peaks at 323. `VISIBLE` shows the points for pumps and compressors, so they are trend pens with bands. Config 2.0.0. A stopped P-101 now alarms `P-101 flow LOLOLO` (no check valve). Decided by Opus (PR #156) |
 | **T16-15** | `edf8e8f` | Scenario run controls: a Scenario bar at the top of `/console` (`static/js/scenario.js`, `static/css/scenario.css`) shows the mode, title and phase and offers Start run (loaded) and a two-click Abort run (running); complete, aborted and free play get a "Choose a scenario" link. It polls `GET /api/scenario/result` (409 = free play), follows phase and title, discards a poll that began before a click, words every refusal itself by status code and resyncs after any failed or unreadable response. `GET /console` passes the standing, title and `PHASE_LABELS`; the landing page links back to the console. Placement decided by Opus (console only; supersedes T16-11's Start/Abort on the landing page). Seen in a real browser for `pump_trip` only (PR #155) |
-| **T17-4** | `2fc84e4` | Trend display: `static/js/trends.js` draws multi-pen inline SVG on `/console` (a Trends section fed from `onSnapshot`): selectable pens (at most `max_tags`), spans of 1, 5, 10 or 30 simulated minutes, each pen scaled to its own range, the focused pen's axis, envelope bands as tints plus labelled HI/HIHI/HIHIHI and LO/LOLO/LOLOLO rules, and alarm markers from `/api/alarms/history`. `GET /api/trend/points` now also returns `limits` (the bounds the engine evaluates; only `V-101.level` today, so no band for the unresolved `K-101` and `P-101` limits), `max_tags` and `max_points`. Every 2 s tick refetches (no paused-plant skip, so a history swap redraws), skips while one is in flight or the tab is hidden, and requests time out. No units per point (own Opus task). Seen only in headless Firefox, with a synthetic marker (PR #154) |
+| **T17-4** | `2fc84e4` | Trend display: `static/js/trends.js` draws multi-pen inline SVG on `/console` (a Trends section fed from `onSnapshot`): selectable pens (at most `max_tags`), spans of 1, 5, 10 or 30 simulated minutes, each pen scaled to its own range, the focused pen's axis, envelope bands as tints plus labelled HI/HIHI/HIHIHI and LO/LOLO/LOLOLO rules, and alarm markers from `/api/alarms/history`. `GET /api/trend/points` now also returns `limits` (the bounds the engine evaluates, which since T9-5 include `K-101.outlet_pressure` and `P-101.flow`), `max_tags` and `max_points`. Every 2 s tick refetches (no paused-plant skip, so a history swap redraws), skips while one is in flight or the tab is hidden, and requests time out. No units per point (own Opus task). Seen only in headless Firefox, with a synthetic marker (PR #154) |
 | **T17-3** | `d9d00d2` | Trend API: `PlantRuntime` owns a `Historian` and records every operator-view point (`app/historian/points.py`, `<id>.<field>`, allowlisted) each step; `GET /api/trend?tags=&from=&to=&max_points=` slices then decimates, refuses over-limit `max_points` (2-2000) and tags (8) with a 400, and `GET /api/trend/points` lists points; history follows the shown plant (free play, a run, abort starts fresh); `TREND_*` config (1 s, 1800 samples, about 350 MB worst case at `MAX_SESSIONS`); `Historian` throttle tolerates 1e-9 of float drift (PR #153) |
 | **T17-2** | `67b8ee8` | Peak-preserving decimation: `app/historian/decimate.py` `decimate(samples, max_points)` splits a history into `max_points // 2` index buckets and keeps each bucket's first minimum and last maximum as real timestamped samples, NaN skipped; output is `max_points` long when even, `max_points - 1` when odd; nothing calls it yet (T17-3 will) (PR #152) |
 | **T16-4** | `f90be61` | Controller faceplates: `static/js/faceplate.js` renders one faceplate per `controllers` row of the operator view (tag and mode, PV/SP/OUT, an output bar, MAN/AUTO, setpoint and output entry in percent of range, MANUAL only, and Kp/Ki/Kd tuning locked unless the loop is `tunable`). Every command goes through `POST /api/action` and a server refusal is shown as worded; a snapshot never overwrites typing, and one with no `controllers` section is ignored. `console.html` fans `onSnapshot` out to the graphic and the faceplates, each in its own try/catch. Seen only in headless Firefox (PR #150) |
-| **T16-14** | `cdab8f3` | Operator loop actions: a loop tag is an `/api/action` target (`LOOP_ACTIONS`: `manual`, `auto`, `set_setpoint`, `set_output` in MANUAL within the output range, `set_kp`/`set_ki`/`set_kd` on a loop whose config says `tunable`); a device a loop drives refuses direct actions, naming the loop, because the loop re-posts its demand every step. `apply_action` takes `loops=` as a required keyword and `PlantRuntime.act` passes `engine.loops`. `PID.retune` keeps a Kp or Ki change bumpless in AUTO (a new ki of 0 is not). C3 gains optional `tunable` (default false; PIC-101 is tunable; config 1.1.0) and each `controllers` row gains `kp`, `ki`, `kd`, `out_min`, `out_max`, `tunable`, `pv_unit`. No setpoint upper bound: no config carries a range (PR #149) |
 
 **ADRs on `main`:** [0001](../../docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md)
 (+ Amendment 1) and [0002](../../docs/ADR_0002_TYPED_PORTS.md) (+ Amendments
@@ -42,7 +42,7 @@ Complete: **M0-M9, M12-M18, MR**. Open:
 | **M11** Interlocks and Trips | 3/4 | T11-1, T11-2, T11-3; T11-4 startable (V1.1-deferred) |
 | M19 | 0 | - |
 
-**126 of 131 tasks Complete.** Checkpoints A-C reached. Checkpoint **D** (M8)
+**127 of 132 tasks Complete.** Checkpoints A-C reached. Checkpoint **D** (M8)
 needs only its "loops reject an injected disturbance" gate: PIC-101 switched to
 AUTO in `olefins_lite.yaml`, which T8-6 enabled but no task owns yet.
 
@@ -53,7 +53,7 @@ AUTO in `olefins_lite.yaml`, which T8-6 enabled but no task owns yet.
 field). T10-4 and T11-4 are V1.1-deferred; T19-1 and T19-2 are deferred
 further still, to **V2**. M15, M16 and M17 are all Complete.
 
-**Next by leverage:** **close CP-G**: T16-15 now lets a scenario run from the console, so run each of the six scenarios in a real browser (`flask --app app.main run`, Load on `/`, Start run on `/console`). Only `pump_trip` has been run by hand, in one theme at desktop width; still to see are the other five, both themes, phone width, and a real alarm marker on the trend. Then Checkpoint D's remaining gate (PIC-101 in AUTO, which T8-6 enabled and no task owns). Candidate Opus tasks: units per trend point, and a tripped-equipment state in the snapshot. `app/main.py` and `app/config.py` are free.
+**Next by leverage:** **close CP-G** (T9-5 changed what the console shows, so do it now, on the new bands): T16-15 now lets a scenario run from the console, so run each of the six scenarios in a real browser (`flask --app app.main run`, Load on `/`, Start run on `/console`). Only `pump_trip` has been run by hand, in one theme at desktop width; still to see are the other five, both themes, phone width, and a real alarm marker on the trend. Then Checkpoint D's remaining gate (PIC-101 in AUTO, which T8-6 enabled and no task owns). Candidate Opus tasks: units per trend point, and a tripped-equipment state in the snapshot. `app/main.py` and `app/config.py` are free.
 
 **Scheduling notes.** The spine lock is one global lock
 ([DEVELOPMENT.md](../../DEVELOPMENT.md#file-ownership)); it is free. **The container runs
@@ -109,14 +109,13 @@ scope, and item 1 in particular reads like a bug and is not.
   `temperature` field is an unowned C3 change. The compressor page's
   `temperature` still reads `temperature_at` from the 75 °F design suction, and
   C4 has no field for a transport that did not settle.
-- **Instruments are not in C3, and no device-to-point resolver exists.**
-  `Engine(instruments=...)` is the only way to add a transmitter. A
-  `controllers.pv` resolves against a node id (T8-3), so only pressure loops
-  can bind. A `limits` `(tag, variable)` resolves only against a device's own
-  `get_state()` field (T9-4): `V-101.level` classifies live, but
-  `K-101.discharge_pressure` and `P-101.flow` in `olefins_lite.yaml` are warned
-  about once at Engine construction and never evaluated. Transmitters only have
-  `bias` - no stuck or range-clamped reading (T13-2).
+- **Instruments are not in C3.** `Engine(instruments=...)` is the only way to
+  add a transmitter. A `controllers.pv` resolves against a node id (T8-3), so
+  only pressure loops can bind; a flow loop on `P-101.flow` is now possible but
+  unbuilt. A `limits`, interlock or permissive `(tag, variable)` resolves
+  against the published equipment row, solved points included (T9-5), and an
+  unpublished one is a build error. Transmitters only have `bias` - no stuck
+  or range-clamped reading (T13-2).
 - **A stopped machine keeps a small residual flow**: 0.055 GPM (pump), 0.004
   SCFM (compressor); never-run reads exactly `0.0`. At shutoff the branch root
   is a double root, so 1e-7 psia of slack maps to `sqrt(tolerance /

@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "9 October 2026",
-  "main_sha": "91c5b46",
-  "tests_passing_on_main": 3665,
+  "main_sha": "f8911a7",
+  "tests_passing_on_main": 3673,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -68,8 +68,8 @@
     },
     "M10": {
       "name": "Alarm System",
-      "complete": 4,
-      "total": 5
+      "complete": 5,
+      "total": 6
     },
     "M11": {
       "name": "Interlocks, Trips and Shutdown",
@@ -118,8 +118,8 @@
     }
   },
   "totals": {
-    "tasks": 132,
-    "complete": 127,
+    "tasks": 133,
+    "complete": 128,
     "startable_now": 4
   },
   "tasks": [
@@ -1475,6 +1475,34 @@
       "status": "Complete",
       "status_key": "done",
       "note": "Merged f90c49e (PR #133). 3065 passed post-merge, mypy clean, no golden trace moved. Not yet viewed in a browser."
+    },
+    {
+      "id": "T10-6",
+      "milestone": "M10",
+      "name": "Point descriptors in alarm text and trends",
+      "category": "dep",
+      "branch": "feature/point-descriptors",
+      "depends_on": [
+        "T9-5",
+        "T10-2",
+        "T17-4"
+      ],
+      "files": [
+        "app/api/visibility.py",
+        "app/training/runtime.py",
+        "app/training/session.py",
+        "app/scenarios/runner.py",
+        "app/api/trend.py",
+        "app/main.py",
+        "static/js/trends.js",
+        "tests/test_visibility.py",
+        "tests/test_training_runtime.py",
+        "tests/test_trend_api.py",
+        "tests/test_trend_display.py"
+      ],
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged f8911a7 (PR #157). Full suite 3673 passed on main, mypy clean, no golden movement. Shape decided by Opus 2026-10-09 (6c8e798): a per-class DESCRIPTORS table in app/api/visibility.py names a machine's inlet_pressure and outlet_pressure as suction and discharge pressure; alarm messages and a descriptors map on /api/trend/points read it, and the trend legend and add-a-pen list show the id plus the descriptor. K-101's alarm ids change with the wording. Not yet seen in a real browser (CP-G)."
     },
     {
       "id": "T11-1",

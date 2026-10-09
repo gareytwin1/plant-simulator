@@ -2,7 +2,7 @@
  *
  * The console surface for the trend API (app/api/trend.py) and the alarm
  * record (app/api/alarms.py):
- *   GET /api/trend/points  -> {points, limits, max_tags, max_points}
+ *   GET /api/trend/points  -> {points, limits, descriptors, max_tags, max_points}
  *   GET /api/trend         -> {point: [[t, v], ...]}
  *   GET /api/alarms/history
  *
@@ -460,6 +460,16 @@
     );
   }
 
+  /* A pen's name for the operator: its equipment or loop id and the
+   * descriptor the server publishes ("K-101 discharge pressure"). The point id
+   * stays the key everywhere; a point with no descriptor shows as the id. */
+  function penName(point, descriptors) {
+    var words = descriptors && descriptors[point];
+    if (typeof words !== "string" || !words) return point;
+    var dot = point.lastIndexOf(".");
+    return (dot < 0 ? point : point.slice(0, dot)) + " " + words;
+  }
+
   /* The span and add-a-pen selectors. Kept apart from the legend so a tick
    * that only moves a value never rebuilds a select the operator has open. */
   function renderSelectors(view) {
@@ -478,7 +488,7 @@
     var add =
       '<option value="">' + (full ? "Pen limit reached (" + view.maxTags + ")" : "Add a pen") + "</option>" +
       addable.map(function (point) {
-        return '<option value="' + escapeHtml(point) + '">' + escapeHtml(point) + "</option>";
+        return '<option value="' + escapeHtml(point) + '">' + escapeHtml(penName(point, view.descriptors)) + "</option>";
       }).join("");
 
     return (
@@ -502,7 +512,7 @@
         '<svg class="trend-swatch" viewBox="0 0 28 10" width="28" height="10" aria-hidden="true"><line x1="0" x2="28" y1="5" y2="5"' +
         (dash ? ' stroke-dasharray="' + dash + '"' : "") + "/></svg>" +
         '<span class="trend-pen-index">' + (index + 1) + "</span>" +
-        '<span class="trend-pen-point">' + escapeHtml(point) + "</span>" +
+        '<span class="trend-pen-point" title="' + escapeHtml(point) + '">' + escapeHtml(penName(point, view.descriptors)) + "</span>" +
         '<span class="trend-pen-value" data-live-value data-value-point="' + escapeHtml(point) + '">' + formatValue((view.latest || {})[point]) + "</span></button>" +
         '<button type="button" class="trend-remove" data-remove-point="' + escapeHtml(point) +
         '" aria-label="Remove ' + escapeHtml(point) + '" title="Remove">\u00D7</button></li>'
@@ -530,6 +540,7 @@
     markersFor: markersFor,
     pathFor: pathFor,
     renderChart: renderChart,
+    penName: penName,
     renderSelectors: renderSelectors,
     renderLegend: renderLegend,
     formatValue: formatValue,
@@ -588,6 +599,7 @@
       focus: typeof stored.focus === "string" ? stored.focus : null,
       points: [],
       limits: {},
+      descriptors: {},
       maxTags: 8,
       maxPoints: null,
       data: {},
@@ -651,6 +663,7 @@
       var view = {
         span: state.span,
         points: state.points,
+        descriptors: state.descriptors,
         selection: chosen,
         maxTags: state.maxTags,
         focus: focus,
@@ -663,7 +676,7 @@
       }
       // The legend is rebuilt only when its rows change, so keyboard focus
       // survives a tick; values are rewritten in place.
-      var legend = renderLegend({ span: view.span, selection: chosen, focus: focus, latest: {} });
+      var legend = renderLegend({ span: view.span, descriptors: state.descriptors, selection: chosen, focus: focus, latest: {} });
       if (legend !== drawnLegend) {
         drawnLegend = legend;
         legendEl.innerHTML = legend;
@@ -726,6 +739,7 @@
 
         state.points = Array.isArray(listing.points) ? listing.points : [];
         state.limits = isObject(listing.limits) ? listing.limits : {};
+        state.descriptors = isObject(listing.descriptors) ? listing.descriptors : {};
         state.maxTags = isNumber(listing.max_tags) ? listing.max_tags : state.maxTags;
         state.maxPoints = isNumber(listing.max_points) ? listing.max_points : state.maxPoints;
 

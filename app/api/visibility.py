@@ -52,6 +52,29 @@ VISIBLE: dict[type[Equipment], frozenset[str]] = {
 }
 
 
+# The operator's word for a published field, where it differs from the field
+# with its underscores as spaces. Keyed on the field, never a port name: the
+# generic inlet and outlet are what a machine's suction and discharge are
+# called on a console. An alarm message and a trend pen both read it.
+DESCRIPTORS: dict[type[Equipment], dict[str, str]] = {
+    CentrifugalPump: {"inlet_pressure": "suction pressure", "outlet_pressure": "discharge pressure"},
+    GasCompressor: {"inlet_pressure": "suction pressure", "outlet_pressure": "discharge pressure"},
+}
+
+
+def descriptor(device: Equipment | None, field: str) -> str:
+    """The operator's word for `field` on `device`: its class's `DESCRIPTORS`
+    entry, else the field with its underscores as spaces. A tag the plant does
+    not know (`device` is None) takes the fallback too."""
+    if device is not None:
+        words = DESCRIPTORS.get(type(device), {}).get(field)
+
+        if words is not None:
+            return words
+
+    return field.replace("_", " ")
+
+
 def operator_view(
     snapshot: Snapshot,
     equipment: Mapping[str, Equipment],

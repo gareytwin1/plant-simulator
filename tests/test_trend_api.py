@@ -24,7 +24,7 @@ def fake_app(histories, limits=None):
         return {point: histories[point] for point in points}
 
     app = Flask(__name__)
-    app.register_blueprint(create_trend_blueprint(lambda: sorted(histories), get_history, lambda: limits or {}))
+    app.register_blueprint(create_trend_blueprint(lambda: sorted(histories), get_history, lambda: limits or {}, lambda: {point: point for point in histories}))
 
     return app.test_client()
 
@@ -201,7 +201,7 @@ def test_a_point_that_vanishes_between_the_two_lookups_is_a_400():
         raise KeyError("X.v")
 
     app = Flask(__name__)
-    app.register_blueprint(create_trend_blueprint(lambda: ["X.v"], get_history, lambda: {}))
+    app.register_blueprint(create_trend_blueprint(lambda: ["X.v"], get_history, lambda: {}, lambda: {}))
 
     response = app.test_client().get("/api/trend?tags=X.v")
 
@@ -225,7 +225,7 @@ def session(tmp_path):
 @pytest.fixture
 def client(session):
     app = Flask(__name__)
-    app.register_blueprint(create_trend_blueprint(session.trend_points, session.trend_history, session.trend_limits))
+    app.register_blueprint(create_trend_blueprint(session.trend_points, session.trend_history, session.trend_limits, session.trend_descriptors))
 
     return app.test_client()
 
@@ -387,3 +387,14 @@ def test_limits_follow_the_plant_the_snapshot_shows(session, client):
 
     assert free_limits
     assert body["limits"] == free_limits
+
+
+def test_the_points_listing_describes_exactly_the_points_it_lists(client):
+    listing = client.get("/api/trend/points").get_json()
+
+    assert set(listing["descriptors"]) == set(listing["points"])
+    assert listing["descriptors"]["K-101.outlet_pressure"] == "discharge pressure"
+    assert listing["descriptors"]["P-101.inlet_pressure"] == "suction pressure"
+    assert listing["descriptors"]["V-101.level"] == "level"
+    assert listing["descriptors"]["N-204.pressure"] == "pressure"
+    assert listing["descriptors"]["PIC-101.pv"] == "pv"

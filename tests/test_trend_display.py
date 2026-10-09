@@ -71,7 +71,7 @@ def session(tmp_path):
 def client(session):
     app = Flask(__name__)
     app.register_blueprint(
-        create_trend_blueprint(session.trend_points, session.trend_history, session.trend_limits)
+        create_trend_blueprint(session.trend_points, session.trend_history, session.trend_limits, session.trend_descriptors)
     )
     app.register_blueprint(create_alarm_blueprint(session.alarm_entries, session.acknowledge))
 
@@ -988,3 +988,34 @@ def test_a_stored_selection_the_plant_no_longer_publishes_falls_back_to_the_defa
     )
 
     assert result == DEFAULTS
+
+
+@needs_node
+def test_a_pen_is_named_by_its_id_and_descriptor_and_a_point_without_one_by_its_id(free):
+    descriptors = free["points"]["descriptors"]
+
+    names = run_js(
+        "return [T.penName('K-101.outlet_pressure', data.d), T.penName('PIC-101.pv', data.d),"
+        " T.penName('X-1.unlisted', data.d), T.penName('K-101.outlet_pressure', undefined)];",
+        d=descriptors,
+    )
+
+    assert names == ["K-101 discharge pressure", "PIC-101 pv", "X-1.unlisted", "K-101.outlet_pressure"]
+
+
+@needs_node
+def test_the_legend_and_the_add_a_pen_list_show_the_descriptor_and_keep_the_point_id(free):
+    descriptors = free["points"]["descriptors"]
+    point = "K-101.outlet_pressure"
+
+    legend, selectors = run_js(
+        "return [T.renderLegend({span: 10, descriptors: data.d, selection: [data.p], focus: data.p, latest: {}}),"
+        " T.renderSelectors({span: 10, points: [data.p], descriptors: data.d, selection: [], maxTags: 8})];",
+        d=descriptors, p=point,
+    )
+
+    assert ">K-101 discharge pressure</span>" in legend
+    assert f'title="{point}"' in legend
+    assert f'data-remove-point="{point}"' in legend
+    assert f'aria-label="Remove {point}"' in legend
+    assert f'<option value="{point}">K-101 discharge pressure</option>' in selectors

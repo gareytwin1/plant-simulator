@@ -3,12 +3,15 @@ Trend API (T17-3, contract C5's trend routes).
 
     GET /api/trend?tags=&from=&to=&max_points=   -> {point: [[t, v], ...]}
     GET /api/trend/points                        -> {"points": [point, ...],
-        "limits": {point: {bound: v}}, "max_tags": n, "max_points": n}
+        "limits": {point: {bound: v}}, "descriptors": {point: str},
+        "max_tags": n, "max_points": n}
 
 A tag is a point, `<id>.<field>` (`app.historian.points`). `limits` carries the
 configured envelope bounds of each point the engine evaluates, under the
 `app.envelope.evaluator.Limits` field names and only those that are set, so a
-display can draw bands without duplicating a limit; `max_tags` and
+display can draw bands without duplicating a limit; `descriptors` is the
+operator's word for each listed point (`app.api.visibility.descriptor`), the
+same words an alarm message uses; `max_tags` and
 `max_points` are the bounds of `/api/trend`. Like the alarm
 blueprint, `create_trend_blueprint` takes the plant's points and history as
 callables resolved once per request, so this module assumes nothing about
@@ -88,6 +91,7 @@ def create_trend_blueprint(
     get_points: Callable[[], Sequence[str]],
     get_history: Callable[[Sequence[str]], dict[str, tuple[Sample, ...]]],
     get_limits: Callable[[], dict[str, dict[str, float]]],
+    get_descriptors: Callable[[], dict[str, str]],
 ) -> Blueprint:
     """Build the `/api/trend*` blueprint against the points and history of
     whichever plant the caller's session machinery has resolved for this
@@ -100,6 +104,7 @@ def create_trend_blueprint(
         return jsonify({
             "points": list(get_points()),
             "limits": get_limits(),
+            "descriptors": get_descriptors(),
             "max_tags": config.TREND_MAX_TAGS,
             "max_points": config.TREND_MAX_POINTS,
         }), 200

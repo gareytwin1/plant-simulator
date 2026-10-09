@@ -8,13 +8,13 @@ condition (T12-2), stepping the engine between sequence scans, and acts only
 through `apply_action`, the C5 path an operator uses.
 
 The cold start begins from `cold_shutdown`, whose drained vessel already reads
-lololo on V-101.level (tests/test_initial_conditions.py's INTENDED) and meets
+lololo on V-101.level and whose stopped P-101 backflows into lololo on
+P-101.flow (tests/test_initial_conditions.py's INTENDED), and which meets
 LSLL-101's trip condition. "No alarm or trip" therefore means the start never
 enters an envelope band, or meets an interlock condition, that the cold plant
 was not already in, and the standing ones clear and never return. Interlocks
-are not live in a session, so the test reads their conditions itself, and only
-against what a device publishes: PSHH-101's K-101.discharge_pressure is not
-published, so it cannot be checked here.
+are not live in a session, so the test reads their conditions itself, from
+what each device publishes, PSHH-101's K-101.outlet_pressure among them.
 """
 
 import dataclasses

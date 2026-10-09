@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
-  "refreshed": "8 October 2026",
-  "main_sha": "2fc84e4",
-  "tests_passing_on_main": 3610,
+  "refreshed": "9 October 2026",
+  "main_sha": "edf8e8f",
+  "tests_passing_on_main": 3652,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -98,8 +98,8 @@
     },
     "M16": {
       "name": "Operator Console",
-      "complete": 14,
-      "total": 14
+      "complete": 15,
+      "total": 15
     },
     "M17": {
       "name": "Historian and Trends",
@@ -118,8 +118,8 @@
     }
   },
   "totals": {
-    "tasks": 130,
-    "complete": 125,
+    "tasks": 131,
+    "complete": 126,
     "startable_now": 4
   },
   "tasks": [
@@ -2207,6 +2207,31 @@
       "status": "Complete",
       "status_key": "done",
       "note": "Merged to main as cdab8f3 (Merge T16-14: Operator loop actions, PR #149). 3338 passed post-merge, mypy clean over 82 files, no golden movement, CI test and docker green, roborev branch review Pass (job 730). A loop tag is an /api/action target: manual, auto, set_setpoint, set_output (MANUAL only, within the output range) and set_kp/ki/kd (tunable loops only, finite and non-negative). A device a loop drives refuses direct actions, naming the loop. PID.retune re-solves the integral so a Kp or Ki change in AUTO is bumpless (a new ki of 0 is not). C3: optional tunable on a controllers entry (config 1.1.0). C4: controllers rows gain kp, ki, kd, out_min, out_max, tunable, pv_unit. apply_action takes loops as a required keyword. Not here: a setpoint upper bound (no configured range), a cascade action. Spine lock released."
+    },
+    {
+      "id": "T16-15",
+      "milestone": "M16",
+      "name": "Scenario run controls",
+      "category": "dep",
+      "branch": "feature/scenario-run-controls",
+      "depends_on": [
+        "T16-11",
+        "T16-12"
+      ],
+      "files": [
+        "static/js/scenario.js",
+        "static/css/scenario.css",
+        "templates/console.html",
+        "app/main.py",
+        "static/js/landing.js",
+        "templates/index.html",
+        "static/css/landing.css",
+        "tests/test_scenario_controls.py",
+        "tests/test_landing.py"
+      ],
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged edf8e8f (PR #155). Full suite 3652 passed on main, mypy clean, no golden movement. Shape decided by Opus 2026-10-09 (3c0e9ab): console only. Real-browser run of pump_trip checked by the user; the other five scenarios, both themes and phone width are still open under CP-G."
     },
     {
       "id": "T17-1",

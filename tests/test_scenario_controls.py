@@ -169,7 +169,7 @@ def test_the_first_render_shows_the_servers_phase_and_title_with_the_right_butto
         STUB
         + """
         const { els, doc } = page("loaded", "Falling vessel level");
-        const bar = S.mount(doc, { fetch: async () => reply(409, {}), pollMs: 0 });
+        S.mount(doc, { fetch: async () => reply(409, {}), pollMs: 0 });
         return {
           mode: els["scenario-mode"].textContent, phase: els["scenario-phase"].textContent,
           start: els["scenario-start"].hidden, abort: els["scenario-abort"].hidden,
@@ -382,3 +382,83 @@ def test_the_stylesheet_uses_tokens_and_no_colour_literals():
     css = SCENARIO_CSS.read_text()
 
     assert not re.search(r"#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(", css)
+
+
+@needs_node
+def test_a_poll_follows_a_title_that_changes_or_appears_after_mount():
+    got = run_js(
+        STUB
+        + """
+        const { els, doc } = page("idle", "");
+        let next = reply(200, { phase: "loaded", title: "Falling vessel level" });
+        const bar = S.mount(doc, { fetch: async () => next, pollMs: 0 });
+        await bar.poll();
+        const appeared = els["scenario-mode"].textContent;
+        next = reply(200, { phase: "loaded", title: "Blocked drain" });
+        await bar.poll();
+        const changed = els["scenario-mode"].textContent;
+        next = reply(200, { phase: "loaded" });
+        await bar.poll();
+        return { appeared, changed, kept: els["scenario-mode"].textContent };
+        """,
+    )
+
+    assert got == {
+        "appeared": "Scenario: Falling vessel level",
+        "changed": "Scenario: Blocked drain",
+        "kept": "Scenario: Blocked drain",
+    }
+
+
+@needs_node
+def test_a_poll_that_began_before_a_click_cannot_overwrite_the_clicks_result():
+    got = run_js(
+        STUB
+        + """
+        const { els, doc } = page("loaded", "T");
+        let releasePoll;
+        const held = new Promise(r => (releasePoll = r));
+        const fetchImpl = async url => {
+          if (url.endsWith("result")) { await held; return reply(200, { phase: "loaded", title: "T" }); }
+          return reply(200, { phase: "running", title: "T" });
+        };
+        const bar = S.mount(doc, { fetch: fetchImpl, pollMs: 0 });
+        const stale = bar.poll();
+        await settle();
+        await els["scenario-start"].listeners.click();
+        releasePoll();
+        await stale;
+        return els["scenario-phase"].textContent;
+        """,
+    )
+
+    assert got == "Running"
+
+
+@needs_node
+def test_a_refusal_waits_out_a_poll_in_flight_and_then_resyncs():
+    got = run_js(
+        STUB
+        + """
+        const { els, doc } = page("loaded", "T");
+        let releasePoll, results = 0;
+        const held = new Promise(r => (releasePoll = r));
+        const fetchImpl = async url => {
+          if (url.endsWith("start")) return reply(409, {});
+          results += 1;
+          if (results === 1) { await held; return reply(200, { phase: "loaded", title: "T" }); }
+          return reply(200, { phase: "running", title: "T" });
+        };
+        const bar = S.mount(doc, { fetch: fetchImpl, pollMs: 0 });
+        const first = bar.poll();
+        await settle();
+        const click = els["scenario-start"].listeners.click();
+        await settle();
+        releasePoll();
+        await click;
+        await first;
+        return { results, phase: els["scenario-phase"].textContent };
+        """,
+    )
+
+    assert got == {"results": 2, "phase": "Running"}

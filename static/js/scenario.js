@@ -6,10 +6,12 @@
  *   POST /api/scenario/abort
  *   GET  /api/scenario/result   (409 = nothing loaded = free play)
  *
- * Only `phase` is ever read from a response body, so a live run's key and a
- * finished run's debrief are never displayed here (T16-12). A refusal is shown
- * in this file's own plain words, chosen by status code, never the server's
- * text. The title in the bar is rendered by the server with the page.
+ * Only `phase` and `title` are ever read from a response body, so a live run's
+ * key and a finished run's debrief are never displayed here (T16-12). A title
+ * is the scenario's public name, the one the landing page lists. A refusal is
+ * shown in this file's own plain words, chosen by status code, never the
+ * server's text. The server renders the title with the page; a poll replaces
+ * it when another tab loads a different scenario.
  *
  * Abort takes two clicks (arm, then confirm) with no window.confirm, so it
  * runs under Node. Aborting reveals the debrief, so it is offered only while a
@@ -58,6 +60,12 @@
     if (status === 409) return "idle";
     if (status !== 200 || body === null || typeof body !== "object") return null;
     return PHASES.indexOf(body.phase) === -1 ? null : body.phase;
+  };
+
+  /* The scenario title a response carries, or null when it carries none. */
+  api.titleOf = function (status, body) {
+    if (status !== 200 || body === null || typeof body !== "object") return null;
+    return typeof body.title === "string" ? body.title : null;
   };
 
   /* What the bar offers in a phase. `armed` is an abort waiting on its second
@@ -112,6 +120,9 @@
       busy: false,
     };
     var polling = false;
+    var pollPromise = null;
+    // Bumped by every click that sends, so a poll that began earlier is stale.
+    var epoch = 0;
     var timer = null;
 
     function render() {
@@ -136,7 +147,11 @@
       els.notice.hidden = text === "";
     }
 
-    function setPhase(phase) {
+    function apply(status, body) {
+      var phase = api.phaseOf(status, body);
+      var title = api.titleOf(status, body);
+
+      if (title !== null) state.title = title;
       if (phase === null || phase === state.phase) return;
       state.phase = phase;
       if (phase === "idle") state.title = "";
@@ -167,31 +182,39 @@
       }
     }
 
-    async function poll() {
-      if ((root.document && root.document.hidden) || polling || state.busy) return;
-      polling = true;
+    async function pollOnce() {
+      var started = epoch;
       try {
         var result = await get(api.buildResultRequest());
-        // A click may have started while this was in flight; it knows better.
-        if (!state.busy) setPhase(api.phaseOf(result.status, result.body));
+        // A click that sent while this was in flight knows better.
+        if (started === epoch) apply(result.status, result.body);
       } catch (error) {
         // A failed poll leaves the bar as it was; the next tick tries again.
       } finally {
         polling = false;
+        pollPromise = null;
         render();
       }
+    }
+
+    function poll() {
+      if ((root.document && root.document.hidden) || polling || state.busy) return Promise.resolve();
+      polling = true;
+      pollPromise = pollOnce();
+      return pollPromise;
     }
 
     async function send(action, request) {
       state.busy = true;
       state.armed = false;
+      epoch += 1;
       render();
       var resync = false;
       try {
         var result = await get(request);
         if (result.status === 200) {
           notice("");
-          setPhase(api.phaseOf(200, result.body));
+          apply(200, result.body);
         } else {
           notice(api.refusalText(action, result.status));
           resync = result.status === 409;
@@ -202,7 +225,12 @@
         state.busy = false;
         render();
       }
-      if (resync) await poll();
+      if (resync) {
+        // A poll already in flight began before this refusal; wait it out and
+        // ask again, or the bar stays stale for a whole interval.
+        if (pollPromise) await pollPromise;
+        await poll();
+      }
     }
 
     els.start.addEventListener("click", function () {

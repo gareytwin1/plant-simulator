@@ -43,19 +43,18 @@ let a standing RUN demand start the machine first. The gate learns of a trip
 from the interlock's state after the previous update, so it must be updated
 at least once while the interlock is TRIPPED, which any per-step caller does.
 
-Like a trip condition, a permissive resolves only against a field a device's
-own `get_state()` publishes, checked once at construction against the
-snapshot the gate is built on: an unknown device, or a published field that is
-not a number, is refused with every such problem reported together, and an
-existing device's unpublished variable is warned about. Unlike a trip
-condition, a reading that later goes missing, non-numeric or non-finite is
+Like a trip condition, a permissive resolves against a field of the
+equipment row the snapshot publishes - the device's own `get_state()` field
+or a solved point the engine composes onto it (T9-5) - checked once at
+construction against the snapshot the gate is built on: an unknown device, a
+field the row does not carry, or one that is not a number, is refused with
+every such problem reported together. Unlike a trip condition, a reading that later goes missing, non-numeric or non-finite is
 **unsatisfied**: a lost transmitter must not permit a start.
 """
 
 from __future__ import annotations
 
 import math
-import warnings
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
@@ -144,11 +143,9 @@ class RestartGate:
             row = snapshot.equipment.get(condition.tag, {})
 
             if condition.variable not in row:
-                warnings.warn(
-                    f"restart gate {tag} permissive {point} does not resolve "
-                    f"against the equipment section the snapshot publishes "
-                    f"and will always block a start",
-                    stacklevel=2,
+                errors.append(
+                    f"permissive {point} is not published, "
+                    f"{condition.tag} has {sorted(row)}",
                 )
                 continue
 

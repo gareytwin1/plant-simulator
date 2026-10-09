@@ -36,9 +36,14 @@ from app.equipment.vessel import Vessel
 from app.statetypes import JSONValue
 
 
+# A machine's flow and its suction and discharge pressures are the solved
+# points the engine composes onto its row (T9-5); a valve's are already its
+# stream's flow and its two nodes' pressures, so it does not repeat them.
+MACHINE_POINTS = frozenset({"flow", "inlet_pressure", "outlet_pressure"})
+
 VISIBLE: dict[type[Equipment], frozenset[str]] = {
-    CentrifugalPump: frozenset({"running", "speed", "speed_target"}),
-    GasCompressor: frozenset({"running", "load", "load_target"}),
+    CentrifugalPump: frozenset({"running", "speed", "speed_target"}) | MACHINE_POINTS,
+    GasCompressor: frozenset({"running", "load", "load_target"}) | MACHINE_POINTS,
     ControlValve: frozenset({"position", "position_target"}),
     Vessel: frozenset({"level", "pressure"}),
     HeatExchanger: frozenset({"inlet_temperature"}),

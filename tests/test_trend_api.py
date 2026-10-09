@@ -14,8 +14,6 @@ from app.training.session import TrainingSession
 from tests.test_training_session import SCENARIO, scheduler_workers
 
 
-pytestmark = pytest.mark.filterwarnings("ignore:envelope limit", "ignore:interlock")
-
 POINT = "V-101.level"
 
 
@@ -362,14 +360,23 @@ def test_limits_list_exactly_the_evaluated_trend_points_with_only_set_bounds(cli
             "warning_hi": pytest.approx(0.8),
             "trip_hi": pytest.approx(0.9),
         },
+        "K-101.outlet_pressure": {
+            "warning_hi": pytest.approx(330.0),
+            "trip_hi": pytest.approx(350.0),
+        },
+        "P-101.flow": {"trip_lo": pytest.approx(-20.0)},
     }
 
 
-def test_a_limit_the_engine_cannot_resolve_draws_no_band(client):
-    limits = client.get("/api/trend/points").get_json()["limits"]
+def test_a_solved_point_on_a_machine_is_a_trend_point_with_its_band(client):
+    """K-101.outlet_pressure and P-101.flow are solved points the engine
+    publishes on each machine's row (T9-5), and the operator view shows them,
+    so their limits draw a band like any device field's."""
+    body = client.get("/api/trend/points").get_json()
 
-    assert "K-101.discharge_pressure" not in limits
-    assert "P-101.flow" not in limits
+    for point in ("K-101.outlet_pressure", "P-101.flow"):
+        assert point in body["points"]
+        assert point in body["limits"]
 
 
 def test_limits_follow_the_plant_the_snapshot_shows(session, client):
@@ -379,5 +386,4 @@ def test_limits_follow_the_plant_the_snapshot_shows(session, client):
     body = client.get("/api/trend/points").get_json()
 
     assert free_limits
-    assert set(body["limits"]) == {POINT}
-    assert body["limits"][POINT] == free_limits[POINT]
+    assert body["limits"] == free_limits

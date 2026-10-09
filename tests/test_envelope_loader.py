@@ -54,7 +54,7 @@ def test_a_repeated_tag_and_variable_is_rejected_rather_than_silently_overwritte
 def test_hi_above_hi_hi_is_rejected():
     config = {
         "limits": [
-            {"tag": "K-101", "variable": "discharge_pressure", "hi": 400.0, "hi_hi": 350.0},
+            {"tag": "K-101", "variable": "outlet_pressure", "hi": 400.0, "hi_hi": 350.0},
         ],
     }
 
@@ -86,12 +86,12 @@ def test_trip_flag_sends_the_outer_bounds_to_trip_not_alarm():
 def test_trip_false_sends_the_outer_bounds_to_alarm():
     config = {
         "limits": [
-            {"tag": "K-101", "variable": "discharge_pressure", "lo_lo": 100.0, "hi_hi": 350.0},
+            {"tag": "K-101", "variable": "outlet_pressure", "lo_lo": 100.0, "hi_hi": 350.0},
         ],
     }
 
     evaluators = load_limits(config)
-    evaluator = evaluators[("K-101", "discharge_pressure")]
+    evaluator = evaluators[("K-101", "outlet_pressure")]
 
     assert evaluator.evaluate(350.0, dt=1.0) is Severity.ALARM
 
@@ -147,11 +147,11 @@ def test_the_reference_plant_config_defines_loadable_limits():
     evaluators = load_limits(config)
 
     assert ("V-101", "level") in evaluators
-    assert ("K-101", "discharge_pressure") in evaluators
+    assert ("K-101", "outlet_pressure") in evaluators
     assert ("P-101", "flow") in evaluators
 
     # The design point is loaded exactly at steady state (T5-5), so every
     # configured tag reads NORMAL the moment the plant is built.
     assert evaluators[("V-101", "level")].evaluate(0.5, dt=1.0) is Severity.NORMAL
-    assert evaluators[("K-101", "discharge_pressure")].evaluate(304.0, dt=1.0) is Severity.NORMAL
+    assert evaluators[("K-101", "outlet_pressure")].evaluate(304.0, dt=1.0) is Severity.NORMAL
     assert evaluators[("P-101", "flow")].evaluate(50.0, dt=1.0) is Severity.NORMAL

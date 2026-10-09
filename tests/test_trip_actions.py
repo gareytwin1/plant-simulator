@@ -14,7 +14,6 @@ on the latest snapshot, immediately before each step.
 """
 
 import dataclasses
-import warnings
 from pathlib import Path
 from types import MappingProxyType
 
@@ -414,50 +413,27 @@ def test_an_older_snapshot_is_refused_before_any_interlock_moves():
     assert trips.interlocks["XS-1"].pending_elapsed == pytest.approx(pending)
 
 
-def test_an_unresolvable_condition_is_warned_about_at_the_callers_line():
+def test_a_condition_on_an_unpublished_variable_is_refused():
     plant = load_plant_file(PLANT_FILE)
+    engine = Engine.from_plant(plant)
+    entries = [
+        *plant.passthrough("interlocks"),
+        {
+            "tag": "PSHH-102",
+            "condition": "K-101.discharge_pressure >= 350.0",
+            "delay_s": 2.0,
+            "actions": ["K-101.stop"],
+            "reset": "manual",
+        },
+    ]
 
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        engine = Engine.from_plant(plant)
-
-    with pytest.warns(UserWarning, match="PSHH-101") as caught:
-        TripSystem.from_plant(plant, engine.equipment, engine.arbiter, engine.snapshot())
-
-    with pytest.warns(UserWarning, match="PSHH-101") as caught_directly:
+    with pytest.raises(ValueError, match=r"PSHH-102: condition K-101\.discharge_pressure is not published"):
         TripSystem(
-            load_interlocks({"interlocks": plant.passthrough("interlocks")}),
+            load_interlocks({"interlocks": entries}),
             engine.equipment,
             CommandArbiter(),
             engine.snapshot(),
         )
-
-    for records in (caught, caught_directly):
-        (record,) = [record for record in records if "PSHH-101" in str(record.message)]
-        assert record.filename == __file__
-
-
-def test_a_rejected_configuration_warns_about_nothing():
-    plant = load_plant_file(PLANT_FILE)
-
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        engine = Engine.from_plant(plant)
-
-    entries = [*plant.passthrough("interlocks"), interlock("XS-1", ["P-101.close"])]
-
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
-
-        with pytest.raises(ValueError, match="interlock XS-1"):
-            TripSystem(
-                load_interlocks({"interlocks": entries}),
-                engine.equipment,
-                CommandArbiter(),
-                engine.snapshot(),
-            )
-
-    assert caught == []
 
 
 # Configuration is checked up front
@@ -528,15 +504,11 @@ def test_every_valve_fail_action_has_a_trip_target():
 
 def reference_plant():
     plant = load_plant_file(PLANT_FILE)
-
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
-        engine = Engine.from_plant(plant)
-        trips = TripSystem.from_plant(plant, engine.equipment, engine.arbiter, engine.snapshot())
-
+    engine = Engine.from_plant(plant)
+    trips = TripSystem.from_plant(plant, engine.equipment, engine.arbiter, engine.snapshot())
     engine.start()
 
-    return engine, trips, [str(warning.message) for warning in caught]
+    return engine, trips
 
 
 def start_machines(engine, trips):
@@ -546,16 +518,27 @@ def start_machines(engine, trips):
     run(engine, trips, 30.0)
 
 
-def test_an_interlock_on_a_solved_quantity_is_warned_about_and_never_evaluated():
-    engine, trips, caught = reference_plant()
+def test_pshh_101_stops_k_101_when_its_discharge_runs_high():
+    """K-101.outlet_pressure is N-204's solved pressure, published on K-101's
+    row (T9-5). A discharge header pressed up past 350 psia carries N-204
+    with it, and after its 2 s delay PSHH-101 latches and stops K-101."""
+    engine, trips = reference_plant()
+    start_machines(engine, trips)
 
-    assert any("PSHH-101" in message and "will not be evaluated" in message for message in caught)
-    assert trips.evaluated == ("LSHH-101", "LSLL-101")
-    assert "K-101.run" in engine.arbiter.outputs
+    engine.topologies["gas"].node("N-202").set_boundary_pressure(400.0)
+    run(engine, trips, 1.0)
+
+    assert engine.snapshot().equipment["K-101"]["outlet_pressure"] >= 350.0
+    assert trips.tripped == ()
+
+    run(engine, trips, 3.0)
+
+    assert trips.tripped == ("PSHH-101",)
+    assert engine.equipment["K-101"].running is False
 
 
 def test_the_reference_plant_runs_at_its_design_point_without_tripping():
-    engine, trips, _ = reference_plant()
+    engine, trips = reference_plant()
     start_machines(engine, trips)
     run(engine, trips, 300.0)
 
@@ -566,9 +549,7 @@ def test_the_reference_plant_runs_at_its_design_point_without_tripping():
 def test_a_trip_overrides_the_controller_on_a_loop_driven_valve():
     plant = load_plant_file(PLANT_FILE)
 
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        engine = Engine.from_plant(plant)
+    engine = Engine.from_plant(plant)
 
     engine.start()
     engine.loops["PIC-101"].loop.mode = Mode.AUTO
@@ -602,7 +583,7 @@ def test_a_cascade_trip_propagates_through_the_plant():
     V-101. LSHH-101 stops the pump; with the pump stopped the separator
     drains back through it and out through LV-101, and LSLL-101 latches on
     the level that falls - nothing here tells it to."""
-    engine, trips, _ = reference_plant()
+    engine, trips = reference_plant()
     start_machines(engine, trips)
 
     registry = EquipmentRegistry()

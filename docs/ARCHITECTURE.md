@@ -256,6 +256,12 @@ worth stating plainly:
   it - none in `app/` today.
   `tests/test_truth_isolation.py` fails the build on any other reader in
   `app/`. Without that, an instrument fault could not be a hidden cause.
+- **An equipment row carries its device's solved points.** A device that sits
+  in exactly one branch gets `flow`, `inlet_pressure` and
+  `outlet_pressure` on its row, composed by the engine from that branch and
+  its two nodes (T9-5) - the device itself holds none of them. That is what a
+  `limits` entry, an interlock condition or a permissive names, and one that
+  names no published number is refused when the plant is built.
 - **A browser reads the operator view, not the snapshot.** Every route that
   sends plant state to a browser (`/api/snapshot`, and `/api/stream` through the
   `get_view` its blueprint is built with - the console wiring passes the
@@ -470,7 +476,7 @@ and they have repeatedly been conflated:
 | **Wired into the browser pages** | None: the single-machine pages are retired (T16-10) and the console (T16-9) has not landed. Every session runs `olefins_lite` (free play) or a scenario. |
 | **Present in a reference config** | `liquid_transfer.yaml` and `gas_compression.yaml` (single-domain, T3-4), `liquid_valve_train.yaml` (T7-1), and `olefins_lite.yaml` (T5-5) - the two-domain train coupled through V-101 inventory. It is not yet the full seven-device V1 train: `E-101` is absent, and PV-101/LV-101 are manual. |
 | **Controllers** | The PID block, modes, loop config, loop execution and controller action (T8-1 to T8-4, T8-6) all exist. PIC-101 is configured direct-acting and executes every step, and holds its setpoint in AUTO, but the fixture configures it MANUAL (see its `controllers` comment). LIC-101 is not configured at all - a `controllers.pv` can only name a node's pressure until instruments are in C3. |
-| **Envelopes** | The evaluator, limit config and excursion tracker (T9-1 to T9-3) all exist, and Engine classifies every resolved limit each step (T9-4). Only `V-101.level` resolves - `K-101.discharge_pressure` and `P-101.flow` are configured but unresolvable today, the same tag-to-point gap `LIC-101` above hits, generalised past pressure. |
+| **Envelopes** | The evaluator, limit config and excursion tracker (T9-1 to T9-3) all exist, and Engine classifies every configured limit each step (T9-4). `V-101.level` is a device field; `K-101.outlet_pressure` and `P-101.flow` are solved points the engine publishes on each machine's row (T9-5). A limit naming no published number is refused when the plant is built. |
 | **Not built at all** | Nothing on the diagram's device list - every V1 device has a model. |
 
 ### What ADR 0002 settles about the separator

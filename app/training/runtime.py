@@ -41,10 +41,8 @@ plant state. A rebuilt runtime (a scenario abort) starts a fresh history.
 **One lock covers step, act, acknowledge and the history read**, so an
 acknowledge can never land between a step's events and their record.
 
-Not here: interlock state in `capture_state`, trips on a solved node value
-(`PSHH-101` is still warned about and skipped, the tag-to-point resolver gap),
-restart permissives (no C3 key), and filling the snapshot's `alarms` field,
-which is a C4 change.
+Not here: interlock state in `capture_state`, restart permissives (no C3
+key), and filling the snapshot's `alarms` field, which is a C4 change.
 """
 
 from __future__ import annotations

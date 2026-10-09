@@ -39,7 +39,6 @@ nothing enters SHUTTING_DOWN on its own: a caller does, through `advance`.
 
 from __future__ import annotations
 
-import warnings
 from collections.abc import Mapping, Sequence
 from enum import StrEnum
 
@@ -186,11 +185,9 @@ class PlantStateMachine:
             row = snapshot.equipment[condition.tag]
 
             if condition.variable not in row:
-                warnings.warn(
-                    f"plant state gate {edge[0]} -> {edge[1]} condition {point} does "
-                    f"not resolve against the equipment section the snapshot "
-                    f"publishes and will always block",
-                    stacklevel=3,
+                errors.append(
+                    f"{edge[0]} -> {edge[1]}: {point} is not published, "
+                    f"{condition.tag} has {sorted(row)}",
                 )
             elif number(row[condition.variable]) is None:
                 errors.append(f"{edge[0]} -> {edge[1]}: {point} is not a number")

@@ -10,7 +10,6 @@ the bottom runs the reference plant, where the trip is a real process variable.
 
 import threading
 import time
-import warnings
 from pathlib import Path
 
 import pytest
@@ -378,9 +377,7 @@ def test_with_no_limits_and_no_interlocks_it_steps_exactly_like_a_bare_engine():
 def test_overfilling_the_separator_raises_alarms_then_trips_the_feed_pump():
     plant = load_plant_file(PLANT_FILE)
 
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        runtime = PlantRuntime.from_plant(plant)
+    runtime = PlantRuntime.from_plant(plant)
 
     runtime.engine.start()
 
@@ -409,6 +406,10 @@ def test_overfilling_the_separator_raises_alarms_then_trips_the_feed_pump():
     assert runtime.snapshot().equipment["V-101"]["level"] >= 0.9
     assert not runtime.engine.equipment["P-101"].running
 
+    # P-101 is built stopped and backflows until it is started, so its flow
+    # alarm comes first; the vessel's own alarms follow it.
     raised = [entry for entry in runtime.alarm_entries() if isinstance(entry, Event)]
-    assert [event.message.split()[0] for event in raised][:2] == ["V-101", "V-101"]
-    assert any("HIHI" in event.message for event in raised)
+    assert raised[0].message.startswith("P-101 flow")
+    vessel = [event for event in raised if event.message.startswith("V-101")]
+    assert len(vessel) >= 2
+    assert any("HIHI" in event.message for event in vessel)

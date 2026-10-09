@@ -221,6 +221,56 @@
     },
     "since": 0.0
    }
+  },
+  "K-101": {
+   "outlet_pressure": {
+    "evaluator": {
+     "band": null,
+     "pending": null,
+     "pending_elapsed": 0.0
+    },
+    "tracker": {
+     "elapsed": 14500.0,
+     "time_in_band": {
+      "WARNING": 0.0,
+      "ALARM": 0.0,
+      "TRIP": 0.0
+     },
+     "peak": null
+    },
+    "band": {
+     "severity": "NORMAL",
+     "side": null
+    },
+    "since": 0.0
+   }
+  },
+  "P-101": {
+   "flow": {
+    "evaluator": {
+     "band": null,
+     "pending": null,
+     "pending_elapsed": 0.0
+    },
+    "tracker": {
+     "elapsed": 14500.0,
+     "time_in_band": {
+      "WARNING": 0.0,
+      "ALARM": 0.0,
+      "TRIP": 0.0
+     },
+     "peak": {
+      "severity": "TRIP",
+      "magnitude": 80.0000000000345,
+      "timestamp": 0.0
+     }
+    },
+    "band": {
+     "severity": "NORMAL",
+     "side": null
+    },
+    "since": 1.0
+   }
   }
  }
 }

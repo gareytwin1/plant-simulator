@@ -462,3 +462,27 @@ def test_a_refusal_waits_out_a_poll_in_flight_and_then_resyncs():
     )
 
     assert got == {"results": 2, "phase": "Running"}
+
+
+@needs_node
+def test_a_request_that_never_finishes_does_not_claim_nothing_changed_and_resyncs():
+    got = run_js(
+        STUB
+        + """
+        const { els, doc } = page("loaded", "T");
+        const calls = [];
+        const fetchImpl = async url => {
+          calls.push(url);
+          if (url.endsWith("start")) throw new Error("timed out");
+          return reply(200, { phase: "running", title: "T" });
+        };
+        S.mount(doc, { fetch: fetchImpl, pollMs: 0 });
+        await els["scenario-start"].listeners.click();
+        return { calls, notice: els["scenario-notice"].textContent, phase: els["scenario-phase"].textContent };
+        """,
+    )
+
+    assert got["calls"] == ["/api/scenario/start", "/api/scenario/result"]
+    assert got["phase"] == "Running"
+    assert "nothing was changed" not in got["notice"]
+    assert "did not finish" in got["notice"]

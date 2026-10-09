@@ -39,6 +39,8 @@
       return "That scenario is no longer running, so there is nothing to abort.";
     }
     if (status === 429) return "Too many requests. Wait a moment and try again.";
+    // The request may have reached the server before it failed.
+    if (status === 0) return "The request did not finish, so the status shown has been refreshed. Check it before trying again.";
     return "Something went wrong, so nothing was changed. Try again.";
   };
 
@@ -221,6 +223,7 @@
         }
       } catch (error) {
         notice(api.refusalText(action, 0));
+        resync = true;
       } finally {
         state.busy = false;
         render();

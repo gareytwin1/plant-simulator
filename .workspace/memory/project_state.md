@@ -53,7 +53,9 @@ AUTO in `olefins_lite.yaml`, which T8-6 enabled but no task owns yet.
 field). T10-4 and T11-4 are V1.1-deferred; T19-1 and T19-2 are deferred
 further still, to **V2**. M15, M16 and M17 are all Complete.
 
-**Next by leverage:** **close CP-G** (T9-5 and T10-6 changed what the console shows, so do it now, on the new bands and wording): T16-15 now lets a scenario run from the console, so run each of the six scenarios in a real browser (`flask --app app.main run`, Load on `/`, Start run on `/console`). Only `pump_trip` has been run by hand, in one theme at desktop width; still to see are the other five, both themes, phone width, a real alarm marker on the trend, and the T10-6 pen names and alarm wording. Then Checkpoint D's remaining gate (PIC-101 in AUTO, which T8-6 enabled and no task owns). Candidate Opus tasks: units per trend point, and a tripped-equipment state in the snapshot. `app/main.py` and `app/config.py` are free.
+**CP-G passed for the current console** (user's browser pass, 9 October 2026). The console is about to be redesigned, so the full pass (all six scenarios, both themes, phone width, a real alarm marker) is an acceptance criterion of that redesign rather than repeated on this console.
+
+**Next by leverage:** **the interface and interaction redesign** - start with `/align` on Opus, then a new build-plan milestone. Checkpoint D's remaining gate (PIC-101 in AUTO, which T8-6 enabled and no task owns) is backend and can run in parallel. Candidate Opus tasks: units per trend point, and a tripped-equipment state in the snapshot. `app/main.py` and `app/config.py` are free.
 
 **Scheduling notes.** The spine lock is one global lock
 ([DEVELOPMENT.md](../../DEVELOPMENT.md#file-ownership)); it is free. **The container runs
@@ -153,6 +155,18 @@ scope, and item 1 in particular reads like a bug and is not.
    on C1, a **spine change**, before anything relies on `reset()` for a loaded
    plant. `restore_state` (T12-1) does not use `reset()`, so it is unaffected.
    Needs an Opus decision.
+3. **Every scenario runs on one schematic** (user, 9 October 2026). All six
+   scenarios load `olefins_lite`, and the console hard-wires one graphic
+   (`static/graphics/plant.svg` in `templates/console.html`). Acceptable for
+   now; expanding training later means scenarios on different plants, each
+   with its own schematic, so the graphic has to follow the scenario's plant.
+4. **The plant has one controller** (user, 9 October 2026). `olefins_lite`
+   configures only PIC-101; a real operator adjusts several loops: level,
+   pressure, feed flow, compressor speed. The redesign's interaction work
+   covers adjusting many loops, but more loops is also a plant-config and
+   backend change: `controllers.pv` resolves only a node id (see "Known
+   technical debt"), so a level or flow loop needs that widened first.
+
 ## Traps for the next tasks
 
 - **Mass-balance identity** (ADR 0002 §7.1) is written down and checked in

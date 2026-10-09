@@ -319,6 +319,7 @@ def test_the_console_renders_free_play_with_no_scenario_text(client):
     assert ">Free play<" in page
     assert "js/scenario.js" in page
     assert "ScenarioBar.mount(document)" in page
+    assert page.index("Trends.mount") < page.index("ScenarioBar.mount")
 
 
 def test_the_consoles_first_render_carries_the_standing_phase_and_title(client):
@@ -486,3 +487,28 @@ def test_a_request_that_never_finishes_does_not_claim_nothing_changed_and_resync
     assert got["phase"] == "Running"
     assert "nothing was changed" not in got["notice"]
     assert "did not finish" in got["notice"]
+    assert "refreshed" not in got["notice"]
+
+
+@needs_node
+@pytest.mark.parametrize("action", ["start", "abort"])
+def test_a_5xx_does_not_claim_nothing_changed_and_resyncs(action):
+    got = run_js(
+        STUB
+        + """
+        const { els, doc } = page(data.action === "start" ? "loaded" : "running", "T");
+        const calls = [];
+        const fetchImpl = async url => {
+          calls.push(url);
+          return url.endsWith("result") ? reply(200, { phase: "running", title: "T" }) : reply(500, {});
+        };
+        S.mount(doc, { fetch: fetchImpl, pollMs: 0 });
+        if (data.action === "abort") els["scenario-abort"].listeners.click();
+        await els[data.action === "start" ? "scenario-start" : "scenario-abort-confirm"].listeners.click();
+        return { calls, notice: els["scenario-notice"].textContent };
+        """,
+        action=action,
+    )
+
+    assert got["calls"][-1] == "/api/scenario/result"
+    assert "nothing was changed" not in got["notice"]

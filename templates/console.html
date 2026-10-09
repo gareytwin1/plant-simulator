@@ -59,7 +59,6 @@
 <script>
   (function () {
     var consoleEl = document.getElementById("console");
-    ScenarioBar.mount(document);
     AlarmConsole.mount(
       document.getElementById("alarm-banner"),
       document.getElementById("alarm-summary"),
@@ -80,6 +79,8 @@
         try { trends.update(snapshot); } catch (error) { console.error(error); }
       }
     });
+    // Last, and isolated: a bar that cannot mount must not take the console with it.
+    try { ScenarioBar.mount(document); } catch (error) { console.error(error); }
   })();
 </script>
 {% endblock %}

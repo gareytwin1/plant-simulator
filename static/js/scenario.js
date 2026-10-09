@@ -40,7 +40,7 @@
     }
     if (status === 429) return "Too many requests. Wait a moment and try again.";
     // The request may have reached the server before it failed.
-    if (status === 0) return "The request did not finish, so the status shown has been refreshed. Check it before trying again.";
+    if (status === 0 || status >= 500) return "The request did not finish. The status shown may be out of date, so check it before trying again.";
     return "Something went wrong, so nothing was changed. Try again.";
   };
 
@@ -219,7 +219,7 @@
           apply(200, result.body);
         } else {
           notice(api.refusalText(action, result.status));
-          resync = result.status === 409;
+          resync = result.status !== 429;
         }
       } catch (error) {
         notice(api.refusalText(action, 0));

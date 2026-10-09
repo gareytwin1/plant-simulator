@@ -48,8 +48,9 @@ equipment row the snapshot publishes - the device's own `get_state()` field
 or a solved point the engine composes onto it (T9-5) - checked once at
 construction against the snapshot the gate is built on: an unknown device, a
 field the row does not carry, or one that is not a number, is refused with
-every such problem reported together. Unlike a trip condition, a reading that later goes missing, non-numeric or non-finite is
-**unsatisfied**: a lost transmitter must not permit a start.
+every such problem reported together. Unlike a trip condition, a reading that
+later goes missing, non-numeric or non-finite is **unsatisfied**: a lost
+transmitter must not permit a start.
 """
 
 from __future__ import annotations

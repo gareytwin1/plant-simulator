@@ -11,7 +11,6 @@ while the true value stays exactly where the twin has it.
 """
 
 import json
-import warnings
 from pathlib import Path
 
 import pytest
@@ -106,14 +105,11 @@ def build(entry):
 
     start_machines(plant)
 
-    with warnings.catch_warnings():
-        # olefins_lite names limits no device publishes yet; unrelated here.
-        warnings.simplefilter("ignore", UserWarning)
-        engine = Engine.from_plant(
-            plant,
-            boundary_temperatures=boundary_temperatures,
-            instruments=instruments,
-        )
+    engine = Engine.from_plant(
+        plant,
+        boundary_temperatures=boundary_temperatures,
+        instruments=instruments,
+    )
 
     if "E-101" in engine.equipment:
         # Nothing in a running plant writes an exchanger's inlet temperature

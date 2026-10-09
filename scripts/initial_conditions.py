@@ -37,6 +37,7 @@ from pathlib import Path
 
 from app.engine.engine import Engine
 from app.engine.persistence import capture_state
+from app.envelope.tracker import TrackerCheckpoint
 from app.plant.loader import load_plant_file
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -164,8 +165,29 @@ CONDITIONS: dict[str, Callable[[], Engine]] = {
 }
 
 
+def _forget_construction_excursions(engine: Engine) -> None:
+    """Clear a peak recorded by the classification an engine runs as it is
+    built (dt = 0), when the plant has not yet been brought to its state.
+
+    A tracker that has spent no time in any band cannot have had an excursion
+    that lasted: its peak is that instant, on a plant still stopped (P-101
+    backflowing past its trip bound). Saved, it would reach every run
+    restored from the condition as a trip-severity peak nobody caused.
+    """
+    for tracker in engine.trackers.values():
+        checkpoint = tracker.checkpoint()
+
+        if checkpoint.peak is not None and not any(checkpoint.time_in_band.values()):
+            tracker.restore_checkpoint(
+                TrackerCheckpoint(checkpoint.elapsed, checkpoint.time_in_band, None),
+            )
+
+
 def render(name: str) -> str:
-    return json.dumps(capture_state(CONDITIONS[name]()), indent=1) + "\n"
+    engine = CONDITIONS[name]()
+    _forget_construction_excursions(engine)
+
+    return json.dumps(capture_state(engine), indent=1) + "\n"
 
 
 def main() -> None:

@@ -217,6 +217,7 @@ class Engine:
             for domain, graph in self.topologies.items()
         }
         self.solver_results: dict[str, SolverResult] = {}
+        self._branch_of: dict[str, Branch] = self._single_branches()
         self.couplings: list[VesselCoupling] = list(couplings)
         self.instruments: dict[str, Instrument] = {}
         self.loops: dict[str, LoopBinding] = {}
@@ -559,16 +560,20 @@ class Engine:
         return indicate(self._truth(), self.instruments.values())
 
     def _truth(self) -> dict[str, dict[str, dict[str, JSONValue]]]:
-        points = self._device_points()
         equipment: dict[str, dict[str, JSONValue]] = {}
 
         for tag, device in self.equipment.items():
             row = dict(device.get_state())
-            row.update(
-                (name, value)
-                for name, value in points.get(tag, {}).items()
-                if name not in row
-            )
+            branch = self._branch_of.get(tag)
+
+            if branch is not None:
+                for name, value in (
+                    ("flow", branch.flow),
+                    ("inlet_pressure", branch.from_node.pressure),
+                    ("outlet_pressure", branch.to_node.pressure),
+                ):
+                    row.setdefault(name, value)
+
             equipment[tag] = row
 
         nodes: dict[str, dict[str, JSONValue]] = {}
@@ -586,13 +591,12 @@ class Engine:
 
         return {"equipment": equipment, "nodes": nodes, "streams": streams}
 
-    def _device_points(self) -> dict[str, dict[str, JSONValue]]:
-        """The solved points of every device that sits in exactly one
-        branch: that branch's flow and the pressures at its two ends.
-        A branch is wired inlet-first (C2), so `from_node` is the inlet and
+    def _single_branches(self) -> dict[str, Branch]:
+        """Every device that sits in exactly one branch, with that branch. A
+        branch is wired inlet-first (C2), so `from_node` is the inlet and
         `to_node` the outlet whatever the ports are called. A device in no
         branch, or in several, has no single flow or pair of pressures of
-        its own and gets none (see the module docstring)."""
+        its own and is left out (see the module docstring)."""
         branches: dict[str, list[Branch]] = {}
 
         for graph in self.topologies.values():
@@ -600,13 +604,7 @@ class Engine:
                 branches.setdefault(branch.device.tag, []).append(branch)
 
         return {
-            tag: {
-                "flow": branch.flow,
-                "inlet_pressure": branch.from_node.pressure,
-                "outlet_pressure": branch.to_node.pressure,
-            }
-            for tag, (branch, *others) in branches.items()
-            if not others
+            tag: found[0] for tag, found in branches.items() if len(found) == 1
         }
 
     def _couple(self) -> None:

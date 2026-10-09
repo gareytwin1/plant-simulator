@@ -259,11 +259,7 @@
       "ALARM": 0.0,
       "TRIP": 0.0
      },
-     "peak": {
-      "severity": "TRIP",
-      "magnitude": 80.0000000000345,
-      "timestamp": 0.0
-     }
+     "peak": null
     },
     "band": {
      "severity": "NORMAL",

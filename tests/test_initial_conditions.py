@@ -168,3 +168,19 @@ def test_a_condition_refuses_to_load_onto_a_different_plant():
 
     with pytest.raises(StateError):
         restore_state(engine, saved)
+
+
+@pytest.mark.parametrize("name", NAMES)
+def test_no_condition_carries_a_peak_it_spent_no_time_in(name):
+    """A tracker with no time in any band has no excursion to remember. The
+    classification an engine runs as it is built sees P-101 stopped and
+    backflowing; saved, that instant would reach every run restored from a
+    clean condition as a trip-severity peak nobody caused."""
+    saved = json.loads((LIBRARY / f"{name}.json").read_text())
+
+    for tag, variables in saved["envelope"].items():
+        for variable, row in variables.items():
+            tracker = row["tracker"]
+
+            if not any(tracker["time_in_band"].values()):
+                assert tracker["peak"] is None, f"{tag}.{variable}"

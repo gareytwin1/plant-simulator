@@ -14,7 +14,6 @@ import json
 import re
 import shutil
 import subprocess
-import warnings
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -139,25 +138,24 @@ def render(snapshot, svg_text=None):
 @pytest.fixture(scope="module")
 def views():
     """Operator views of the plant: free play as it starts, then the
-    pump_trip scenario at its first envelope band (`lo`, a warning) and at its
-    trip band (`lololo`, V-101's level)."""
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        normal = TrainingSession()
-        normal_view = normal.operator_view(normal.step(1.0))
+    pump_trip scenario at the first band on V-101's level (`lo`, a warning) and at
+    its trip band (`lololo`). P-101.flow sits in its own trip band from the
+    moment the pump stops and backflows."""
+    normal = TrainingSession()
+    normal_view = normal.operator_view(normal.step(1.0))
 
-        session = TrainingSession()
-        session.load("pump_trip")
-        session.start()
-        out = {"normal": normal_view}
-        for _ in range(600):
-            view = session.operator_view(session.step(1.0))
-            bands = [row["band"] for row in view["envelope"].values()]
-            if "alarm" not in out and bands == ["lo"]:
-                out["alarm"] = view
-            if "lololo" in bands:
-                out["tripped"] = view
-                break
+    session = TrainingSession()
+    session.load("pump_trip")
+    session.start()
+    out = {"normal": normal_view}
+    for _ in range(600):
+        view = session.operator_view(session.step(1.0))
+        level = view["envelope"].get("V-101.level", {}).get("band")
+        if "alarm" not in out and level == "lo":
+            out["alarm"] = view
+        if level == "lololo":
+            out["tripped"] = view
+            break
     assert set(out) == {"normal", "alarm", "tripped"}
     return out
 
@@ -172,7 +170,7 @@ def test_normal_plant_shows_running_machines_forward_flow_and_no_band(views):
     assert shown.flow("streams.B-P-101.flow") == {"forward"}
     assert shown.flow("streams.B-LV-101.flow") == {"forward"}
     assert shown.bind("equipment.V-101.level")[0] == "50%"
-    assert shown.bind("streams.B-P-101.flow")[0] == "50.0 GPM"
+    assert shown.bind("equipment.P-101.flow")[0] == "50.0 GPM"
     assert {e["attrs"].get("data-band", "none") for e in shown.elements} == {"none"}
     assert shown.unplaced == []
     assert shown.note() == ""
@@ -188,6 +186,9 @@ def test_alarm_state_shows_stopped_pump_reverse_flow_and_the_band_on_the_vessel(
     assert shown.tag("V-101")["data-band"] == "warning"
     assert shown.band_text("V-101") == "● LO"
     assert shown.bind("equipment.V-101.level")[1]["data-band"] == "warning"
+    assert shown.tag("P-101")["data-band"] == "trip"
+    assert shown.band_text("P-101") == "▲ LOLOLO"
+    assert shown.bind("equipment.P-101.flow")[1]["data-band"] == "trip"
     assert shown.tag("K-101")["data-band"] == "none"
 
 
@@ -205,7 +206,7 @@ def test_tripped_state_shows_the_trip_band_on_the_point_that_crossed_it(views):
 @needs_node
 def test_an_alarm_band_reads_as_the_alarm_severity_on_its_own_device(views):
     snapshot = copy.deepcopy(views["normal"])
-    snapshot["envelope"] = {"K-101.discharge_pressure": {"band": "hihi", "since": 14500.0}}
+    snapshot["envelope"] = {"K-101.outlet_pressure": {"band": "hihi", "since": 14500.0}}
 
     shown = render(snapshot)
 
@@ -302,12 +303,12 @@ def test_an_empty_or_malformed_snapshot_draws_placeholders_and_does_not_throw(sn
 @needs_node
 def test_a_missing_value_is_marked_and_a_present_one_is_not(views):
     snapshot = copy.deepcopy(views["normal"])
-    snapshot["streams"]["B-P-101"]["flow"] = None
+    snapshot["equipment"]["P-101"]["flow"] = None
 
     shown = render(snapshot)
 
-    assert shown.bind("streams.B-P-101.flow")[0] == "--"
-    assert shown.bind("streams.B-P-101.flow")[1]["data-missing"] == "true"
+    assert shown.bind("equipment.P-101.flow")[0] == "--"
+    assert shown.bind("equipment.P-101.flow")[1]["data-missing"] == "true"
     assert "data-missing" not in shown.bind("streams.B-LV-101.flow")[1]
 
 

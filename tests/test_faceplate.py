@@ -25,7 +25,6 @@ FACEPLATE_JS = ROOT / "static" / "js" / "faceplate.js"
 FACEPLATE_CSS = ROOT / "static" / "css" / "faceplate.css"
 TOKENS_CSS = ROOT / "static" / "css" / "tokens.css"
 
-pytestmark = pytest.mark.filterwarnings("ignore:envelope limit", "ignore:interlock")
 
 needs_node = pytest.mark.skipif(shutil.which("node") is None, reason="node is not installed")
 

@@ -69,15 +69,12 @@ falling because the feed pump stopped, a second interlock latching on that
 level - is the solver's answer to the new slow state, not anything this
 module scripts. That is how a cascade trip propagates: through the network.
 
-Like T9-4's `limits`, an interlock `condition` resolves only against a field a
-device's own `get_state()` publishes, read from the snapshot's indicated
-equipment section. One that names a solved node or branch quantity
-(`K-101.discharge_pressure`) is warned about once, at construction, and then
-never evaluated - the same tag-to-point resolver gap `app/engine/engine.py`'s
-module docstring documents. Its actions are still validated and bound, so it
-starts working the moment that resolver lands. A condition naming a device
-the plant does not have is refused outright, like an unknown action: a
-typo must not leave a trip silently inert. A condition that resolves
+Like T9-4's `limits`, an interlock `condition` resolves against a field of
+the snapshot's indicated equipment section: a device's own `get_state()`
+field, or one of the solved points the engine composes onto its row (T9-5),
+such as `K-101.outlet_pressure`. A condition naming a device the plant does
+not have, or a field its row does not carry, is refused outright, like an
+unknown action: a typo must not leave a trip silently inert. A condition
 must read a number at construction; one that stops being a number mid-run,
 or stops being published at all, is evaluated as NaN, which T11-1's
 `Condition` fails safe on - a lost reading drives the trip timer rather than
@@ -91,11 +88,8 @@ engine advances no delay.
 from __future__ import annotations
 
 import math
-import sys
-import warnings
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from types import FrameType
 
 from app.controls.arbitration import AGREEMENT, Actuator, CommandArbiter, Source
 from app.engine.snapshot import Snapshot
@@ -246,8 +240,7 @@ class TripSystem:
                 errors.append(f"interlock {tag}: {error}")
 
         errors.extend(self._conflicts())
-        unresolved: list[str] = []
-        self.evaluated = self._resolve_conditions(snapshot, equipment, errors, unresolved)
+        errors.extend(self._unresolved(snapshot, equipment))
         self._last_time = snapshot.sim_time
 
         if errors:
@@ -255,9 +248,6 @@ class TripSystem:
                 f"interlocks rejected, {len(errors)} problem(s):\n"
                 + "\n".join(f"  {error}" for error in errors),
             )
-
-        for message in unresolved:
-            warnings.warn(message, stacklevel=_outside_this_module())
 
         for actions in self.actions.values():
             for action in actions:
@@ -286,7 +276,7 @@ class TripSystem:
         return tuple(tag for tag, interlock in self.interlocks.items() if interlock.tripped)
 
     def update(self, snapshot: Snapshot) -> None:
-        """Evaluate every resolvable interlock on `snapshot`, hold or release
+        """Evaluate every interlock on `snapshot`, hold or release
         each one's demands, and apply the arbiter. Call it immediately before
         `Engine.step`, on the latest snapshot - see the module docstring."""
         dt = snapshot.sim_time - self._last_time
@@ -299,8 +289,7 @@ class TripSystem:
 
         self._last_time = snapshot.sim_time
 
-        for tag in self.evaluated:
-            interlock = self.interlocks[tag]
+        for interlock in self.interlocks.values():
             condition = interlock.definition.condition
             row = snapshot.equipment.get(condition.tag, {})
             value = number(row.get(condition.variable))
@@ -335,19 +324,14 @@ class TripSystem:
 
         return errors
 
-    def _resolve_conditions(
+    def _unresolved(
         self,
         snapshot: Snapshot,
         equipment: Mapping[str, Equipment],
-        errors: list[str],
-        unresolved: list[str],
-    ) -> tuple[str, ...]:
-        """The interlocks whose condition reads a published number. A
-        condition naming no device of this plant, or a published field that
-        is not a number, is a configuration fault and joins `errors`; only an
-        existing device's unpublished variable - the resolver gap - joins
-        `unresolved`, to be warned about once construction succeeds."""
-        evaluated: list[str] = []
+    ) -> list[str]:
+        """Every condition that names no device of this plant, or no number
+        on the equipment row the snapshot publishes for it."""
+        errors: list[str] = []
 
         for tag, interlock in self.interlocks.items():
             condition = interlock.definition.condition
@@ -363,23 +347,17 @@ class TripSystem:
             row = snapshot.equipment.get(condition.tag, {})
 
             if condition.variable not in row:
-                unresolved.append(
-                    f"interlock {tag} condition {point} does not resolve "
-                    f"against the equipment section the snapshot publishes "
-                    f"and will not be evaluated",
+                errors.append(
+                    f"interlock {tag}: condition {point} is not published, "
+                    f"{condition.tag} has {sorted(row)}",
                 )
-                continue
-
-            if number(row[condition.variable]) is None:
+            elif number(row[condition.variable]) is None:
                 errors.append(
                     f"interlock {tag}: condition {point} is "
                     f"{row[condition.variable]!r}, not a number",
                 )
-                continue
 
-            evaluated.append(tag)
-
-        return tuple(evaluated)
+        return errors
 
 
 def number(value: JSONValue) -> float | None:
@@ -387,18 +365,3 @@ def number(value: JSONValue) -> float | None:
         return None
 
     return float(value)
-
-
-def _outside_this_module() -> int:
-    """The `warnings.warn` stacklevel of the first frame outside this file,
-    counted from the caller, so a warning names the code that built the trip
-    system whichever constructor it went through. (`skip_file_prefixes` does
-    not skip frames on the Python 3.12 this project pins.)"""
-    frame: FrameType | None = sys._getframe(1)
-    level = 1
-
-    while frame is not None and frame.f_code.co_filename == __file__:
-        frame = frame.f_back
-        level += 1
-
-    return level

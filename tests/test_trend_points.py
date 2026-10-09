@@ -6,14 +6,10 @@ import pytest
 
 from app import config
 from app.api.visibility import VISIBLE
-from app.engine.engine import Engine
 from app.historian.points import trend_values
 from app.plant.loader import load_plant_file
 from app.training.runtime import PlantRuntime
 from tests.test_training_runtime import PLANT_FILE
-
-
-pytestmark = pytest.mark.filterwarnings("ignore:envelope limit", "ignore:interlock")
 
 
 def test_each_section_contributes_only_its_allowlisted_fields():

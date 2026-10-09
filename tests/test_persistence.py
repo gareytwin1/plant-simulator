@@ -29,8 +29,6 @@ from app.equipment.relief import ReliefValve
 from app.plant.loader import load_plant_file
 
 
-pytestmark = pytest.mark.filterwarnings("ignore:envelope limit")
-
 CONFIG = Path(__file__).resolve().parent.parent / "config" / "plants"
 OLEFINS = CONFIG / "olefins_lite.yaml"
 GAS = CONFIG / "gas_compression.yaml"

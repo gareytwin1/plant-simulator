@@ -37,8 +37,6 @@ from app.scenarios.runner import (
 )
 
 
-pytestmark = pytest.mark.filterwarnings("ignore:envelope limit")
-
 CONFIG = Path(__file__).resolve().parent.parent / "config"
 DT = 1.0
 

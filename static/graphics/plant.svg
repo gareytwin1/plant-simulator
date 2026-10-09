@@ -69,7 +69,7 @@
     <text class="sym" x="190" y="90">K</text>
     <text class="tag" x="190" y="54">K-101</text>
     <text x="190" y="134" data-bind="equipment.K-101.load" data-format="percent">--</text>
-    <text x="190" y="152" data-bind="streams.B-K-101.flow" data-unit="SCFM">--</text>
+    <text x="190" y="152" data-bind="equipment.K-101.flow" data-unit="SCFM">--</text>
     <rect class="badge" x="152" y="158" width="76" height="22" rx="4" />
     <text x="190" y="174" data-state-of="K-101">--</text>
     <text x="190" y="198" data-band-of="K-101"></text>
@@ -118,7 +118,7 @@
     <text class="sym" x="120" y="300">P</text>
     <text class="tag" x="120" y="264">P-101</text>
     <text x="120" y="344" data-bind="equipment.P-101.speed" data-format="percent">--</text>
-    <text x="120" y="362" data-bind="streams.B-P-101.flow" data-unit="GPM">--</text>
+    <text x="120" y="362" data-bind="equipment.P-101.flow" data-unit="GPM">--</text>
     <rect class="badge" x="82" y="368" width="76" height="22" rx="4" />
     <text x="120" y="384" data-state-of="P-101">--</text>
     <text x="120" y="408" data-band-of="P-101"></text>

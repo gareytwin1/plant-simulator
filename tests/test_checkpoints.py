@@ -15,9 +15,9 @@ import pytest
 from app.controls.arbitration import ArbiterCheckpoint, CommandArbiter, Source
 from app.controls.modes import Loop, Mode
 from app.controls.pid import PID, Action
-from app.engine.engine import Engine, EngineCheckpoint
-from app.envelope.evaluator import Band, Evaluator, EvaluatorCheckpoint, Limits, Severity
-from app.envelope.tracker import Excursion, ExcursionTracker, TrackerCheckpoint
+from app.engine.engine import Engine
+from app.envelope.evaluator import Band, Evaluator, Limits, Severity
+from app.envelope.tracker import Excursion, ExcursionTracker
 from app.equipment.vessel import Vessel
 from app.statetypes import StateError
 

@@ -31,11 +31,13 @@ TRENDS_JS = ROOT / "static" / "js" / "trends.js"
 TRENDS_CSS = ROOT / "static" / "css" / "trends.css"
 TOKENS_CSS = ROOT / "static" / "css" / "tokens.css"
 
-pytestmark = pytest.mark.filterwarnings("ignore:envelope limit", "ignore:interlock")
 
 needs_node = pytest.mark.skipif(shutil.which("node") is None, reason="node is not installed")
 
 LEVEL = "V-101.level"
+# Every point with evaluated limits, then PIC-101's PV and SP. K-101's and
+# P-101's are solved points the engine publishes on each machine's row (T9-5).
+DEFAULTS = ["K-101.outlet_pressure", "P-101.flow", LEVEL, "PIC-101.pv", "PIC-101.sp"]
 STEPS = 40
 
 
@@ -113,7 +115,7 @@ def test_the_default_pens_are_the_limited_points_then_each_loops_pv_and_sp(free)
         **free,
     )
 
-    assert chosen == [LEVEL, "PIC-101.pv", "PIC-101.sp"]
+    assert chosen == DEFAULTS
 
 
 @needs_node
@@ -122,7 +124,7 @@ def test_the_default_pens_never_exceed_the_servers_bound(free):
         "return T.defaultSelection(data.points.points, data.points.limits, data.snapshot.controllers, 2);", **free,
     )
 
-    assert chosen == [LEVEL, "PIC-101.pv"]
+    assert chosen == DEFAULTS[:2]
 
 
 @needs_node
@@ -593,11 +595,11 @@ def test_the_first_snapshot_draws_the_default_pens_with_their_bands(free):
         served=served(free), snapshot=free["snapshot"],
     )
 
-    assert result["pens"] == [LEVEL, "PIC-101.pv", "PIC-101.sp"]
+    assert result["pens"] == DEFAULTS
     assert 'class="trend-band"' in result["chart"]
-    assert "HI 0.8" in result["chart"] and "LOLOLO 0.1" in result["chart"]
-    assert result["legend"].count("trend-pen-row") == 3
-    assert any(call.startswith("/api/trend?tags=V-101.level,PIC-101.pv,PIC-101.sp&from=") for call in result["calls"])
+    assert "HI 330" in result["chart"] and "HIHIHI 350" in result["chart"]
+    assert result["legend"].count("trend-pen-row") == len(DEFAULTS)
+    assert any(call.startswith(f"/api/trend?tags={','.join(DEFAULTS)}&from=") for call in result["calls"])
 
 
 @needs_node
@@ -693,8 +695,8 @@ def test_removing_adding_focusing_and_the_span_persist_in_storage(free):
         served=served(free), snapshot=free["snapshot"],
     )
 
-    assert result["afterRemove"] == [LEVEL, "PIC-101.pv"]
-    assert result["pens"] == [LEVEL, "PIC-101.pv", "N-101.pressure"]
+    assert result["afterRemove"] == DEFAULTS[:-1]
+    assert result["pens"] == [*DEFAULTS[:-1], "N-101.pressure"]
     assert result["stored"] == {"span": 5, "selection": result["pens"], "focus": "PIC-101.pv"}
     assert "from=" in result["url"]
     sim_time = free["snapshot"]["sim_time"]
@@ -816,7 +818,7 @@ def test_changing_the_focus_or_a_pen_does_rebuild_the_legend(free):
     )
 
     assert result["after"] == result["before"] + 1
-    assert re.search(r'data-pen="2" data-focus="true"', result["legend"])
+    assert re.search(r'data-pen="4" data-focus="true"', result["legend"])
 
 
 @needs_node
@@ -985,4 +987,4 @@ def test_a_stored_selection_the_plant_no_longer_publishes_falls_back_to_the_defa
         stored={"span": 10, "selection": ["GONE.a", "GONE.b"], "focus": "GONE.a"},
     )
 
-    assert result == [LEVEL, "PIC-101.pv", "PIC-101.sp"]
+    assert result == DEFAULTS

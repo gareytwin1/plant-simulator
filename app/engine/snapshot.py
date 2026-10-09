@@ -21,6 +21,12 @@ corrupt what another consumer already read, and mutating the caller's
 original input after the fact cannot leak into a Snapshot already built
 from it.
 
+**An equipment row is a device's state plus its solved points (T9-5).** The
+engine adds `flow`, `inlet_pressure` and `outlet_pressure` to the row of a
+device that sits in exactly one branch, from that branch and its two nodes,
+so a consumer names `K-101.outlet_pressure` without reading the topology. The
+device holds none of them; see app/engine/engine.py.
+
 **True and indicated (T13-2).** equipment, nodes and streams — the measured
 sections — are what the plant's instruments *indicate*, not what the physics
 says. That is the reading every consumer takes without asking - today the

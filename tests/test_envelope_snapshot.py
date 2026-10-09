@@ -7,8 +7,9 @@ tests/test_vessel.py already does - so these tests exercise envelope
 classification through a real Engine.step() without needing a plant that
 also converges a network. `V-101.level` is deliberately the same tag and
 variable the reference plant config/plants/olefins_lite.yaml configures a
-real limit against - see the module docstring in app/engine/engine.py for
-why K-101.discharge_pressure and P-101.flow do not resolve today.
+real limit against. The reference plant's other two limits name solved
+points the engine composes onto a device's row (T9-5) and are covered at the
+end of this file.
 """
 
 from pathlib import Path
@@ -236,27 +237,38 @@ def test_the_tracker_captures_the_peak_excursion():
 # A limit that does not resolve against the equipment section
 # --------------------------------------------------------------------------
 
-def test_an_unresolvable_limit_warns_once_and_is_never_evaluated():
+def test_an_unresolvable_limit_is_refused_at_construction():
     config = {
         "limits": [
             {"tag": "V-101", "variable": "not_a_real_field", "hi": 1.0},
+            {"tag": "V-101", "variable": "level", "hi": 0.9},
+            {"tag": "X-999", "variable": "level", "hi": 1.0},
         ],
     }
 
-    with pytest.warns(UserWarning, match="V-101.not_a_real_field"):
-        engine = Engine([Vessel()], limits=load_limits(config))
-
-    assert engine.limits == {}
-    assert engine.trackers == {}
-    assert engine.step(1.0).envelope == {}
+    with pytest.raises(ValueError, match=r"V-101\.not_a_real_field.*X-999\.level"):
+        Engine([Vessel()], limits=load_limits(config))
 
 
-def test_the_reference_plant_builds_with_two_unresolvable_limits():
-    """K-101.discharge_pressure and P-101.flow are solved values this engine
-    has no tag-to-point resolver for yet (the module docstring in
-    app/engine/engine.py explains why) - the plant still builds and runs,
-    and only V-101.level - a device attribute - is actually evaluated."""
-    with pytest.warns(UserWarning):
-        engine = Engine.from_plant(load_plant_file(PLANTS / "olefins_lite.yaml"))
+def test_the_reference_plant_evaluates_every_configured_limit():
+    """K-101.outlet_pressure and P-101.flow are solved values: the engine
+    publishes them on K-101's and P-101's rows (T9-5), so all three limits
+    classify live. The plant file builds P-101 stopped, and a stopped P-101
+    backflows at -100 GPM (olefins_lite.yaml), past its -20 GPM trip bound;
+    started, it runs forward and the band clears."""
+    engine = Engine.from_plant(load_plant_file(PLANTS / "olefins_lite.yaml"))
 
-    assert set(engine.limits) == {("V-101", "level")}
+    assert set(engine.limits) == {
+        ("V-101", "level"),
+        ("K-101", "outlet_pressure"),
+        ("P-101", "flow"),
+    }
+    assert dict(engine.snapshot().envelope["P-101.flow"]) == {"band": "lololo", "since": 0.0}
+
+    engine.equipment["P-101"].start()
+
+    for _ in range(120):
+        snapshot = engine.step(1.0)
+
+    assert snapshot.equipment["P-101"]["flow"] > 0.0
+    assert "P-101.flow" not in snapshot.envelope

@@ -12,8 +12,6 @@ from app.training.runtime import PlantRuntime
 from app.training.session import TrainingSession
 
 
-pytestmark = pytest.mark.filterwarnings("ignore:envelope limit")
-
 SCENARIO = (
     "id: pump-trip\n"
     "plant: olefins_lite\n"

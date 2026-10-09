@@ -9,7 +9,6 @@ below are chosen so cold_shutdown reads cold and normal_operation on-spec.
 
 import dataclasses
 import json
-import warnings
 from pathlib import Path
 from types import MappingProxyType
 
@@ -42,12 +41,10 @@ GATES = {
 
 
 def snapshot_of(name):
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        engine = Engine.from_plant(load_plant_file(OLEFINS))
-        restore_state(engine, json.loads((LIBRARY / f"{name}.json").read_text()))
+    engine = Engine.from_plant(load_plant_file(OLEFINS))
+    restore_state(engine, json.loads((LIBRARY / f"{name}.json").read_text()))
 
-        return engine.step(0.0)
+    return engine.step(0.0)
 
 
 def with_reading(snapshot, tag, variable, value):
@@ -227,10 +224,10 @@ def test_the_machine_refuses_unknown_devices_and_malformed_conditions_together(n
     assert "X-999" in str(raised.value)
 
 
-def test_an_unpublished_variable_is_warned_about_at_construction(normal):
+def test_an_unpublished_variable_is_refused_at_construction(normal):
     gates = {**GATES, (S.COLD, S.PURGED): ["V-101.nonsense >= 0"]}
 
-    with pytest.warns(UserWarning, match="will always block"):
+    with pytest.raises(ValueError, match=r"V-101\.nonsense is not published"):
         PlantStateMachine(normal, gates)
 
 

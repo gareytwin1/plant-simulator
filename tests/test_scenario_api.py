@@ -8,8 +8,6 @@ from app.api.scenario import create_scenario_blueprint
 from app.scenarios.runner import Phase, ScenarioLibrary, ScenarioRunner, scenario_key
 
 
-pytestmark = pytest.mark.filterwarnings("ignore:envelope limit")
-
 SCENARIO = (
     "id: pump-trip\n"
     "plant: olefins_lite\n"

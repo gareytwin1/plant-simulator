@@ -128,18 +128,9 @@ def test_losing_a_permissive_after_start_does_not_stop_the_machine():
     assert machine.running
 
 
-def test_an_unpublished_reading_does_not_permit_a_start():
-    with pytest.warns(UserWarning, match="no_such_variable"):
-        engine, trips, gate, *_, machine, _ = build(
-            permissives=[Permissive.parse(f"{ENABLE}.no_such_variable >= 0.0")],
-        )
-
-    operator_run(engine)
-
-    run(engine, trips, gate, 5.0)
-
-    assert not machine.running
-    assert "not published" in gate.blocked[0]
+def test_a_permissive_on_an_unpublished_variable_is_refused():
+    with pytest.raises(ValueError, match=f"permissive {ENABLE}.no_such_variable is not published"):
+        build(permissives=[Permissive.parse(f"{ENABLE}.no_such_variable >= 0.0")])
 
 
 def test_a_permissive_on_a_published_non_numeric_field_is_refused():

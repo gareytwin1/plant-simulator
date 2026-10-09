@@ -7,8 +7,10 @@ come first: at least four conditions exist, each loads and holds steady, and
 none starts in alarm unless intended. The rest pin what each condition is for.
 
 Two of the four are "intended alarms", and are named in `INTENDED`: a drained
-cold plant reads lo_lo on V-101's level, and the pump-trip upset reads lo. Every
-other condition reads clean.
+cold plant reads lo_lo on V-101's level, and the pump-trip upset reads lo. In
+both P-101 is stopped, so it backflows past its -20 GPM bound and P-101.flow
+reads lo_lo too (the plant has no check valve). Every other condition reads
+clean.
 """
 
 import json
@@ -21,8 +23,6 @@ from app.engine.persistence import STATE_VERSION, StateError, capture_state, res
 from app.plant.loader import load_plant_file
 
 
-pytestmark = pytest.mark.filterwarnings("ignore:envelope limit")
-
 CONFIG = Path(__file__).resolve().parent.parent / "config"
 LIBRARY = CONFIG / "initial_conditions"
 OLEFINS = CONFIG / "plants" / "olefins_lite.yaml"
@@ -31,8 +31,8 @@ GAS = CONFIG / "plants" / "gas_compression.yaml"
 NAMES = ("cold_shutdown", "hot_standby", "normal_operation", "feed_pump_trip")
 STEADY = ("cold_shutdown", "hot_standby", "normal_operation")
 INTENDED = {
-    "cold_shutdown": {"V-101.level": "lololo"},
-    "feed_pump_trip": {"V-101.level": "lo"},
+    "cold_shutdown": {"V-101.level": "lololo", "P-101.flow": "lololo"},
+    "feed_pump_trip": {"V-101.level": "lo", "P-101.flow": "lololo"},
 }
 
 DT = 1.0
@@ -168,3 +168,19 @@ def test_a_condition_refuses_to_load_onto_a_different_plant():
 
     with pytest.raises(StateError):
         restore_state(engine, saved)
+
+
+@pytest.mark.parametrize("name", NAMES)
+def test_no_condition_carries_a_peak_it_spent_no_time_in(name):
+    """A tracker with no time in any band has no excursion to remember. The
+    classification an engine runs as it is built sees P-101 stopped and
+    backflowing; saved, that instant would reach every run restored from a
+    clean condition as a trip-severity peak nobody caused."""
+    saved = json.loads((LIBRARY / f"{name}.json").read_text())
+
+    for tag, variables in saved["envelope"].items():
+        for variable, row in variables.items():
+            tracker = row["tracker"]
+
+            if not any(tracker["time_in_band"].values()):
+                assert tracker["peak"] is None, f"{tag}.{variable}"

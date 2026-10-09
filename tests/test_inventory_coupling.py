@@ -281,7 +281,7 @@ def test_two_branches_at_one_attachment_node_are_summed():
     )
 
     plant = load_plant(config)
-    engine = Engine.from_plant(plant)
+    Engine.from_plant(plant)
     vessel = plant.devices["V-101"]
 
     assert len(plant.topologies["liquid_out"].branches_from("N-101")) == 2
@@ -313,7 +313,7 @@ def test_the_sign_comes_from_port_direction_not_port_name():
         config,
         device_types={"pump": CentrifugalPump, "vessel": CrossNamedVessel},
     )
-    engine = Engine.from_plant(plant)
+    Engine.from_plant(plant)
     vessel = plant.devices["V-101"]
 
     # The port named "outlet" is an INLET, so it fills the vessel; the head

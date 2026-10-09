@@ -144,10 +144,14 @@ equipment:
 # 50.0 GPM) sits on the safe side of every bound below, so a freshly loaded
 # plant reads NORMAL on all three. `trip: true` sends both lo_lo and hi_hi
 # to Evaluator's TRIP severity rather than ALARM (app/envelope/loader.py);
-# P-101's lo_lo is a backflow trip and needs no companion hi_hi.
+# P-101's lo_lo is a backflow trip and needs no companion hi_hi. K-101's hi
+# sits at 330.0, above the 323 psia the cold start in
+# config/sequences/olefins_lite.yaml peaks at: a cold vessel holds about 295
+# psia, and K-101 started against it discharges that much higher until
+# PV-101 vents the headspace down. A correct start-up must not alarm.
 limits:
   - {tag: V-101, variable: level, lo_lo: 0.1, lo: 0.2, hi: 0.8, hi_hi: 0.9, trip: true, deadband: 0.02}
-  - {tag: K-101, variable: discharge_pressure, hi: 320.0, hi_hi: 350.0, trip: true}
+  - {tag: K-101, variable: outlet_pressure, hi: 330.0, hi_hi: 350.0, trip: true}
   - {tag: P-101, variable: flow, lo_lo: -20.0, trip: true}
 # Interlocks (T11-1, app/safety/interlocks.py): one trip per trip-rated limit
 # above, at the same threshold, with one deliberate exception (P-101's
@@ -157,13 +161,11 @@ limits:
 # `delay_s` is the operator's recovery window: how long each condition must
 # persist, once it starts, before the trip latches.
 #
-# Only LSHH-101 and LSLL-101 resolve against a live value today -
-# V-101.level is a device attribute. PSHH-101 names K-101.discharge_pressure,
-# the same solved node value app/engine/engine.py's module docstring already
-# documents as unresolvable without a tag-to-point resolver no task owns yet
-# (the identical gap T9-4 hit from the `limits` side, above). It is
-# configured now, alongside its `limits` twin, so it starts resolving the
-# moment that resolver lands - not a claim that anything watches it live yet.
+# K-101.outlet_pressure and P-101.flow are not device attributes: the engine
+# composes a single-branch device's flow and its inlet and outlet pressures
+# onto its snapshot row (T9-5), so K-101.outlet_pressure is N-204's solved
+# pressure and P-101.flow is B-P-101's. All three trips and all three limits
+# are evaluated live.
 #
 # P-101's backflow limit above has no interlock twin. A stopped P-101 backflows
 # at -100 GPM (this file's header derivation) - already past the -20 GPM
@@ -195,7 +197,7 @@ interlocks:
     actions: ["LV-101.close"]
     reset: manual
   - tag: PSHH-101
-    condition: "K-101.discharge_pressure >= 350.0"
+    condition: "K-101.outlet_pressure >= 350.0"
     delay_s: 2.0
     actions: ["K-101.stop"]
     reset: manual

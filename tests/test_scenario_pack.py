@@ -19,8 +19,6 @@ from app.plant.validate import validate
 from app.scenarios.runner import Outcome, Phase, ScenarioRunner
 
 
-pytestmark = pytest.mark.filterwarnings("ignore:envelope limit")
-
 CONFIG = Path(__file__).resolve().parent.parent / "config"
 SCENARIOS = CONFIG / "scenarios"
 SCHEMA = json.loads((CONFIG / "schema" / "scenario.schema.json").read_text())

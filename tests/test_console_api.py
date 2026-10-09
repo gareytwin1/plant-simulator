@@ -17,8 +17,6 @@ from app.scenarios.runner import scenario_key
 from app.training.session import TrainingSession
 
 
-pytestmark = pytest.mark.filterwarnings("ignore:envelope limit", "ignore:interlock")
-
 WAIT = 5.0
 
 

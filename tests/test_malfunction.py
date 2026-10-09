@@ -65,6 +65,23 @@ def flat(section):
     }
 
 
+SOLVED_POINTS = ("flow", "inlet_pressure", "outlet_pressure")
+
+
+def split_points(equipment):
+    """Each equipment row's solved points (T9-5), and the rest of the row."""
+    solved = {
+        tag: {key: value for key, value in row.items() if key in SOLVED_POINTS}
+        for tag, row in equipment.items()
+    }
+    state = {
+        tag: {key: value for key, value in row.items() if key not in SOLVED_POINTS}
+        for tag, row in equipment.items()
+    }
+
+    return solved, state
+
+
 def at(sim_time):
     return build_snapshot(sim_time=sim_time, speed=1.0, running=True, equipment={})
 
@@ -132,10 +149,14 @@ def test_a_reverted_plant_returns_to_the_undisturbed_operating_point():
     after = settle(engine, 20).as_dict()
     untouched = settle(twin, 20).as_dict()
 
-    # Device state comes back exactly. The solved field comes back to within
+    # Device state comes back exactly. The solved field - nodes, streams and
+    # the solved points on each device's row (T9-5) - comes back to within
     # float rounding only: the solver warm-starts from the last solution, so
     # the disturbed path reaches the same root by a different last few bits.
-    assert after["equipment"] == untouched["equipment"]
+    solved, state = split_points(after["equipment"])
+    twin_solved, twin_state = split_points(untouched["equipment"])
+    assert state == twin_state
+    assert flat(solved) == pytest.approx(flat(twin_solved), rel=1e-12)
     for section in ("nodes", "streams"):
         assert flat(after[section]) == pytest.approx(flat(untouched[section]), rel=1e-12)
     assert malfunctions.active == ()

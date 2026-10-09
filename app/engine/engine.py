@@ -123,15 +123,22 @@ ISA-style severity/side label (`isa_band` - "hi", "hihi", "hihihi" and the
 that band was last entered. A point that clears to NORMAL drops out of the
 section entirely rather than reporting a "normal" row.
 
-**A `limits` entry resolves only against a field the device's own
-`get_state()` publishes.** `V-101.level` does; `K-101.discharge_pressure` and
-`P-101.flow` do not - a solved node pressure or branch flow needs a
-tag-to-point resolver this engine does not have yet, the same
-"instruments are not in C3" gap `app/controls/loader.py` (T8-3) already hits
-for every `controllers.pv` but pressure. An unresolvable entry is warned
-about once, at construction, and then never evaluated - it does not crash
-Engine.from_plant on a plant that configures one, and it is not silently
-dropped either.
+**An equipment row also carries its device's solved points (T9-5).** A
+device that sits in exactly one branch gets `flow`, `inlet_pressure`
+and `outlet_pressure` on its row: that branch's stream flow and the pressures
+of its from and to nodes. A branch is wired inlet-first (C2), so the names
+follow port direction, never what a port is called. The device holds none of
+them - they are composed here, in the truth, before the instruments run, so
+an instrument on `equipment.K-101.outlet_pressure` is a transmitter of its
+own, separate from one on the node, as a trip's transmitter is separate from
+a control loop's. A device in no branch (a coupling device such as a vessel)
+or in several gets none, and a device whose `get_state()` already publishes
+one of the names keeps its own value.
+
+That is what a `limits` entry, an interlock condition or a permissive
+resolves against: a field of the equipment row the snapshot publishes. A
+`limits` entry naming anything else is refused at construction - evaluating
+nothing in its place would leave a configured trip silently dead.
 
 start()/stop() and the snapshot's running field delegate entirely to the
 clock's pause/resume. There is deliberately no second "is it running"
@@ -149,7 +156,6 @@ from a wall clock — determinism depends on the caller owning time.
 """
 
 import math
-import warnings
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 
@@ -166,7 +172,7 @@ from app.envelope.loader import LimitKey, load_limits
 from app.envelope.tracker import ExcursionTracker
 from app.equipment.base import Equipment
 from app.plant.loader import DEFAULT_DOMAIN, Plant
-from app.plant.topology import Topology
+from app.plant.topology import Branch, Topology
 from app.statetypes import StateError
 
 
@@ -211,6 +217,7 @@ class Engine:
             for domain, graph in self.topologies.items()
         }
         self.solver_results: dict[str, SolverResult] = {}
+        self._branch_of: dict[str, Branch] = self._single_branches()
         self.couplings: list[VesselCoupling] = list(couplings)
         self.instruments: dict[str, Instrument] = {}
         self.loops: dict[str, LoopBinding] = {}
@@ -235,7 +242,7 @@ class Engine:
         for instrument in instruments:
             self.add_instrument(instrument)
 
-        self.limits: dict[LimitKey, Evaluator] = self._resolve_limits(limits or {})
+        self.limits: dict[LimitKey, Evaluator] = self._checked_limits(limits or {})
         self.trackers: dict[LimitKey, ExcursionTracker] = {
             key: ExcursionTracker(evaluator.limits)
             for key, evaluator in self.limits.items()
@@ -496,40 +503,35 @@ class Engine:
 
         self.arbiter.apply()
 
-    def _resolve_limits(
+    def _checked_limits(
         self, limits: Mapping[LimitKey, Evaluator],
     ) -> dict[LimitKey, Evaluator]:
-        """Keep only the configured limits this engine can actually read.
+        """Refuse a configured limit this engine cannot read.
 
-        A `variable` an equipment's own `get_state()` carries resolves; one
-        that only a solved node or branch would answer does not, until a
-        device-to-point resolver exists (see the module docstring). Warned
-        about once, here, rather than raised - a plant with an unresolvable
-        limit still builds and runs, exactly as `get_limit()` (T9-2) already
-        warns rather than crashes on a tag nobody configured limits for.
+        A `variable` resolves if the equipment section this engine publishes
+        carries it for that tag - the device's own `get_state()` field or one
+        of the solved points the engine composes onto its row. Anything else
+        names a number nobody publishes, and evaluating nothing in its place
+        would leave a configured trip silently dead, so it is raised here,
+        every unresolvable entry named at once.
         """
         equipment = self._indicated()["equipment"]
-        resolved: dict[LimitKey, Evaluator] = {}
+        unresolved = [
+            f"{tag}.{variable}"
+            for tag, variable in limits
+            if variable not in equipment.get(tag, {})
+        ]
 
-        for key, evaluator in limits.items():
-            tag, variable = key
-            row = equipment.get(tag)
+        if unresolved:
+            raise ValueError(
+                f"envelope limit(s) {unresolved} name no number the equipment "
+                f"section publishes",
+            )
 
-            if row is None or variable not in row:
-                warnings.warn(
-                    f"envelope limit {tag}.{variable} does not resolve "
-                    f"against the equipment section this engine publishes "
-                    f"and will not be evaluated",
-                    stacklevel=3,
-                )
-                continue
-
-            resolved[key] = evaluator
-
-        return resolved
+        return dict(limits)
 
     def _update_envelope(self, dt: float) -> None:
-        """Advance every resolved limit by dt and record when its band last
+        """Advance every limit by dt and record when its band last
         changed. Called once at construction (dt=0.0, to seed the design
         point's classification) and once per step, after couple - never
         from snapshot(), which only reads what this last left."""
@@ -558,10 +560,22 @@ class Engine:
         return indicate(self._truth(), self.instruments.values())
 
     def _truth(self) -> dict[str, dict[str, dict[str, JSONValue]]]:
-        equipment: dict[str, dict[str, JSONValue]] = {
-            tag: device.get_state()
-            for tag, device in self.equipment.items()
-        }
+        equipment: dict[str, dict[str, JSONValue]] = {}
+
+        for tag, device in self.equipment.items():
+            row = dict(device.get_state())
+            branch = self._branch_of.get(tag)
+
+            if branch is not None:
+                for name, value in (
+                    ("flow", branch.flow),
+                    ("inlet_pressure", branch.from_node.pressure),
+                    ("outlet_pressure", branch.to_node.pressure),
+                ):
+                    row.setdefault(name, value)
+
+            equipment[tag] = row
+
         nodes: dict[str, dict[str, JSONValue]] = {}
         streams: dict[str, dict[str, JSONValue]] = {}
 
@@ -576,6 +590,22 @@ class Engine:
             streams.update(state["streams"])
 
         return {"equipment": equipment, "nodes": nodes, "streams": streams}
+
+    def _single_branches(self) -> dict[str, Branch]:
+        """Every device that sits in exactly one branch, with that branch. A
+        branch is wired inlet-first (C2), so `from_node` is the inlet and
+        `to_node` the outlet whatever the ports are called. A device in no
+        branch, or in several, has no single flow or pair of pressures of
+        its own and is left out (see the module docstring)."""
+        branches: dict[str, list[Branch]] = {}
+
+        for graph in self.topologies.values():
+            for branch in graph.branches.values():
+                branches.setdefault(branch.device.tag, []).append(branch)
+
+        return {
+            tag: found[0] for tag, found in branches.items() if len(found) == 1
+        }
 
     def _couple(self) -> None:
         """Boundaries down, solve, exchange back up — one pass, no iteration.

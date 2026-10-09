@@ -512,3 +512,47 @@ def test_a_5xx_does_not_claim_nothing_changed_and_resyncs(action):
 
     assert got["calls"][-1] == "/api/scenario/result"
     assert "nothing was changed" not in got["notice"]
+
+
+@needs_node
+def test_a_thrown_abort_resyncs_even_in_a_hidden_tab_and_enables_the_buttons():
+    got = run_js(
+        STUB
+        + """
+        globalThis.document = { hidden: true };
+        const { els, doc } = page("running", "T");
+        const calls = [];
+        const fetchImpl = async url => {
+          calls.push(url);
+          if (url.endsWith("abort")) throw new Error("down");
+          return reply(200, { phase: "aborted", title: "T" });
+        };
+        S.mount(doc, { fetch: fetchImpl, pollMs: 0 });
+        els["scenario-abort"].listeners.click();
+        await els["scenario-abort-confirm"].listeners.click();
+        return { calls, phase: els["scenario-phase"].textContent, notice: els["scenario-notice"].textContent,
+                 disabled: els["scenario-start"].disabled };
+        """,
+    )
+
+    assert got["calls"] == ["/api/scenario/abort", "/api/scenario/result"]
+    assert got["phase"] == "Aborted"
+    assert "did not finish" in got["notice"]
+    assert got["disabled"] is False
+
+
+@needs_node
+def test_a_200_with_no_known_phase_resyncs_from_the_result():
+    got = run_js(
+        STUB
+        + """
+        const { els, doc } = page("loaded", "T");
+        const calls = [];
+        const fetchImpl = async url => { calls.push(url); return reply(200, url.endsWith("start") ? {} : { phase: "running", title: "T" }); };
+        S.mount(doc, { fetch: fetchImpl, pollMs: 0 });
+        await els["scenario-start"].listeners.click();
+        return { calls, phase: els["scenario-phase"].textContent };
+        """,
+    )
+
+    assert got == {"calls": ["/api/scenario/start", "/api/scenario/result"], "phase": "Running"}

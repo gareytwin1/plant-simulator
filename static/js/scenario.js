@@ -199,11 +199,18 @@
       }
     }
 
-    function poll() {
-      if ((root.document && root.document.hidden) || polling || state.busy) return Promise.resolve();
+    /* The unguarded read: the timer's guard is about not wasting a request on
+     * a hidden tab, and a click that needs the truth is not that. */
+    function readNow() {
+      if (polling || state.busy) return Promise.resolve();
       polling = true;
       pollPromise = pollOnce();
       return pollPromise;
+    }
+
+    function poll() {
+      if (root.document && root.document.hidden) return Promise.resolve();
+      return readNow();
     }
 
     async function send(action, request) {
@@ -217,6 +224,7 @@
         if (result.status === 200) {
           notice("");
           apply(200, result.body);
+          resync = api.phaseOf(200, result.body) === null;
         } else {
           notice(api.refusalText(action, result.status));
           resync = result.status !== 429;
@@ -232,7 +240,7 @@
         // A poll already in flight began before this refusal; wait it out and
         // ask again, or the bar stays stale for a whole interval.
         if (pollPromise) await pollPromise;
-        await poll();
+        await readNow();
       }
     }
 

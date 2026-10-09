@@ -17,7 +17,7 @@
 
   api.refusalText = function (status) {
     if (status === 409) {
-      return "A scenario is running. Abort it before choosing another, or before returning to free play.";
+      return "A scenario is running. Abort it from the console before choosing another, or before returning to free play.";
     }
     if (status === 404) return "That scenario is not available any more. Reload the page to see the current list.";
     if (status === 400) return "That scenario could not be set up, so nothing was changed.";

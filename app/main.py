@@ -148,8 +148,15 @@ def console() -> ResponseReturnValue:
     # The first route that starts a scheduler: the page's stream and alarm
     # polling read a plant that advances on its own clock. Idempotent.
     g.plant.training_scheduler.start()
+    standing = g.plant.standing()
 
-    return render_template("console.html", stream_interval_seconds=config.STREAM_INTERVAL_SECONDS)
+    return render_template(
+        "console.html",
+        stream_interval_seconds=config.STREAM_INTERVAL_SECONDS,
+        standing=standing,
+        title=TITLES.get(standing.scenario_id) if standing.scenario_id else None,
+        phase_labels=PHASE_LABELS,
+    )
 
 
 @app.get("/api/snapshot")

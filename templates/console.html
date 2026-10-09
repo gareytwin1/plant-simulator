@@ -6,6 +6,7 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/alarms.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/connection.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/faceplate.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/scenario.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/trends.css') }}">
 {% endblock %}
 
@@ -13,6 +14,21 @@
 <div id="console" data-connection="connecting" data-interval-seconds="{{ stream_interval_seconds }}">
   <h1>Console</h1>
   <p class="connection-indicator" id="connection-indicator" role="status">CONNECTING</p>
+  <section class="panel scenario-bar" id="scenario-bar" aria-labelledby="scenario-heading" data-phase="{{ standing.phase }}" data-title="{{ title or '' }}" data-interval-seconds="{{ stream_interval_seconds }}" data-phase-labels='{{ phase_labels|tojson }}'>
+    <h2 id="scenario-heading">Scenario</h2>
+    <div class="scenario-line">
+      <span class="scenario-mode" id="scenario-mode">{% if standing.mode == "scenario" %}Scenario{% if title %}: {{ title }}{% endif %}{% else %}Free play{% endif %}</span>
+      <span class="scenario-phase" id="scenario-phase" role="status">{{ phase_labels[standing.phase] }}</span>
+      <span class="scenario-actions">
+        <button type="button" id="scenario-start" hidden>Start run</button>
+        <button type="button" id="scenario-abort" hidden>Abort run</button>
+        <button type="button" id="scenario-abort-confirm" hidden>Confirm abort</button>
+        <button type="button" id="scenario-abort-keep" hidden>Keep running</button>
+        <a id="scenario-choose" href="{{ url_for('landing') }}" hidden>Choose a scenario</a>
+      </span>
+    </div>
+    <p class="notice" id="scenario-notice" role="status" data-kind="refused" hidden></p>
+  </section>
   <section aria-labelledby="plant-heading">
     <h2 id="plant-heading">Plant</h2>
     <div id="process-graphic" data-live-value></div>
@@ -39,6 +55,7 @@
 <script src="{{ url_for('static', filename='js/graphic.js') }}"></script>
 <script src="{{ url_for('static', filename='js/faceplate.js') }}"></script>
 <script src="{{ url_for('static', filename='js/trends.js') }}"></script>
+<script src="{{ url_for('static', filename='js/scenario.js') }}"></script>
 <script>
   (function () {
     var consoleEl = document.getElementById("console");
@@ -62,6 +79,8 @@
         try { trends.update(snapshot); } catch (error) { console.error(error); }
       }
     });
+    // Last, and isolated: a bar that cannot mount must not take the console with it.
+    try { ScenarioBar.mount(document); } catch (error) { console.error(error); }
   })();
 </script>
 {% endblock %}

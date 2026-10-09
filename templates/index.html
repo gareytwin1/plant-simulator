@@ -12,6 +12,9 @@
     <span class="standing-phase" id="standing-phase">{{ phase_labels[standing.phase] }}</span>
     <span class="standing-time">Plant time <span id="standing-time">{{ "%.0f"|format(standing.sim_time) }}</span> s</span>
   </p>
+  {% if standing.mode == "scenario" %}
+  <p><a id="back-to-console" href="{{ url_for('console') }}">Back to the console</a></p>
+  {% endif %}
 </section>
 
 <p class="notice" id="notice" role="status" aria-live="polite" hidden></p>

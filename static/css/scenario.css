@@ -1,0 +1,49 @@
+/* Scenario bar on the console (T16-15). Every colour is a token from
+ * tokens.css (docs/console-standards.md); nothing here is a hex literal.
+ * Load tokens.css and landing.css first (button and notice styles). */
+
+.scenario-bar {
+  margin: 0 0 1rem;
+}
+
+.scenario-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1.25rem;
+}
+
+.scenario-mode {
+  font-weight: 700;
+}
+
+.scenario-phase {
+  color: var(--text-muted);
+}
+
+.scenario-phase:empty {
+  display: none;
+}
+
+.scenario-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  margin-left: auto;
+}
+
+.scenario-actions [hidden] {
+  display: none;
+}
+
+.scenario-bar .notice {
+  margin: 0.75rem 0 0;
+}
+
+@media (max-width: 30rem) {
+  .scenario-actions {
+    margin-left: 0;
+    width: 100%;
+  }
+}

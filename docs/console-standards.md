@@ -32,7 +32,7 @@ envelope severity is in that module; this file does not restate it.
 | Priority | Fill / on / mark | Glyph | Label |
 |---|---|---|---|
 | critical | `--alarm-critical-*` (red family) | `--symbol-alarm-critical` triangle | CRIT |
-| high | `--alarm-high-*` (orange family) | `--symbol-alarm-high` diamond | HIGH |
+| high | `--alarm-high-*` (red family, as `critical` for now) | `--symbol-alarm-high` diamond | HIGH |
 | low | `--alarm-low-*` (yellow family) | `--symbol-alarm-low` circle | LOW |
 
 - `fill` is a badge or row background, `on` is the text and glyph drawn on it,
@@ -67,7 +67,7 @@ surface apart.
 | Severity | Token | Hue family |
 |---|---|---|
 | warning | `--band-warning-tint` | yellow, as `low` |
-| alarm | `--band-alarm-tint` | orange, as `high` |
+| alarm | `--band-alarm-tint` | red, as `high` |
 | trip | `--band-trip-tint` | red, as `critical` |
 
 `--text` must stay legible on every tint. A limit line is drawn in the matching

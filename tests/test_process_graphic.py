@@ -193,7 +193,7 @@ def test_alarm_state_shows_stopped_pump_reverse_flow_and_the_band_on_the_vessel(
     assert shown.band_text("V-101") == "● LO"
     assert shown.bind("equipment.V-101.level")[1]["data-band"] == "warning"
     assert shown.tag("P-101")["data-band"] == "trip"
-    assert shown.band_text("P-101") == "▲ LOLOLO"
+    assert shown.band_text("P-101") == "▲ LOLO"
     assert shown.bind("equipment.P-101.flow")[1]["data-band"] == "trip"
     assert shown.tag("K-101")["data-band"] == "none"
 
@@ -203,7 +203,7 @@ def test_tripped_state_shows_the_trip_band_on_the_point_that_crossed_it(views):
     shown = render(views["tripped"])
 
     assert shown.tag("V-101")["data-band"] == "trip"
-    assert shown.band_text("V-101") == "▲ LOLOLO"
+    assert shown.band_text("V-101") == "▲ LOLO"
     assert shown.bind("equipment.V-101.level")[1]["data-band"] == "trip"
     assert shown.bind("equipment.V-101.pressure")[1]["data-band"] == "none"
     assert shown.tag("P-101")["data-state"] == "stopped"
@@ -232,7 +232,7 @@ def test_the_worst_band_on_a_device_wins(views):
     shown = render(snapshot)
 
     assert shown.tag("V-101")["data-band"] == "trip"
-    assert shown.band_text("V-101") == "▲ HIHIHI"
+    assert shown.band_text("V-101") == "▲ HIHI"
     assert shown.bind("equipment.V-101.level")[1]["data-band"] == "warning"
 
 

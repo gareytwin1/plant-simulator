@@ -51,8 +51,8 @@
     { key: "trip_lo", severity: "trip" },
   ];
   // app.envelope.evaluator.isa_band, upper-cased as the alarm messages spell
-  // it: the side repeated once per severity step (HI, HIHI, HIHIHI).
-  var SEVERITY_STEPS = { warning: 1, alarm: 2, trip: 3 };
+  // it: the side repeated by position, at most twice (HI, HIHI).
+  var SEVERITY_STEPS = { warning: 1, alarm: 2, trip: 2 };
 
   // Mirrors --symbol-alarm-* in tokens.css (tests/test_trend_display.py).
   var PRIORITY_GLYPH = { critical: "▲", high: "◆", low: "●" };
@@ -214,8 +214,8 @@
    *
    * Each bound fills outward to the next outer bound or the edge of the plot
    * (warning to alarm to trip), and every bound is also a rule labelled with
-   * the ISA ladder as the alarm messages spell it: HI, HIHI, HIHIHI on the high
-   * side, LO, LOLO, LOLOLO on the low side.
+   * the ISA ladder as the alarm messages spell it: HI, HIHI on the high side,
+   * LO, LOLO on the low side, whether the outer limit alarms or trips.
    * Bounds outside the visible range draw no rule, but the band they begin
    * still reaches into view if its tint does. */
   function bandsFor(limits, scale) {

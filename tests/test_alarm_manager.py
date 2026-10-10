@@ -49,11 +49,11 @@ def test_missing_priority_for_a_severity_is_rejected():
         (Severity.WARNING, "lo", "LO"),
         (Severity.ALARM, "hi", "HIHI"),
         (Severity.ALARM, "lo", "LOLO"),
-        (Severity.TRIP, "hi", "HIHIHI"),
-        (Severity.TRIP, "lo", "LOLOLO"),
+        (Severity.TRIP, "hi", "HIHI"),
+        (Severity.TRIP, "lo", "LOLO"),
     ],
 )
-def test_message_names_the_symptom_with_an_isa_style_suffix(severity, side, expected_suffix):
+def test_message_names_the_symptom_with_a_suffix_named_by_position(severity, side, expected_suffix):
     manager = AlarmManager()
 
     events = manager.evaluate(
@@ -62,6 +62,19 @@ def test_message_names_the_symptom_with_an_isa_style_suffix(severity, side, expe
     )
 
     assert events[0].message == f"K-101 discharge pressure {expected_suffix}"
+
+
+@pytest.mark.parametrize(
+    "severity, priority", [(Severity.ALARM, Priority.HIGH), (Severity.TRIP, Priority.CRITICAL)]
+)
+def test_outer_limit_reads_hihi_whether_it_alarms_or_trips(severity, priority):
+    events = AlarmManager().evaluate(
+        [EnvelopeEvent(tag="K-101", pv="discharge pressure", severity=severity, side="hi")],
+        sim_time=0.0,
+    )
+
+    assert events[0].message == "K-101 discharge pressure HIHI"
+    assert events[0].priority is priority
 
 
 _CAUSAL_LANGUAGE = ("stuck", "failed", "fault", "reversed", "leaking", "valve", "because")

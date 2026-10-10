@@ -232,23 +232,26 @@ def test_bands_fill_each_bound_outward_to_the_next_and_label_every_rule(free):
     ])
     rules = sorted(shading["rules"], key=lambda r: r["value"])
     assert [(r["label"], r["severity"]) for r in rules] == [
-        ("LOLOLO", "trip"), ("LO", "warning"), ("HI", "warning"), ("HIHIHI", "trip"),
+        ("LOLO", "trip"), ("LO", "warning"), ("HI", "warning"), ("HIHI", "trip"),
     ]
     assert [r["value"] for r in rules] == pytest.approx([0.1, 0.2, 0.8, 0.9])
 
 
 @needs_node
-def test_the_rule_labels_are_the_alarm_messages_own_ladder():
+def test_the_rule_labels_are_named_by_position_like_the_alarm_messages():
     shading = run_js(
-        "return T.bandsFor({warning_hi: 5, alarm_hi: 6, trip_hi: 7, warning_lo: 3, alarm_lo: 2, trip_lo: 1}, {lo: 0, hi: 8});",
+        "return T.bandsFor({warning_hi: 5, trip_hi: 7, warning_lo: 3, trip_lo: 1}, {lo: 0, hi: 8});",
     )
 
     by_value = {r["value"]: r["label"] for r in shading["rules"]}
-    assert by_value == {
-        1: isa_band(Severity.TRIP, "lo").upper(), 2: isa_band(Severity.ALARM, "lo").upper(),
-        3: isa_band(Severity.WARNING, "lo").upper(), 5: isa_band(Severity.WARNING, "hi").upper(),
-        6: isa_band(Severity.ALARM, "hi").upper(), 7: isa_band(Severity.TRIP, "hi").upper(),
-    }
+    assert by_value == {1: "LOLO", 3: "LO", 5: "HI", 7: "HIHI"}
+
+
+@needs_node
+def test_an_alarm_rated_outer_limit_reads_the_same_label_as_a_trip_rated_one():
+    shading = run_js("return T.bandsFor({warning_hi: 5, alarm_hi: 7}, {lo: 0, hi: 8});")
+
+    assert {r["value"]: r["label"] for r in shading["rules"]} == {5: "HI", 7: "HIHI"}
 
 
 @needs_node
@@ -400,12 +403,12 @@ def test_an_alarm_without_a_known_priority_is_drawn_as_low():
 
 @needs_node
 def test_a_marker_is_a_full_height_glyph_with_an_accessible_label():
-    marker = {"time": 50, "priority": "critical", "tag": "K-101", "message": "K-101 discharge pressure HIHIHI"}
+    marker = {"time": 50, "priority": "critical", "tag": "K-101", "message": "K-101 discharge pressure HIHI"}
 
     svg = render([{"point": "X.p", "samples": [[0, 1], [100, 2]]}], markers=[marker])
 
     assert 'class="trend-marker" data-priority="critical" role="img"' in svg
-    assert 'aria-label="critical alarm at 00:00:50: K-101 discharge pressure HIHIHI"' in svg
+    assert 'aria-label="critical alarm at 00:00:50: K-101 discharge pressure HIHI"' in svg
     assert "▲" in svg
     group = re.search(r'<g class="trend-marker".*?</g>', svg).group(0)
     y1, y2 = svg_numbers(group, "line", "y1")[0], svg_numbers(group, "line", "y2")[0]
@@ -597,7 +600,7 @@ def test_the_first_snapshot_draws_the_default_pens_with_their_bands(free):
 
     assert result["pens"] == DEFAULTS
     assert 'class="trend-band"' in result["chart"]
-    assert "HI 330" in result["chart"] and "HIHIHI 350" in result["chart"]
+    assert "HI 330" in result["chart"] and "HIHI 350" in result["chart"]
     assert result["legend"].count("trend-pen-row") == len(DEFAULTS)
     assert any(call.startswith(f"/api/trend?tags={','.join(DEFAULTS)}&from=") for call in result["calls"])
 

@@ -146,7 +146,11 @@
   }
 
   function bandText(band) {
-    return band ? BAND_GLYPH[band.severity] + " " + band.band.toUpperCase() : "";
+    if (!band) return "";
+    // Named by position, not severity: a trip band (isa_band "hihihi") reads HIHI.
+    var word = band.band.slice(0, 2);
+    var steps = Math.min(band.band.length / 2, 2);
+    return BAND_GLYPH[band.severity] + " " + new Array(steps + 1).join(word).toUpperCase();
   }
 
   /* ---- element updates ------------------------------------------------- */

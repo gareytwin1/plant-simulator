@@ -37,21 +37,21 @@
   --focus-ring: light-dark(#005fcc, #7ab8ff);
 
   /* Alarm priority (app.alarms.manager.Priority): critical, high, low */
-  --alarm-critical-fill: light-dark(#b00020, #ff6b7a);
-  --alarm-critical-on: light-dark(#ffffff, #2a0008);
+  --alarm-critical-fill: light-dark(#800015, #8c2a3a);
+  --alarm-critical-on: light-dark(#ffffff, #ffffff);
   --alarm-critical-mark: light-dark(#b00020, #ff6b7a);
-  --alarm-high-fill: light-dark(#ffc107, #ffc107);
-  --alarm-high-on: light-dark(#1a1400, #1a1400);
-  --alarm-high-mark: light-dark(#8a5a00, #ffc107);
-  --alarm-low-fill: light-dark(#0b5cad, #7ab8ff);
-  --alarm-low-on: light-dark(#ffffff, #001a33);
-  --alarm-low-mark: light-dark(#0b5cad, #7ab8ff);
+  --alarm-high-fill: light-dark(#d95700, #e65c00);
+  --alarm-high-on: light-dark(#1a0a00, #1a0a00);
+  --alarm-high-mark: light-dark(#8c2a00, #ff9e3d);
+  --alarm-low-fill: light-dark(#ffd23f, #ffd23f);
+  --alarm-low-on: light-dark(#1a1400, #1a1400);
+  --alarm-low-mark: light-dark(#a65100, #ffd23f);
 
   /* Envelope bands (app.envelope.evaluator.Severity): the hue of the alarm
      priority each severity raises by default, as a quiet tint */
-  --band-warning-tint: light-dark(#c4dcf7, #1b3a5c);
-  --band-alarm-tint: light-dark(#ffe7a3, #5a4300);
-  --band-trip-tint: light-dark(#f9c9d0, #5c1420);
+  --band-warning-tint: light-dark(#fff0b3, #666133);
+  --band-alarm-tint: light-dark(#ffb066, #33210f);
+  --band-trip-tint: light-dark(#e66b6b, #663d44);
 
   /* Equipment state */
   --equip-running-fill: light-dark(#1b6b3a, #6fd49a);

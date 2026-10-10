@@ -203,6 +203,27 @@ def test_focus_moves_to_the_control_that_replaces_the_one_it_was_on():
 
 
 @needs_node
+def test_focus_moved_away_while_a_start_is_in_flight_stays_where_it_went():
+    got = run_js(
+        STUB
+        + """
+        const { els, doc, focusOn } = page("loaded", "T");
+        let release;
+        const held = new Promise(r => (release = r));
+        R.mount(doc, { fetch: async url => { if (url.endsWith("start")) await held; return reply(200, { phase: "running" }); }, pollMs: 0 });
+        focusOn("scenario-start");
+        const click = els["scenario-start"].listeners.click();
+        focusOn("ribbon-alarms");
+        release();
+        await click;
+        return doc.activeElement.id;
+        """,
+    )
+
+    assert got == "ribbon-alarms"
+
+
+@needs_node
 def test_a_poll_that_ends_the_run_moves_focus_only_if_it_was_in_the_bar():
     got = run_js(
         STUB

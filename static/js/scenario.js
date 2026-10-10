@@ -298,6 +298,9 @@
         resync = true;
       } finally {
         state.busy = false;
+        // Still ours only if focus has not moved somewhere else meanwhile.
+        var active = doc.activeElement;
+        owned = owned && (!active || active === doc.body || holdsFocus(active));
         render();
         refocus(owned);
       }

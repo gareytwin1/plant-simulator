@@ -56,6 +56,7 @@ from app.alarms.acknowledge import Acknowledged, acknowledge_alarm
 from app.alarms.history import AlarmHistory, HistoryEntry
 from app.alarms.manager import AlarmManager, EnvelopeEvent
 from app.api.action import UnknownAction, apply_action
+from app.api.plant import describe
 from app.api.visibility import descriptor, operator_view
 from app.engine.engine import Engine
 from app.engine.snapshot import Snapshot
@@ -66,6 +67,7 @@ from app.plant.loader import Plant
 from app.plant.units import point_units
 from app.safety.actions import TripSystem
 from app.scoring.actionlog import ActionLog
+from app.statetypes import JSONValue
 
 RESET = "reset"
 
@@ -112,6 +114,8 @@ class PlantRuntime:
             engine.topologies,
             engine.couplings,
         )
+
+        self._description = describe(plant, engine, self.trips.actions)
 
         self._lock = threading.RLock()
         self._published: Snapshot | None = None
@@ -187,6 +191,11 @@ class PlantRuntime:
         '' where nothing names one, and `fraction` for a 0..1 value a display
         shows as a percent. Fixed at construction."""
         return self._trend_units
+
+    def plant_description(self) -> dict[str, JSONValue]:
+        """The `equipment`, `controllers` and `interlocks` sections of
+        `GET /api/plant` (`app.api.plant.describe`). Fixed at construction."""
+        return self._description
 
     def trend_limits(self) -> dict[str, dict[str, float]]:
         """The configured bounds of each trend point the engine evaluates

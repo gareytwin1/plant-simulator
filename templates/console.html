@@ -65,7 +65,7 @@
       { pollMs: Number(consoleEl.getAttribute("data-interval-seconds")) * 1000 }
     );
     var graphic = ProcessGraphic.mount(document.getElementById("process-graphic"), {
-      url: "{{ url_for('static', filename='graphics/plant.svg') }}"
+      url: "{{ url_for('static', filename='graphics/olefins_lite.svg') }}"
     });
     var faceplates = Faceplates.mount(document.getElementById("faceplates"));
     var trends = Trends.mount(document.getElementById("trends"));

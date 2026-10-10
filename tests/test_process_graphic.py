@@ -1,4 +1,4 @@
-"""Process graphic (T16-3): static/js/graphic.js and static/graphics/plant.svg.
+"""Process graphic (T16-3): static/js/graphic.js and static/graphics/<plant id>.svg.
 
 There is no JavaScript test runner in this repo, so the pure half of graphic.js
 runs under Node (a subprocess, JSON in and out). It is fed the real SVG - every
@@ -19,12 +19,18 @@ from pathlib import Path
 
 import pytest
 
-from app.api.visibility import VISIBLE
+from app import config
+from app.api.visibility import VISIBLE, operator_view
+from app.plant.loader import load_plant, read_plant_config
+from app.scenarios.runner import ScenarioLibrary
+from app.training.runtime import PlantRuntime
 from app.training.session import TrainingSession
 
 ROOT = Path(__file__).resolve().parent.parent
 GRAPHIC_JS = ROOT / "static" / "js" / "graphic.js"
-PLANT_SVG = ROOT / "static" / "graphics" / "plant.svg"
+GRAPHICS_DIR = ROOT / "static" / "graphics"
+# The free-play plant's graphic, which the behaviour tests below bind against.
+PLANT_SVG = GRAPHICS_DIR / f"{config.FREE_PLAY_PLANT}.svg"
 
 BOUND = (
     "data-tag",
@@ -411,13 +417,39 @@ def test_mount_says_so_when_the_svg_cannot_be_loaded():
     assert out == {"text": "Process graphic unavailable", "roles": [["role", "status"]]}
 
 
-# ---- the file itself, against what the plant publishes -----------------------
+# ---- every graphic, against the plant it draws -------------------------------
+#
+# A graphic is static/graphics/<plant id>.svg (T20-2): the plant chooses it by
+# id, so every plant free play or a scenario shows needs one, and each one is
+# checked against that plant's own operator view.
 
 
-def svg_paths(attribute):
+def shown_plants():
+    library = ScenarioLibrary()
+    return sorted({config.FREE_PLAY_PLANT} | {library.scenario(entry.id)["plant"] for entry in library.catalogue()})
+
+
+GRAPHICS = sorted(GRAPHICS_DIR.glob("*.svg"))
+
+
+@pytest.fixture(scope="module")
+def plants():
+    """Each drawn plant's operator view and trend units, as it loads."""
+    library = ScenarioLibrary()
+    out = {}
+    for graphic in GRAPHICS:
+        runtime = PlantRuntime.from_plant(load_plant(read_plant_config(library.plant_path(graphic.stem))))
+        out[graphic.stem] = {
+            "view": operator_view(runtime.snapshot(), runtime.engine.equipment),
+            "units": runtime.trend_units(),
+        }
+    return out
+
+
+def svg_paths(graphic, attribute):
     return [
         node.attrib[attribute]
-        for node in ET.fromstring(PLANT_SVG.read_text()).iter()
+        for node in ET.fromstring(graphic.read_text()).iter()
         if attribute in node.attrib
     ]
 
@@ -429,74 +461,83 @@ def resolve(view, path):
     return node
 
 
-def test_every_binding_in_the_svg_resolves_to_a_number_on_the_real_plant(views):
-    paths = svg_paths("data-bind") + svg_paths("data-flow") + svg_paths("data-fill")
+def test_every_plant_free_play_or_a_scenario_shows_has_a_graphic():
+    assert shown_plants()
+    for plant in shown_plants():
+        assert (GRAPHICS_DIR / f"{plant}.svg").is_file(), plant
+
+
+def test_every_graphic_is_named_for_a_plant():
+    assert GRAPHICS
+    for graphic in GRAPHICS:
+        ScenarioLibrary().plant_path(graphic.stem)
+
+
+@pytest.mark.parametrize("graphic", GRAPHICS, ids=lambda path: path.stem)
+def test_every_binding_resolves_to_a_number_on_its_plant(graphic, plants):
+    paths = svg_paths(graphic, "data-bind") + svg_paths(graphic, "data-flow") + svg_paths(graphic, "data-fill")
 
     assert paths
     for path in paths:
-        value = resolve(views["normal"], path)
+        value = resolve(plants[graphic.stem]["view"], path)
         assert isinstance(value, (int, float)), path
 
 
-def test_every_device_the_svg_draws_is_in_the_plant_and_every_one_in_it_is_drawn(views):
-    drawn = {tag for tag in svg_paths("data-tag")}
+@pytest.mark.parametrize("graphic", GRAPHICS, ids=lambda path: path.stem)
+def test_every_device_a_graphic_draws_is_in_its_plant_and_every_one_in_it_is_drawn(graphic, plants):
+    drawn = set(svg_paths(graphic, "data-tag"))
 
-    assert drawn == set(views["normal"]["equipment"])
-
-
-def test_every_solved_node_the_plant_publishes_has_a_pressure_readout(views):
-    shown = {path.split(".")[1] for path in svg_paths("data-bind") if path.startswith("nodes.")}
-
-    assert shown == set(views["normal"]["nodes"])
+    assert drawn == set(plants[graphic.stem]["view"]["equipment"])
 
 
-def test_the_svg_binds_only_fields_the_operator_view_publishes(views):
+@pytest.mark.parametrize("graphic", GRAPHICS, ids=lambda path: path.stem)
+def test_every_solved_node_a_plant_publishes_has_a_pressure_readout(graphic, plants):
+    shown = {path.split(".")[1] for path in svg_paths(graphic, "data-bind") if path.startswith("nodes.")}
+
+    assert shown == set(plants[graphic.stem]["view"]["nodes"])
+
+
+@pytest.mark.parametrize("graphic", GRAPHICS, ids=lambda path: path.stem)
+def test_a_graphic_binds_only_fields_the_operator_view_publishes(graphic, plants):
     visible = set().union(*VISIBLE.values())
     fields = {
-        path.split(".")[2] for path in svg_paths("data-bind") if path.startswith("equipment.")
-    } | {path.split(".")[2] for path in svg_paths("data-fill")}
+        path.split(".")[2] for path in svg_paths(graphic, "data-bind") if path.startswith("equipment.")
+    } | {path.split(".")[2] for path in svg_paths(graphic, "data-fill")}
 
     assert fields <= visible
+
+
+def test_the_operator_view_carries_only_visible_fields(views):
+    visible = set().union(*VISIBLE.values())
+
     for view in views.values():
         for row in view["equipment"].values():
             assert set(row) <= visible
 
 
-# Which plant each graphic draws; T20-2 makes the plant choose its graphic.
-GRAPHIC_PLANTS = {"plant.svg": "olefins_lite"}
+@pytest.mark.parametrize("graphic", GRAPHICS, ids=lambda path: path.stem)
+def test_every_unit_a_graphic_labels_is_the_servers_unit_for_that_point(graphic, plants):
+    served = plants[graphic.stem]["units"]
+    labelled = 0
+
+    for node in ET.fromstring(graphic.read_text()).iter():
+        path = node.attrib.get("data-bind")
+        if path is None:
+            continue
+        point = path.split(".", 1)[1]
+        if node.attrib.get("data-format") == "percent":
+            assert served[point] == "fraction", point
+            labelled += 1
+        elif "data-unit" in node.attrib:
+            assert node.attrib["data-unit"] == served[point], point
+            labelled += 1
+
+    assert labelled
 
 
-def test_every_unit_a_graphic_labels_is_the_servers_unit_for_that_point():
-    session = TrainingSession()
-    try:
-        units = {"olefins_lite": session.trend_units()}
-    finally:
-        session.end()
-
-    graphics = sorted((ROOT / "static" / "graphics").glob("*.svg"))
-    assert graphics
-    for graphic in graphics:
-        assert graphic.name in GRAPHIC_PLANTS, f"{graphic.name} draws no known plant"
-        served = units[GRAPHIC_PLANTS[graphic.name]]
-        labelled = 0
-
-        for node in ET.fromstring(graphic.read_text()).iter():
-            path = node.attrib.get("data-bind")
-            if path is None:
-                continue
-            point = path.split(".", 1)[1]
-            if node.attrib.get("data-format") == "percent":
-                assert served[point] == "fraction", (graphic.name, point)
-                labelled += 1
-            elif "data-unit" in node.attrib:
-                assert node.attrib["data-unit"] == served[point], (graphic.name, point)
-                labelled += 1
-
-        assert labelled, graphic.name
-
-
-def test_the_svg_is_well_formed_responsive_and_legible_at_phone_width():
-    text = PLANT_SVG.read_text()
+@pytest.mark.parametrize("graphic", GRAPHICS, ids=lambda path: path.stem)
+def test_a_graphic_is_well_formed_responsive_and_legible_at_phone_width(graphic):
+    text = graphic.read_text()
     root = ET.fromstring(text)
     x, y, width, height = (float(n) for n in root.attrib["viewBox"].split())
     sizes = [float(n) for n in re.findall(r"font-size:\s*([\d.]+)px", text)]
@@ -507,8 +548,9 @@ def test_the_svg_is_well_formed_responsive_and_legible_at_phone_width():
     assert height / width < 1.0
 
 
-def test_the_svg_takes_colour_from_tokens_never_a_literal():
-    text = PLANT_SVG.read_text()
+@pytest.mark.parametrize("graphic", GRAPHICS, ids=lambda path: path.stem)
+def test_a_graphic_takes_colour_from_tokens_never_a_literal(graphic):
+    text = graphic.read_text()
 
     assert not re.search(r"#[0-9a-fA-F]{3,8}\b", text)
     assert not re.search(r"\b(?:rgb|hsl)a?\(", text)
@@ -517,8 +559,9 @@ def test_the_svg_takes_colour_from_tokens_never_a_literal():
     assert used <= defined
 
 
-def test_every_state_and_band_the_script_can_set_has_a_style_in_the_svg():
-    text = PLANT_SVG.read_text()
+@pytest.mark.parametrize("graphic", GRAPHICS, ids=lambda path: path.stem)
+def test_every_state_and_band_the_script_can_set_has_a_style_in_the_graphic(graphic):
+    text = graphic.read_text()
 
     for state in ("running", "stopped", "unknown"):
         assert f'data-state="{state}"' in text

@@ -133,6 +133,17 @@ class TrainingSession:
 
             return self.runner.alarm_entries()
 
+    def plant_description(self) -> tuple[str, dict[str, JSONValue]]:
+        """The id of the plant the snapshot shows - the plant file stem, as
+        `config.FREE_PLAY_PLANT` or a scenario's `plant` names it - and its
+        `PlantRuntime.plant_description`, read together under `step_lock`.
+        Never starts the scheduler."""
+        with self.training_scheduler.step_lock:
+            if self.runner.phase is Phase.IDLE:
+                return config.FREE_PLAY_PLANT, self.free.plant_description()
+
+            return self.runner.plant_description()
+
     def trend_points(self) -> tuple[str, ...]:
         """The trend points of the plant the snapshot shows, sorted."""
         with self.training_scheduler.step_lock:

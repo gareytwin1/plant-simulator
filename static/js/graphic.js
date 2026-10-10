@@ -1,6 +1,6 @@
 /* Process graphic (T16-3).
  *
- * Binds the live snapshot to static/graphics/plant.svg by tag, so a new piece
+ * Binds the live snapshot to static/graphics/olefins_lite.svg by tag, so a new piece
  * of equipment is new SVG markup and no JavaScript. This file knows no tag and
  * no device type: it only follows the data-* attributes an element carries.
  *
@@ -37,7 +37,7 @@
 (function (root) {
   "use strict";
 
-  var SVG_URL = "/static/graphics/plant.svg";
+  var SVG_URL = "/static/graphics/olefins_lite.svg";
 
   var MISSING = "--";
 

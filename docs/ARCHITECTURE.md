@@ -410,6 +410,9 @@ app/
     action.py             T15-1: C5 POST /api/action; a target is a device or,
                           since T16-14, a loop (LOOP_ACTIONS); a device a
                           loop drives is commanded only through the loop
+    plant.py              T20-2: C5 GET /api/plant - the shown plant's id,
+                          its graphic (static/graphics/<id>.svg) and what a
+                          faceplate needs per device, loop and interlock
     trend.py              T17-3: C5 GET /api/trend and /api/trend/points
   disturbances/
     malfunction.py        T13-1/T13-2: C8 faults on devices and instrument

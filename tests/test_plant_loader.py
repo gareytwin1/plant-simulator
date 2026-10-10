@@ -500,3 +500,36 @@ def test_a_passthrough_section_does_not_need_the_devices_serialised():
 def test_a_section_the_loader_interprets_is_not_a_passthrough():
     with pytest.raises(ValueError, match="not a passthrough section"):
         load_plant(valid_config()).passthrough("equipment")
+
+
+# Service text (T20-2)
+
+
+def test_a_service_text_on_equipment_and_a_loop_loads_and_round_trips():
+    config = valid_config()
+    config["equipment"][0]["service"] = "Feed pump"
+    config["controllers"] = [
+        {"tag": "PIC-101", "pv": "N-02", "sp": 60.0, "out": "K-101", "mode": "MANUAL",
+         "kp": 0.0, "ki": 0.0, "kd": 0.0, "service": "Header pressure controller"},
+    ]
+
+    plant = load_plant(config)
+
+    assert plant.services == {"P-101": "Feed pump"}
+    assert plant.passthrough("controllers")[0]["service"] == "Header pressure controller"
+    assert plant.to_config() == config
+
+
+def test_an_entry_without_a_service_loads_unchanged():
+    plant = load_plant(valid_config())
+
+    assert plant.services == {}
+    assert "service" not in plant.to_config()["equipment"][0]
+
+
+@pytest.mark.parametrize("value", ["", 3, None])
+def test_a_service_that_is_not_a_non_empty_string_is_rejected(value):
+    config = valid_config()
+    config["equipment"][1]["service"] = value
+
+    assert any("$.equipment[1].service" in error for error in rejected(config))

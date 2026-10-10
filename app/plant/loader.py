@@ -59,7 +59,9 @@ resolved before validation; after that there is one path.
 
 Only `nodes` and `equipment` build anything. `limits`, `controllers` and
 `interlocks` are carried through untouched for the subsystems that will own
-them, so a plant round-trips back to the config it came from.
+them, so a plant round-trips back to the config it came from. An equipment
+entry's optional `service` (T20-2) is the plant's own words for what the
+device does; it is carried on `Plant.services` and changes nothing it builds.
 """
 
 import copy
@@ -232,6 +234,7 @@ class Plant:
         design_keys: Mapping[str, list[str]],
         equipment_types: Mapping[str, str],
         passthrough: Mapping[str, Any],
+        services: Mapping[str, str] | None = None,
     ) -> None:
         self.topologies: dict[str, Topology] = dict(topologies)
         self.nodes: dict[str, Node] = dict(nodes)
@@ -246,6 +249,9 @@ class Plant:
         self._paths = {tag: list(pairs) for tag, pairs in paths.items()}
         self._design_keys = {tag: list(keys) for tag, keys in design_keys.items()}
         self._equipment_types = dict(equipment_types)
+        # The plant's own words for what a device does (T20-2), by tag; a
+        # device whose entry gives none is absent.
+        self.services: dict[str, str] = dict(services or {})
         # Decoded JSON of sections no subsystem interprets yet.
         self._passthrough: dict[str, Any] = copy.deepcopy(dict(passthrough))
 
@@ -312,6 +318,9 @@ class Plant:
             ]
 
         item["design"] = {key: getattr(device, key) for key in self._design_keys[tag]}
+
+        if tag in self.services:
+            item["service"] = self.services[tag]
 
         return item
 
@@ -401,6 +410,7 @@ def load_plant(
         paths={tag: pairs for tag, (_, _, pairs) in wiring.items()},
         design_keys=design_keys,
         equipment_types={item["tag"]: item["type"] for item in config["equipment"]},
+        services={item["tag"]: item["service"] for item in config["equipment"] if "service" in item},
         passthrough={
             section: config[section]
             for section in PASSTHROUGH_SECTIONS

@@ -37,6 +37,58 @@ acting on it.
    a static direction mark; the graphic's `data-flow-dir` binding already
    supplies the direction.
 
+7. **K-101 runs backwards at the normal operating point** (-10 SCFM, gas from
+   its discharge back into V-101). This is deliberate: the
+   `olefins_lite.yaml` header derives it as ADR 0002 section 7.3's "K-101
+   reversing", because V-101 has no vapour inlet, so K-101 must backflow to
+   balance PV-101's vent. The prototype's static flow arrows make it visible,
+   and a trainee would read normal operation as abnormal.
+
+   **User's proposed model (9 October 2026):** a two-phase feed into a drum or
+   separator, with three basic loops on one vessel - flow control on the feed,
+   level control on the bottoms drain, and pressure control on the overhead.
+   This gives the vessel a vapour source, so the overhead flows forward, and
+   replaces the single-loop plant (open decision 4 below) with the three loops
+   an operator expects.
+
+   **Decided by the user:** the simple schematic is the bare drum and its three
+   valves - no pump and no compressor. Keep the pump, the compressor, their
+   code, `olefins_lite` and the scenarios built on them untouched; they are
+   for future scenarios. So the separator is a new plant file beside
+   `olefins_lite`, not a change to it.
+
+   Constraints to settle first (Opus):
+   - ADR 0002 reserves `phase: mixed` and rejects it at load, because splitting
+     a two-phase stream is a flash calculation and D6 rules flash out. The
+     nearest model inside D6 is the feed entering as one liquid and one vapour
+     inlet port with a configured, fixed split, which needs an ADR decision.
+     Two separate feeds (liquid and gas) need none.
+   - `controllers.pv` resolves only a node id, so the level and flow loops
+     need it widened to a device or stream point first (Known technical debt).
+   - A second plant means scenarios run on more than one plant, which is open
+     decision 3: the console graphic must follow the loaded plant instead of
+     the hard-wired `plant.svg`.
+
+8. **Console display decisions from the prototype review (9 October 2026).**
+   The user accepted the prototype on `proto/console-redesign`; these differ
+   from production and need porting:
+   - Two limits a side, named HI/HIHI and LO/LOLO by position. Production
+     names a band by severity step (`isa_band`, `static/js/graphic.js`,
+     `trends.js`), so a high-high that trips reads HIHIHI.
+   - Alarm palette yellow, then orange, then red: the first limit (low
+     priority) is yellow, not blue. Proposed tokens are in the prototype's
+     `prototype.css` `:root`.
+   - AUTO is the normal mode for every loop unless a scenario says otherwise.
+     Scenarios are therefore faults a loop in AUTO cannot correct (restriction,
+     lost signal), not valve moves. The prototype's `record_sample.py` runs
+     FIC-301 and LIC-301 beside the engine until `controllers.pv` is widened
+     (item 7).
+   - The controller faceplate has MAN/AUTO, setpoint and output only; no
+     tuning.
+   - Schematic: diaphragm actuators with short stems, a wave liquid surface
+     with no animation, thin lines (pipes 2, outlines 1-1.5) and smaller
+     readings (12px), leaving room for larger plants.
+
 ## Already recorded elsewhere
 
 - One schematic for every scenario, and one controller in the plant:

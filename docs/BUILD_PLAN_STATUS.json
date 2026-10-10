@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "10 October 2026",
-  "main_sha": "f6f7eb2",
-  "tests_passing_on_main": 3727,
+  "main_sha": "f4ac696",
+  "tests_passing_on_main": 3768,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -118,14 +118,14 @@
     },
     "M20": {
       "name": "Console Redesign",
-      "complete": 3,
+      "complete": 4,
       "total": 20
     }
   },
   "totals": {
     "tasks": 153,
-    "complete": 131,
-    "startable_now": 11
+    "complete": 132,
+    "startable_now": 12
   },
   "tasks": [
     {
@@ -2827,10 +2827,9 @@
         "tests/test_scenario_controls.py",
         "tests/test_console_api.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true,
-      "note": ""
+      "status": "Complete",
+      "status_key": "done",
+      "note": "COMPLETE - merged to main as f4ac696 (PR #162). 3768 passed post-merge, mypy clean over 87 files, no golden movement. One ribbon on the landing page and the console (static/js/ribbon.js adds the run clock and alarm summary; scenario.js still runs the run controls, now in the ribbon with Escape disarming Abort and focus following the visible control). Start and Abort stay on the console only. The console is a full-height workspace around the canvas; the old Controllers, Trends and Alarms sections scroll below until T20-10 to T20-12 replace them. Prototype's radius, shadow, spacing and motion tokens joined tokens.css. Landing and console pass plant_running; free play reads 'Plant not started' on a landing page until the console starts the plant. Known: the console polls alarm history twice until T20-12; phone width unchecked (desktop first, user 10 Oct). Unblocks T20-9."
     },
     {
       "id": "T20-9",
@@ -2850,10 +2849,7 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "T20-8"
-      ],
+      "startable": true,
       "note": ""
     },
     {
@@ -2880,7 +2876,6 @@
       "status_key": "todo",
       "startable": false,
       "blocked_by": [
-        "T20-8",
         "T20-7"
       ],
       "note": ""
@@ -2934,7 +2929,6 @@
       "status_key": "todo",
       "startable": false,
       "blocked_by": [
-        "T20-8",
         "T20-11"
       ],
       "note": ""
@@ -2988,10 +2982,7 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "T20-8"
-      ],
+      "startable": true,
       "note": ""
     },
     {

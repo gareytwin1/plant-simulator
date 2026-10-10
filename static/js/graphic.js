@@ -238,8 +238,9 @@
     return Array.prototype.slice.call(svg.querySelectorAll(BOUND));
   }
 
-  /* Load the SVG at `options.url` into `container` and keep it bound.
-   * `options.fetch` exists so a page or test can supply its own transport.
+  /* Load the SVG at `options.url`, which is required, into `container` and
+   * keep it bound. `options.fetch` exists so a page or test can supply its
+   * own transport.
    * `options.stale`, when it returns true, stops a load that finishes after
    * this graphic was replaced from writing over its successor. Returns
    * {ready, update}: `ready` resolves true once the SVG is in and false when

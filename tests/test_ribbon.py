@@ -57,17 +57,19 @@ const mk = id => ({ id, hidden: false, disabled: false, textContent: "", innerHT
   setAttribute(k, v) { this.attrs[k] = v; }, getAttribute(k) { return this.attrs[k]; },
   addEventListener(t, f) { this.listeners[t] = f; }, focus() { focused = this.id; } });
 function page(phase, title, withButtons = true) {
-  const ids = ["ribbon", "ribbon-alarms", "ribbon-alarm-summary", "run-clock", "run-clock-inline",
+  const ids = ["ribbon", "ribbon-alarms", "ribbon-alarm-summary", "run-clock", "run-clock-value", "run-clock-inline",
     "scenario-bar", "scenario-title", "scenario-state", "scenario-notice"];
   if (withButtons) ids.push("scenario-start", "scenario-abort", "scenario-confirm", "scenario-abort-confirm",
     "scenario-abort-keep", "scenario-choose", "scenario-choose-label");
   const els = Object.fromEntries(ids.map(id => [id, mk(id)]));
   els["scenario-bar"].attrs = { "data-phase": phase, "data-title": title,
     "data-phase-labels": JSON.stringify({ idle: "", loaded: "Loaded, not started", running: "Running", complete: "Finished", aborted: "Aborted" }) };
+  // The run controls hold everything but the ribbon's own frame and alarms.
+  els["scenario-bar"].contains = el => !!el && el.id.startsWith("scenario-");
   const keys = {};
-  const doc = { getElementById: id => els[id] || null,
+  const doc = { getElementById: id => els[id] || null, body: mk("body"), activeElement: null,
     addEventListener(t, f) { keys[t] = f; }, removeEventListener(t) { delete keys[t]; } };
-  return { els, doc, keys };
+  return { els, doc, keys, focusOn: id => { doc.activeElement = els[id] || doc.body; } };
 }
 const reply = (status, body) => ({ ok: status >= 200 && status < 300, status, json: async () => body });
 """
@@ -177,6 +179,26 @@ def test_escape_disarms_abort_sends_nothing_and_hands_focus_back():
 
 
 @needs_node
+def test_escape_elsewhere_on_the_page_leaves_abort_armed():
+    got = run_js(
+        STUB
+        + """
+        const { els, doc, keys, focusOn } = page("running", "T");
+        R.mount(doc, { fetch: async () => reply(200, { phase: "running" }), pollMs: 0 });
+        els["scenario-abort"].listeners.click();
+        focusOn("ribbon-alarms");
+        keys.keydown({ key: "Escape" });
+        const elsewhere = !els["scenario-confirm"].hidden;
+        focusOn("scenario-abort-keep");
+        keys.keydown({ key: "Escape" });
+        return { elsewhere, inside: !els["scenario-confirm"].hidden };
+        """,
+    )
+
+    assert got == {"elsewhere": True, "inside": False}
+
+
+@needs_node
 def test_the_landing_page_shows_the_run_without_start_or_abort():
     got = run_js(
         STUB
@@ -188,7 +210,7 @@ def test_the_landing_page_shows_the_run_without_start_or_abort():
         const ribbon = R.mount(doc, { fetch: fetchImpl, pollMs: 0 });
         await ribbon.ready;
         return { title: els["scenario-title"].textContent, state: els["scenario-state"].textContent,
-          clock: els["run-clock"].textContent };
+          clock: els["run-clock-value"].textContent };
         """,
     )
 
@@ -218,7 +240,7 @@ def test_free_play_shows_plant_running_and_no_run_clock():
         await ribbon.ready;
         ribbon.update({ sim_time: 120 });
         return { title: els["scenario-title"].textContent, state: els["scenario-state"].textContent,
-          clock: els["run-clock"].textContent, hidden: els["run-clock"].hidden,
+          clock: els["run-clock-value"].textContent, hidden: els["run-clock"].hidden,
           inline: els["run-clock-inline"].textContent };
         """,
     )
@@ -230,6 +252,32 @@ def test_free_play_renders_plant_running_before_any_script(client):
     page = client.get("/console").get_data(as_text=True)
 
     assert '<span id="scenario-state">Plant running</span>' in page
+    assert 'data-plant-running="true"' in page
+
+
+def test_the_landing_page_says_the_plant_has_not_started_until_the_console_starts_it(client):
+    fresh = client.get("/").get_data(as_text=True)
+    client.get("/console")
+    started = client.get("/").get_data(as_text=True)
+
+    assert '<span id="scenario-state">Plant not started</span>' in fresh
+    assert 'data-plant-running="false"' in fresh
+    assert '<span id="scenario-state">Plant running</span>' in started
+
+
+@needs_node
+def test_free_play_follows_the_pages_word_on_whether_the_plant_is_running():
+    got = run_js(
+        STUB
+        + """
+        const { els, doc } = page("idle", "", false);
+        els["scenario-bar"].attrs["data-plant-running"] = "false";
+        R.mount(doc, { fetch: async url => url.endsWith("result") ? reply(409, {}) : reply(200, []), pollMs: 0 });
+        return els["scenario-state"].textContent;
+        """,
+    )
+
+    assert got == "Plant not started"
 
 
 @needs_node
@@ -248,7 +296,7 @@ def test_the_run_clock_shows_the_runs_elapsed_scenario_time_and_its_limit_over_h
         const { els, doc } = page("running", "Falling vessel level", false);
         const ribbon = R.mount(doc, { fetch: http, pollMs: 0 });
         await ribbon.ready;
-        return { clock: els["run-clock"].textContent, inline: els["run-clock-inline"].textContent,
+        return { clock: els["run-clock-value"].textContent, inline: els["run-clock-inline"].textContent,
           expected: R.formatClock(data.elapsed) + " / " + R.formatClock(data.limit) };
         """,
         base=served,
@@ -327,6 +375,24 @@ def test_outside_a_running_run_the_clock_shows_exactly_what_the_server_says():
     )
 
     assert got == {"running": 50, "aborted": 45, "loaded": 0, "text": "00:00 / 10:00", "free": ""}
+
+
+@needs_node
+def test_a_new_run_between_two_polls_restarts_the_clock_rather_than_holding_the_old_one():
+    got = run_js(
+        """
+        const clock = R.createRunClock();
+        clock.snapshot(1000);
+        clock.result("running", { elapsed: 300, limit: 900 });
+        const old = clock.read();
+        clock.result("running", { elapsed: 4, limit: 900 });
+        const restarted = clock.read();
+        clock.result("running", { elapsed: 5, limit: 600 });
+        return { old, restarted, other: clock.read() };
+        """,
+    )
+
+    assert got == pytest.approx({"old": 300, "restarted": 4, "other": 5})
 
 
 @needs_node
@@ -498,6 +564,34 @@ def test_a_failed_alarm_read_keeps_the_summary_it_had():
     )
 
     assert got == {"failed": "low", "thrown": "low"}
+
+
+@needs_node
+def test_an_acknowledgement_in_the_alarm_list_tells_the_page_at_once():
+    got = run_js(
+        """
+        const A = require(data.alarms);
+        const mk = () => ({ innerHTML: "", listeners: {}, addEventListener(t, f) { this.listeners[t] = f; } });
+        const banner = mk(), summary = mk();
+        const reply = (status, body) => ({ ok: status === 200, status, json: async () => body });
+        let told = 0;
+        const fetchImpl = async url => url.endsWith("acknowledge") ? reply(200, { recorded: true }) : reply(200, []);
+        const console_ = A.mount(banner, summary, { fetch: fetchImpl, pollMs: 0, onAcknowledge: () => { told += 1; } });
+        await console_.ready;
+        const button = { getAttribute: () => "a" };
+        await summary.listeners.click({ target: { closest: sel => sel === "[data-alarm-id]" ? button : null } });
+        return told;
+        """,
+        alarms=str(ROOT / "static" / "js" / "alarms.js"),
+    )
+
+    assert got == 1
+
+
+def test_the_console_refreshes_the_ribbon_after_an_acknowledgement(client):
+    page = client.get("/console").get_data(as_text=True)
+
+    assert "onAcknowledge: function () { if (ribbon) ribbon.refresh(); }" in page
 
 
 # ---- pages ----------------------------------------------------------------

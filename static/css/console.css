@@ -153,20 +153,32 @@
   background: var(--alarm-critical-mark);
 }
 
-/* New, unacknowledged alarms: a gentle pulse of the whole ribbon tint. After
-   acknowledgement the tint holds steady. */
+/* New, unacknowledged alarms: a gentle pulse of the ribbon's tint. After
+   acknowledgement the tint holds steady. Only a layer behind the content
+   moves, fading the tint towards --surface-raised, so text always sits
+   between two backgrounds the contrast tests already check. */
 @keyframes ribbon-pulse {
   0%,
   100% {
-    filter: none;
+    opacity: 0;
   }
 
   50% {
-    filter: brightness(1.06) saturate(1.25);
+    opacity: 0.4;
   }
 }
 
-.ribbon[data-unack="true"] {
+.ribbon::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--surface-raised);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.ribbon[data-unack="true"]::before {
   animation: ribbon-pulse 2.4s ease-in-out infinite;
 }
 
@@ -430,6 +442,7 @@ body[data-page="console"] main {
 
 @media (prefers-reduced-motion: reduce) {
   .ribbon,
+  .ribbon::before,
   .ribbon *,
   .btn {
     animation: none !important;

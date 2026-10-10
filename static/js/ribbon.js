@@ -101,7 +101,11 @@
 
     return {
       result: function (nextPhase, nextTimes) {
-        if (nextPhase !== phase) shown = null;
+        // A new phase, or a run that went back in time or changed its limit,
+        // is a different run: what the old one showed means nothing to it.
+        var restarted = times !== null && nextTimes !== null &&
+          (nextTimes.elapsed < times.elapsed || nextTimes.limit !== times.limit);
+        if (nextPhase !== phase || restarted) shown = null;
         phase = nextPhase;
         times = nextTimes;
         anchor = latest;
@@ -140,16 +144,16 @@
     var pollMs = settings.pollMs === undefined ? Number(ribbon.getAttribute("data-interval-seconds")) * 1000 : settings.pollMs;
     var alarmLink = doc.getElementById("ribbon-alarms");
     var alarmText = doc.getElementById("ribbon-alarm-summary");
-    var clockEls = [doc.getElementById("run-clock"), doc.getElementById("run-clock-inline")];
+    var clockEls = [doc.getElementById("run-clock"), doc.getElementById("run-clock-value"), doc.getElementById("run-clock-inline")];
     var clock = api.createRunClock();
     var timer = null;
     var latest = 0;
 
     function drawClock() {
       var text = api.clockText(clock.read(), clock.times());
-      clockEls[0].textContent = text;
       clockEls[0].hidden = text === "";
-      clockEls[1].textContent = text === "" ? "" : " · " + text;
+      clockEls[1].textContent = text;
+      clockEls[2].textContent = text === "" ? "" : " · " + text;
     }
 
     function drawAlarms(alarms) {
@@ -161,6 +165,8 @@
       alarmLink.setAttribute("aria-label", view.label);
     }
 
+    /* Also the way to catch up at once after something on the page changed the
+     * history, such as an acknowledgement. */
     async function refresh() {
       var ticket = ++latest;
       try {

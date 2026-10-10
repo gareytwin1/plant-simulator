@@ -58,6 +58,10 @@
   background: var(--equip-running-fill);
 }
 
+.ribbon-run[data-phase="idle"][data-plant-running="false"] .run-dot {
+  background: var(--text-muted);
+}
+
 .ribbon-run[data-phase="loaded"] .run-dot {
   border: 2px solid var(--text-muted);
   background: transparent;

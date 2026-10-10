@@ -104,8 +104,10 @@
     return title || "Scenario";
   };
 
-  api.runState = function (labels, phase) {
-    if (phase === "idle") return "Plant running";
+  /* `running` is whether the plant's clock advances: the landing page never
+   * starts it, so a session that has not opened the console has not. */
+  api.runState = function (labels, phase, running) {
+    if (phase === "idle") return running ? "Plant running" : "Plant not started";
     return "Scenario \u00B7 " + api.phaseLabel(labels, phase);
   };
 
@@ -124,6 +126,7 @@
     var bar = doc.getElementById("scenario-bar");
     var pollMs = settings.pollMs === undefined ? Number(bar.getAttribute("data-interval-seconds")) * 1000 : settings.pollMs;
     var labels = JSON.parse(bar.getAttribute("data-phase-labels"));
+    var running = bar.getAttribute("data-plant-running") !== "false";
     var els = {
       title: doc.getElementById("scenario-title"),
       state: doc.getElementById("scenario-state"),
@@ -158,7 +161,7 @@
 
       els.title.textContent = api.runTitle(state.phase, state.title);
       els.title.setAttribute("title", api.modeText(state.phase, state.title));
-      els.state.textContent = api.runState(labels, state.phase);
+      els.state.textContent = api.runState(labels, state.phase, running);
       show(els.start, controls.start);
       show(els.abort, controls.abort);
       show(els.confirmGroup, controls.confirm);
@@ -309,8 +312,13 @@
       });
     }
 
+    /* Escape belongs to whatever has focus: it disarms only from inside the
+     * run controls, or from nowhere in particular. */
     function onKey(event) {
-      if (event.key === "Escape" && state.armed) disarm();
+      if (event.key !== "Escape" || !state.armed) return;
+      var active = doc.activeElement;
+      if (active && active !== doc.body && bar.contains && !bar.contains(active)) return;
+      disarm();
     }
 
     if (doc.addEventListener) doc.addEventListener("keydown", onKey);

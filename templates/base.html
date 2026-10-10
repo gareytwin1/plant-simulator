@@ -25,12 +25,12 @@
       <a href="{{ url_for('console') }}"{% if request.endpoint == 'console' %} aria-current="page"{% endif %}>Console</a>
     </nav>
 
-    <div class="ribbon-run" id="scenario-bar" role="group" aria-label="Scenario run" data-phase="{{ standing.phase }}" data-title="{{ title or '' }}" data-interval-seconds="{{ stream_interval_seconds }}" data-phase-labels='{{ phase_labels|tojson }}'>
+    <div class="ribbon-run" id="scenario-bar" role="group" aria-label="Scenario run" data-phase="{{ standing.phase }}" data-plant-running="{{ 'true' if plant_running else 'false' }}" data-title="{{ title or '' }}" data-interval-seconds="{{ stream_interval_seconds }}" data-phase-labels='{{ phase_labels|tojson }}'>
       <div class="run-identity">
         <span class="run-title" id="scenario-title">{% if standing.mode == "scenario" %}{{ title or "Scenario" }}{% else %}Free play{% endif %}</span>
-        <span class="run-state" role="status"><span class="run-dot" aria-hidden="true"></span><span id="scenario-state">{% if standing.mode == "scenario" %}Scenario &middot; {{ phase_labels[standing.phase] }}{% else %}Plant running{% endif %}</span><span class="run-clock-inline" id="run-clock-inline" aria-hidden="true"></span></span>
+        <span class="run-state" role="status"><span class="run-dot" aria-hidden="true"></span><span id="scenario-state">{% if standing.mode == "scenario" %}Scenario &middot; {{ phase_labels[standing.phase] }}{% elif plant_running %}Plant running{% else %}Plant not started{% endif %}</span><span class="run-clock-inline" id="run-clock-inline" aria-hidden="true"></span></span>
       </div>
-      <span class="run-clock" id="run-clock" aria-label="Run time" hidden></span>
+      <span class="run-clock" id="run-clock" hidden><span class="visually-hidden">Run time </span><span id="run-clock-value"></span></span>
       {% if request.endpoint == 'console' %}
       <button type="button" class="btn btn-primary" id="scenario-start" hidden><span class="btn-glyph" aria-hidden="true">&#9654;</span>Start run</button>
       <button type="button" class="btn" id="scenario-abort" hidden><span class="btn-glyph" aria-hidden="true">&#9632;</span>Abort run</button>

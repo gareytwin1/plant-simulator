@@ -46,16 +46,20 @@
 <script>
   (function () {
     var consoleEl = document.getElementById("console");
+    var ribbon = null;
     AlarmConsole.mount(
       document.getElementById("alarm-banner"),
       document.getElementById("alarm-summary"),
-      { pollMs: Number(consoleEl.getAttribute("data-interval-seconds")) * 1000 }
+      {
+        pollMs: Number(consoleEl.getAttribute("data-interval-seconds")) * 1000,
+        // The ribbon polls on its own; an acknowledgement should not wait for it.
+        onAcknowledge: function () { if (ribbon) ribbon.refresh(); }
+      }
     );
     // The shown plant names its graphic; a scenario load or unload swaps it.
     var graphic = ProcessGraphic.follow(document.getElementById("process-graphic"));
     var faceplates = Faceplates.mount(document.getElementById("faceplates"));
     var trends = Trends.mount(document.getElementById("trends"));
-    var ribbon = null;
     ConnectionMonitor.mount(consoleEl, document.getElementById("connection-indicator"), {
       intervalSeconds: Number(consoleEl.getAttribute("data-interval-seconds")),
       // Each consumer is isolated: connection.js does not guard this callback,

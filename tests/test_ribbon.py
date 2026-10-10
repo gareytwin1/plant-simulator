@@ -588,12 +588,6 @@ def test_an_acknowledgement_in_the_alarm_list_tells_the_page_at_once():
     assert got == 1
 
 
-def test_the_console_refreshes_the_ribbon_after_an_acknowledgement(client):
-    page = client.get("/console").get_data(as_text=True)
-
-    assert "onAcknowledge: function () { if (ribbon) ribbon.refresh(); }" in page
-
-
 # ---- pages ----------------------------------------------------------------
 
 

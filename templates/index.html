@@ -3,41 +3,91 @@
 {% block title %}Plant Simulator - Start{% endblock %}
 
 {% block content %}
-<h1>Operator training</h1>
+<div class="launch" id="launch" data-phase-labels='{{ phase_labels|tojson }}' data-phase="{{ standing.phase }}"{% if thumbnail %} data-thumbnail="{{ thumbnail }}"{% endif %}>
+  <h1 class="visually-hidden">Operator training</h1>
 
-<section class="panel" aria-labelledby="standing-heading" id="standing" data-mode="{{ standing.mode }}" data-phase-labels='{{ phase_labels|tojson }}'>
-  <h2 id="standing-heading">Your plant</h2>
-  <p class="standing-line">
-    <span class="standing-mode" id="standing-mode">{% if standing.mode == "scenario" %}Scenario{% if title %}: {{ title }}{% endif %}{% else %}Free play{% endif %}</span>
-    <span class="standing-phase" id="standing-phase">{{ phase_labels[standing.phase] }}</span>
-    <span class="standing-time">Plant time <span id="standing-time">{{ "%.0f"|format(standing.sim_time) }}</span> s</span>
-  </p>
   {% if standing.mode == "scenario" %}
-  <p><a id="back-to-console" href="{{ url_for('console') }}">Back to the console</a></p>
+  <section class="session-strip" id="standing" aria-label="Your plant" data-mode="scenario">
+    <p class="standing-line session-text">
+      <span class="standing-mode" id="standing-mode">Scenario{% if title %}: {{ title }}{% endif %}</span>
+      <span class="standing-phase" id="standing-phase">{{ phase_labels[standing.phase] }}</span>
+      <span class="standing-time">Plant time <span id="standing-time">{{ "%.0f"|format(standing.sim_time) }}</span> s</span>
+    </p>
+    <a class="btn btn-quiet" id="back-to-console" href="{{ url_for('console') }}">Return to console</a>
+  </section>
   {% endif %}
-</section>
 
-<p class="notice" id="notice" role="status" aria-live="polite" hidden></p>
+  <p class="notice" id="notice" role="status" aria-live="polite" hidden></p>
 
-<section class="panel" aria-labelledby="free-heading">
-  <h2 id="free-heading">Free play</h2>
-  <p>The whole plant at normal operation, with nothing wrong. Run it, change it and see what it does.</p>
-  <button type="button" id="free-play">Start free play</button>
-</section>
+  {% if scenarios %}
+  {% set first = scenarios[0] %}
+  <section class="hero card" aria-labelledby="hero-title">
+    <div class="hero-copy">
+      <p class="eyebrow">Selected scenario</p>
+      <h2 id="hero-title" class="hero-title">{{ first.title }}</h2>
+      <p class="hero-meta">
+        <span class="chip chip-difficulty" id="hero-difficulty" data-difficulty="{{ first.difficulty }}">{{ first.difficulty|capitalize }}</span>
+        <span class="hero-limit" id="hero-limit">Time limit {{ "%g"|format(first.time_limit_s / 60) }} min</span>
+      </p>
+      <p class="hero-briefing" id="hero-briefing">{{ first.briefing }}</p>
 
-<section aria-labelledby="scenarios-heading">
-  <h2 id="scenarios-heading">Scenarios</h2>
-  <ul class="scenario-list">
-    {% for scenario in scenarios %}
-    <li class="panel scenario" data-scenario="{{ scenario.key }}" data-title="{{ scenario.title }}">
-      <h3>{{ scenario.title }}</h3>
-      <p class="difficulty" data-difficulty="{{ scenario.difficulty }}">Difficulty: {{ scenario.difficulty }}</p>
-      <p>{{ scenario.briefing }}</p>
-      <button type="button" class="load-scenario">Load scenario</button>
-    </li>
-    {% endfor %}
-  </ul>
-</section>
+      <div class="hero-actions" id="hero-actions">
+        <button type="button" class="btn btn-primary btn-start" id="hero-start" data-scenario="{{ first.key }}"><span class="btn-glyph" aria-hidden="true">&#9654;</span>START</button>
+        <button type="button" class="btn btn-quiet" id="choose-another" aria-expanded="false" aria-controls="scenario-picker">Choose another scenario</button>
+      </div>
+
+      <div class="hero-confirm" id="abort-confirm" role="group" aria-labelledby="abort-confirm-text" hidden>
+        <p id="abort-confirm-text" class="confirm-text">A scenario is running. Abort it to continue?</p>
+        <div class="hero-actions">
+          <button type="button" class="btn btn-danger" id="abort-confirm-yes">Abort and continue</button>
+          <button type="button" class="btn btn-quiet" id="abort-confirm-no">Keep running</button>
+        </div>
+      </div>
+    </div>
+    {% if thumbnail %}
+    <figure class="hero-art" aria-hidden="true" inert><div class="plant-thumb plant-graphic" id="plant-thumb"></div></figure>
+    {% endif %}
+  </section>
+
+  <section class="picker" id="scenario-picker" aria-labelledby="picker-heading" hidden>
+    <h2 id="picker-heading" class="section-title">Scenarios</h2>
+    <ul class="scenario-grid">
+      {% for scenario in scenarios %}
+      <li>
+        <button type="button" class="scenario-option" aria-pressed="{{ 'true' if loop.first else 'false' }}"
+                data-scenario="{{ scenario.key }}" data-title="{{ scenario.title }}"
+                data-difficulty="{{ scenario.difficulty }}" data-limit="{{ '%g'|format(scenario.time_limit_s / 60) }}"
+                data-briefing="{{ scenario.briefing }}">
+          <span class="option-title">{{ scenario.title }}</span>
+          <span class="chip chip-difficulty" data-difficulty="{{ scenario.difficulty }}">{{ scenario.difficulty|capitalize }}</span>
+          <span class="option-briefing">{{ scenario.briefing }}</span>
+        </button>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  <div class="launch-lower">
+    <section class="card free-card" aria-labelledby="free-heading">
+      <h2 id="free-heading" class="section-title">Free play</h2>
+      <p>The whole plant at normal operation, with nothing wrong. Run it, change it and see what it does.</p>
+      <button type="button" class="btn btn-quiet" id="free-play">Open free play</button>
+    </section>
+    <section class="card recent-card" aria-labelledby="recent-heading">
+      <h2 id="recent-heading" class="section-title">Recent scenarios</h2>
+      <p class="empty-state">No finished runs to show yet. Run history is not kept in this version, so nothing is listed here.</p>
+    </section>
+  </div>
+</div>
+{% endblock %}
+
+{% block ribbon %}
+<script>
+  // Isolated: a ribbon that cannot mount must not take the page with it. The
+  // landing script refreshes it when a run changes without the page leaving.
+  try { window.pageRibbon = Ribbon.mount(document); } catch (error) { console.error(error); }
+</script>
 {% endblock %}
 
 {% block scripts %}

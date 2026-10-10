@@ -96,7 +96,7 @@ def test_the_page_shows_each_scenarios_title_briefing_and_difficulty(page):
         doc = document(path)
         assert doc["title"] in flat, path.name
         assert squash(doc["briefing"]) in flat, path.name
-        assert f"Difficulty: {doc['difficulty']}" in flat, path.name
+        assert f'data-difficulty="{doc["difficulty"]}"' in flat, path.name
 
 
 def test_the_page_carries_each_scenarios_key_and_never_its_id(page):
@@ -105,9 +105,51 @@ def test_the_page_carries_each_scenarios_key_and_never_its_id(page):
         assert path.stem not in page
 
 
-def test_the_page_offers_free_play_and_one_load_button_per_scenario(page):
+def test_the_page_offers_start_free_play_and_one_choice_per_scenario(page):
+    assert 'id="hero-start"' in page
     assert 'id="free-play"' in page
-    assert page.count('class="load-scenario"') == len(SCENARIOS)
+    assert page.count('class="scenario-option"') == len(SCENARIOS)
+
+
+def test_the_first_catalogue_entry_is_selected_by_default(page):
+    first = main.CATALOGUE[0]
+
+    assert re.search(rf'id="hero-title"[^>]*>{re.escape(first.title)}<', page)
+    assert f'id="hero-start" data-scenario="{first.key}"' in page
+    assert page.count('aria-pressed="true"') == 1
+
+
+def test_the_hero_shows_the_time_limit_in_minutes(page):
+    first = main.CATALOGUE[0]
+
+    assert f"Time limit {first.time_limit_s / 60:g} min" in squash(page)
+
+
+def test_recent_scenarios_is_an_honest_empty_state(page):
+    flat = squash(page)
+
+    assert "Recent scenarios" in flat
+    assert "No finished runs to show yet" in flat
+
+
+def test_the_thumbnail_is_the_plants_graphic_and_is_not_interactive(client, page):
+    url = re.search(r'data-thumbnail="([^"]+)"', page).group(1)
+
+    assert client.get(url).status_code == 200
+    figure = re.search(r'<figure class="hero-art".*?</figure>', page, re.S).group(0)
+    assert 'aria-hidden="true"' in figure
+    assert " inert" in figure
+    assert not re.search(r"<(a|button|input)\b", figure)
+
+
+def test_the_return_strip_shows_only_while_a_scenario_stands(client):
+    free = client.get("/").get_data(as_text=True)
+    assert 'id="standing"' not in free
+
+    client.post("/api/scenario/load", json={"scenario": scenario_key("pump_trip")})
+    loaded = client.get("/").get_data(as_text=True)
+    assert 'id="standing"' in loaded
+    assert 'id="back-to-console"' in loaded
 
 
 def test_the_header_links_only_to_pages_that_exist(client, page):
@@ -132,11 +174,17 @@ def test_rendering_the_page_does_not_start_a_scheduler(client):
     assert session.training_scheduler.running is False
 
 
-def test_the_page_starts_in_free_play_at_the_plants_own_time(client, page):
+def test_the_page_starts_in_free_play_with_nothing_to_return_to(page):
+    assert 'data-phase="idle"' in page
+    assert 'id="standing"' not in page
+    assert "Plant not started" in page
+
+
+def test_the_return_strip_shows_the_plants_own_time(client):
+    client.post("/api/scenario/load", json={"scenario": scenario_key("pump_trip")})
     snapshot = client.get("/api/snapshot").get_json()
 
-    assert "Free play" in page
-    assert f'id="standing-time">{snapshot["sim_time"]:.0f}<' in page
+    assert f'id="standing-time">{snapshot["sim_time"]:.0f}<' in client.get("/").get_data(as_text=True)
 
 
 def test_the_page_follows_a_loaded_scenario_and_free_play_unloads_it(client):
@@ -150,7 +198,8 @@ def test_the_page_follows_a_loaded_scenario_and_free_play_unloads_it(client):
     assert client.post("/api/scenario/unload").status_code == 200
 
     free = client.get("/").get_data(as_text=True)
-    assert 'data-mode="free_play"' in free
+    assert 'data-mode="scenario"' not in free
+    assert 'data-phase="idle"' in free
 
 
 def test_the_base_template_gives_every_page_the_tokens_and_the_header(page):
@@ -277,27 +326,247 @@ def test_the_page_sends_a_label_for_every_runner_phase(page):
     assert set(sent) == {phase.value for phase in Phase}
 
 
+# A stand-in for the page, enough for Landing.mount to run under Node.
+PAGE_STUB = """
+function el(attrs) {
+  return {
+    attrs: Object.assign({}, attrs), listeners: {}, hidden: false, disabled: false, textContent: "", focused: 0,
+    getAttribute(k) { return k in this.attrs ? this.attrs[k] : null; },
+    setAttribute(k, v) { this.attrs[k] = String(v); },
+    addEventListener(t, f) { this.listeners[t] = f; },
+    focus() { this.focused += 1; },
+  };
+}
+function makePage(phase, keys) {
+  const ids = {};
+  const add = (id, attrs) => (ids[id] = el(attrs));
+  add("launch", { "data-phase-labels": '{"idle": "", "running": "Running", "aborted": "Aborted"}', "data-phase": phase });
+  ["standing", "standing-phase", "notice", "free-play", "choose-another", "scenario-picker", "hero-actions",
+   "abort-confirm", "abort-confirm-yes", "abort-confirm-no", "hero-title", "hero-briefing", "hero-limit", "hero-difficulty"].forEach(id => add(id));
+  ids["abort-confirm"].hidden = true;
+  ids["scenario-picker"].hidden = true;
+  add("hero-start", { "data-scenario": keys[0] });
+  const choices = keys.map(k => el({ "data-scenario": k, "data-title": "T " + k, "data-briefing": "B " + k, "data-limit": "9", "data-difficulty": "hard" }));
+  const header = el();
+  const doc = {
+    ids, choices, header,
+    getElementById: id => ids[id] || null,
+    querySelectorAll: sel => (sel === "main button" ? Object.values(ids).concat(choices) : sel === ".scenario-option" ? choices : []),
+  };
+  return doc;
+}
+function makeFetch(statusFor) {
+  const calls = [];
+  const fn = async (url, init) => {
+    calls.push(url);
+    const status = statusFor(url);
+    return { ok: status === 200, status, json: async () => ({ phase: url.endsWith("abort") ? "aborted" : url.endsWith("unload") ? "idle" : "loaded" }) };
+  };
+  fn.calls = calls;
+  return fn;
+}
+const tick = () => new Promise(r => setTimeout(r, 0));
+const memory = (store) => ({ getItem: k => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = v; } });
+"""
+
+
+def run_page(body, **data):
+    return run_js(PAGE_STUB + body, **data)
+
+
 @needs_node
-def test_only_the_pages_action_buttons_are_disabled_while_a_request_is_in_flight():
+def test_start_loads_then_starts_the_selected_scenario_and_opens_the_console():
+    result = run_page(
+        """
+        const doc = makePage("idle", ["a", "b"]), fetchImpl = makeFetch(() => 200), went = [];
+        L.mount(doc, fetchImpl, u => went.push(u), { storage: memory({}), refreshRibbon() {} });
+        doc.ids["hero-start"].listeners.click();
+        await tick(); await tick(); await tick();
+        return { calls: fetchImpl.calls, went };
+        """
+    )
+
+    assert result == {"calls": ["/api/scenario/load", "/api/scenario/start"], "went": ["/console"]}
+
+
+@needs_node
+def test_free_play_goes_to_the_console_once_it_succeeds():
+    result = run_page(
+        """
+        const doc = makePage("idle", ["a"]), fetchImpl = makeFetch(() => 200), went = [];
+        L.mount(doc, fetchImpl, u => went.push(u), { storage: memory({}), refreshRibbon() {} });
+        doc.ids["free-play"].listeners.click();
+        await tick(); await tick();
+        return { calls: fetchImpl.calls, went };
+        """
+    )
+
+    assert result == {"calls": ["/api/scenario/unload"], "went": ["/console"]}
+
+
+@needs_node
+def test_a_refused_free_play_keeps_the_landing_page():
+    result = run_page(
+        """
+        const doc = makePage("idle", ["a"]), went = [];
+        L.mount(doc, makeFetch(() => 409), u => went.push(u), { storage: memory({}), refreshRibbon() {} });
+        doc.ids["free-play"].listeners.click();
+        await tick(); await tick();
+        return { went, shown: doc.ids.notice.textContent };
+        """
+    )
+
+    assert result["went"] == []
+    assert "running" in result["shown"]
+
+
+@needs_node
+def test_the_start_requests_take_free_play_to_a_running_scenario(client):
+    steps = run_js("return L.startSteps(data.key, false);", key=scenario_key("pump_trip"))
+
+    for step in steps:
+        response = client.post(step["url"], data=step["init"].get("body"), content_type="application/json")
+        assert response.status_code == 200, step["url"]
+        for path in SCENARIOS:
+            assert path.stem not in response.get_data(as_text=True)
+
+    assert client.get("/api/scenario/result").get_json()["phase"] == "running"
+
+
+@needs_node
+def test_start_during_a_run_asks_first_and_declining_sends_nothing():
+    result = run_page(
+        """
+        const doc = makePage("running", ["a", "b"]), fetchImpl = makeFetch(() => 200), went = [];
+        L.mount(doc, fetchImpl, u => went.push(u), { storage: memory({}), refreshRibbon() {} });
+        doc.ids["hero-start"].listeners.click();
+        await tick();
+        const asked = { confirm: !doc.ids["abort-confirm"].hidden, actions: doc.ids["hero-actions"].hidden, calls: fetchImpl.calls.length };
+        doc.ids["abort-confirm-no"].listeners.click();
+        await tick();
+        return { asked, calls: fetchImpl.calls, went, shown: !doc.ids["hero-actions"].hidden, start: doc.ids["hero-start"].focused };
+        """
+    )
+
+    assert result["asked"] == {"confirm": True, "actions": True, "calls": 0}
+    assert result["calls"] == [] and result["went"] == []
+    assert result["shown"] and result["start"] == 1
+
+
+@needs_node
+def test_confirming_aborts_then_loads_and_starts():
+    result = run_page(
+        """
+        const doc = makePage("running", ["a", "b"]), fetchImpl = makeFetch(() => 200), went = [];
+        L.mount(doc, fetchImpl, u => went.push(u), { storage: memory({}), refreshRibbon() {} });
+        doc.ids["hero-start"].listeners.click();
+        doc.ids["abort-confirm-yes"].listeners.click();
+        for (let i = 0; i < 6; i += 1) await tick();
+        return { calls: fetchImpl.calls, went };
+        """
+    )
+
+    assert result["calls"] == ["/api/scenario/abort", "/api/scenario/load", "/api/scenario/start"]
+    assert result["went"] == ["/console"]
+
+
+@needs_node
+def test_free_play_during_a_run_asks_first_then_aborts_and_unloads():
+    result = run_page(
+        """
+        const doc = makePage("running", ["a"]), fetchImpl = makeFetch(() => 200), went = [];
+        L.mount(doc, fetchImpl, u => went.push(u), { storage: memory({}), refreshRibbon() {} });
+        doc.ids["free-play"].listeners.click();
+        await tick();
+        const before = fetchImpl.calls.length;
+        doc.ids["abort-confirm-yes"].listeners.click();
+        for (let i = 0; i < 6; i += 1) await tick();
+        return { before, calls: fetchImpl.calls, went };
+        """
+    )
+
+    assert result["before"] == 0
+    assert result["calls"] == ["/api/scenario/abort", "/api/scenario/unload"]
+    assert result["went"] == ["/console"]
+
+
+@needs_node
+@pytest.mark.parametrize("status", [409, 429])
+def test_a_refused_start_is_worded_by_status_and_stays_on_the_page(status):
+    result = run_page(
+        """
+        const doc = makePage("idle", ["a"]), fetchImpl = makeFetch(u => (u.endsWith("start") ? data.status : 200)), went = [];
+        let refreshed = 0;
+        L.mount(doc, fetchImpl, u => went.push(u), { storage: memory({}), refreshRibbon() { refreshed += 1; } });
+        doc.ids["hero-start"].listeners.click();
+        for (let i = 0; i < 4; i += 1) await tick();
+        return { text: doc.ids.notice.textContent, went, refreshed, disabled: doc.ids["hero-start"].disabled, calls: fetchImpl.calls };
+        """,
+        status=status,
+    )
+
+    assert result["text"] == run_js("return L.refusalText(data.status);", status=status)
+    assert result["went"] == [] and result["refreshed"] == 1 and not result["disabled"]
+    assert result["calls"] == ["/api/scenario/load", "/api/scenario/start"]
+
+
+@needs_node
+def test_choosing_another_scenario_updates_the_hero_remembers_it_and_returns_focus_to_start():
+    result = run_page(
+        """
+        const store = {}, doc = makePage("idle", ["a", "b"]);
+        L.mount(doc, makeFetch(() => 200), () => {}, { storage: memory(store), refreshRibbon() {} });
+        doc.ids["choose-another"].listeners.click();
+        const opened = [!doc.ids["scenario-picker"].hidden, doc.ids["choose-another"].attrs["aria-expanded"]];
+        doc.choices[1].listeners.click();
+        return {
+            opened, store, start: doc.ids["hero-start"].attrs["data-scenario"], title: doc.ids["hero-title"].textContent,
+            limit: doc.ids["hero-limit"].textContent, chip: doc.ids["hero-difficulty"].textContent,
+            pressed: doc.choices.map(c => c.attrs["aria-pressed"]), closed: doc.ids["scenario-picker"].hidden,
+            focus: doc.ids["hero-start"].focused,
+        };
+        """
+    )
+
+    assert result["opened"] == [True, "true"]
+    assert result["store"] == {"landing.scenario": "b"}
+    assert (result["start"], result["title"], result["limit"], result["chip"]) == ("b", "T b", "Time limit 9 min", "Hard")
+    assert result["pressed"] == ["false", "true"] and result["closed"] and result["focus"] == 1
+
+
+@needs_node
+def test_a_remembered_choice_is_restored_and_a_stale_or_blocked_one_is_ignored():
     result = run_js(
         """
-        const mk = () => ({ disabled: false, listeners: {}, addEventListener(t, f) { this.listeners[t] = f; } });
-        const free = mk(), header = mk(), seen = [];
-        const el = { textContent: "", hidden: true, setAttribute() {}, getAttribute: () => '{"idle": ""}' };
-        const doc = {
-          getElementById: id => (id === "free-play" ? free : el),
-          // Only a selector scoped to <main> leaves the header's button out.
-          querySelectorAll: sel => (sel === "main button" ? [free] : sel === "button" ? [free, header] : []),
-        };
+        const throwing = { getItem() { throw new Error("blocked"); } };
+        return [
+          L.chooseScenario({ getItem: () => "b" }, ["a", "b"]),
+          L.chooseScenario({ getItem: () => "gone" }, ["a", "b"]),
+          L.chooseScenario(throwing, ["a", "b"]),
+          L.chooseScenario(null, ["a", "b"]),
+        ];
+        """
+    )
+
+    assert result == ["b", "a", "a", "a"]
+
+
+@needs_node
+def test_remembering_a_choice_with_blocked_storage_does_not_throw():
+    run_js("L.rememberScenario({ setItem() { throw new Error('blocked'); } }, 'a'); L.rememberScenario(null, 'a');")
+
+
+@needs_node
+def test_only_the_pages_action_buttons_are_disabled_while_a_request_is_in_flight():
+    result = run_page(
+        """
+        const doc = makePage("idle", ["a"]);
         let release;
-        const fetchImpl = url => new Promise(res => {
-          seen.push({ free: free.disabled, header: header.disabled });
-          release = () => res(url === "/api/snapshot" ? { ok: true, json: async () => ({ sim_time: 1 }) } : { ok: true, json: async () => ({}) });
-        });
-        L.mount(doc, fetchImpl);
-        free.listeners.click();
-        await new Promise(r => setTimeout(r, 0));
-        const inFlight = { free: free.disabled, header: header.disabled };
+        const fetchImpl = () => new Promise(res => { release = () => res({ ok: true, json: async () => ({}) }); });
+        L.mount(doc, fetchImpl, () => {}, { storage: memory({}), refreshRibbon() {} });
+        doc.ids["free-play"].listeners.click();
+        await tick();
+        const inFlight = { free: doc.ids["free-play"].disabled, header: doc.header.disabled };
         release();
         return { inFlight };
         """,

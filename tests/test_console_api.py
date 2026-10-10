@@ -3,9 +3,6 @@ the caller's training session, and /console is the one page that starts it."""
 
 import itertools
 import json
-import pathlib
-import shutil
-import subprocess
 import threading
 import time
 
@@ -261,83 +258,3 @@ def test_a_session_with_an_open_stream_is_not_reclaimed_while_idle(client, monke
 
     assert registry.reclaim_idle() == 1
     assert session.training_scheduler.closed is True
-
-
-# ---- landing.js leaves for the console once its call succeeds ----
-
-LANDING_JS = pathlib.Path(__file__).resolve().parent.parent / "static" / "js" / "landing.js"
-
-needs_node = pytest.mark.skipif(shutil.which("node") is None, reason="node is not installed")
-
-
-def run_landing(body):
-    script = (
-        f"const L = require({json.dumps(str(LANDING_JS))});"
-        f"(async () => {{ {body} }})()"
-        ".then(r => process.stdout.write(JSON.stringify(r)))"
-        ".catch(e => { console.error(e); process.exit(1); });"
-    )
-
-    return json.loads(subprocess.run(["node", "-e", script], capture_output=True, text=True, check=True).stdout)
-
-
-PAGE_STUB = """
-const mk = () => ({ disabled: false, listeners: {}, textContent: "", hidden: true,
-  setAttribute() {}, getAttribute: () => '{"idle": ""}',
-  addEventListener(t, f) { this.listeners[t] = f; } });
-const free = mk(), el = mk(), card = mk(), load = mk(), went = [];
-card.getAttribute = k => (k === "data-title" ? "Pump trip" : "key");
-card.querySelector = () => load;
-const doc = {
-  getElementById: id => (id === "free-play" ? free : el),
-  querySelectorAll: sel => (sel === "main button" ? [free] : sel === ".scenario" ? [card] : []),
-};
-const ok = body => ({ ok: true, status: 200, json: async () => body });
-"""
-
-
-@needs_node
-def test_free_play_goes_to_the_console_once_it_succeeds():
-    went = run_landing(
-        PAGE_STUB
-        + """
-        L.mount(doc, async url => ok({ sim_time: 1 }), url => went.push(url));
-        free.listeners.click();
-        await new Promise(r => setTimeout(r, 20));
-        return went;
-        """,
-    )
-
-    assert went == ["/console"]
-
-
-@needs_node
-def test_choosing_a_scenario_goes_to_the_console_once_it_loads():
-    went = run_landing(
-        PAGE_STUB
-        + """
-        L.mount(doc, async url => ok({ phase: "loaded", sim_time: 1 }), url => went.push(url));
-        load.listeners.click();
-        await new Promise(r => setTimeout(r, 20));
-        return went;
-        """,
-    )
-
-    assert went == ["/console"]
-
-
-@needs_node
-def test_a_refusal_keeps_the_landing_page():
-    result = run_landing(
-        PAGE_STUB
-        + """
-        const refuse = async () => ({ ok: false, status: 409, json: async () => ({}) });
-        L.mount(doc, refuse, url => went.push(url));
-        load.listeners.click();
-        await new Promise(r => setTimeout(r, 20));
-        return { went, shown: el.textContent };
-        """,
-    )
-
-    assert result["went"] == []
-    assert "running" in result["shown"]

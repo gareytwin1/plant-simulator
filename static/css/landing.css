@@ -44,22 +44,10 @@ h3 {
   margin: 0 0 0.25rem;
 }
 
-.panel {
-  margin: 0 0 1rem;
-  padding: 0.75rem 1rem;
-  border: 2px solid var(--border);
-  border-radius: 4px;
-  background-color: var(--surface-raised);
-}
-
-.panel p {
-  margin: 0.25rem 0 0.75rem;
-}
-
 .standing-line {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.25rem 1.25rem;
+  gap: var(--space-1) var(--space-4);
   margin: 0;
 }
 
@@ -68,27 +56,238 @@ h3 {
 }
 
 .standing-phase,
-.standing-time,
-.difficulty {
+.standing-time {
   color: var(--text-muted);
 }
 
-.scenario-list {
+/* ---- landing (T20-9) -------------------------------------------------- */
+
+body[data-page="landing"] main {
+  max-width: 1080px;
+  padding: var(--space-5) var(--space-4) var(--space-6);
+}
+
+.card {
+  padding: var(--space-5);
+  border: 1px solid color-mix(in srgb, var(--border) 45%, transparent);
+  border-radius: var(--radius);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-1);
+}
+
+.section-title {
+  margin: 0 0 var(--space-2);
+  font-size: 1.05rem;
+}
+
+.eyebrow {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.session-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-raised);
+}
+
+.session-text {
+  font-weight: 600;
+}
+
+.hero {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 1fr));
-  gap: 1rem;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+  gap: var(--space-5);
+  align-items: center;
+  padding: var(--space-6);
+  box-shadow: var(--shadow-2);
+}
+
+.hero-title {
+  margin: var(--space-2) 0;
+  font-size: 1.9rem;
+  line-height: 1.15;
+}
+
+.hero-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-3);
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.hero-briefing {
+  max-width: 46ch;
+  margin: 0 0 var(--space-5);
+  font-size: 1.02rem;
+}
+
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.hero-confirm .confirm-text {
+  margin: 0 0 var(--space-3);
+  font-weight: 600;
+}
+
+.btn-start {
+  min-height: 52px;
+  padding: 0 var(--space-6);
+  border-radius: var(--radius);
+  font-size: 1.1rem;
+  letter-spacing: 0.06em;
+}
+
+.hero-art {
+  margin: 0;
+  padding: var(--space-3);
+  border-radius: var(--radius);
+  background: var(--surface);
+  pointer-events: none;
+}
+
+.plant-thumb > svg {
+  display: block;
+  width: 100%;
+  max-height: 300px;
+}
+
+/* The illustration is the real process graphic with its live readouts hidden. */
+.plant-thumb text[data-bind],
+.plant-thumb [data-controller-mode],
+.plant-thumb [data-state-of],
+.plant-thumb [data-band-of],
+.plant-thumb .badge,
+.plant-thumb [data-unplaced] {
+  display: none;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 10px;
+  border: 1.5px solid var(--border);
+  border-radius: 999px;
+  color: var(--text);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+/* Difficulty is a word and a pip count, never a colour. */
+.chip-difficulty::before {
+  letter-spacing: 1px;
+}
+
+.chip-difficulty[data-difficulty="easy"]::before {
+  content: "\25CF\25CB\25CB";
+}
+
+.chip-difficulty[data-difficulty="medium"]::before {
+  content: "\25CF\25CF\25CB";
+}
+
+.chip-difficulty[data-difficulty="hard"]::before {
+  content: "\25CF\25CF\25CF";
+}
+
+.picker {
+  margin-top: var(--space-5);
+}
+
+.scenario-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+  gap: var(--space-3);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.scenario-list .panel {
+.scenario-option {
   display: flex;
   flex-direction: column;
-  margin: 0;
+  align-items: flex-start;
+  gap: var(--space-2);
+  width: 100%;
+  height: 100%;
+  padding: var(--space-4);
+  border: 1.5px solid color-mix(in srgb, var(--border) 55%, transparent);
+  border-radius: var(--radius);
+  background: var(--surface-raised);
+  color: var(--text);
+  text-align: left;
+  font-weight: 400;
+  transition: border-color var(--t-fast), box-shadow var(--t-fast);
 }
 
-.scenario-list button {
+.scenario-option:hover:not(:disabled) {
+  border-color: var(--text);
+  background: var(--surface-raised);
+  color: var(--text);
+  box-shadow: var(--shadow-2);
+}
+
+.scenario-option[aria-pressed="true"] {
+  border: 2.5px solid var(--focus-ring);
+  box-shadow: var(--shadow-2);
+}
+
+/* Selection is also a word, so it never rests on the border colour alone. */
+.scenario-option[aria-pressed="true"]::after {
+  content: "Selected";
+  margin-top: auto;
+  color: var(--focus-ring);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.option-title {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.option-briefing {
+  color: var(--text-muted);
+  font-size: 0.92rem;
+}
+
+.launch-lower {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+  margin-top: var(--space-5);
+}
+
+.launch-lower p {
+  margin: 0 0 var(--space-3);
+}
+
+.empty-state {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+button {
   margin-top: auto;
   align-self: flex-start;
 }

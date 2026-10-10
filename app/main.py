@@ -2,7 +2,7 @@ import functools
 import uuid
 from pathlib import Path
 
-from flask import Flask, Response, g, has_app_context, jsonify, render_template, request
+from flask import Flask, Response, g, has_app_context, jsonify, render_template, request, url_for
 from flask.typing import ResponseReturnValue
 
 from app import config
@@ -139,6 +139,17 @@ def persist_session_cookie(response: Response) -> Response:
     return response
 
 
+def thumbnail_url() -> str | None:
+    """The plant graphic the landing page shows: every scenario runs on the
+    free-play plant today (T20-2 gives a plant its own graphic by file stem).
+    The page learns nothing else about the plant."""
+    name = f"graphics/{config.FREE_PLAY_PLANT}.svg"
+    if not (Path(app.static_folder or "") / name).is_file():
+        return None
+
+    return url_for("static", filename=name)
+
+
 @app.get("/")
 def landing() -> ResponseReturnValue:
     # Never starts the scheduler: only the console's render does.
@@ -152,6 +163,7 @@ def landing() -> ResponseReturnValue:
         title=TITLES.get(standing.scenario_id) if standing.scenario_id else None,
         phase_labels=PHASE_LABELS,
         scenarios=CATALOGUE,
+        thumbnail=thumbnail_url(),
     )
 
 

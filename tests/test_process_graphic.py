@@ -462,6 +462,39 @@ def test_the_svg_binds_only_fields_the_operator_view_publishes(views):
             assert set(row) <= visible
 
 
+# Which plant each graphic draws; T20-2 makes the plant choose its graphic.
+GRAPHIC_PLANTS = {"plant.svg": "olefins_lite"}
+
+
+def test_every_unit_a_graphic_labels_is_the_servers_unit_for_that_point():
+    session = TrainingSession()
+    try:
+        units = {"olefins_lite": session.trend_units()}
+    finally:
+        session.end()
+
+    graphics = sorted((ROOT / "static" / "graphics").glob("*.svg"))
+    assert graphics
+    for graphic in graphics:
+        assert graphic.name in GRAPHIC_PLANTS, f"{graphic.name} draws no known plant"
+        served = units[GRAPHIC_PLANTS[graphic.name]]
+        labelled = 0
+
+        for node in ET.fromstring(graphic.read_text()).iter():
+            path = node.attrib.get("data-bind")
+            if path is None:
+                continue
+            point = path.split(".", 1)[1]
+            if node.attrib.get("data-format") == "percent":
+                assert served[point] == "fraction", (graphic.name, point)
+                labelled += 1
+            elif "data-unit" in node.attrib:
+                assert node.attrib["data-unit"] == served[point], (graphic.name, point)
+                labelled += 1
+
+        assert labelled, graphic.name
+
+
 def test_the_svg_is_well_formed_responsive_and_legible_at_phone_width():
     text = PLANT_SVG.read_text()
     root = ET.fromstring(text)

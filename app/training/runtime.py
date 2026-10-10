@@ -63,6 +63,7 @@ from app.envelope.evaluator import Severity, Side, isa_band
 from app.historian.buffer import Historian, Sample
 from app.historian.points import trend_values
 from app.plant.loader import Plant
+from app.plant.units import point_units
 from app.safety.actions import TripSystem
 from app.scoring.actionlog import ActionLog
 
@@ -104,6 +105,13 @@ class PlantRuntime:
             for point in self._trend_points
             for row_id, _, field in [point.rpartition(".")]
         }
+        self._trend_units = point_units(
+            operator_view(engine.snapshot(), engine.equipment),
+            engine.equipment,
+            engine.loops,
+            engine.topologies,
+            engine.couplings,
+        )
 
         self._lock = threading.RLock()
         self._published: Snapshot | None = None
@@ -173,6 +181,12 @@ class PlantRuntime:
         controller) its field with underscores as spaces. Fixed at
         construction."""
         return self._trend_descriptors
+
+    def trend_units(self) -> dict[str, str]:
+        """The unit of each trend point, keyed by point (`app.plant.units`):
+        '' where nothing names one, and `fraction` for a 0..1 value a display
+        shows as a percent. Fixed at construction."""
+        return self._trend_units
 
     def trend_limits(self) -> dict[str, dict[str, float]]:
         """The configured bounds of each trend point the engine evaluates

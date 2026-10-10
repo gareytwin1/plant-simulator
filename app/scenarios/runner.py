@@ -617,6 +617,11 @@ class ScenarioRunner:
         with self._lock:
             return self._loaded().runtime.trend_descriptors()
 
+    def trend_units(self) -> dict[str, str]:
+        """The loaded run's trend point units, under the runner lock."""
+        with self._lock:
+            return self._loaded().runtime.trend_units()
+
     def trend_limits(self) -> dict[str, dict[str, float]]:
         """The loaded run's evaluated envelope bounds, under the runner lock."""
         with self._lock:

@@ -24,7 +24,7 @@ def fake_app(histories, limits=None):
         return {point: histories[point] for point in points}
 
     app = Flask(__name__)
-    app.register_blueprint(create_trend_blueprint(lambda: sorted(histories), get_history, lambda: limits or {}, lambda: {point: point for point in histories}))
+    app.register_blueprint(create_trend_blueprint(lambda: sorted(histories), get_history, lambda: limits or {}, lambda: {point: point for point in histories}, lambda: {point: "" for point in histories}))
 
     return app.test_client()
 
@@ -201,7 +201,7 @@ def test_a_point_that_vanishes_between_the_two_lookups_is_a_400():
         raise KeyError("X.v")
 
     app = Flask(__name__)
-    app.register_blueprint(create_trend_blueprint(lambda: ["X.v"], get_history, lambda: {}, lambda: {}))
+    app.register_blueprint(create_trend_blueprint(lambda: ["X.v"], get_history, lambda: {}, lambda: {}, lambda: {}))
 
     response = app.test_client().get("/api/trend?tags=X.v")
 
@@ -225,7 +225,7 @@ def session(tmp_path):
 @pytest.fixture
 def client(session):
     app = Flask(__name__)
-    app.register_blueprint(create_trend_blueprint(session.trend_points, session.trend_history, session.trend_limits, session.trend_descriptors))
+    app.register_blueprint(create_trend_blueprint(session.trend_points, session.trend_history, session.trend_limits, session.trend_descriptors, session.trend_units))
 
     return app.test_client()
 
@@ -398,3 +398,13 @@ def test_the_points_listing_describes_exactly_the_points_it_lists(client):
     assert listing["descriptors"]["V-101.level"] == "level"
     assert listing["descriptors"]["N-204.pressure"] == "pressure"
     assert listing["descriptors"]["PIC-101.pv"] == "pv"
+
+
+def test_the_points_listing_gives_a_unit_for_exactly_the_points_it_lists(client):
+    listing = client.get("/api/trend/points").get_json()
+
+    assert set(listing["units"]) == set(listing["points"])
+    assert listing["units"]["N-204.pressure"] == "psia"
+    assert listing["units"]["V-101.level"] == "fraction"
+    assert listing["units"]["B-LV-101.flow"] == "GPM"
+    assert listing["units"]["B-PV-101.flow"] == "SCFM"

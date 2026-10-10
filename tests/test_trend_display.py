@@ -71,7 +71,7 @@ def session(tmp_path):
 def client(session):
     app = Flask(__name__)
     app.register_blueprint(
-        create_trend_blueprint(session.trend_points, session.trend_history, session.trend_limits, session.trend_descriptors)
+        create_trend_blueprint(session.trend_points, session.trend_history, session.trend_limits, session.trend_descriptors, session.trend_units)
     )
     app.register_blueprint(create_alarm_blueprint(session.alarm_entries, session.acknowledge))
 

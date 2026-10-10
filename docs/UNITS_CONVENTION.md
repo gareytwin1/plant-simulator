@@ -70,6 +70,20 @@ flow-domain metadata**, so there is nothing for the solver to enforce against
 and a mixed-domain topology would solve and return a confidently wrong answer.
 Keeping one domain per topology is the responsibility of whoever builds it.
 
+**For display, a domain's unit is now derived (T20-1).** `app/plant/units.py`
+names the unit of each trend point the console shows: an equipment field
+listed in its `FIELD_UNITS` allowlist (an unlisted field has none), a node
+pressure, a loop's points, and a stream, which takes its domain's flow unit
+from the same classification the coupling applies - the machines in the
+domain confirm one, and a vessel attachment's declared phase gives one. Two
+sources that disagree are an error: building a plant runtime now fails when
+the machines or vessel attachments in one domain name different flow units.
+A domain nothing classifies has no unit rather than a guess. The loader,
+`Engine` and `NetworkSolver` do not check agreement across a whole domain
+(the coupling checks only each vessel's attachment node), so a plain `Engine`
+built from such a plant still solves, and the modelling constraint above
+stands.
+
 How the liquid and gas domains get split and coupled — separate hydraulic
 problems joined through the V-101 separator's inventory rather than through a
 shared flow variable — is decided by the reference plant (T3-4) and the vessel

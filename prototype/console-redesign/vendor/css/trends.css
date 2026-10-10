@@ -1,0 +1,198 @@
+/* Trend display (T17-4). Every colour is a token from tokens.css
+ * (docs/console-standards.md); nothing here is a hex literal. Load tokens.css
+ * and landing.css (buttons, focus ring) first.
+ *
+ * A pen is a dash pattern and a number as well as a stroke, a band is a
+ * labelled rule as well as a tint, and an alarm marker is a glyph as well as
+ * a hue, so nothing rests on colour alone. */
+
+.trend {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-bottom: 1.5rem;
+}
+
+.trend-selectors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+}
+
+.trend-selectors select {
+  max-width: 100%;
+  min-height: 2rem;
+  border: 2px solid var(--border);
+  border-radius: 3px;
+  background-color: var(--surface-raised);
+  color: var(--text);
+}
+
+.trend-chart {
+  min-width: 0;
+  border: 2px solid var(--border);
+  border-radius: 4px;
+  background-color: var(--surface-raised);
+}
+
+.trend-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.trend-empty {
+  margin: 0;
+  padding: 1rem;
+  color: var(--text-muted);
+}
+
+.trend-plot {
+  fill: var(--surface-raised);
+}
+
+.trend-band[data-severity="warning"] {
+  fill: var(--band-warning-tint);
+}
+
+.trend-band[data-severity="alarm"] {
+  fill: var(--band-alarm-tint);
+}
+
+.trend-band[data-severity="trip"] {
+  fill: var(--band-trip-tint);
+}
+
+.trend-grid {
+  stroke: var(--border);
+  stroke-width: 1;
+  opacity: 0.35;
+}
+
+.trend-tick {
+  fill: var(--text-muted);
+  font-size: 11px;
+}
+
+.trend-rule {
+  stroke: var(--text-muted);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.trend-rule-label {
+  fill: var(--text);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.trend-pen {
+  fill: none;
+  stroke: var(--text-muted);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.trend-pen[data-focus] {
+  stroke: var(--focus-ring);
+  stroke-width: 2.5;
+}
+
+.trend-pen-number {
+  fill: var(--text);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.trend-marker line {
+  stroke: var(--alarm-mark);
+  stroke-width: 1.5;
+}
+
+.trend-marker text {
+  fill: var(--alarm-mark);
+  font-size: 11px;
+}
+
+.trend-marker[data-priority="critical"] {
+  --alarm-mark: var(--alarm-critical-mark);
+}
+
+.trend-marker[data-priority="high"] {
+  --alarm-mark: var(--alarm-high-mark);
+}
+
+.trend-marker[data-priority="low"] {
+  --alarm-mark: var(--alarm-low-mark);
+}
+
+.trend-legend {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr));
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.trend-pen-row {
+  display: flex;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.trend-focus {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+  padding: 0.25rem 0.5rem;
+  border: 2px solid var(--border);
+  border-radius: 3px;
+  background-color: var(--surface-raised);
+  color: var(--text);
+  text-align: left;
+}
+
+.trend-focus[aria-pressed="true"] {
+  border-color: var(--focus-ring);
+  font-weight: 700;
+}
+
+.trend-swatch line {
+  stroke: var(--text);
+  stroke-width: 2;
+}
+
+.trend-pen-index {
+  font-weight: 700;
+}
+
+.trend-pen-point {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trend-remove {
+  min-width: 2.25rem;
+  padding: 0.25rem 0.5rem;
+  font-size: 1.1rem;
+  line-height: 1;
+  border: 2px solid var(--border);
+  border-radius: 3px;
+  background-color: var(--surface-raised);
+  color: var(--text);
+}
+
+.trend-status {
+  margin: 0;
+  color: var(--text);
+}
+
+.trend-status:empty {
+  display: none;
+}

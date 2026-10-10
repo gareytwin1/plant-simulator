@@ -1,0 +1,188 @@
+<!doctype html>
+<!--
+  Console redesign prototype - the accepted design reference (user review,
+  9 October 2026). Build-plan milestone M20 ports it into static/, app/ and
+  templates/; this folder is never served by Flask and is not edited to
+  follow production.
+
+  Frozen: vendor/ holds the production tokens, trend styles and modules
+  exactly as they stood when the design was accepted (9b2cf16), so later
+  changes to static/ cannot alter what this page shows. It sends no request to
+  /api; it replays sample-data.js, recorded from the real engine by
+  record_sample.py. review-shots/ are the accepted screens.
+
+  Open: from the repository root run  python -m http.server 8765
+  then browse to  http://localhost:8765/prototype/console-redesign/
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Console Prototype</title>
+  <link rel="stylesheet" href="vendor/css/tokens.css">
+  <link rel="stylesheet" href="vendor/css/trends.css">
+  <link rel="stylesheet" href="prototype.css">
+  <script src="vendor/js/theme.js"></script>
+  <script>Theme.apply(document);</script>
+</head>
+<body data-view="launch">
+  <header class="ribbon" id="ribbon" data-severity="none" data-unack="false">
+    <a class="ribbon-brand" href="#launch" data-nav="launch" aria-label="Plant Simulator home">
+      <svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M7 12h10M12 7v10"/></svg>
+      <span class="brand-text">Plant Simulator</span>
+    </a>
+    <nav class="ribbon-nav" aria-label="Main">
+      <a href="#launch" data-nav="launch">Home</a>
+      <a href="#console" data-nav="console">Console</a>
+    </nav>
+
+    <div class="ribbon-run" role="group" aria-label="Scenario run">
+      <div class="run-identity">
+        <span class="run-title" id="run-title">Free play</span>
+        <span class="run-state" id="run-state" role="status"><span class="run-dot" aria-hidden="true"></span><span id="run-state-text">Plant running</span><span class="run-clock-inline" id="run-clock-inline" aria-hidden="true"></span></span>
+      </div>
+      <span class="run-clock" id="run-clock" aria-label="Run time">--:--</span>
+      <button type="button" class="btn btn-run" id="run-button" data-action="start" hidden>
+        <span class="btn-glyph" aria-hidden="true">&#9654;</span><span class="btn-label">Start run</span>
+      </button>
+      <span class="run-confirm" id="run-confirm" hidden>
+        <span class="confirm-text">Abort this run?</span>
+        <button type="button" class="btn btn-danger" id="run-abort-confirm">Abort run</button>
+        <button type="button" class="btn btn-quiet" id="run-abort-keep">Keep running</button>
+      </span>
+      <button type="button" class="btn btn-quiet" id="change-scenario"><span class="label-long">Change scenario</span><span class="label-short" aria-hidden="true">Scenarios</span></button>
+    </div>
+
+    <button type="button" class="ribbon-alarms" id="ribbon-alarms" aria-haspopup="dialog" aria-expanded="false" aria-controls="alarm-overlay">
+      <span class="alarm-summary-text" id="alarm-summary-text">No active alarms</span>
+      <span class="alarm-chevron" aria-hidden="true">&#9662;</span>
+    </button>
+
+    <button type="button" class="btn btn-quiet theme-toggle" id="theme-toggle" hidden>Theme: Auto</button>
+  </header>
+
+  <p class="notice" id="notice" role="status" aria-live="polite" hidden></p>
+
+  <!-- Landing and scenario selection -->
+  <main class="launch" id="view-launch" aria-labelledby="launch-heading">
+    <h1 id="launch-heading" class="visually-hidden">Operator training</h1>
+
+    <section class="session-strip" id="session-strip" hidden aria-label="Your plant">
+      <span class="session-text" id="session-text"></span>
+      <button type="button" class="btn btn-quiet" id="return-to-console">Return to console</button>
+    </section>
+
+    <section class="hero card" aria-labelledby="hero-title">
+      <div class="hero-copy">
+        <p class="eyebrow">Selected scenario</p>
+        <h2 id="hero-title" class="hero-title"></h2>
+        <p class="hero-meta"><span class="chip chip-difficulty" id="hero-difficulty"></span><span class="hero-limit" id="hero-limit"></span></p>
+        <p class="hero-briefing" id="hero-briefing"></p>
+        <div class="hero-actions">
+          <button type="button" class="btn btn-primary btn-start" id="hero-start"><span class="btn-glyph" aria-hidden="true">&#9654;</span>START</button>
+          <button type="button" class="btn btn-quiet" id="choose-another" aria-expanded="false" aria-controls="scenario-picker">Choose another scenario</button>
+        </div>
+      </div>
+      <figure class="hero-art" aria-hidden="true"><div class="plant-thumb" id="plant-thumb"></div></figure>
+    </section>
+
+    <section class="picker" id="scenario-picker" hidden aria-labelledby="picker-heading">
+      <h2 id="picker-heading" class="section-title">Scenarios</h2>
+      <ul class="scenario-grid" id="scenario-grid"></ul>
+    </section>
+
+    <div class="launch-lower">
+      <section class="card free-card" aria-labelledby="free-heading">
+        <h2 id="free-heading" class="section-title">Free play</h2>
+        <p>The whole plant at normal operation, with nothing wrong. Run it, change it and see what it does.</p>
+        <button type="button" class="btn btn-quiet" id="free-play">Open free play</button>
+      </section>
+      <section class="card recent-card" aria-labelledby="recent-heading">
+        <h2 id="recent-heading" class="section-title">Recent scenarios</h2>
+        <p class="empty-state">No finished runs to show yet. Run history is not kept in this version, so nothing is listed here.</p>
+      </section>
+    </div>
+  </main>
+
+  <!-- Console -->
+  <main class="console" id="view-console" hidden aria-label="Console">
+    <div class="workspace" id="workspace">
+      <div class="canvas" id="canvas" aria-label="Plant"></div>
+      <div class="faceplate-layer" id="faceplate-layer"></div>
+      <div class="window-layer" id="window-layer"></div>
+      <div class="tray" id="tray" hidden aria-label="Minimised trends"></div>
+      <p class="canvas-hint" id="canvas-hint">Select equipment to operate it. Select a reading to trend it.</p>
+    </div>
+
+    <section class="alarm-overlay" id="alarm-overlay" role="dialog" aria-modal="true" aria-labelledby="alarm-overlay-title" hidden>
+      <div class="overlay-panel">
+        <div class="overlay-head">
+          <h2 id="alarm-overlay-title">Active alarms</h2>
+          <p class="overlay-sub" id="alarm-overlay-sub"></p>
+          <button type="button" class="btn btn-quiet btn-icon" id="alarm-overlay-close" aria-label="Close alarms">&#10005;</button>
+        </div>
+        <div class="overlay-filters" role="group" aria-label="Filter alarms">
+          <fieldset class="filter-group">
+            <legend>Priority</legend>
+            <label class="toggle"><input type="checkbox" name="priority" value="critical" checked><span class="sev-badge" data-priority="critical">&#9650; CRIT</span><span class="count" data-count="critical"></span></label>
+            <label class="toggle"><input type="checkbox" name="priority" value="high" checked><span class="sev-badge" data-priority="high">&#9670; HIGH</span><span class="count" data-count="high"></span></label>
+            <label class="toggle"><input type="checkbox" name="priority" value="low" checked><span class="sev-badge" data-priority="low">&#9679; LOW</span><span class="count" data-count="low"></span></label>
+          </fieldset>
+          <label class="filter-field">Acknowledgement
+            <select id="filter-state">
+              <option value="all">All</option>
+              <option value="unacked">Not acknowledged</option>
+              <option value="acked">Acknowledged</option>
+            </select>
+          </label>
+          <label class="filter-field">Equipment
+            <select id="filter-tag"><option value="all">All equipment</option></select>
+          </label>
+          <label class="filter-field filter-search">Search
+            <input type="search" id="filter-search" placeholder="Tag or message" autocomplete="off">
+          </label>
+        </div>
+        <div class="overlay-table-wrap">
+          <table class="alarm-table">
+            <thead>
+              <tr><th scope="col">Priority</th><th scope="col">Time</th><th scope="col">Tag</th><th scope="col">Message</th><th scope="col">Condition</th><th scope="col">Acknowledged</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr>
+            </thead>
+            <tbody id="alarm-rows"></tbody>
+          </table>
+          <p class="empty-state" id="alarm-empty" hidden></p>
+        </div>
+        <div class="overlay-foot">
+          <button type="button" class="btn btn-quiet" id="ack-visible">Acknowledge all shown</button>
+          <p class="overlay-note">Acknowledging records that you have seen an alarm. It does not clear the condition.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Review harness: prototype only, not part of the design -->
+  <aside class="review-kit" id="review-kit" aria-label="Prototype review controls" data-open="false">
+    <button type="button" class="review-toggle" id="review-toggle" aria-expanded="false">Prototype · sample data</button>
+    <div class="review-body" id="review-body" hidden>
+      <p class="review-note" id="review-source"></p>
+      <div class="review-row">
+        <span>Playback</span>
+        <button type="button" data-speed="0">Pause</button>
+        <button type="button" data-speed="1">1&times;</button>
+        <button type="button" data-speed="5">5&times;</button>
+        <button type="button" data-speed="20">20&times;</button>
+      </div>
+      <ol class="review-states" id="review-states"></ol>
+      <p class="review-note" id="review-guard">Requests blocked: 0</p>
+    </div>
+  </aside>
+
+  <script src="sample-data.js"></script>
+  <script src="vendor/js/graphic.js"></script>
+  <script src="vendor/js/alarms.js"></script>
+  <script src="vendor/js/faceplate.js"></script>
+  <script src="vendor/js/trends.js"></script>
+  <script src="vendor/js/scenario.js"></script>
+  <script src="prototype.js"></script>
+  <script>Theme.mount(document);</script>
+</body>
+</html>

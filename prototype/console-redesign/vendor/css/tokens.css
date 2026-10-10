@@ -1,0 +1,74 @@
+/* Console design tokens (T16-1). Authoritative rules: docs/console-standards.md.
+ *
+ * Every colour is a light-dark(light, dark) pair, so a theme is one switch:
+ * the OS preference by default, or data-theme="light" | "dark" on <html>.
+ * tests/test_console_tokens.py parses this file and fails on a pair that
+ * misses its contrast floor or on an alarm palette that collapses under
+ * colour-blind simulation, so keep each value a literal #rrggbb inside
+ * light-dark(), one token per line.
+ *
+ * Naming: --<group>-<state>-<role>
+ *   fill   background of a badge, cell or symbol
+ *   on     text and glyph colour drawn on that fill
+ *   mark   line or glyph drawn directly on --surface
+ *   tint   quiet shading behind trend or gauge content
+ * Colour never carries a state alone: each state also has a --symbol-* glyph.
+ */
+
+:root {
+  color-scheme: light dark;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+:root {
+  /* Surfaces and text */
+  --surface: light-dark(#f2f4f6, #14181c);
+  --surface-raised: light-dark(#ffffff, #1e242b);
+  --border: light-dark(#77818b, #7d8791);
+  --text: light-dark(#1a1f24, #e8ebee);
+  --text-muted: light-dark(#4f5964, #aab3bc);
+  --focus-ring: light-dark(#005fcc, #7ab8ff);
+
+  /* Alarm priority (app.alarms.manager.Priority): critical, high, low */
+  --alarm-critical-fill: light-dark(#b00020, #ff6b7a);
+  --alarm-critical-on: light-dark(#ffffff, #2a0008);
+  --alarm-critical-mark: light-dark(#b00020, #ff6b7a);
+  --alarm-high-fill: light-dark(#ffc107, #ffc107);
+  --alarm-high-on: light-dark(#1a1400, #1a1400);
+  --alarm-high-mark: light-dark(#8a5a00, #ffc107);
+  --alarm-low-fill: light-dark(#0b5cad, #7ab8ff);
+  --alarm-low-on: light-dark(#ffffff, #001a33);
+  --alarm-low-mark: light-dark(#0b5cad, #7ab8ff);
+
+  /* Envelope bands (app.envelope.evaluator.Severity): the hue of the alarm
+     priority each severity raises by default, as a quiet tint */
+  --band-warning-tint: light-dark(#c4dcf7, #1b3a5c);
+  --band-alarm-tint: light-dark(#ffe7a3, #5a4300);
+  --band-trip-tint: light-dark(#f9c9d0, #5c1420);
+
+  /* Equipment state */
+  --equip-running-fill: light-dark(#1b6b3a, #6fd49a);
+  --equip-running-on: light-dark(#ffffff, #002a12);
+  --equip-stopped-fill: light-dark(#6b7680, #9aa4ad);
+  --equip-stopped-on: light-dark(#ffffff, #101418);
+  --equip-tripped-fill: light-dark(#7a1f8c, #c77dff);
+  --equip-tripped-on: light-dark(#ffffff, #26062e);
+
+  /* Symbols: the second channel, usable as content: var(--symbol-*) */
+  --symbol-alarm-critical: "\25B2";
+  --symbol-alarm-high: "\25C6";
+  --symbol-alarm-low: "\25CF";
+  --symbol-equip-running: "\25B6";
+  --symbol-equip-stopped: "\25A0";
+  --symbol-equip-tripped: "\2716";
+
+  /* Alarm lifecycle: unacknowledged flashes at this period */
+  --alarm-flash-period: 1s;
+}

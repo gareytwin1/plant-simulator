@@ -1,0 +1,72 @@
+# Prototype only - the simple separator the user proposed (9 October 2026):
+# a feed into a drum, level control on the drain, pressure control on the
+# overhead. Not a production plant: it lives beside the prototype so the
+# console can be reviewed on the new schematic with numbers from the real
+# engine. olefins_lite, the pump and the compressor are untouched.
+#
+# The feed is two-phase on the drawing. ADR 0002 rejects a mixed-phase stream
+# (D6: no flash), so here it enters as two typed inlets: liquid through FV-301
+# and vapour through FV-302, which the recordings move together. Settling how
+# a two-phase feed is modelled is deferred-mechanics item 7.
+#
+# Design point, closed form (linear valves: q = capacity * position * sqrt(dp)):
+#   liquid node N-302 = 50.0 + head_at_full 20.0 * level 0.5 = 60.0 psia
+#   feed   FV-301: 20.0 * 0.5   * sqrt(85.0 - 60.0)   = 50.0 GPM
+#   drain  LV-301: 14.0 * 5/7   * sqrt(60.0 - 35.0)   = 50.0 GPM
+#   vapour FV-302:  2.0 * 0.5   * sqrt(300.0 - 200.0) = 10.0 SCFM
+#   vent   PV-301:  1.4 * 5/7   * sqrt(200.0 - 100.0) = 10.0 SCFM
+# so a freshly loaded drum sits at level 0.5 and 200 psia with nothing moving.
+# The drain and vent run about 71% open, so a feed valve failing wide open
+# outruns them: LV-301 and PV-301 at 100% cannot pass a full-open feed.
+# FV-301, FV-302 and LV-301 fail open on a lost signal.
+nodes:
+  - {id: N-301, boundary: true, pressure: 85.0, domain: liquid}
+  - {id: N-302, boundary: true, pressure: 50.0, domain: liquid}
+  - {id: N-303, boundary: true, pressure: 35.0, domain: liquid}
+  - {id: N-311, boundary: true, pressure: 300.0, domain: gas}
+  - {id: N-312, boundary: true, pressure: 200.0, domain: gas}
+  - {id: N-313, boundary: true, pressure: 100.0, domain: gas}
+equipment:
+  - tag: FV-301
+    type: control_valve
+    node_in: N-301
+    node_out: N-302
+    design: {capacity: 20.0, flow_characteristic: linear, fail_action: open, position: 0.5, position_target: 0.5}
+  - tag: FV-302
+    type: control_valve
+    node_in: N-311
+    node_out: N-312
+    design: {capacity: 2.0, flow_characteristic: linear, fail_action: open, position: 0.5, position_target: 0.5}
+  - tag: LV-301
+    type: control_valve
+    node_in: N-302
+    node_out: N-303
+    design: {capacity: 14.0, flow_characteristic: linear, fail_action: open, position: 0.7142857142857143, position_target: 0.7142857142857143}
+  - tag: PV-301
+    type: control_valve
+    node_in: N-312
+    node_out: N-313
+    design: {capacity: 1.4, flow_characteristic: linear, position: 0.7142857142857143, position_target: 0.7142857142857143}
+  - tag: V-301
+    type: vessel
+    ports:
+      feed:      {node: N-302, phase: liquid, purpose: process, direction: inlet}
+      drain:     {node: N-302, phase: liquid, purpose: drain,   direction: outlet}
+      vapor_in:  {node: N-312, phase: vapor,  purpose: process, direction: inlet}
+      vapor_out: {node: N-312, phase: vapor,  purpose: process, direction: outlet}
+    paths: []
+    design:
+      capacity: 200.0
+      head_at_full: 20.0
+      level: 0.5
+      gas_volume: 10.0
+      initial_pressure: 200.0
+limits:
+  - {tag: V-301, variable: level, lo_lo: 0.1, lo: 0.2, hi: 0.8, hi_hi: 0.9, trip: true, deadband: 0.02}
+  - {tag: V-301, variable: pressure, hi: 220.0, hi_hi: 240.0, trip: true}
+controllers:
+  # The one loop the engine can run today: its pv is a node. FIC-301 and
+  # LIC-301 need controllers.pv widened beyond a node id first (Known
+  # technical debt), so the prototype draws them as proposed loops and
+  # record_sample.py runs them in AUTO beside the engine. All three are AUTO.
+  - {tag: PIC-301, pv: N-312, sp: 200.0, out: PV-301, mode: AUTO, action: DIRECT, kp: 0.01, ki: 0.005, kd: 0.0, tunable: true}

@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
-  "refreshed": "9 October 2026",
-  "main_sha": "d975feb",
-  "tests_passing_on_main": 3689,
+  "refreshed": "10 October 2026",
+  "main_sha": "ddaba90",
+  "tests_passing_on_main": 3724,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -118,14 +118,14 @@
     },
     "M20": {
       "name": "Console Redesign",
-      "complete": 1,
-      "total": 19
+      "complete": 2,
+      "total": 20
     }
   },
   "totals": {
-    "tasks": 152,
-    "complete": 129,
-    "startable_now": 10
+    "tasks": 153,
+    "complete": 130,
+    "startable_now": 11
   },
   "tasks": [
     {
@@ -1397,7 +1397,10 @@
       ],
       "status": "Complete",
       "status_key": "done",
-      "note": "Merged 91c5b46 (PR #156). Full suite 3665 passed on main, mypy clean, no golden movement. Shape decided by Opus 2026-10-09 (5cb69f9): the engine publishes flow, inlet_pressure and outlet_pressure on each single-branch device's equipment row, and an unresolvable limit, interlock, permissive or plant-state gate is a build error. K-101 hi moved 320 to 330 psia (cold start peaks at 323); config 2.0.0; PSHH-101 and the K-101 and P-101 limits now evaluate live. Scenario outcomes unchanged; new P-101 flow LOLOLO alarm in pump_trip and stuck_drain_valve."
+      "note": "Merged 91c5b46 (PR #156). Full suite 3665 passed on main, mypy clean, no golden movement. Shape decided by Opus 2026-10-09 (5cb69f9): the engine publishes flow, inlet_pressure and outlet_pressure on each single-branch device's equipment row, and an unresolvable limit, interlock, permissive or plant-state gate is a build error. K-101 hi moved 320 to 330 psia (cold start peaks at 323); config 2.0.0; PSHH-101 and the K-101 and P-101 limits now evaluate live. Scenario outcomes unchanged; new P-101 flow LOLOLO alarm in pump_trip and stuck_drain_valve.",
+      "planned_files_not_on_main": [
+        "static/graphics/plant.svg"
+      ]
     },
     {
       "id": "T10-1",
@@ -2669,10 +2672,12 @@
         "tests/test_process_graphic.py",
         "tests/test_plant_loader.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true,
-      "note": ""
+      "status": "Complete",
+      "status_key": "done",
+      "note": "COMPLETE - merged to main as ddaba90 (PR #159). 3724 passed post-merge, mypy clean over 87 files, no golden movement. GET /api/plant (id, graphic, per device kind/service/points/actions/driven_by, per loop service/pv/out, per interlock devices only); optional C3 service on equipment and controllers (config 2.1.0); plant.svg -> olefins_lite.svg; console follows the shown plant via ProcessGraphic.follow and the scenario bar's onChange. Unblocks T20-7, T20-9, T20-10, T20-13, T20-17 (T20-8 and the landing page no longer wait on it). app/main.py lock released.",
+      "planned_files_not_on_main": [
+        "static/graphics/plant.svg"
+      ]
     },
     {
       "id": "T20-3",
@@ -2795,10 +2800,7 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "T20-2"
-      ],
+      "startable": true,
       "note": ""
     },
     {
@@ -2809,8 +2811,7 @@
       "branch": "feature/console-shell",
       "depends_on": [
         "T20-6",
-        "T16-15",
-        "T20-2"
+        "T16-15"
       ],
       "files": [
         "templates/base.html",
@@ -2831,8 +2832,7 @@
       "status_key": "todo",
       "startable": false,
       "blocked_by": [
-        "T20-6",
-        "T20-2"
+        "T20-6"
       ],
       "note": ""
     },
@@ -2843,8 +2843,7 @@
       "category": "dep",
       "branch": "feature/landing-redesign",
       "depends_on": [
-        "T20-8",
-        "T20-2"
+        "T20-8"
       ],
       "files": [
         "templates/index.html",
@@ -2857,8 +2856,7 @@
       "status_key": "todo",
       "startable": false,
       "blocked_by": [
-        "T20-8",
-        "T20-2"
+        "T20-8"
       ],
       "note": ""
     },
@@ -2887,8 +2885,7 @@
       "startable": false,
       "blocked_by": [
         "T20-8",
-        "T20-7",
-        "T20-2"
+        "T20-7"
       ],
       "note": ""
     },
@@ -2969,8 +2966,7 @@
       "startable": false,
       "blocked_by": [
         "T20-10",
-        "T20-3",
-        "T20-2"
+        "T20-3"
       ],
       "note": ""
     },
@@ -3093,7 +3089,6 @@
       "blocked_by": [
         "T20-4",
         "T20-5",
-        "T20-2",
         "T20-7"
       ],
       "note": ""
@@ -3152,6 +3147,25 @@
         "T20-16",
         "T20-18"
       ],
+      "note": ""
+    },
+    {
+      "id": "T20-20",
+      "milestone": "M20",
+      "name": "Refuse a domain whose flow units disagree at load",
+      "category": "dep",
+      "branch": "feature/domain-unit-agreement",
+      "depends_on": [
+        "T20-1"
+      ],
+      "files": [
+        "app/plant/loader.py",
+        "tests/test_plant_domains.py",
+        "docs/UNITS_CONVENTION.md"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": true,
       "note": ""
     }
   ]

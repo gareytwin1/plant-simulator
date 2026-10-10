@@ -109,7 +109,7 @@ class PlantRuntime:
             operator_view(engine.snapshot(), engine.equipment),
             engine.equipment,
             engine.loops,
-            plant.topologies,
+            engine.topologies,
             engine.couplings,
         )
 

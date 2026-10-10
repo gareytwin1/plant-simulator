@@ -116,16 +116,13 @@ def point_units(
     """The unit of every trend point of `view`, an operator view of the plant
     whose equipment, loops, topologies and couplings are given."""
     by_domain = domain_units(topologies, couplings)
-    branch_unit = {
-        branch.id: by_domain[domain]
-        for domain, topology in topologies.items()
-        for branch in topology.branches.values()
-    }
-    device_unit = {
-        branch.device.tag: by_domain[domain]
-        for domain, topology in topologies.items()
-        for branch in topology.branches.values()
-    }
+    branch_unit: dict[str, str] = {}
+    device_unit: dict[str, str] = {}
+
+    for domain, topology in topologies.items():
+        for branch in topology.branches.values():
+            branch_unit[branch.id] = by_domain[domain]
+            device_unit[branch.device.tag] = by_domain[domain]
 
     units: dict[str, str] = {}
 

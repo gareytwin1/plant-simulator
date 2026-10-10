@@ -40,17 +40,21 @@
   --alarm-critical-fill: light-dark(#b00020, #ff6b7a);
   --alarm-critical-on: light-dark(#ffffff, #2a0008);
   --alarm-critical-mark: light-dark(#b00020, #ff6b7a);
-  --alarm-high-fill: light-dark(#ffc107, #ffc107);
-  --alarm-high-on: light-dark(#1a1400, #1a1400);
-  --alarm-high-mark: light-dark(#8a5a00, #ffc107);
-  --alarm-low-fill: light-dark(#0b5cad, #7ab8ff);
-  --alarm-low-on: light-dark(#ffffff, #001a33);
-  --alarm-low-mark: light-dark(#0b5cad, #7ab8ff);
+  /* Two colours for now: yellow for HI/LO, red for HIHI/LOLO whether the outer
+     limit alarms or trips. high and the alarm band share red with critical and
+     the trip band; the glyph separates them only where one is drawn; a rejected command, which also uses high, reads red too. A third colour (orange, #ff8a00
+     in prototype/console-redesign) may take high and alarm later. */
+  --alarm-high-fill: light-dark(#b00020, #ff6b7a);
+  --alarm-high-on: light-dark(#ffffff, #2a0008);
+  --alarm-high-mark: light-dark(#b00020, #ff6b7a);
+  --alarm-low-fill: light-dark(#ffd23f, #ffd23f);
+  --alarm-low-on: light-dark(#1a1400, #1a1400);
+  --alarm-low-mark: light-dark(#a65100, #ffd23f);
 
   /* Envelope bands (app.envelope.evaluator.Severity): the hue of the alarm
      priority each severity raises by default, as a quiet tint */
-  --band-warning-tint: light-dark(#c4dcf7, #1b3a5c);
-  --band-alarm-tint: light-dark(#ffe7a3, #5a4300);
+  --band-warning-tint: light-dark(#fff0b3, #4d4000);
+  --band-alarm-tint: light-dark(#f9c9d0, #5c1420);
   --band-trip-tint: light-dark(#f9c9d0, #5c1420);
 
   /* Equipment state */

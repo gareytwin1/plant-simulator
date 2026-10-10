@@ -32,8 +32,8 @@ envelope severity is in that module; this file does not restate it.
 | Priority | Fill / on / mark | Glyph | Label |
 |---|---|---|---|
 | critical | `--alarm-critical-*` (red family) | `--symbol-alarm-critical` triangle | CRIT |
-| high | `--alarm-high-*` (amber family) | `--symbol-alarm-high` diamond | HIGH |
-| low | `--alarm-low-*` (blue family) | `--symbol-alarm-low` circle | LOW |
+| high | `--alarm-high-*` (red family, as `critical` for now) | `--symbol-alarm-high` diamond | HIGH |
+| low | `--alarm-low-*` (yellow family) | `--symbol-alarm-low` circle | LOW |
 
 - `fill` is a badge or row background, `on` is the text and glyph drawn on it,
   `mark` is a line or glyph drawn directly on the surface. Use `mark` for a
@@ -66,9 +66,12 @@ surface apart.
 
 | Severity | Token | Hue family |
 |---|---|---|
-| warning | `--band-warning-tint` | blue, as `low` |
-| alarm | `--band-alarm-tint` | amber, as `high` |
+| warning | `--band-warning-tint` | yellow, as `low` |
+| alarm | `--band-alarm-tint` | red, as `high` |
 | trip | `--band-trip-tint` | red, as `critical` |
+
+Until a third colour returns, alarm and trip share red: on surfaces with no
+glyph (trend bands, equipment outlines) they cannot be told apart.
 
 `--text` must stay legible on every tint. A limit line is drawn in the matching
 alarm `mark` colour so the threshold remains visible where the shading stops.

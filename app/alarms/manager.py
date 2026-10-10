@@ -30,8 +30,9 @@ so this manager clears it first, using only `Alarm`'s existing public
 transitions rather than reaching into its frozen state machine.
 
 **Messages name symptoms, never causes (C6).** A message is built only from
-the tag, the point's own description and an ISA-style HI/LO suffix repeated
-once per severity tier (HI, HIHI, HIHIHI) - never from anything that would
+the tag, the point's own description and an ISA-style HI/LO suffix named by
+position, not severity: HI then HIHI (LO then LOLO), so the outer limit reads
+HIHI whether it alarms or trips - never from anything that would
 imply a mechanism.
 
 **Priorities come from configuration**, not a hardcoded table: the
@@ -53,6 +54,7 @@ from app.envelope.evaluator import Severity
 Side = Literal["lo", "hi"]
 
 _SUFFIX: dict[Side, str] = {"lo": "LO", "hi": "HI"}
+_MAX_STEPS = 2  # two limits a side; the outer is HIHI/LOLO. As graphic.js, trends.js
 
 _NON_NORMAL: tuple[Severity, ...] = (Severity.WARNING, Severity.ALARM, Severity.TRIP)
 
@@ -192,7 +194,7 @@ class AlarmManager:
 
     def _event(self, alarm_id: str, envelope_event: EnvelopeEvent, sim_time: float) -> Event:
         assert envelope_event.side is not None  # enforced by EnvelopeEvent.__post_init__
-        suffix = _SUFFIX[envelope_event.side] * envelope_event.severity.value
+        suffix = _SUFFIX[envelope_event.side] * min(envelope_event.severity.value, _MAX_STEPS)
         return Event(
             id=alarm_id,
             sim_time=sim_time,

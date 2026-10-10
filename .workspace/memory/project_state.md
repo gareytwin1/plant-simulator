@@ -21,7 +21,7 @@ No task is Blocked. CI runs on every PR, and `main` requires its
 
 | Task | SHA | What landed |
 |---|---|---|
-| **T20-1** | `d975feb` | Units per point: `app/plant/units.py` `point_units` names each trend point's unit once per `PlantRuntime` (equipment fields from a per-class `FIELD_UNITS` allowlist, node pressure psia, loop pv/sp its `pv_unit` and out `fraction`, stream and machine flow the domain's unit from the coupling's classification, never a name); disagreeing sources raise at runtime build, an unclassified domain gets `''`. `GET /api/trend/points` adds `units`. Follow-up, no task yet: refuse a domain whose units disagree at load. Decided by Opus (PR #158) |
+| **T20-1** | `d975feb` | Units per point: `app/plant/units.py` `point_units` names each trend point's unit once per `PlantRuntime` (equipment fields from a per-class `FIELD_UNITS` allowlist, node pressure psia, loop pv/sp its `pv_unit` and out `fraction`, stream and machine flow the domain's unit from the coupling's classification, never a name); disagreeing sources raise at runtime build, an unclassified domain gets `''`. `GET /api/trend/points` adds `units`. Follow-up T20-20: refuse a domain whose units disagree at load. Decided by Opus (PR #158) |
 | **T10-6** | `f8911a7` | Point descriptors: a per-class `DESCRIPTORS` table in `app/api/visibility.py` (with `descriptor(device, field)`) names a pump's or compressor's `inlet_pressure` and `outlet_pressure` as suction and discharge pressure, else the field with spaces. `PlantRuntime._observe` builds the alarm `pv` from it, so a K-101 alarm reads `K-101 discharge pressure HIHI` (its alarm id changes); `GET /api/trend/points` adds `descriptors` (one per listed point, via `trend_descriptors()` on `PlantRuntime`, `ScenarioRunner` and `TrainingSession`; `create_trend_blueprint` takes a fourth callable); the trend legend and add-a-pen list show `<id> <descriptor>`, the point id staying the key. Decided by Opus (PR #157). Not seen in a real browser |
 | **T9-5** | `91c5b46` | Device points in the snapshot: `Engine._truth` adds `flow`, `inlet_pressure` and `outlet_pressure` to the equipment row of every device that sits in exactly one branch (from that branch and its two nodes; by direction, never port name; the device holds none, and a device's own field of that name wins). A limit, interlock condition, restart-gate permissive or plant-state gate naming an unpublished field now raises at construction instead of warning. PSHH-101 and the `K-101.outlet_pressure` (renamed from `discharge_pressure`) and `P-101.flow` limits evaluate live; K-101 `hi` moved 320 to 330 psia because the cold start peaks at 323. `VISIBLE` shows the points for pumps and compressors, so they are trend pens with bands. Config 2.0.0. A stopped P-101 now alarms `P-101 flow LOLOLO` (no check valve). Decided by Opus (PR #156) |
 | **T16-15** | `edf8e8f` | Scenario run controls: a Scenario bar at the top of `/console` (`static/js/scenario.js`, `static/css/scenario.css`) shows the mode, title and phase and offers Start run (loaded) and a two-click Abort run (running); complete, aborted and free play get a "Choose a scenario" link. It polls `GET /api/scenario/result` (409 = free play), follows phase and title, discards a poll that began before a click, words every refusal itself by status code and resyncs after any failed or unreadable response. `GET /console` passes the standing, title and `PHASE_LABELS`; the landing page links back to the console. Placement decided by Opus (console only; supersedes T16-11's Start/Abort on the landing page). Seen in a real browser for `pump_trip` only (PR #155) |
@@ -40,19 +40,19 @@ Complete: **M0-M9, M12-M18, MR**. Open:
 |---|---|---|
 | **M10** Alarms | 5/6 | T10-1, T10-2, T10-3, T10-5, T10-6; T10-4 startable (V1.1-deferred) |
 | **M11** Interlocks and Trips | 3/4 | T11-1, T11-2, T11-3; T11-4 startable (V1.1-deferred) |
-| **M20** Console Redesign | 1/19 | T20-1; startable T20-2, T20-3, T20-4, T20-5, T20-6, T20-15 |
+| **M20** Console Redesign | 1/20 | T20-1; startable T20-2, T20-3, T20-4, T20-5, T20-6, T20-15, T20-20 |
 | M19 | 0 | - |
 
-**129 of 152 tasks Complete.** Checkpoints A-C reached. Checkpoint **D** (M8)
+**129 of 153 tasks Complete.** Checkpoints A-C reached. Checkpoint **D** (M8)
 needs only its "loops reject an injected disturbance" gate, which T20-17 meets
 on the separator plant.
 
 ## The next task
 
 **Startable in M20:** T20-2, T20-3 (spine), T20-4 (spine), T20-5, T20-6 and
-T20-15 - the `startable` field of
+T20-15, plus T20-20 (added after the last regeneration) - the `startable` field of
 [BUILD_PLAN_STATUS.json](../../docs/BUILD_PLAN_STATUS.json). All are Opus but
-T20-6 (Sonnet). T20-3 and T20-4 share the one spine lock, so run them one at a
+T20-6 and T20-20 (Sonnet). T20-3 and T20-4 share the one spine lock, so run them one at a
 time. Also startable but deferred: T10-4 and T11-4 (V1.1), T19-1 and T19-2 (V2).
 
 **CP-G passed for the current console** (user's browser pass, 9 October 2026). The console is about to be redesigned, so the full pass (all six scenarios, both themes, phone width, a real alarm marker) is an acceptance criterion of that redesign rather than repeated on this console.

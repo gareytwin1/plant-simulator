@@ -52,6 +52,19 @@ VISIBLE: dict[type[Equipment], frozenset[str]] = {
 }
 
 
+# What a device is, in the operator's words, for a faceplate's heading (T20-2).
+# Same allowlist rule as VISIBLE: a class with no entry has no kind ('').
+KIND: dict[type[Equipment], str] = {
+    CentrifugalPump: "Centrifugal pump",
+    GasCompressor: "Gas compressor",
+    ControlValve: "Control valve",
+    Vessel: "Vessel",
+    HeatExchanger: "Heat exchanger",
+    Furnace: "Furnace",
+    ReliefValve: "Relief valve",
+}
+
+
 # The operator's word for a published field, where it differs from the field
 # with its underscores as spaces. Keyed on the field, never a port name: the
 # generic inlet and outlet are what a machine's suction and discharge are

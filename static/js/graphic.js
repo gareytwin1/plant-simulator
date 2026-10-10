@@ -1,8 +1,13 @@
 /* Process graphic (T16-3).
  *
- * Binds the live snapshot to static/graphics/plant.svg by tag, so a new piece
+ * Binds the live snapshot to the shown plant's graphic by tag, so a new piece
  * of equipment is new SVG markup and no JavaScript. This file knows no tag and
  * no device type: it only follows the data-* attributes an element carries.
+ *
+ * Which graphic is the plant's to say (T20-2): `follow` reads GET /api/plant,
+ * mounts the `graphic` it names (static/graphics/<plant id>.svg) and mounts
+ * again only when a refresh finds a different plant id - a scenario load or
+ * unload. A plant with no graphic says so and still lists its equipment.
  *
  *   data-tag="P-101"                 a device's symbol group: sets data-state
  *                                    (running | stopped | none | unknown) and
@@ -37,7 +42,9 @@
 (function (root) {
   "use strict";
 
-  var SVG_URL = "/static/graphics/plant.svg";
+  var PLANT_URL = "/api/plant";
+  var NO_GRAPHIC = "No schematic for this plant";
+  var LOADING = "Loading the schematic";
 
   var MISSING = "--";
 
@@ -231,10 +238,14 @@
     return Array.prototype.slice.call(svg.querySelectorAll(BOUND));
   }
 
-  /* Load the SVG into `container` and keep it bound. `options.fetch` and
-   * `options.url` exist so a page or test can supply its own transport; returns
-   * {ready, update}, where update(snapshot) may be called before `ready`
-   * resolves (the latest snapshot is applied once the SVG is in). */
+  /* Load the SVG at `options.url`, which is required, into `container` and
+   * keep it bound. `options.fetch` exists so a page or test can supply its
+   * own transport.
+   * `options.stale`, when it returns true, stops a load that finishes after
+   * this graphic was replaced from writing over its successor. Returns
+   * {ready, update}: `ready` resolves true once the SVG is in and false when
+   * it could not be loaded, and update(snapshot) may be called before it does
+   * (the latest snapshot is applied once the SVG is in). */
   function mount(container, options) {
     var settings = options || {};
     var doFetch = settings.fetch || root.fetch.bind(root);
@@ -253,19 +264,24 @@
       container.setAttribute("role", "status");
     }
 
-    var ready = doFetch(settings.url || SVG_URL)
+    var ready = doFetch(settings.url)
       .then(function (response) {
         if (!response.ok) throw new Error("HTTP " + response.status);
         return response.text();
       })
       .then(
         function (markup) {
+          if (settings.stale && settings.stale()) return false;
           container.innerHTML = markup;
           elements = collect(container);
           loaded = true;
           draw();
+          return true;
         },
-        unavailable
+        function () {
+          if (!(settings.stale && settings.stale())) unavailable();
+          return false;
+        }
       );
 
     return {
@@ -273,6 +289,111 @@
       update: function (snapshot) {
         latest = snapshot;
         draw();
+      },
+    };
+  }
+
+  /* A plant with no graphic: the notice, and the unplaced list, which then
+   * names every device the snapshot publishes. */
+  function mountNone(container) {
+    var doc = container.ownerDocument;
+    var notice = doc.createElement("p");
+    var list = doc.createElement("p");
+    notice.textContent = NO_GRAPHIC;
+    notice.setAttribute("role", "status");
+    list.setAttribute("data-unplaced", "");
+    container.textContent = "";
+    container.appendChild(notice);
+    container.appendChild(list);
+    var elements = [list];
+    var latest = null;
+
+    return {
+      ready: Promise.resolve(true),
+      update: function (snapshot) {
+        latest = snapshot;
+        if (latest !== null) update(elements, latest);
+      },
+    };
+  }
+
+  /* The plant id and graphic a GET /api/plant body names, or null when it
+   * names no plant. */
+  function plantOf(body) {
+    if (!isObject(body) || typeof body.plant !== "string") return null;
+    return { plant: body.plant, graphic: typeof body.graphic === "string" ? body.graphic : null };
+  }
+
+  /* Mount the graphic of the plant the session shows, and follow it. Returns
+   * {ready, update, refresh}: update(snapshot) as `mount`'s, and refresh(),
+   * which rereads GET /api/plant and re-mounts only when the plant id has
+   * changed. A new plant clears the old one's graphic at once, so a stale
+   * schematic is never left standing while the new one loads. A failed read
+   * of the plant leaves what is shown in place. Until a graphic has loaded -
+   * the first read failed, or the SVG did - each snapshot tries again.
+   * `options.fetch` and `options.mount` (the two mount functions) exist so a
+   * test can supply its own. */
+  function follow(container, options) {
+    var settings = options || {};
+    var doFetch = settings.fetch || root.fetch.bind(root);
+    var mounts = settings.mount || { graphic: mount, none: mountNone };
+    var shown = null; // the plant last mounted
+    var good = false; // whether its graphic loaded, or is still loading
+    var current = null;
+    var latest = null;
+    var pending = false;
+    var ticket = 0;
+    var generation = 0;
+
+    function refresh() {
+      var mine = ++ticket;
+      pending = true;
+
+      return doFetch(PLANT_URL)
+        .then(function (response) {
+          if (!response.ok) throw new Error("HTTP " + response.status);
+          return response.json();
+        })
+        .then(function (body) {
+          var next = plantOf(body);
+          // A newer refresh knows better, and the same plant keeps its graphic.
+          if (mine !== ticket || next === null || (next.plant === shown && good)) return;
+          var own = ++generation;
+          var stale = function () {
+            return own !== generation;
+          };
+          // An earlier "unavailable" no longer speaks for what is shown, and
+          // another plant's schematic must not stand in while this one loads.
+          container.removeAttribute("role");
+          if (next.plant !== shown) container.textContent = LOADING;
+          shown = next.plant;
+          good = true;
+          current = next.graphic === null
+            ? mounts.none(container)
+            : mounts.graphic(container, { fetch: settings.fetch, url: next.graphic, stale: stale });
+          if (latest !== null) current.update(latest);
+          return current.ready.then(function (loaded) {
+            if (!loaded && own === generation) good = false;
+          });
+        })
+        .catch(function () {
+          if (current === null) {
+            container.textContent = "Process graphic unavailable";
+            container.setAttribute("role", "status");
+          }
+        })
+        .then(function () {
+          if (mine === ticket) pending = false;
+        });
+    }
+
+    return {
+      ready: refresh(),
+      refresh: refresh,
+      update: function (snapshot) {
+        latest = snapshot;
+        if (current !== null) current.update(snapshot);
+        if (!pending && !(shown !== null && good)) refresh();
       },
     };
   }
@@ -286,6 +407,9 @@
     update: update,
     collect: collect,
     mount: mount,
+    mountNone: mountNone,
+    plantOf: plantOf,
+    follow: follow,
   };
 
   if (typeof module !== "undefined" && module.exports) module.exports = api;

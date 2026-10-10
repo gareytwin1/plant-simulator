@@ -82,10 +82,11 @@ def test_the_console_mounts_the_graphic_on_the_connection_stream(client):
 
     assert "graphic.js" in body
     assert '<div id="process-graphic" data-live-value>' in body
-    assert "/static/graphics/plant.svg" in body
+    assert "ProcessGraphic.follow(" in body
+    assert "graphics/" not in body
     assert "graphic.update(snapshot)" in body
     assert body.count("new EventSource") == 0
-    assert client.get("/static/graphics/plant.svg").status_code == 200
+    assert client.get(client.get("/api/plant").get_json()["graphic"]).status_code == 200
     assert client.get("/static/js/graphic.js").status_code == 200
 
 

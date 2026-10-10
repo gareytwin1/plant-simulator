@@ -622,6 +622,14 @@ class ScenarioRunner:
         with self._lock:
             return self._loaded().runtime.trend_units()
 
+    def plant_description(self) -> tuple[str, dict[str, JSONValue]]:
+        """The loaded run's plant id, the file stem its document names, and
+        its `PlantRuntime.plant_description`, read under one lock."""
+        with self._lock:
+            run = self._loaded()
+
+            return run.config["plant"], run.runtime.plant_description()
+
     def trend_limits(self) -> dict[str, dict[str, float]]:
         """The loaded run's evaluated envelope bounds, under the runner lock."""
         with self._lock:

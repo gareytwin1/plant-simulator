@@ -54,7 +54,8 @@
               }
             }
           },
-          "design": {"type": "object"}
+          "design": {"type": "object"},
+          "service": {"type": "string", "minLength": 1}
         }
       }
     },
@@ -92,7 +93,8 @@
           "kp": {"type": "number"},
           "ki": {"type": "number"},
           "kd": {"type": "number"},
-          "tunable": {"type": "boolean"}
+          "tunable": {"type": "boolean"},
+          "service": {"type": "string", "minLength": 1}
         }
       }
     },

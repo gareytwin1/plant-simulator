@@ -1,5 +1,6 @@
 import functools
 import uuid
+from pathlib import Path
 
 from flask import Flask, Response, g, has_app_context, jsonify, render_template, request
 from flask.typing import ResponseReturnValue
@@ -10,6 +11,7 @@ from app.api import validate
 from app.api.action import create_action_blueprint
 from app.api.alarms import create_alarm_blueprint
 from app.api.health import create_health_blueprint
+from app.api.plant import create_plant_blueprint
 from app.api.scenario import create_scenario_blueprint
 from app.api.stream import create_stream_blueprint
 from app.api.trend import create_trend_blueprint
@@ -83,6 +85,12 @@ def load_session() -> None:
 
 
 app.register_blueprint(create_scenario_blueprint(lambda: g.plant))
+app.register_blueprint(
+    create_plant_blueprint(
+        lambda: g.plant.plant_description(),
+        Path(app.static_folder or "") / "graphics",
+    ),
+)
 app.register_blueprint(create_action_blueprint(apply=lambda target, action, value: g.plant.act(target, action, value)))
 app.register_blueprint(
     create_alarm_blueprint(

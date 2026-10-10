@@ -491,6 +491,50 @@ def test_free_play_during_a_run_asks_first_then_aborts_and_unloads():
 
 
 @needs_node
+def test_a_run_that_ended_elsewhere_does_not_fail_the_confirmed_abort():
+    result = run_page(
+        """
+        const doc = makePage("running", ["a"]), fetchImpl = makeFetch(u => (u.endsWith("abort") ? 409 : 200)), went = [];
+        L.mount(doc, fetchImpl, u => went.push(u), { storage: memory({}), refreshRibbon() {} });
+        doc.ids["hero-start"].listeners.click();
+        doc.ids["abort-confirm-yes"].listeners.click();
+        for (let i = 0; i < 6; i += 1) await tick();
+        return { calls: fetchImpl.calls, went };
+        """
+    )
+
+    assert result["calls"] == ["/api/scenario/abort", "/api/scenario/load", "/api/scenario/start"]
+    assert result["went"] == ["/console"]
+
+
+@needs_node
+def test_a_run_started_elsewhere_makes_the_next_click_ask_first():
+    result = run_page(
+        """
+        const doc = makePage("idle", ["a"]), fetchImpl = makeFetch(u => (u.endsWith("load") ? 409 : 200));
+        L.mount(doc, fetchImpl, () => {}, { storage: memory({}), refreshRibbon() {} });
+        doc.ids["hero-start"].listeners.click();
+        for (let i = 0; i < 4; i += 1) await tick();
+        const callsAfterRefusal = fetchImpl.calls.length;
+        doc.ids["hero-start"].listeners.click();
+        await tick();
+        return { callsAfterRefusal, asked: !doc.ids["abort-confirm"].hidden, calls: fetchImpl.calls.length };
+        """
+    )
+
+    assert result == {"callsAfterRefusal": 1, "asked": True, "calls": 1}
+
+
+def test_the_abort_confirmation_is_on_the_page_even_without_a_catalogue(client, monkeypatch):
+    monkeypatch.setattr(main, "CATALOGUE", [])
+
+    page = client.get("/").get_data(as_text=True)
+
+    assert 'id="abort-confirm"' in page
+    assert 'id="free-play"' in page
+
+
+@needs_node
 @pytest.mark.parametrize("status", [409, 429])
 def test_a_refused_start_is_worded_by_status_and_stays_on_the_page(status):
     result = run_page(

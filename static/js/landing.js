@@ -172,7 +172,13 @@
       try {
         for (var i = 0; i < steps.length; i += 1) {
           var response = await doFetch(steps[i].url, steps[i].init);
+          /* Another tab or the console already ended the run: the abort has
+           * nothing left to do, so carry on. */
+          if (response.status === 409 && steps[i].url === ABORT_URL) continue;
           if (!response.ok) {
+            /* Any other 409 means a run is going that this page did not
+             * know of, so the next click asks before aborting it. */
+            if (response.status === 409) phase = "running";
             notice(api.refusalText(response.status), "refused");
             refreshRibbon();
             return;
@@ -191,7 +197,7 @@
     function showConfirm(stepsFor, from) {
       pending = stepsFor;
       opener = from;
-      actions.hidden = true;
+      if (actions) actions.hidden = true;
       confirmBox.hidden = false;
       confirmNo.focus();
     }
@@ -199,7 +205,7 @@
     function hideConfirm() {
       pending = null;
       confirmBox.hidden = true;
-      actions.hidden = false;
+      if (actions) actions.hidden = false;
       if (opener) opener.focus();
       opener = null;
     }
@@ -255,19 +261,19 @@
           start.focus();
         });
       });
-
-      confirmYes.addEventListener("click", function () {
-        var stepsFor = pending;
-        hideConfirm();
-        run(stepsFor(true));
-      });
-
-      confirmNo.addEventListener("click", hideConfirm);
-
-      confirmBox.addEventListener("keydown", function (event) {
-        if (event.key === "Escape") hideConfirm();
-      });
     }
+
+    confirmYes.addEventListener("click", function () {
+      var stepsFor = pending;
+      hideConfirm();
+      run(stepsFor(true));
+    });
+
+    confirmNo.addEventListener("click", hideConfirm);
+
+    confirmBox.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") hideConfirm();
+    });
 
     freePlay.addEventListener("click", function () {
       request(api.freePlaySteps, freePlay);
@@ -284,7 +290,10 @@
     if (!frame || !url) return;
     try {
       var response = await doFetch(url);
-      if (response.ok) frame.innerHTML = await response.text();
+      if (response.ok) {
+        /* Decoration only: ids are dropped so none can collide with the page's. */
+        frame.innerHTML = (await response.text()).replace(/\sid="[^"]*"/g, "");
+      }
     } catch (error) {
       /* Decoration only. */
     }

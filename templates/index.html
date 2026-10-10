@@ -1,5 +1,15 @@
 {% extends "base.html" %}
 
+{% macro abort_confirm() %}
+<div class="hero-confirm" id="abort-confirm" role="group" aria-labelledby="abort-confirm-text" hidden>
+  <p id="abort-confirm-text" class="confirm-text">A scenario is running. Abort it to continue?</p>
+  <div class="hero-actions">
+    <button type="button" class="btn btn-danger" id="abort-confirm-yes">Abort and continue</button>
+    <button type="button" class="btn btn-quiet" id="abort-confirm-no">Keep running</button>
+  </div>
+</div>
+{% endmacro %}
+
 {% block title %}Plant Simulator - Start{% endblock %}
 
 {% block content %}
@@ -35,14 +45,7 @@
         <button type="button" class="btn btn-primary btn-start" id="hero-start" data-scenario="{{ first.key }}"><span class="btn-glyph" aria-hidden="true">&#9654;</span>START</button>
         <button type="button" class="btn btn-quiet" id="choose-another" aria-expanded="false" aria-controls="scenario-picker">Choose another scenario</button>
       </div>
-
-      <div class="hero-confirm" id="abort-confirm" role="group" aria-labelledby="abort-confirm-text" hidden>
-        <p id="abort-confirm-text" class="confirm-text">A scenario is running. Abort it to continue?</p>
-        <div class="hero-actions">
-          <button type="button" class="btn btn-danger" id="abort-confirm-yes">Abort and continue</button>
-          <button type="button" class="btn btn-quiet" id="abort-confirm-no">Keep running</button>
-        </div>
-      </div>
+      {{ abort_confirm() }}
     </div>
     {% if thumbnail %}
     <figure class="hero-art" aria-hidden="true" inert><div class="plant-thumb plant-graphic" id="plant-thumb"></div></figure>
@@ -66,6 +69,8 @@
       {% endfor %}
     </ul>
   </section>
+  {% else %}
+  {{ abort_confirm() }}
   {% endif %}
 
   <div class="launch-lower">

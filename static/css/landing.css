@@ -288,11 +288,6 @@ body[data-page="landing"] main {
 }
 
 button {
-  margin-top: auto;
-  align-self: flex-start;
-}
-
-button {
   padding: 0.5rem 1rem;
   border: 2px solid var(--text);
   border-radius: 4px;

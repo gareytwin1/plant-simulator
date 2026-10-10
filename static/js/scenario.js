@@ -178,10 +178,25 @@
       bar.setAttribute("data-phase", state.phase);
     }
 
-    /* Keyboard focus follows the two-step abort, so it is never left on a
-     * button that has just been hidden. */
+    /* Keyboard focus follows the controls, so it is never left on one that
+     * has just been hidden or disabled. It moves only when it was already in
+     * the bar, so a background poll never takes it from elsewhere. */
     function focus(el) {
       if (el && typeof el.focus === "function") el.focus();
+    }
+
+    var controls = [els.start, els.abort, els.confirm, els.keep, els.choose].filter(Boolean);
+
+    function holdsFocus(el) {
+      return controls.indexOf(el) !== -1;
+    }
+
+    function refocus(owned) {
+      var active = doc.activeElement;
+      if (!owned || (holdsFocus(active) && !active.hidden)) return;
+      focus([els.abort, els.keep, els.start, els.choose].filter(function (el) {
+        return el && !el.hidden;
+      })[0]);
     }
 
     function notice(text) {
@@ -230,6 +245,7 @@
 
     async function pollOnce() {
       var started = epoch;
+      var owned;
       try {
         var result = await get(api.buildResultRequest());
         // A click that sent while this was in flight knows better.
@@ -239,7 +255,9 @@
       } finally {
         polling = false;
         pollPromise = null;
+        owned = holdsFocus(doc.activeElement);
         render();
+        refocus(owned);
       }
     }
 
@@ -258,6 +276,8 @@
     }
 
     async function send(action, request) {
+      // Disabling the clicked button can drop focus to the body, so note now.
+      var owned = holdsFocus(doc.activeElement);
       state.busy = true;
       state.armed = false;
       epoch += 1;
@@ -279,6 +299,7 @@
       } finally {
         state.busy = false;
         render();
+        refocus(owned);
       }
       if (resync) {
         // A poll already in flight began before this refusal; wait it out and

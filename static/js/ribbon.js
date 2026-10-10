@@ -135,8 +135,8 @@
 
   /* Mount the ribbon. `options.fetch` and `options.pollMs` exist so a page or
    * test can supply its own transport and timer; `options.onChange` is handed
-   * to the run controls. Returns {update, refresh, stop, ready}: `update`
-   * takes each snapshot the page receives. */
+   * to the run controls. Returns {update, refresh, poll, stop, ready}:
+   * `update` takes each snapshot the page receives. */
   function mount(doc, options) {
     var settings = options || {};
     var doFetch = settings.fetch || root.fetch.bind(root);
@@ -204,6 +204,7 @@
     return {
       ready: ready,
       refresh: refresh,
+      poll: run.poll,
       update: function (snapshot) {
         if (!snapshot || typeof snapshot.sim_time !== "number") return;
         clock.snapshot(snapshot.sim_time);

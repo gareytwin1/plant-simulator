@@ -53,9 +53,11 @@ def run_js(body, **data):
 # touch, a document that takes key listeners, and focus that is recorded.
 STUB = """
 let focused = null;
+let current = null;
 const mk = id => ({ id, hidden: false, disabled: false, textContent: "", innerHTML: "", attrs: {}, listeners: {},
   setAttribute(k, v) { this.attrs[k] = v; }, getAttribute(k) { return this.attrs[k]; },
-  addEventListener(t, f) { this.listeners[t] = f; }, focus() { focused = this.id; } });
+  addEventListener(t, f) { this.listeners[t] = f; },
+  focus() { focused = this.id; if (current) current.activeElement = this; } });
 function page(phase, title, withButtons = true) {
   const ids = ["ribbon", "ribbon-alarms", "ribbon-alarm-summary", "run-clock", "run-clock-value", "run-clock-inline",
     "scenario-bar", "scenario-title", "scenario-state", "scenario-notice"];
@@ -69,6 +71,7 @@ function page(phase, title, withButtons = true) {
   const keys = {};
   const doc = { getElementById: id => els[id] || null, body: mk("body"), activeElement: null,
     addEventListener(t, f) { keys[t] = f; }, removeEventListener(t) { delete keys[t]; } };
+  current = doc;
   return { els, doc, keys, focusOn: id => { doc.activeElement = els[id] || doc.body; } };
 }
 const reply = (status, body) => ({ ok: status >= 200 && status < 300, status, json: async () => body });
@@ -176,6 +179,50 @@ def test_escape_disarms_abort_sends_nothing_and_hands_focus_back():
         "focus": "scenario-abort",
         "calls": [],
     }
+
+
+@needs_node
+def test_focus_moves_to_the_control_that_replaces_the_one_it_was_on():
+    got = run_js(
+        STUB
+        + """
+        const { els, doc, focusOn } = page("loaded", "T");
+        let next = "running";
+        R.mount(doc, { fetch: async () => reply(200, { phase: next }), pollMs: 0 });
+        focusOn("scenario-start");
+        await els["scenario-start"].listeners.click();
+        const started = focused;
+        els["scenario-abort"].listeners.click();
+        next = "aborted";
+        await els["scenario-abort-confirm"].listeners.click();
+        return { started, aborted: focused };
+        """,
+    )
+
+    assert got == {"started": "scenario-abort", "aborted": "scenario-choose"}
+
+
+@needs_node
+def test_a_poll_that_ends_the_run_moves_focus_only_if_it_was_in_the_bar():
+    got = run_js(
+        STUB
+        + """
+        async function endRun(focusFrom) {
+          let next = reply(200, { phase: "running" });
+          const { els, doc, focusOn } = page("running", "T");
+          const ribbon = R.mount(doc, { fetch: async () => next, pollMs: 0 });
+          await ribbon.ready;
+          if (focusFrom === "keep") els["scenario-abort"].listeners.click();
+          else focusOn(focusFrom);
+          next = reply(200, { phase: "complete" });
+          await ribbon.poll();
+          return doc.activeElement.id;
+        }
+        return { outside: await endRun("ribbon-alarms"), inside: await endRun("keep") };
+        """,
+    )
+
+    assert got == {"outside": "ribbon-alarms", "inside": "scenario-choose"}
 
 
 @needs_node

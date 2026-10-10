@@ -233,6 +233,7 @@
     HISTORY_URL: HISTORY_URL,
     deriveAlarms: deriveAlarms,
     sortAlarms: sortAlarms,
+    countsByPriority: countsByPriority,
     renderBanner: renderBanner,
     renderSummary: renderSummary,
     buildAcknowledgeRequest: buildAcknowledgeRequest,

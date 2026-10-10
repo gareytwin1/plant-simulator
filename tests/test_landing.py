@@ -155,7 +155,7 @@ def test_the_page_follows_a_loaded_scenario_and_free_play_unloads_it(client):
 
 def test_the_base_template_gives_every_page_the_tokens_and_the_header(page):
     assert "css/tokens.css" in page
-    assert 'class="site-header"' in page
+    assert 'class="ribbon" id="ribbon"' in page
     assert 'aria-current="page"' in page
 
 

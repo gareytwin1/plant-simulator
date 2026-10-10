@@ -1,49 +1,129 @@
-/* Scenario bar on the console (T16-15). Every colour is a token from
- * tokens.css (docs/console-standards.md); nothing here is a hex literal.
- * Load tokens.css and landing.css first (button and notice styles). */
+/* The run controls in the ribbon (T16-15, moved by T20-8): the run's name,
+ * state and clock, Start, the two-step Abort and the way back to the
+ * scenarios. Ported from prototype/console-redesign/prototype.css. Every
+ * colour is a token from tokens.css (docs/console-standards.md); nothing here
+ * is a hex literal. Load tokens.css and console.css first. */
 
-.scenario-bar {
-  margin: 0 0 1rem;
-}
-
-.scenario-line {
+.ribbon-run {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem 1.25rem;
-}
-
-.scenario-mode {
-  font-weight: 700;
-}
-
-.scenario-phase {
-  color: var(--text-muted);
-}
-
-.scenario-phase:empty {
-  display: none;
-}
-
-.scenario-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem 1rem;
+  gap: var(--space-3);
+  min-width: 0;
   margin-left: auto;
+  padding-left: var(--space-4);
+  border-left: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
 }
 
-.scenario-actions [hidden] {
+.ribbon-run > :not(.run-identity) {
+  flex-shrink: 0;
+}
+
+.run-identity {
+  display: flex;
+  flex: 0 1 auto;
+  flex-direction: column;
+  min-width: 6ch;
+  line-height: 1.2;
+}
+
+.run-title {
+  max-width: 30ch;
+  overflow: hidden;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.run-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.run-dot {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-muted);
+}
+
+.ribbon-run[data-phase="running"] .run-dot,
+.ribbon-run[data-phase="idle"] .run-dot {
+  background: var(--equip-running-fill);
+}
+
+.ribbon-run[data-phase="loaded"] .run-dot {
+  border: 2px solid var(--text-muted);
+  background: transparent;
+}
+
+.run-clock {
+  min-width: 5.5ch;
+  font-size: 1.05rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.run-clock-inline,
+.label-short {
   display: none;
 }
 
-.scenario-bar .notice {
-  margin: 0.75rem 0 0;
+.run-confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
 }
 
-@media (max-width: 30rem) {
-  .scenario-actions {
-    margin-left: 0;
+.confirm-text {
+  font-weight: 600;
+}
+
+@media (max-width: 720px) {
+  .ribbon-run {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    order: 3;
     width: 100%;
+    gap: var(--space-2);
+    margin-left: 0;
+    padding-left: 0;
+    border-left: 0;
+  }
+
+  /* The run's name, state and clock keep their own line, so the buttons
+     wrap under them together rather than squeeze them. */
+  .ribbon-run .run-identity {
+    flex: 1 0 100%;
+    min-width: 0;
+  }
+
+  .run-clock {
+    display: none;
+  }
+
+  .run-clock-inline {
+    display: inline;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .label-long {
+    display: none;
+  }
+
+  .label-short {
+    display: inline;
+  }
+
+  .ribbon-run .btn {
+    padding: 0 var(--space-3);
   }
 }

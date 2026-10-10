@@ -6,56 +6,43 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/alarms.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/connection.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/faceplate.css') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/scenario.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/trends.css') }}">
 {% endblock %}
 
 {% block content %}
-<div id="console" data-connection="connecting" data-interval-seconds="{{ stream_interval_seconds }}">
-  <h1>Console</h1>
-  <p class="connection-indicator" id="connection-indicator" role="status">CONNECTING</p>
-  <section class="panel scenario-bar" id="scenario-bar" aria-labelledby="scenario-heading" data-phase="{{ standing.phase }}" data-title="{{ title or '' }}" data-interval-seconds="{{ stream_interval_seconds }}" data-phase-labels='{{ phase_labels|tojson }}'>
-    <h2 id="scenario-heading">Scenario</h2>
-    <div class="scenario-line">
-      <span class="scenario-mode" id="scenario-mode">{% if standing.mode == "scenario" %}Scenario{% if title %}: {{ title }}{% endif %}{% else %}Free play{% endif %}</span>
-      <span class="scenario-phase" id="scenario-phase" role="status">{{ phase_labels[standing.phase] }}</span>
-      <span class="scenario-actions">
-        <button type="button" id="scenario-start" hidden>Start run</button>
-        <button type="button" id="scenario-abort" hidden>Abort run</button>
-        <button type="button" id="scenario-abort-confirm" hidden>Confirm abort</button>
-        <button type="button" id="scenario-abort-keep" hidden>Keep running</button>
-        <a id="scenario-choose" href="{{ url_for('landing') }}" hidden>Choose a scenario</a>
-      </span>
-    </div>
-    <p class="notice" id="scenario-notice" role="status" data-kind="refused" hidden></p>
+<div id="console" class="console" data-connection="connecting" data-interval-seconds="{{ stream_interval_seconds }}">
+  <h1 class="visually-hidden">Console</h1>
+  {# The workspace fills the page under the ribbon. The sections below it go
+     as their replacements land on the canvas (T20-10 to T20-12). #}
+  <section class="workspace" aria-label="Plant">
+    <div id="process-graphic" class="canvas" data-live-value></div>
+    <p class="connection-indicator" id="connection-indicator" role="status">CONNECTING</p>
   </section>
-  <section aria-labelledby="plant-heading">
-    <h2 id="plant-heading">Plant</h2>
-    <div id="process-graphic" data-live-value></div>
-  </section>
-  <section aria-labelledby="controllers-heading">
-    <h2 id="controllers-heading">Controllers</h2>
-    <div id="faceplates" class="faceplates"><p class="faceplate-empty">Waiting for the plant.</p></div>
-  </section>
-  <section aria-labelledby="trends-heading">
-    <h2 id="trends-heading">Trends</h2>
-    <div id="trends" class="trend"></div>
-  </section>
-  <section aria-labelledby="alarms-heading">
-    <h2 id="alarms-heading">Alarms</h2>
-    <div id="alarm-banner"></div>
-    <div id="alarm-summary" class="alarm-summary-scroll"></div>
-  </section>
+  <div class="console-sections">
+    <section aria-labelledby="controllers-heading">
+      <h2 id="controllers-heading">Controllers</h2>
+      <div id="faceplates" class="faceplates"><p class="faceplate-empty">Waiting for the plant.</p></div>
+    </section>
+    <section aria-labelledby="trends-heading">
+      <h2 id="trends-heading">Trends</h2>
+      <div id="trends" class="trend"></div>
+    </section>
+    <section aria-labelledby="alarms-heading">
+      <h2 id="alarms-heading" tabindex="-1">Alarms</h2>
+      <div id="alarm-banner"></div>
+      <div id="alarm-summary" class="alarm-summary-scroll"></div>
+    </section>
+  </div>
 </div>
 {% endblock %}
 
+{% block ribbon %}{% endblock %}
+
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/alarms.js') }}"></script>
 <script src="{{ url_for('static', filename='js/connection.js') }}"></script>
 <script src="{{ url_for('static', filename='js/graphic.js') }}"></script>
 <script src="{{ url_for('static', filename='js/faceplate.js') }}"></script>
 <script src="{{ url_for('static', filename='js/trends.js') }}"></script>
-<script src="{{ url_for('static', filename='js/scenario.js') }}"></script>
 <script>
   (function () {
     var consoleEl = document.getElementById("console");
@@ -68,6 +55,7 @@
     var graphic = ProcessGraphic.follow(document.getElementById("process-graphic"));
     var faceplates = Faceplates.mount(document.getElementById("faceplates"));
     var trends = Trends.mount(document.getElementById("trends"));
+    var ribbon = null;
     ConnectionMonitor.mount(consoleEl, document.getElementById("connection-indicator"), {
       intervalSeconds: Number(consoleEl.getAttribute("data-interval-seconds")),
       // Each consumer is isolated: connection.js does not guard this callback,
@@ -76,10 +64,11 @@
         try { graphic.update(snapshot); } catch (error) { console.error(error); }
         try { faceplates.update(snapshot); } catch (error) { console.error(error); }
         try { trends.update(snapshot); } catch (error) { console.error(error); }
+        try { if (ribbon) ribbon.update(snapshot); } catch (error) { console.error(error); }
       }
     });
-    // Last, and isolated: a bar that cannot mount must not take the console with it.
-    try { ScenarioBar.mount(document, { onChange: graphic.refresh }); } catch (error) { console.error(error); }
+    // Last, and isolated: a ribbon that cannot mount must not take the console with it.
+    try { ribbon = Ribbon.mount(document, { onChange: graphic.refresh }); } catch (error) { console.error(error); }
   })();
 </script>
 {% endblock %}

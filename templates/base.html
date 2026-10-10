@@ -6,23 +6,64 @@
   <title>{% block title %}Plant Simulator{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/tokens.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/landing.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/console.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/scenario.css') }}">
   <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
   <script>Theme.apply(document);</script>
   {% block head %}{% endblock %}
 </head>
-<body>
-  <header class="site-header">
-    <a class="site-brand" href="{{ url_for('landing') }}">Plant Simulator</a>
-    <nav class="site-nav" aria-label="Main">
+<body data-page="{{ request.endpoint }}">
+  {# The ribbon (T20-8). Start and Abort are on the console only (T16-15): the
+     landing page never starts the plant's clock. #}
+  <header class="ribbon" id="ribbon" data-severity="none" data-unack="false" data-interval-seconds="{{ stream_interval_seconds }}">
+    <a class="ribbon-brand" href="{{ url_for('landing') }}" aria-label="Plant Simulator home">
+      <svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M7 12h10M12 7v10"/></svg>
+      <span class="brand-text">Plant Simulator</span>
+    </a>
+    <nav class="ribbon-nav" aria-label="Main">
       <a href="{{ url_for('landing') }}"{% if request.endpoint == 'landing' %} aria-current="page"{% endif %}>Home</a>
       <a href="{{ url_for('console') }}"{% if request.endpoint == 'console' %} aria-current="page"{% endif %}>Console</a>
     </nav>
-    <button type="button" id="theme-toggle" class="theme-toggle" hidden>Theme: Auto</button>
+
+    <div class="ribbon-run" id="scenario-bar" role="group" aria-label="Scenario run" data-phase="{{ standing.phase }}" data-title="{{ title or '' }}" data-interval-seconds="{{ stream_interval_seconds }}" data-phase-labels='{{ phase_labels|tojson }}'>
+      <div class="run-identity">
+        <span class="run-title" id="scenario-title">{% if standing.mode == "scenario" %}{{ title or "Scenario" }}{% else %}Free play{% endif %}</span>
+        <span class="run-state" role="status"><span class="run-dot" aria-hidden="true"></span><span id="scenario-state">{% if standing.mode == "scenario" %}Scenario &middot; {{ phase_labels[standing.phase] }}{% else %}Plant running{% endif %}</span><span class="run-clock-inline" id="run-clock-inline" aria-hidden="true"></span></span>
+      </div>
+      <span class="run-clock" id="run-clock" aria-label="Run time" hidden></span>
+      {% if request.endpoint == 'console' %}
+      <button type="button" class="btn btn-primary" id="scenario-start" hidden><span class="btn-glyph" aria-hidden="true">&#9654;</span>Start run</button>
+      <button type="button" class="btn" id="scenario-abort" hidden><span class="btn-glyph" aria-hidden="true">&#9632;</span>Abort run</button>
+      <span class="run-confirm" id="scenario-confirm" hidden>
+        <span class="confirm-text">Abort this run?</span>
+        <button type="button" class="btn btn-danger" id="scenario-abort-confirm" hidden>Abort run</button>
+        <button type="button" class="btn btn-quiet" id="scenario-abort-keep" hidden>Keep running</button>
+      </span>
+      <a class="btn btn-quiet" id="scenario-choose" href="{{ url_for('landing') }}" hidden><span class="label-long" id="scenario-choose-label"></span><span class="label-short" aria-hidden="true">Scenarios</span></a>
+      {% endif %}
+    </div>
+
+    <a class="ribbon-alarms" id="ribbon-alarms" href="{{ url_for('console') }}#alarms-heading" aria-label="No active alarms. Go to the alarm list.">
+      <span class="alarm-summary-text" id="ribbon-alarm-summary">No active alarms</span>
+    </a>
+
+    <button type="button" id="theme-toggle" class="btn btn-quiet theme-toggle" hidden>Theme: Auto</button>
+
+    <p class="notice ribbon-notice" id="scenario-notice" role="status" data-kind="refused" hidden></p>
   </header>
   <main>
     {% block content %}{% endblock %}
   </main>
   <script>Theme.mount(document);</script>
+  <script src="{{ url_for('static', filename='js/alarms.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/scenario.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/ribbon.js') }}"></script>
+  {% block ribbon %}
+  <script>
+    // Isolated: a ribbon that cannot mount must not take the page with it.
+    try { Ribbon.mount(document); } catch (error) { console.error(error); }
+  </script>
+  {% endblock %}
   {% block scripts %}{% endblock %}
 </body>
 </html>

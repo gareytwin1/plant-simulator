@@ -1,6 +1,6 @@
-/* Shared header and landing page (T16-11). Every colour is a token from
- * tokens.css (docs/console-standards.md); nothing here is a hex literal.
- * Load tokens.css first. */
+/* Shared page base and landing page (T16-11); the ribbon is console.css.
+ * Every colour is a token from tokens.css (docs/console-standards.md);
+ * nothing here is a hex literal. Load tokens.css first. */
 
 * {
   box-sizing: border-box;
@@ -23,35 +23,6 @@ a {
   outline-offset: 2px;
 }
 
-.site-header {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem 1.5rem;
-  padding: 0.75rem 1rem;
-  border-bottom: 2px solid var(--border);
-  background-color: var(--surface-raised);
-}
-
-.site-brand {
-  font-weight: 700;
-  text-decoration: none;
-}
-
-.site-nav {
-  display: flex;
-  flex-wrap: wrap;
-  flex: 1;
-  gap: 0.25rem 1rem;
-}
-
-.site-nav a[aria-current="page"] {
-  font-weight: 700;
-  text-decoration: underline;
-  text-underline-offset: 0.25em;
-}
-
 main {
   max-width: 60rem;
   margin: 0 auto;
@@ -71,15 +42,6 @@ h2 {
 h3 {
   font-size: 1.05rem;
   margin: 0 0 0.25rem;
-}
-
-.theme-toggle {
-  padding: 0.25rem 0.75rem;
-  font-size: 0.9rem;
-}
-
-.theme-toggle[hidden] {
-  display: none;
 }
 
 .panel {

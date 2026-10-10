@@ -146,6 +146,7 @@ def landing() -> ResponseReturnValue:
 
     return render_template(
         "index.html",
+        stream_interval_seconds=config.STREAM_INTERVAL_SECONDS,
         standing=standing,
         title=TITLES.get(standing.scenario_id) if standing.scenario_id else None,
         phase_labels=PHASE_LABELS,

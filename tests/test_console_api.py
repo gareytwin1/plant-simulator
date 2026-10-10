@@ -81,7 +81,7 @@ def test_the_console_mounts_the_graphic_on_the_connection_stream(client):
     body = client.get("/console").get_data(as_text=True)
 
     assert "graphic.js" in body
-    assert '<div id="process-graphic" data-live-value>' in body
+    assert '<div id="process-graphic" class="canvas" data-live-value>' in body
     assert "ProcessGraphic.follow(" in body
     assert "graphics/" not in body
     assert "graphic.update(snapshot)" in body

@@ -57,6 +57,12 @@ it stays legible whatever the priority colour is.
 Under `prefers-reduced-motion: reduce`, flashing becomes a steady fill with a
 thick border. Flashing is never the only cue (rule 1).
 
+The ribbon (`static/css/console.css`) summarises the alarms on every page. It
+takes the band tint and a stripe in the `mark` colour of the worst priority
+present, shows each priority's count as a badge with its glyph, and pulses
+gently while any alarm waits on an acknowledgement, which its "N new" badge
+also says in words.
+
 ## Envelope bands
 
 Shading behind a trend or gauge for the limit bands in
@@ -100,6 +106,10 @@ alarm `mark` colour so the threshold remains visible where the shading stops.
    a `mark` needs graphic contrast against both surfaces, and a new status hue
    needs the colour-blind distinctness check against its neighbours.
 3. Give it a glyph and a label here if it names a state.
+
+Shape, depth, spacing and motion tokens (`--radius*`, `--shadow-*`,
+`--space-*`, `--ease`, `--t-*`) are plain values with no test. Use one wherever
+it fits rather than a number of your own.
 
 Floors, and why they are what they are, are defined as constants at the top of
 the test file: WCAG 2.2 text (4.5:1) and graphic (3:1) contrast, and a CIEDE2000

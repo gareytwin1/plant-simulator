@@ -217,6 +217,10 @@ SCENARIO_VERBS = {"start"}  # POST /api/scenario/start, the scenario bar's own v
 
 
 def js_code(path):
+    """`path` with its comments removed. An approximation, not a tokenizer: a
+    `//` right after a colon or a quote is kept (a URL in a string), and a `//`
+    inside a string after any other character ends the line early. Neither
+    occurs in static/js today; a parser would be the fix if one does."""
     text = re.sub(r"/\*.*?\*/", "", path.read_text(), flags=re.DOTALL)
     return re.sub(r"(?<![:\"'])//.*$", "", text, flags=re.MULTILINE)
 

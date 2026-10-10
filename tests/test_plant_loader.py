@@ -531,5 +531,12 @@ def test_an_entry_without_a_service_loads_unchanged():
 def test_a_service_that_is_not_a_non_empty_string_is_rejected(value):
     config = valid_config()
     config["equipment"][1]["service"] = value
+    config["controllers"] = [
+        {"tag": "PIC-101", "pv": "N-02", "sp": 60.0, "out": "K-101", "mode": "MANUAL",
+         "kp": 0.0, "ki": 0.0, "kd": 0.0, "service": value},
+    ]
 
-    assert any("$.equipment[1].service" in error for error in rejected(config))
+    errors = rejected(config)
+
+    assert any("$.equipment[1].service" in error for error in errors)
+    assert any("$.controllers[0].service" in error for error in errors)

@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "9 October 2026",
-  "main_sha": "f8911a7",
-  "tests_passing_on_main": 3673,
+  "main_sha": "d975feb",
+  "tests_passing_on_main": 3689,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -115,12 +115,17 @@
       "name": "Shared Features",
       "complete": 0,
       "total": 3
+    },
+    "M20": {
+      "name": "Console Redesign",
+      "complete": 1,
+      "total": 19
     }
   },
   "totals": {
-    "tasks": 133,
-    "complete": 128,
-    "startable_now": 4
+    "tasks": 152,
+    "complete": 129,
+    "startable_now": 10
   },
   "tasks": [
     {
@@ -2605,6 +2610,547 @@
       "startable": false,
       "blocked_by": [
         "T19-2"
+      ],
+      "note": ""
+    },
+    {
+      "id": "T20-1",
+      "milestone": "M20",
+      "name": "Units per point",
+      "category": "dep",
+      "branch": "feature/point-units",
+      "depends_on": [
+        "T17-3",
+        "T10-6"
+      ],
+      "files": [
+        "app/plant/units.py",
+        "app/training/runtime.py",
+        "app/training/session.py",
+        "app/scenarios/runner.py",
+        "app/api/trend.py",
+        "app/main.py",
+        "tests/test_point_units.py",
+        "tests/test_trend_api.py",
+        "tests/test_process_graphic.py",
+        "docs/UNITS_CONVENTION.md"
+      ],
+      "status": "Complete",
+      "status_key": "done",
+      "note": "COMPLETE - merged to main as d975feb (PR #158). 3689 passed post-merge, mypy clean over 86 files, no golden movement. app/plant/units.py: point_units names each trend point's unit once per PlantRuntime (FIELD_UNITS per-class allowlist; node pressure psia; loop pv/sp = pv_unit, out = fraction; stream and machine flow = domain unit from coupling classification: machines confirm, vessel declared phase gives; disagreeing sources raise, unclassified domain ''). GET /api/trend/points adds units. Units: psia, GPM, SCFM, degF, BTU/hr, fraction. Follow-up: refuse a domain with disagreeing units at load (loader or Engine.from_plant, spine), not yet a task."
+    },
+    {
+      "id": "T20-2",
+      "milestone": "M20",
+      "name": "Plant description and a graphic per plant",
+      "category": "dep",
+      "branch": "feature/plant-description",
+      "depends_on": [
+        "T16-3",
+        "T16-9",
+        "T16-13",
+        "T16-14"
+      ],
+      "files": [
+        "app/api/plant.py",
+        "app/api/visibility.py",
+        "app/plant/loader.py",
+        "config/schema/plant.schema.json",
+        "app/training/session.py",
+        "app/scenarios/runner.py",
+        "app/main.py",
+        "templates/console.html",
+        "static/js/graphic.js",
+        "static/graphics/olefins_lite.svg",
+        "static/graphics/plant.svg",
+        "config/VERSION",
+        "tests/fixtures/config_version.json",
+        "tests/test_plant_api.py",
+        "tests/test_process_graphic.py",
+        "tests/test_plant_loader.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": true,
+      "note": ""
+    },
+    {
+      "id": "T20-3",
+      "milestone": "M20",
+      "name": "Interlock state in the snapshot",
+      "category": "core",
+      "branch": "feature/interlock-snapshot",
+      "depends_on": [
+        "T11-2",
+        "T16-6",
+        "T16-13"
+      ],
+      "files": [
+        "app/engine/snapshot.py",
+        "app/training/runtime.py",
+        "app/safety/actions.py",
+        "app/safety/interlocks.py",
+        "app/api/visibility.py",
+        "static/js/graphic.js",
+        "tests/test_snapshot.py",
+        "tests/test_training_runtime.py",
+        "tests/test_process_graphic.py",
+        "tests/test_visibility.py",
+        "docs/ARCHITECTURE.md"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": true,
+      "note": ""
+    },
+    {
+      "id": "T20-4",
+      "milestone": "M20",
+      "name": "Loops measure any published point",
+      "category": "core",
+      "branch": "feature/loop-point-pv",
+      "depends_on": [
+        "T20-1",
+        "T9-5",
+        "T16-14",
+        "T8-4"
+      ],
+      "files": [
+        "app/controls/loader.py",
+        "app/engine/engine.py",
+        "app/api/action.py",
+        "config/schema/plant.schema.json",
+        "config/VERSION",
+        "tests/fixtures/config_version.json",
+        "tests/test_loop_loader.py",
+        "tests/test_loop_execution.py",
+        "tests/test_action.py",
+        "static/js/faceplate.js",
+        "tests/test_faceplate.py",
+        "docs/ARCHITECTURE.md"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": true,
+      "note": ""
+    },
+    {
+      "id": "T20-5",
+      "milestone": "M20",
+      "name": "Two-phase feed decision",
+      "category": "core",
+      "branch": "docs/two-phase-feed",
+      "depends_on": [],
+      "files": [
+        "docs/ADR_0002_TYPED_PORTS.md",
+        "docs/ARCHITECTURE.md"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": true,
+      "note": ""
+    },
+    {
+      "id": "T20-6",
+      "milestone": "M20",
+      "name": "Alarm palette and two-step limit names",
+      "category": "dep",
+      "branch": "feature/alarm-palette",
+      "depends_on": [
+        "T16-1",
+        "T17-4",
+        "T10-6"
+      ],
+      "files": [
+        "static/css/tokens.css",
+        "docs/console-standards.md",
+        "app/alarms/manager.py",
+        "static/js/graphic.js",
+        "static/js/trends.js",
+        "static/js/alarms.js",
+        "tests/test_console_tokens.py",
+        "tests/test_alarm_manager.py",
+        "tests/test_process_graphic.py",
+        "tests/test_trend_display.py",
+        "tests/test_alarm_console.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": true,
+      "note": ""
+    },
+    {
+      "id": "T20-7",
+      "milestone": "M20",
+      "name": "Schematic restyle, flow marks and loop balloons",
+      "category": "dep",
+      "branch": "feature/schematic-restyle",
+      "depends_on": [
+        "T20-2"
+      ],
+      "files": [
+        "static/graphics/olefins_lite.svg",
+        "static/js/graphic.js",
+        "tests/test_process_graphic.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T20-2"
+      ],
+      "note": ""
+    },
+    {
+      "id": "T20-8",
+      "milestone": "M20",
+      "name": "Console shell and ribbon",
+      "category": "dep",
+      "branch": "feature/console-shell",
+      "depends_on": [
+        "T20-6",
+        "T16-15",
+        "T20-2"
+      ],
+      "files": [
+        "templates/base.html",
+        "templates/console.html",
+        "templates/index.html",
+        "static/css/console.css",
+        "static/css/tokens.css",
+        "static/js/ribbon.js",
+        "static/js/scenario.js",
+        "static/css/scenario.css",
+        "static/js/alarms.js",
+        "app/main.py",
+        "tests/test_ribbon.py",
+        "tests/test_scenario_controls.py",
+        "tests/test_console_api.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T20-6",
+        "T20-2"
+      ],
+      "note": ""
+    },
+    {
+      "id": "T20-9",
+      "milestone": "M20",
+      "name": "Landing page",
+      "category": "dep",
+      "branch": "feature/landing-redesign",
+      "depends_on": [
+        "T20-8",
+        "T20-2"
+      ],
+      "files": [
+        "templates/index.html",
+        "static/js/landing.js",
+        "static/css/landing.css",
+        "app/main.py",
+        "tests/test_landing.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T20-8",
+        "T20-2"
+      ],
+      "note": ""
+    },
+    {
+      "id": "T20-10",
+      "milestone": "M20",
+      "name": "Canvas selection and faceplates",
+      "category": "dep",
+      "branch": "feature/canvas-faceplates",
+      "depends_on": [
+        "T20-8",
+        "T20-7",
+        "T20-2"
+      ],
+      "files": [
+        "static/js/canvas.js",
+        "static/js/faceplate.js",
+        "static/css/faceplate.css",
+        "static/css/console.css",
+        "templates/console.html",
+        "tests/test_faceplate.py",
+        "tests/test_canvas.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T20-8",
+        "T20-7",
+        "T20-2"
+      ],
+      "note": ""
+    },
+    {
+      "id": "T20-11",
+      "milestone": "M20",
+      "name": "Floating trend windows",
+      "category": "dep",
+      "branch": "feature/trend-windows",
+      "depends_on": [
+        "T20-10",
+        "T20-1"
+      ],
+      "files": [
+        "static/js/trends.js",
+        "static/js/trendwindows.js",
+        "static/css/trends.css",
+        "templates/console.html",
+        "tests/test_trend_display.py",
+        "tests/test_trend_windows.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T20-10"
+      ],
+      "note": ""
+    },
+    {
+      "id": "T20-12",
+      "milestone": "M20",
+      "name": "Alarm overlay",
+      "category": "dep",
+      "branch": "feature/alarm-overlay",
+      "depends_on": [
+        "T20-8",
+        "T20-11"
+      ],
+      "files": [
+        "static/js/alarms.js",
+        "static/css/alarms.css",
+        "templates/console.html",
+        "app/training/runtime.py",
+        "app/alarms/manager.py",
+        "tests/test_alarm_console.py",
+        "tests/test_alarm_manager.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T20-8",
+        "T20-11"
+      ],
+      "note": ""
+    },
+    {
+      "id": "T20-13",
+      "milestone": "M20",
+      "name": "Equipment actions on the faceplate",
+      "category": "dep",
+      "branch": "feature/equipment-actions",
+      "depends_on": [
+        "T20-10",
+        "T20-3",
+        "T20-2"
+      ],
+      "files": [
+        "static/js/faceplate.js",
+        "static/js/canvas.js",
+        "static/css/faceplate.css",
+        "tests/test_faceplate.py",
+        "tests/test_console_api.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T20-10",
+        "T20-3",
+        "T20-2"
+      ],
+      "note": ""
+    },
+    {
+      "id": "T20-14",
+      "milestone": "M20",
+      "name": "Pause and resume",
+      "category": "dep",
+      "branch": "feature/pause-resume",
+      "depends_on": [
+        "T20-8"
+      ],
+      "files": [
+        "app/api/simulation.py",
+        "app/training/session.py",
+        "app/scenarios/runner.py",
+        "app/main.py",
+        "static/js/ribbon.js",
+        "templates/base.html",
+        "tests/test_simulation_api.py",
+        "tests/test_ribbon.py",
+        "tests/test_scenario_replay.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T20-8"
+      ],
+      "note": ""
+    },
+    {
+      "id": "T20-15",
+      "milestone": "M20",
+      "name": "Score a finished run",
+      "category": "dep",
+      "branch": "feature/live-scoring",
+      "depends_on": [
+        "T15-2",
+        "T15-3",
+        "T14-4",
+        "T16-7"
+      ],
+      "files": [
+        "app/scenarios/runner.py",
+        "app/training/runtime.py",
+        "app/scoring/metrics.py",
+        "app/api/scenario.py",
+        "config/scoring.yaml",
+        "config/VERSION",
+        "tests/fixtures/config_version.json",
+        "tests/test_scenario_runner.py",
+        "tests/test_scenario_api.py",
+        "tests/test_scoring_score.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": true,
+      "note": ""
+    },
+    {
+      "id": "T20-16",
+      "milestone": "M20",
+      "name": "Run history per browser",
+      "category": "dep",
+      "branch": "feature/run-history",
+      "depends_on": [
+        "T20-15",
+        "T20-9",
+        "T18-5"
+      ],
+      "files": [
+        "app/api/history.py",
+        "app/main.py",
+        "app/config.py",
+        "app/scoring/store.py",
+        "app/training/session.py",
+        "static/js/landing.js",
+        "templates/index.html",
+        "tests/test_history_api.py",
+        "tests/test_scoring_store.py",
+        "tests/test_landing.py",
+        "Dockerfile",
+        "docker-compose.yml"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T20-15",
+        "T20-9"
+      ],
+      "note": ""
+    },
+    {
+      "id": "T20-17",
+      "milestone": "M20",
+      "name": "Separator plant",
+      "category": "dep",
+      "branch": "feature/separator-plant",
+      "depends_on": [
+        "T20-4",
+        "T20-5",
+        "T20-2",
+        "T20-7"
+      ],
+      "files": [
+        "config/plants/separator.yaml",
+        "config/initial_conditions/separator_normal.json",
+        "static/graphics/separator.svg",
+        "config/VERSION",
+        "tests/fixtures/config_version.json",
+        "tests/test_reference_plants.py",
+        "tests/test_separator_plant.py",
+        "tests/test_process_graphic.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T20-4",
+        "T20-5",
+        "T20-2",
+        "T20-7"
+      ],
+      "note": ""
+    },
+    {
+      "id": "T20-18",
+      "milestone": "M20",
+      "name": "Separator scenarios",
+      "category": "dep",
+      "branch": "feature/separator-scenarios",
+      "depends_on": [
+        "T20-17"
+      ],
+      "files": [
+        "config/scenarios/separator_drain_restriction.yaml",
+        "config/scenarios/separator_vent_restriction.yaml",
+        "config/scenarios/separator_feed_signal_loss.yaml",
+        "config/scenarios/separator_drain_signal_loss.yaml",
+        "config/VERSION",
+        "tests/fixtures/config_version.json",
+        "tests/test_scenario_pack.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T20-17"
+      ],
+      "note": ""
+    },
+    {
+      "id": "T20-19",
+      "milestone": "M20",
+      "name": "Redesign acceptance pass",
+      "category": "dep",
+      "branch": "test/redesign-acceptance",
+      "depends_on": [
+        "T20-9",
+        "T20-11",
+        "T20-12",
+        "T20-13",
+        "T20-14",
+        "T20-16",
+        "T20-18"
+      ],
+      "files": [],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T20-9",
+        "T20-11",
+        "T20-12",
+        "T20-13",
+        "T20-14",
+        "T20-16",
+        "T20-18"
       ],
       "note": ""
     }

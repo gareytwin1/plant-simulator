@@ -669,4 +669,6 @@ def test_the_ribbon_draws_a_glyph_beside_every_priority_colour():
     css = CONSOLE_CSS.read_text()
 
     for priority in ("critical", "high", "low"):
-        assert f'.sev-badge[data-priority="{priority}"]::before {{\n  content: var(--symbol-alarm-{priority});' in css
+        block = re.search(rf'\.sev-badge\[data-priority="{priority}"\]::before\s*\{{([^}}]*)\}}', css)
+        assert block, priority
+        assert re.search(rf"content:\s*var\(--symbol-alarm-{priority}\)", block.group(1)), priority

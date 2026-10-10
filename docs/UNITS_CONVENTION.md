@@ -79,8 +79,10 @@ domain confirm one, and a vessel attachment's declared phase gives one. Two
 sources that disagree are an error: building a plant runtime now fails when
 the machines or vessel attachments in one domain name different flow units.
 A domain nothing classifies has no unit rather than a guess. The loader,
-`Engine` and `NetworkSolver` still check nothing, so a plain `Engine` built
-from such a plant still solves, and the modelling constraint above stands.
+`Engine` and `NetworkSolver` do not check agreement across a whole domain
+(the coupling checks only each vessel's attachment node), so a plain `Engine`
+built from such a plant still solves, and the modelling constraint above
+stands.
 
 How the liquid and gas domains get split and coupled — separate hydraulic
 problems joined through the V-101 separator's inventory rather than through a

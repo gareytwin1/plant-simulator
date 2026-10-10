@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "10 October 2026",
-  "main_sha": "ddaba90",
-  "tests_passing_on_main": 3724,
+  "main_sha": "f6f7eb2",
+  "tests_passing_on_main": 3727,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -118,13 +118,13 @@
     },
     "M20": {
       "name": "Console Redesign",
-      "complete": 2,
+      "complete": 3,
       "total": 20
     }
   },
   "totals": {
     "tasks": 153,
-    "complete": 130,
+    "complete": 131,
     "startable_now": 11
   },
   "tasks": [
@@ -2779,10 +2779,9 @@
         "tests/test_trend_display.py",
         "tests/test_alarm_console.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true,
-      "note": ""
+      "status": "Complete",
+      "status_key": "done",
+      "note": "COMPLETE - merged to main as f6f7eb2 (PR #161). 3727 passed post-merge, mypy clean over 87 files, no golden movement. The outer limit reads HIHI/LOLO whether it alarms or trips (alarm manager, graphic band text, trend rule labels; alarm ids and snapshot band labels unchanged). Palette is two colours for now by user decision of 10 Oct: yellow for HI/LO, red for HIHI/LOLO, so high and the alarm band share critical and trip's red; test_console_tokens.py skips only those two pairs (SHARED_BAND_PAIR, SHARED_FILL_PAIR; delete when a third colour returns). Known: alarm and trip look alike where no glyph is drawn; rejected-command styling uses --alarm-high-mark and now reads red (a dedicated token is a faceplate follow-up). Unblocks T20-8."
     },
     {
       "id": "T20-7",
@@ -2830,10 +2829,7 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "T20-6"
-      ],
+      "startable": true,
       "note": ""
     },
     {

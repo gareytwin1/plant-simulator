@@ -491,6 +491,23 @@ def test_free_play_during_a_run_asks_first_then_aborts_and_unloads():
 
 
 @needs_node
+def test_the_injected_thumbnail_carries_no_ids():
+    result = run_page(
+        """
+        const doc = makePage("idle", ["a"]);
+        doc.ids["launch"].attrs["data-thumbnail"] = "/static/graphics/x.svg";
+        doc.ids["plant-thumb"] = el();
+        const fetchImpl = async url => ({ ok: true, status: 200, text: async () => '<svg id="a"><title id="plant-title">x</title><g class="eq"/></svg>', json: async () => ({}) });
+        L.mount(doc, fetchImpl, () => {}, { storage: memory({}), refreshRibbon() {} });
+        await tick(); await tick();
+        return doc.ids["plant-thumb"].innerHTML;
+        """
+    )
+
+    assert result == '<svg><title>x</title><g class="eq"/></svg>'
+
+
+@needs_node
 def test_a_run_that_ended_elsewhere_does_not_fail_the_confirmed_abort():
     result = run_page(
         """

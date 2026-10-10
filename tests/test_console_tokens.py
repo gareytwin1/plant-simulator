@@ -33,7 +33,7 @@ EQUIP_STATES = ("running", "stopped", "tripped")
 BAND_STATES = ("warning", "alarm", "trip")
 
 # Two alarm colours for now (yellow, red): these pairs share a colour on purpose
-# and the glyph tells them apart. Delete both when the third colour returns.
+# and the glyph separates them where one is drawn (docs/console-standards.md). Delete both when the third colour returns.
 SHARED_BAND_PAIR = frozenset({"alarm", "trip"})
 SHARED_FILL_PAIR = frozenset({"critical", "high"})
 

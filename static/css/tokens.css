@@ -42,7 +42,7 @@
   --alarm-critical-mark: light-dark(#b00020, #ff6b7a);
   /* Two colours for now: yellow for HI/LO, red for HIHI/LOLO whether the outer
      limit alarms or trips. high and the alarm band share red with critical and
-     the trip band; the glyph tells them apart. A third colour (orange, #ff8a00
+     the trip band; the glyph separates them only where one is drawn; a rejected command, which also uses high, reads red too. A third colour (orange, #ff8a00
      in prototype/console-redesign) may take high and alarm later. */
   --alarm-high-fill: light-dark(#b00020, #ff6b7a);
   --alarm-high-on: light-dark(#ffffff, #2a0008);

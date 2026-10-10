@@ -75,11 +75,12 @@ names the unit of each trend point the console shows: an equipment field
 listed in its `FIELD_UNITS` allowlist (an unlisted field has none), a node
 pressure, a loop's points, and a stream, which takes its domain's flow unit
 from the same classification the coupling applies - the machines in the
-domain confirm one, and a vessel attachment's declared phase gives one. A
-domain nothing classifies has no unit rather than a guess. Building a plant
-runtime therefore now fails when the machines or vessel attachments in one
-domain name different flow units; `Engine` and `NetworkSolver` themselves
-still check nothing, and the modelling constraint above stands.
+domain confirm one, and a vessel attachment's declared phase gives one. Two
+sources that disagree are an error: building a plant runtime now fails when
+the machines or vessel attachments in one domain name different flow units.
+A domain nothing classifies has no unit rather than a guess. The loader,
+`Engine` and `NetworkSolver` still check nothing, so a plain `Engine` built
+from such a plant still solves, and the modelling constraint above stands.
 
 How the liquid and gas domains get split and coupled — separate hydraulic
 problems joined through the V-101 separator's inventory rather than through a

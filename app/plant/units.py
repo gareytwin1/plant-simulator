@@ -152,4 +152,3 @@ def point_units(
 
 def _points(view: Mapping[str, JSONValue], section: str) -> Iterable[str]:
     return trend_values({section: view.get(section)})
-

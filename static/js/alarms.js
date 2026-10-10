@@ -233,6 +233,7 @@
     HISTORY_URL: HISTORY_URL,
     deriveAlarms: deriveAlarms,
     sortAlarms: sortAlarms,
+    countsByPriority: countsByPriority,
     renderBanner: renderBanner,
     renderSummary: renderSummary,
     buildAcknowledgeRequest: buildAcknowledgeRequest,
@@ -242,6 +243,7 @@
 
   /* Mount the console into `bannerEl` and `summaryEl`. `options.fetch` and
    * `options.pollMs` exist so a page or test can supply its own transport;
+   * `options.onAcknowledge` is called after an acknowledgement is recorded;
    * returns {ready, refresh, stop}, `ready` resolving once the first draw is done. */
   function mount(bannerEl, summaryEl, options) {
     var settings = options || {};
@@ -283,7 +285,10 @@
       if (ackButton) {
         var request = buildAcknowledgeRequest(ackButton.getAttribute("data-alarm-id"));
         var response = await doFetch(request.url, request.init);
-        if (response.ok) await refresh();
+        if (response.ok) {
+          await refresh();
+          if (settings.onAcknowledge) settings.onAcknowledge();
+        }
       }
     });
 

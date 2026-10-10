@@ -146,6 +146,8 @@ def landing() -> ResponseReturnValue:
 
     return render_template(
         "index.html",
+        stream_interval_seconds=config.STREAM_INTERVAL_SECONDS,
+        plant_running=g.plant.training_scheduler.running,
         standing=standing,
         title=TITLES.get(standing.scenario_id) if standing.scenario_id else None,
         phase_labels=PHASE_LABELS,
@@ -163,6 +165,7 @@ def console() -> ResponseReturnValue:
     return render_template(
         "console.html",
         stream_interval_seconds=config.STREAM_INTERVAL_SECONDS,
+        plant_running=True,
         standing=standing,
         title=TITLES.get(standing.scenario_id) if standing.scenario_id else None,
         phase_labels=PHASE_LABELS,

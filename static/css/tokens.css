@@ -13,6 +13,8 @@
  *   mark   line or glyph drawn directly on --surface
  *   tint   quiet shading behind trend or gauge content
  * Colour never carries a state alone: each state also has a --symbol-* glyph.
+ * Shape, depth, spacing and motion tokens are a scale, not a state, so they
+ * are named by step instead: --radius, --shadow-1..3, --space-1..6, --t-fast.
  */
 
 :root {
@@ -75,4 +77,32 @@
 
   /* Alarm lifecycle: unacknowledged flashes at this period */
   --alarm-flash-period: 1s;
+
+  /* Shape, depth, spacing and motion (T20-8, from prototype/console-redesign).
+     The shadow colour is not a status hue, so no contrast test covers it. */
+  --radius: 10px;
+  --radius-small: 6px;
+  --shadow-color: light-dark(#1a1f24, #000000);
+  --shadow-1: 0 1px 2px color-mix(in srgb, var(--shadow-color) 14%, transparent);
+  --shadow-2:
+    0 6px 18px color-mix(in srgb, var(--shadow-color) 18%, transparent),
+    0 1px 3px color-mix(in srgb, var(--shadow-color) 12%, transparent);
+  --shadow-3: 0 14px 38px color-mix(in srgb, var(--shadow-color) 26%, transparent);
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --t-fast: 120ms;
+  --t-med: 220ms;
+}
+
+/* Every transition built on the motion tokens stops for a reader who asks. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --t-fast: 0ms;
+    --t-med: 0ms;
+  }
 }

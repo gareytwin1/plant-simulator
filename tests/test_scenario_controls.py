@@ -151,8 +151,9 @@ const mk = () => ({ hidden: false, disabled: false, textContent: "", attrs: {}, 
   setAttribute(k, v) { this.attrs[k] = v; }, getAttribute(k) { return this.attrs[k]; },
   addEventListener(t, f) { this.listeners[t] = f; } });
 function page(phase, title) {
-  const ids = ["scenario-bar", "scenario-mode", "scenario-phase", "scenario-notice", "scenario-start",
-    "scenario-abort", "scenario-abort-confirm", "scenario-abort-keep", "scenario-choose"];
+  const ids = ["scenario-bar", "scenario-title", "scenario-state", "scenario-notice", "scenario-start",
+    "scenario-abort", "scenario-confirm", "scenario-abort-confirm", "scenario-abort-keep", "scenario-choose",
+    "scenario-choose-label"];
   const els = Object.fromEntries(ids.map(id => [id, mk()]));
   els["scenario-bar"].attrs = { "data-phase": phase, "data-title": title,
     "data-phase-labels": JSON.stringify({ idle: "", loaded: "Loaded, not started", running: "Running", complete: "Finished", aborted: "Aborted" }) };
@@ -171,16 +172,16 @@ def test_the_first_render_shows_the_servers_phase_and_title_with_the_right_butto
         const { els, doc } = page("loaded", "Falling vessel level");
         S.mount(doc, { fetch: async () => reply(409, {}), pollMs: 0 });
         return {
-          mode: els["scenario-mode"].textContent, phase: els["scenario-phase"].textContent,
+          mode: els["scenario-title"].textContent, phase: els["scenario-state"].textContent,
           start: els["scenario-start"].hidden, abort: els["scenario-abort"].hidden,
-          choose: els["scenario-choose"].textContent,
+          choose: els["scenario-choose-label"].textContent,
         };
         """,
     )
 
     assert got == {
-        "mode": "Scenario: Falling vessel level",
-        "phase": "Loaded, not started",
+        "mode": "Falling vessel level",
+        "phase": "Scenario \u00b7 Loaded, not started",
         "start": False,
         "abort": True,
         "choose": "Choose another scenario",
@@ -200,7 +201,7 @@ def test_start_then_abort_walk_the_bar_through_its_phases_without_a_reload():
         };
         S.mount(doc, { fetch: fetchImpl, pollMs: 0 });
         const seen = [];
-        const snap = () => seen.push({ phase: els["scenario-phase"].textContent,
+        const snap = () => seen.push({ phase: els["scenario-state"].textContent,
           start: !els["scenario-start"].hidden, abort: !els["scenario-abort"].hidden,
           confirm: !els["scenario-abort-confirm"].hidden, keep: !els["scenario-abort-keep"].hidden });
         await els["scenario-start"].listeners.click(); snap();
@@ -214,9 +215,9 @@ def test_start_then_abort_walk_the_bar_through_its_phases_without_a_reload():
     assert got["calls"] == ["/api/scenario/start", "/api/scenario/abort"]
     assert got["armedCalls"] == 1
     assert got["seen"] == [
-        {"phase": "Running", "start": False, "abort": True, "confirm": False, "keep": False},
-        {"phase": "Running", "start": False, "abort": False, "confirm": True, "keep": True},
-        {"phase": "Aborted", "start": False, "abort": False, "confirm": False, "keep": False},
+        {"phase": "Scenario \u00b7 Running", "start": False, "abort": True, "confirm": False, "keep": False},
+        {"phase": "Scenario \u00b7 Running", "start": False, "abort": False, "confirm": True, "keep": True},
+        {"phase": "Scenario \u00b7 Aborted", "start": False, "abort": False, "confirm": False, "keep": False},
     ]
 
 
@@ -252,12 +253,12 @@ def test_a_409_shows_the_pages_words_then_resyncs_from_the_result():
         S.mount(doc, { fetch: fetchImpl, pollMs: 0 });
         await els["scenario-start"].listeners.click();
         return { calls, notice: els["scenario-notice"].textContent, hidden: els["scenario-notice"].hidden,
-                 phase: els["scenario-phase"].textContent };
+                 phase: els["scenario-state"].textContent };
         """,
     )
 
     assert got["calls"] == ["/api/scenario/start", "/api/scenario/result"]
-    assert got["phase"] == "Running"
+    assert got["phase"] == "Scenario \u00b7 Running"
     assert got["hidden"] is False
     assert "no longer ready to start" in got["notice"]
     assert "cannot start" not in got["notice"]
@@ -273,16 +274,16 @@ def test_a_poll_follows_the_server_and_a_409_is_free_play_and_disarms_abort():
         const bar = S.mount(doc, { fetch: async () => next, pollMs: 0 });
         els["scenario-abort"].listeners.click();
         await bar.poll();
-        const complete = { phase: els["scenario-phase"].textContent, confirm: els["scenario-abort-confirm"].hidden,
-          mode: els["scenario-mode"].textContent };
+        const complete = { phase: els["scenario-state"].textContent, confirm: els["scenario-abort-confirm"].hidden,
+          mode: els["scenario-title"].textContent };
         next = reply(409, { error: "no scenario is loaded" });
         await bar.poll();
-        return { complete, free: { mode: els["scenario-mode"].textContent, phase: els["scenario-phase"].textContent } };
+        return { complete, free: { mode: els["scenario-title"].textContent, phase: els["scenario-state"].textContent } };
         """,
     )
 
-    assert got["complete"] == {"phase": "Finished", "confirm": True, "mode": "Scenario: Falling vessel level"}
-    assert got["free"] == {"mode": "Free play", "phase": ""}
+    assert got["complete"] == {"phase": "Scenario \u00b7 Finished", "confirm": True, "mode": "Falling vessel level"}
+    assert got["free"] == {"mode": "Free play", "phase": "Plant running"}
 
 
 @needs_node
@@ -297,7 +298,7 @@ def test_a_failed_poll_leaves_the_bar_alone_and_buttons_disable_while_a_call_is_
         const fetchImpl = async () => { if (mode === "fail") throw new Error("down"); await hold; return reply(200, { phase: "running" }); };
         const bar = S.mount(doc, { fetch: fetchImpl, pollMs: 0 });
         await bar.poll();
-        const afterFail = els["scenario-phase"].textContent;
+        const afterFail = els["scenario-state"].textContent;
         mode = "hold";
         const pending = els["scenario-start"].listeners.click();
         await settle();
@@ -308,7 +309,7 @@ def test_a_failed_poll_leaves_the_bar_alone_and_buttons_disable_while_a_call_is_
         """,
     )
 
-    assert got == {"afterFail": "Loaded, not started", "inFlight": True, "after": False}
+    assert got == {"afterFail": "Scenario \u00b7 Loaded, not started", "inFlight": True, "after": False}
 
 
 def test_the_console_renders_free_play_with_no_scenario_text(client):
@@ -317,26 +318,27 @@ def test_the_console_renders_free_play_with_no_scenario_text(client):
     assert 'id="scenario-bar"' in page
     assert 'data-phase="idle"' in page
     assert ">Free play<" in page
+    assert ">Plant running<" in page
     assert "js/scenario.js" in page
-    assert "ScenarioBar.mount(document, { onChange: graphic.refresh })" in page
-    assert page.index("Trends.mount") < page.index("ScenarioBar.mount")
+    assert "Ribbon.mount(document, { onChange: graphic.refresh })" in page
+    assert page.index("Trends.mount") < page.index("Ribbon.mount(document, {")
 
 
 def test_the_consoles_first_render_carries_the_standing_phase_and_title(client):
     client.post("/api/scenario/load", json={"scenario": KEY})
     loaded = console(client)
     assert 'data-phase="loaded"' in loaded
-    assert "Scenario: Falling vessel level" in loaded
-    assert ">Loaded, not started<" in loaded
+    assert ">Falling vessel level<" in loaded
+    assert ">Scenario &middot; Loaded, not started<" in loaded
 
     client.post("/api/scenario/start")
     assert 'data-phase="running"' in console(client)
-    assert ">Running<" in console(client)
+    assert ">Scenario &middot; Running<" in console(client)
 
     client.post("/api/scenario/abort")
     aborted = console(client)
     assert 'data-phase="aborted"' in aborted
-    assert ">Aborted<" in aborted
+    assert ">Scenario &middot; Aborted<" in aborted
 
 
 def test_the_console_sends_a_label_for_every_runner_phase(client):
@@ -394,20 +396,20 @@ def test_a_poll_follows_a_title_that_changes_or_appears_after_mount():
         let next = reply(200, { phase: "loaded", title: "Falling vessel level" });
         const bar = S.mount(doc, { fetch: async () => next, pollMs: 0 });
         await bar.poll();
-        const appeared = els["scenario-mode"].textContent;
+        const appeared = els["scenario-title"].textContent;
         next = reply(200, { phase: "loaded", title: "Blocked drain" });
         await bar.poll();
-        const changed = els["scenario-mode"].textContent;
+        const changed = els["scenario-title"].textContent;
         next = reply(200, { phase: "loaded" });
         await bar.poll();
-        return { appeared, changed, kept: els["scenario-mode"].textContent };
+        return { appeared, changed, kept: els["scenario-title"].textContent };
         """,
     )
 
     assert got == {
-        "appeared": "Scenario: Falling vessel level",
-        "changed": "Scenario: Blocked drain",
-        "kept": "Scenario: Blocked drain",
+        "appeared": "Falling vessel level",
+        "changed": "Blocked drain",
+        "kept": "Blocked drain",
     }
 
 
@@ -429,11 +431,11 @@ def test_a_poll_that_began_before_a_click_cannot_overwrite_the_clicks_result():
         await els["scenario-start"].listeners.click();
         releasePoll();
         await stale;
-        return els["scenario-phase"].textContent;
+        return els["scenario-state"].textContent;
         """,
     )
 
-    assert got == "Running"
+    assert got == "Scenario \u00b7 Running"
 
 
 @needs_node
@@ -458,11 +460,11 @@ def test_a_refusal_waits_out_a_poll_in_flight_and_then_resyncs():
         releasePoll();
         await click;
         await first;
-        return { results, phase: els["scenario-phase"].textContent };
+        return { results, phase: els["scenario-state"].textContent };
         """,
     )
 
-    assert got == {"results": 2, "phase": "Running"}
+    assert got == {"results": 2, "phase": "Scenario \u00b7 Running"}
 
 
 @needs_node
@@ -479,12 +481,12 @@ def test_a_request_that_never_finishes_does_not_claim_nothing_changed_and_resync
         };
         S.mount(doc, { fetch: fetchImpl, pollMs: 0 });
         await els["scenario-start"].listeners.click();
-        return { calls, notice: els["scenario-notice"].textContent, phase: els["scenario-phase"].textContent };
+        return { calls, notice: els["scenario-notice"].textContent, phase: els["scenario-state"].textContent };
         """,
     )
 
     assert got["calls"] == ["/api/scenario/start", "/api/scenario/result"]
-    assert got["phase"] == "Running"
+    assert got["phase"] == "Scenario \u00b7 Running"
     assert "nothing was changed" not in got["notice"]
     assert "did not finish" in got["notice"]
     assert "refreshed" not in got["notice"]
@@ -530,13 +532,13 @@ def test_a_thrown_abort_resyncs_even_in_a_hidden_tab_and_enables_the_buttons():
         S.mount(doc, { fetch: fetchImpl, pollMs: 0 });
         els["scenario-abort"].listeners.click();
         await els["scenario-abort-confirm"].listeners.click();
-        return { calls, phase: els["scenario-phase"].textContent, notice: els["scenario-notice"].textContent,
+        return { calls, phase: els["scenario-state"].textContent, notice: els["scenario-notice"].textContent,
                  disabled: els["scenario-start"].disabled };
         """,
     )
 
     assert got["calls"] == ["/api/scenario/abort", "/api/scenario/result"]
-    assert got["phase"] == "Aborted"
+    assert got["phase"] == "Scenario \u00b7 Aborted"
     assert "did not finish" in got["notice"]
     assert got["disabled"] is False
 
@@ -551,11 +553,11 @@ def test_a_200_with_no_known_phase_resyncs_from_the_result():
         const fetchImpl = async url => { calls.push(url); return reply(200, url.endsWith("start") ? {} : { phase: "running", title: "T" }); };
         S.mount(doc, { fetch: fetchImpl, pollMs: 0 });
         await els["scenario-start"].listeners.click();
-        return { calls, phase: els["scenario-phase"].textContent };
+        return { calls, phase: els["scenario-state"].textContent };
         """,
     )
 
-    assert got == {"calls": ["/api/scenario/start", "/api/scenario/result"], "phase": "Running"}
+    assert got == {"calls": ["/api/scenario/start", "/api/scenario/result"], "phase": "Scenario \u00b7 Running"}
 
 
 @needs_node

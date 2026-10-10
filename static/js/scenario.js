@@ -1,4 +1,4 @@
-/* Scenario run controls (T16-15): the console's Scenario bar.
+/* Scenario run controls (T16-15), shown in the ribbon (T20-8).
  *
  * Start run and Abort run for the scenario this session has loaded, and the
  * phase it is in, following the server without a reload:
@@ -6,16 +6,20 @@
  *   POST /api/scenario/abort
  *   GET  /api/scenario/result   (409 = nothing loaded = free play)
  *
- * Only `phase` and `title` are ever read from a response body, so a live run's
- * key and a finished run's debrief are never displayed here (T16-12). A title
- * is the scenario's public name, the one the landing page lists. A refusal is
- * shown in this file's own plain words, chosen by status code, never the
- * server's text. The server renders the title with the page; a poll replaces
- * it when another tab loads a different scenario.
+ * Only `phase` and `title` are ever read from a response body here, so a live
+ * run's key and a finished run's debrief are never displayed (T16-12); a
+ * caller's `onResult` sees the body, and static/js/ribbon.js reads only the
+ * run's times from it. A title is the scenario's public name, the one the
+ * landing page lists. A refusal is shown in this file's own plain words,
+ * chosen by status code, never the server's text. The server renders the
+ * title with the page; a poll replaces it when another tab loads a different
+ * scenario.
  *
  * Abort takes two clicks (arm, then confirm) with no window.confirm, so it
- * runs under Node. Aborting reveals the debrief, so it is offered only while a
- * run is running; a loaded trainee leaves through the landing page.
+ * runs under Node; Escape disarms it. Aborting reveals the debrief, so it is
+ * offered only while a run is running; a loaded trainee leaves through the
+ * landing page. Start and Abort are on the console only: the landing page
+ * shows the run without them, since it never starts the plant's clock.
  *
  * Everything above the "browser glue" marker is pure so it runs under Node
  * without a DOM; tests/test_scenario_controls.py drives it that way.
@@ -94,30 +98,48 @@
     return title ? "Scenario: " + title : "Scenario";
   };
 
+  /* The ribbon's two lines: the run's name, then what it is doing. */
+  api.runTitle = function (phase, title) {
+    if (phase === "idle") return "Free play";
+    return title || "Scenario";
+  };
+
+  /* `running` is whether the plant's clock advances: the landing page never
+   * starts it, so a session that has not opened the console has not. */
+  api.runState = function (labels, phase, running) {
+    if (phase === "idle") return running ? "Plant running" : "Plant not started";
+    return "Scenario \u00B7 " + api.phaseLabel(labels, phase);
+  };
+
   /* browser glue */
 
-  /* Mount the bar. `options.fetch` and `options.pollMs` exist so a page or
-   * test can supply its own transport and timer. `options.onChange`, when
-   * given, is called after a response moves the phase or the title, which is
-   * when the plant the session shows may have changed (T20-2). Returns
-   * {poll, stop, state}. */
+  /* Mount the run controls. `options.fetch` and `options.pollMs` exist so a
+   * page or test can supply its own transport and timer. `options.onChange`,
+   * when given, is called after a response moves the phase or the title, which
+   * is when the plant the session shows may have changed (T20-2).
+   * `options.onResult(status, body)` sees every response the bar applies. The
+   * buttons and the choose link are optional, so a page can show the run
+   * without offering them. Returns {poll, stop, state}. */
   function mount(doc, options) {
     var settings = options || {};
     var doFetch = settings.fetch || root.fetch.bind(root);
     var bar = doc.getElementById("scenario-bar");
     var pollMs = settings.pollMs === undefined ? Number(bar.getAttribute("data-interval-seconds")) * 1000 : settings.pollMs;
     var labels = JSON.parse(bar.getAttribute("data-phase-labels"));
+    var running = bar.getAttribute("data-plant-running") !== "false";
     var els = {
-      mode: doc.getElementById("scenario-mode"),
-      phase: doc.getElementById("scenario-phase"),
+      title: doc.getElementById("scenario-title"),
+      state: doc.getElementById("scenario-state"),
       notice: doc.getElementById("scenario-notice"),
       start: doc.getElementById("scenario-start"),
       abort: doc.getElementById("scenario-abort"),
+      confirmGroup: doc.getElementById("scenario-confirm"),
       confirm: doc.getElementById("scenario-abort-confirm"),
       keep: doc.getElementById("scenario-abort-keep"),
       choose: doc.getElementById("scenario-choose"),
+      chooseLabel: doc.getElementById("scenario-choose-label"),
     };
-    var actionButtons = [els.start, els.abort, els.confirm, els.keep];
+    var actionButtons = [els.start, els.abort, els.confirm, els.keep].filter(Boolean);
     var state = {
       phase: api.phaseOf(200, { phase: bar.getAttribute("data-phase") }) || "idle",
       title: bar.getAttribute("data-title") || "",
@@ -130,21 +152,51 @@
     var epoch = 0;
     var timer = null;
 
+    function show(el, visible) {
+      if (el) el.hidden = !visible;
+    }
+
     function render() {
       var controls = api.controlsFor(state.phase, state.armed);
 
-      els.mode.textContent = api.modeText(state.phase, state.title);
-      els.phase.textContent = api.phaseLabel(labels, state.phase);
-      els.start.hidden = !controls.start;
-      els.abort.hidden = !controls.abort;
-      els.confirm.hidden = !controls.confirm;
-      els.keep.hidden = !controls.keep;
-      els.choose.hidden = controls.choose === "";
-      els.choose.textContent = controls.choose;
+      els.title.textContent = api.runTitle(state.phase, state.title);
+      els.title.setAttribute("title", api.modeText(state.phase, state.title));
+      els.state.textContent = api.runState(labels, state.phase, running);
+      show(els.start, controls.start);
+      show(els.abort, controls.abort);
+      show(els.confirmGroup, controls.confirm);
+      show(els.confirm, controls.confirm);
+      show(els.keep, controls.keep);
+      if (els.choose) {
+        els.choose.hidden = controls.choose === "";
+        els.choose.setAttribute("aria-label", controls.choose);
+        (els.chooseLabel || els.choose).textContent = controls.choose;
+      }
       actionButtons.forEach(function (button) {
         button.disabled = state.busy;
       });
       bar.setAttribute("data-phase", state.phase);
+    }
+
+    /* Keyboard focus follows the controls, so it is never left on one that
+     * has just been hidden or disabled. It moves only when it was already in
+     * the bar, so a background poll never takes it from elsewhere. */
+    function focus(el) {
+      if (el && typeof el.focus === "function") el.focus();
+    }
+
+    var controls = [els.start, els.abort, els.confirm, els.keep, els.choose].filter(Boolean);
+
+    function holdsFocus(el) {
+      return controls.indexOf(el) !== -1;
+    }
+
+    function refocus(owned) {
+      var active = doc.activeElement;
+      if (!owned || (holdsFocus(active) && !active.hidden)) return;
+      focus([els.abort, els.keep, els.start, els.choose].filter(function (el) {
+        return el && !el.hidden;
+      })[0]);
     }
 
     function notice(text) {
@@ -164,6 +216,7 @@
         if (phase !== "running") state.armed = false;
       }
       if (settings.onChange && state.phase + "\n" + state.title !== before) settings.onChange();
+      if (settings.onResult) settings.onResult(status, body);
     }
 
     /* A request that never settles would hold a flag for good, so each one is
@@ -192,6 +245,7 @@
 
     async function pollOnce() {
       var started = epoch;
+      var owned;
       try {
         var result = await get(api.buildResultRequest());
         // A click that sent while this was in flight knows better.
@@ -201,7 +255,9 @@
       } finally {
         polling = false;
         pollPromise = null;
+        owned = holdsFocus(doc.activeElement);
         render();
+        refocus(owned);
       }
     }
 
@@ -220,6 +276,8 @@
     }
 
     async function send(action, request) {
+      // Disabling the clicked button can drop focus to the body, so note now.
+      var owned = holdsFocus(doc.activeElement);
       state.busy = true;
       state.armed = false;
       epoch += 1;
@@ -240,7 +298,11 @@
         resync = true;
       } finally {
         state.busy = false;
+        // Still ours only if focus has not moved somewhere else meanwhile.
+        var active = doc.activeElement;
+        owned = owned && (!active || active === doc.body || holdsFocus(active));
         render();
+        refocus(owned);
       }
       if (resync) {
         // A poll already in flight began before this refusal; wait it out and
@@ -250,21 +312,40 @@
       }
     }
 
-    els.start.addEventListener("click", function () {
-      return send("start", api.buildStartRequest());
-    });
-    els.abort.addEventListener("click", function () {
-      state.armed = true;
-      notice("");
-      render();
-    });
-    els.keep.addEventListener("click", function () {
+    function disarm() {
       state.armed = false;
       render();
-    });
-    els.confirm.addEventListener("click", function () {
-      return send("abort", api.buildAbortRequest());
-    });
+      focus(els.abort);
+    }
+
+    if (els.start) {
+      els.start.addEventListener("click", function () {
+        return send("start", api.buildStartRequest());
+      });
+    }
+    if (els.abort) {
+      els.abort.addEventListener("click", function () {
+        state.armed = true;
+        notice("");
+        render();
+        focus(els.keep);
+      });
+      els.keep.addEventListener("click", disarm);
+      els.confirm.addEventListener("click", function () {
+        return send("abort", api.buildAbortRequest());
+      });
+    }
+
+    /* Escape belongs to whatever has focus: it disarms only from inside the
+     * run controls, or from nowhere in particular. */
+    function onKey(event) {
+      if (event.key !== "Escape" || !state.armed) return;
+      var active = doc.activeElement;
+      if (active && active !== doc.body && bar.contains && !bar.contains(active)) return;
+      disarm();
+    }
+
+    if (doc.addEventListener) doc.addEventListener("keydown", onKey);
 
     render();
     if (pollMs) timer = root.setInterval(poll, pollMs);
@@ -279,6 +360,7 @@
       stop: function () {
         if (timer !== null) root.clearInterval(timer);
         if (listening) root.document.removeEventListener("visibilitychange", poll);
+        if (doc.removeEventListener) doc.removeEventListener("keydown", onKey);
       },
     };
   }

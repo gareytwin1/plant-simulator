@@ -55,7 +55,7 @@ further still, to **V2**. M15, M16 and M17 are all Complete.
 
 **CP-G passed for the current console** (user's browser pass, 9 October 2026). The console is about to be redesigned, so the full pass (all six scenarios, both themes, phone width, a real alarm marker) is an acceptance criterion of that redesign rather than repeated on this console.
 
-**Next by leverage:** **the interface and interaction redesign** - start with `/align` on Opus, then a new build-plan milestone. Look and feel come first; the mechanics it exposes wait in [deferred-mechanics.md](../work/console-redesign/deferred-mechanics.md) until the design tasks are complete. Checkpoint D's remaining gate (PIC-101 in AUTO, which T8-6 enabled and no task owns) is backend and can run in parallel. Candidate Opus tasks: units per trend point, and a tripped-equipment state in the snapshot. `app/main.py` and `app/config.py` are free.
+**Next by leverage:** **M20 Console Redesign** (added 9 October 2026, see [BUILD_PLAN.html](../../docs/BUILD_PLAN.html)). The accepted design is frozen in [prototype/console-redesign/](../../prototype/console-redesign/index.html): every M20 task ports from it, and it is never edited to follow production. Its contract tasks come first and can start in parallel: T20-1 (units per point), T20-2 (plant description and a graphic per plant), T20-3 (interlock state in C4, spine), T20-5 (two-phase feed ADR) and T20-6 (alarm palette and limit names). T20-4 (loops on any point, spine) follows T20-1. Checkpoint D's remaining gate is now met on the separator plant (T20-17), with PIC-101 left in MANUAL because olefins_lite stays untouched. `app/main.py` and `app/config.py` are free.
 
 **Scheduling notes.** The spine lock is one global lock
 ([DEVELOPMENT.md](../../DEVELOPMENT.md#file-ownership)); it is free. **The container runs
@@ -159,13 +159,14 @@ scope, and item 1 in particular reads like a bug and is not.
    scenarios load `olefins_lite`, and the console hard-wires one graphic
    (`static/graphics/plant.svg` in `templates/console.html`). Acceptable for
    now; expanding training later means scenarios on different plants, each
-   with its own schematic, so the graphic has to follow the scenario's plant.
+   with its own schematic, so the graphic has to follow the scenario's plant. Owned by T20-2 (a graphic per plant) and T20-17
+   (the separator).
 4. **The plant has one controller** (user, 9 October 2026). `olefins_lite`
    configures only PIC-101; a real operator adjusts several loops: level,
    pressure, feed flow, compressor speed. The redesign's interaction work
    covers adjusting many loops, but more loops is also a plant-config and
    backend change: `controllers.pv` resolves only a node id (see "Known
-   technical debt"), so a level or flow loop needs that widened first.
+   technical debt"), so a level or flow loop needs that widened first. Owned by T20-4 (loops on any point) and T20-17 (three loops on the separator).
 
 ## Traps for the next tasks
 

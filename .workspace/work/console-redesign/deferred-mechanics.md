@@ -5,6 +5,13 @@ look and feel first; everything below waits until the design tasks are
 complete. Each item was verified against `main` at `d1163db`; re-verify before
 acting on it.
 
+**Now build-plan tasks (9 October 2026):** milestone M20 in
+[BUILD_PLAN.html](../../../docs/BUILD_PLAN.html). Item 1 is T20-13, item 2
+T20-14, item 3 T20-1, item 4 T20-3 and T20-13, item 5 T20-15 and T20-16,
+item 6 T20-7, item 7 T20-2, T20-4, T20-5, T20-17 and T20-18, and item 8
+T20-6, T20-7 and T20-10. The layout port is T20-8 to T20-12. The task
+entries supersede the notes below where they differ.
+
 ## Gaps the redesign exposes
 
 1. **The console cannot complete most scenarios.** C5 (`app/api/action.py`
@@ -70,7 +77,7 @@ acting on it.
      the hard-wired `plant.svg`.
 
 8. **Console display decisions from the prototype review (9 October 2026).**
-   The user accepted the prototype on `proto/console-redesign`; these differ
+   The user accepted the prototype, now frozen in `prototype/console-redesign/`; these differ
    from production and need porting:
    - Two limits a side, named HI/HIHI and LO/LOLO by position. Production
      names a band by severity step (`isa_band`, `static/js/graphic.js`,

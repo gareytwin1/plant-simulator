@@ -318,7 +318,7 @@ def test_the_console_renders_free_play_with_no_scenario_text(client):
     assert 'data-phase="idle"' in page
     assert ">Free play<" in page
     assert "js/scenario.js" in page
-    assert "ScenarioBar.mount(document)" in page
+    assert "ScenarioBar.mount(document, { onChange: graphic.refresh })" in page
     assert page.index("Trends.mount") < page.index("ScenarioBar.mount")
 
 
@@ -556,3 +556,33 @@ def test_a_200_with_no_known_phase_resyncs_from_the_result():
     )
 
     assert got == {"calls": ["/api/scenario/start", "/api/scenario/result"], "phase": "Running"}
+
+
+@needs_node
+def test_on_change_is_called_only_when_a_response_moves_the_phase_or_the_title():
+    got = run_js(
+        STUB
+        + """
+        const { doc } = page("idle", "");
+        let calls = 0;
+        let next = reply(409, {});
+        const bar = S.mount(doc, { fetch: async () => next, pollMs: 0, onChange: () => { calls += 1; } });
+        await bar.poll();
+        const unchanged = calls;
+        next = reply(200, { phase: "loaded", title: "Blocked drain" });
+        await bar.poll();
+        await bar.poll();
+        const loaded = calls;
+        next = reply(200, { phase: "loaded", title: "Falling vessel level" });
+        await bar.poll();
+        const retitled = calls;
+        next = reply(500, {});
+        await bar.poll();
+        const failed = calls;
+        next = reply(409, {});
+        await bar.poll();
+        return { unchanged, loaded, retitled, failed, unloaded: calls };
+        """,
+    )
+
+    assert got == {"unchanged": 0, "loaded": 1, "retitled": 2, "failed": 2, "unloaded": 3}

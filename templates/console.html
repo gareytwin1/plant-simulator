@@ -64,9 +64,8 @@
       document.getElementById("alarm-summary"),
       { pollMs: Number(consoleEl.getAttribute("data-interval-seconds")) * 1000 }
     );
-    var graphic = ProcessGraphic.mount(document.getElementById("process-graphic"), {
-      url: "{{ url_for('static', filename='graphics/olefins_lite.svg') }}"
-    });
+    // The shown plant names its graphic; a scenario load or unload swaps it.
+    var graphic = ProcessGraphic.follow(document.getElementById("process-graphic"));
     var faceplates = Faceplates.mount(document.getElementById("faceplates"));
     var trends = Trends.mount(document.getElementById("trends"));
     ConnectionMonitor.mount(consoleEl, document.getElementById("connection-indicator"), {
@@ -80,7 +79,7 @@
       }
     });
     // Last, and isolated: a bar that cannot mount must not take the console with it.
-    try { ScenarioBar.mount(document); } catch (error) { console.error(error); }
+    try { ScenarioBar.mount(document, { onChange: graphic.refresh }); } catch (error) { console.error(error); }
   })();
 </script>
 {% endblock %}

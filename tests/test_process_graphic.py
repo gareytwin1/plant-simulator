@@ -417,6 +417,115 @@ def test_mount_says_so_when_the_svg_cannot_be_loaded():
     assert out == {"text": "Process graphic unavailable", "roles": [["role", "status"]]}
 
 
+# ---- following the plant the session shows (T20-2) ---------------------------
+
+FOLLOW_PRELUDE = """
+const calls = [];
+const container = { textContent: '', innerHTML: '', removeAttribute() {}, setAttribute() {} };
+const mounts = {
+  graphic(el, options) {
+    calls.push(['graphic', options.url]);
+    return { ready: Promise.resolve(), update(s) { calls.push(['update', options.url, s.tick]); } };
+  },
+  none() {
+    calls.push(['none']);
+    return { ready: Promise.resolve(), update(s) { calls.push(['update', null, s.tick]); } };
+  },
+};
+let body = data.bodies[0];
+const fetch = async (url) => ({ ok: true, json: async () => body });
+"""
+
+
+@needs_node
+def test_follow_mounts_the_graphic_the_plant_names_and_remounts_only_when_the_plant_changes():
+    out = run_js(
+        FOLLOW_PRELUDE
+        + """
+        const followed = G.follow(container, { fetch, mount: mounts });
+        followed.update({ tick: 1 });
+        await followed.ready;
+        await followed.refresh();
+        body = data.bodies[1];
+        await followed.refresh();
+        followed.update({ tick: 2 });
+        body = data.bodies[2];
+        await followed.refresh();
+        body = data.bodies[0];
+        await followed.refresh();
+        return calls;
+        """,
+        bodies=[
+            {"plant": "olefins_lite", "graphic": "/static/graphics/olefins_lite.svg"},
+            {"plant": "olefins_lite", "graphic": "/static/graphics/olefins_lite.svg"},
+            {"plant": "separator", "graphic": None},
+        ],
+    )
+
+    assert out == [
+        ["graphic", "/static/graphics/olefins_lite.svg"],
+        ["update", "/static/graphics/olefins_lite.svg", 1],
+        ["update", "/static/graphics/olefins_lite.svg", 2],
+        ["none"],
+        ["update", None, 2],
+        ["graphic", "/static/graphics/olefins_lite.svg"],
+        ["update", "/static/graphics/olefins_lite.svg", 2],
+    ]
+
+
+@needs_node
+def test_follow_keeps_what_it_shows_when_the_plant_cannot_be_read():
+    out = run_js(
+        FOLLOW_PRELUDE
+        + """
+        const followed = G.follow(container, { fetch, mount: mounts });
+        await followed.ready;
+        const failing = async () => ({ ok: false, status: 500 });
+        await G.follow(container, { fetch: failing, mount: mounts }).ready;
+        return { calls, text: container.textContent };
+        """,
+        bodies=[{"plant": "olefins_lite", "graphic": "/static/graphics/olefins_lite.svg"}],
+    )
+
+    assert out["calls"] == [["graphic", "/static/graphics/olefins_lite.svg"]]
+    assert out["text"] == "Process graphic unavailable"
+
+
+@needs_node
+def test_a_plant_with_no_graphic_says_so_and_lists_every_device(views):
+    out = run_js(
+        """
+        const made = [];
+        const doc = { createElement() { const e = new El({}, ''); made.push(e); return e; } };
+        const container = { ownerDocument: doc, textContent: '', appendChild() {} };
+        const mounted = G.mountNone(container);
+        mounted.update(data.snapshot);
+        await mounted.ready;
+        return made.map(e => e.textContent);
+        """,
+        snapshot=views["normal"],
+    )
+
+    assert out[0] == "No schematic for this plant"
+    assert out[1] == "Not on graphic: " + ", ".join(views["normal"]["equipment"])
+
+
+@needs_node
+def test_a_graphic_replaced_before_its_svg_arrives_does_not_overwrite_its_successor():
+    out = run_js(
+        """
+        const container = { innerHTML: 'successor', textContent: '', querySelectorAll() { return []; }, setAttribute() {} };
+        const fetch = async () => ({ ok: true, text: async () => '<svg>old</svg>' });
+        await G.mount(container, { fetch, url: '/old.svg', stale: () => true }).ready;
+        const failing = async () => ({ ok: false, status: 404 });
+        await G.mount(container, { fetch: failing, url: '/old.svg', stale: () => true }).ready;
+        return { html: container.innerHTML, text: container.textContent };
+        """
+    )
+
+    assert out == {"html": "successor", "text": ""}
+
+
 # ---- every graphic, against the plant it draws -------------------------------
 #
 # A graphic is static/graphics/<plant id>.svg (T20-2): the plant chooses it by

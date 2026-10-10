@@ -97,7 +97,10 @@
   /* browser glue */
 
   /* Mount the bar. `options.fetch` and `options.pollMs` exist so a page or
-   * test can supply its own transport and timer. Returns {poll, stop, state}. */
+   * test can supply its own transport and timer. `options.onChange`, when
+   * given, is called after a response moves the phase or the title, which is
+   * when the plant the session shows may have changed (T20-2). Returns
+   * {poll, stop, state}. */
   function mount(doc, options) {
     var settings = options || {};
     var doFetch = settings.fetch || root.fetch.bind(root);
@@ -152,12 +155,15 @@
     function apply(status, body) {
       var phase = api.phaseOf(status, body);
       var title = api.titleOf(status, body);
+      var before = state.phase + "\n" + state.title;
 
       if (title !== null) state.title = title;
-      if (phase === null || phase === state.phase) return;
-      state.phase = phase;
-      if (phase === "idle") state.title = "";
-      if (phase !== "running") state.armed = false;
+      if (phase !== null && phase !== state.phase) {
+        state.phase = phase;
+        if (phase === "idle") state.title = "";
+        if (phase !== "running") state.armed = false;
+      }
+      if (settings.onChange && state.phase + "\n" + state.title !== before) settings.onChange();
     }
 
     /* A request that never settles would hold a flag for good, so each one is

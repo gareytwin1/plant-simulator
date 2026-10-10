@@ -44,6 +44,7 @@
 
   var PLANT_URL = "/api/plant";
   var NO_GRAPHIC = "No schematic for this plant";
+  var LOADING = "Loading the schematic";
 
   var MISSING = "--";
 
@@ -238,10 +239,12 @@
   }
 
   /* Load the SVG at `options.url` into `container` and keep it bound.
-   * `options.fetch` exists so a page or test can supply its own transport, and
+   * `options.fetch` exists so a page or test can supply its own transport.
    * `options.stale`, when it returns true, stops a load that finishes after
-   * this graphic was replaced from writing over its successor; returns {ready, update}, where update(snapshot) may be called before
-   * `ready` resolves (the latest snapshot is applied once the SVG is in). */
+   * this graphic was replaced from writing over its successor. Returns
+   * {ready, update}: `ready` resolves true once the SVG is in and false when
+   * it could not be loaded, and update(snapshot) may be called before it does
+   * (the latest snapshot is applied once the SVG is in). */
   function mount(container, options) {
     var settings = options || {};
     var doFetch = settings.fetch || root.fetch.bind(root);
@@ -267,14 +270,16 @@
       })
       .then(
         function (markup) {
-          if (settings.stale && settings.stale()) return;
+          if (settings.stale && settings.stale()) return false;
           container.innerHTML = markup;
           elements = collect(container);
           loaded = true;
           draw();
+          return true;
         },
         function () {
           if (!(settings.stale && settings.stale())) unavailable();
+          return false;
         }
       );
 
@@ -303,7 +308,7 @@
     var latest = null;
 
     return {
-      ready: Promise.resolve(),
+      ready: Promise.resolve(true),
       update: function (snapshot) {
         latest = snapshot;
         if (latest !== null) update(elements, latest);
@@ -321,22 +326,27 @@
   /* Mount the graphic of the plant the session shows, and follow it. Returns
    * {ready, update, refresh}: update(snapshot) as `mount`'s, and refresh(),
    * which rereads GET /api/plant and re-mounts only when the plant id has
-   * changed. A snapshot of the new plant that arrives before the swap degrades
-   * on the old graphic as any other mismatch does. A failed read leaves what
-   * is shown in place. `options.fetch` and `options.mount` (the two mount
-   * functions) exist so a test can supply its own. */
+   * changed. A new plant clears the old one's graphic at once, so a stale
+   * schematic is never left standing while the new one loads. A failed read
+   * of the plant leaves what is shown in place. Until a graphic has loaded -
+   * the first read failed, or the SVG did - each snapshot tries again.
+   * `options.fetch` and `options.mount` (the two mount functions) exist so a
+   * test can supply its own. */
   function follow(container, options) {
     var settings = options || {};
     var doFetch = settings.fetch || root.fetch.bind(root);
     var mounts = settings.mount || { graphic: mount, none: mountNone };
-    var shown = null;
+    var shown = null; // the plant last mounted
+    var good = false; // whether its graphic loaded, or is still loading
     var current = null;
     var latest = null;
+    var pending = false;
     var ticket = 0;
     var generation = 0;
 
     function refresh() {
       var mine = ++ticket;
+      pending = true;
 
       return doFetch(PLANT_URL)
         .then(function (response) {
@@ -346,25 +356,33 @@
         .then(function (body) {
           var next = plantOf(body);
           // A newer refresh knows better, and the same plant keeps its graphic.
-          if (mine !== ticket || next === null || (shown !== null && next.plant === shown)) return;
-          shown = next.plant;
+          if (mine !== ticket || next === null || (next.plant === shown && good)) return;
           var own = ++generation;
           var stale = function () {
             return own !== generation;
           };
-          // An earlier "unavailable" no longer speaks for what is shown.
+          // An earlier "unavailable" no longer speaks for what is shown, and
+          // another plant's schematic must not stand in while this one loads.
           container.removeAttribute("role");
+          if (next.plant !== shown) container.textContent = LOADING;
+          shown = next.plant;
+          good = true;
           current = next.graphic === null
             ? mounts.none(container)
             : mounts.graphic(container, { fetch: settings.fetch, url: next.graphic, stale: stale });
           if (latest !== null) current.update(latest);
-          return current.ready;
+          return current.ready.then(function (loaded) {
+            if (!loaded && own === generation) good = false;
+          });
         })
         .catch(function () {
           if (current === null) {
             container.textContent = "Process graphic unavailable";
             container.setAttribute("role", "status");
           }
+        })
+        .then(function () {
+          if (mine === ticket) pending = false;
         });
     }
 
@@ -374,6 +392,7 @@
       update: function (snapshot) {
         latest = snapshot;
         if (current !== null) current.update(snapshot);
+        if (!pending && !(shown !== null && good)) refresh();
       },
     };
   }

@@ -368,15 +368,15 @@ def test_mount_loads_the_svg_and_applies_a_snapshot_given_before_it_arrived(view
         const fetch = async (url) => ({ ok: true, text: async () => data.svg });
         const mounted = G.mount(container, { fetch });
         mounted.update(data.snapshot);
-        await mounted.ready;
-        return { html: container.innerHTML === data.svg, rows: dump() };
+        const loaded = await mounted.ready;
+        return { html: container.innerHTML === data.svg, loaded, rows: dump() };
         """,
         elements=bound_elements(svg),
         svg=svg,
         snapshot=views["normal"],
     )
 
-    assert out["html"]
+    assert out["html"] and out["loaded"] is True
     state = next(r for r in out["rows"] if r["attrs"].get("data-tag") == "K-101")
     assert state["attrs"]["data-state"] == "running"
 
@@ -409,12 +409,12 @@ def test_mount_says_so_when_the_svg_cannot_be_loaded():
         const fetch = async () => ({ ok: false, status: 404 });
         const mounted = G.mount(container, { fetch });
         mounted.update({});
-        await mounted.ready;
-        return { text: container.textContent, roles };
+        const loaded = await mounted.ready;
+        return { text: container.textContent, roles, loaded };
         """
     )
 
-    assert out == {"text": "Process graphic unavailable", "roles": [["role", "status"]]}
+    assert out == {"text": "Process graphic unavailable", "roles": [["role", "status"]], "loaded": False}
 
 
 # ---- following the plant the session shows (T20-2) ---------------------------
@@ -422,18 +422,21 @@ def test_mount_says_so_when_the_svg_cannot_be_loaded():
 FOLLOW_PRELUDE = """
 const calls = [];
 const container = { textContent: '', innerHTML: '', removeAttribute() {}, setAttribute() {} };
+let loads = true;
 const mounts = {
   graphic(el, options) {
-    calls.push(['graphic', options.url]);
-    return { ready: Promise.resolve(), update(s) { calls.push(['update', options.url, s.tick]); } };
+    calls.push(['graphic', options.url, el.textContent]);
+    return { ready: Promise.resolve(loads), update(s) { calls.push(['update', options.url, s.tick]); } };
   },
-  none() {
-    calls.push(['none']);
-    return { ready: Promise.resolve(), update(s) { calls.push(['update', null, s.tick]); } };
+  none(el) {
+    calls.push(['none', el.textContent]);
+    return { ready: Promise.resolve(true), update(s) { calls.push(['update', null, s.tick]); } };
   },
 };
 let body = data.bodies[0];
-const fetch = async (url) => ({ ok: true, json: async () => body });
+let reachable = true;
+const fetch = async (url) => reachable ? { ok: true, json: async () => body } : { ok: false, status: 500 };
+const settle = () => new Promise(r => setTimeout(r, 0));
 """
 
 
@@ -462,33 +465,85 @@ def test_follow_mounts_the_graphic_the_plant_names_and_remounts_only_when_the_pl
         ],
     )
 
+    # A new plant's graphic mounts into a container already cleared of the old one.
     assert out == [
-        ["graphic", "/static/graphics/olefins_lite.svg"],
+        ["graphic", "/static/graphics/olefins_lite.svg", "Loading the schematic"],
         ["update", "/static/graphics/olefins_lite.svg", 1],
         ["update", "/static/graphics/olefins_lite.svg", 2],
-        ["none"],
+        ["none", "Loading the schematic"],
         ["update", None, 2],
-        ["graphic", "/static/graphics/olefins_lite.svg"],
+        ["graphic", "/static/graphics/olefins_lite.svg", "Loading the schematic"],
         ["update", "/static/graphics/olefins_lite.svg", 2],
     ]
 
 
 @needs_node
-def test_follow_keeps_what_it_shows_when_the_plant_cannot_be_read():
+def test_a_failed_refresh_leaves_the_mounted_graphic_in_place_and_bound():
     out = run_js(
         FOLLOW_PRELUDE
         + """
         const followed = G.follow(container, { fetch, mount: mounts });
         await followed.ready;
-        const failing = async () => ({ ok: false, status: 500 });
-        await G.follow(container, { fetch: failing, mount: mounts }).ready;
+        container.textContent = 'drawn';
+        reachable = false;
+        await followed.refresh();
+        followed.update({ tick: 1 });
+        await settle();
         return { calls, text: container.textContent };
         """,
         bodies=[{"plant": "olefins_lite", "graphic": "/static/graphics/olefins_lite.svg"}],
     )
 
-    assert out["calls"] == [["graphic", "/static/graphics/olefins_lite.svg"]]
-    assert out["text"] == "Process graphic unavailable"
+    assert out["calls"] == [
+        ["graphic", "/static/graphics/olefins_lite.svg", "Loading the schematic"],
+        ["update", "/static/graphics/olefins_lite.svg", 1],
+    ]
+    assert out["text"] == "drawn"
+
+
+@needs_node
+def test_a_first_read_that_fails_says_so_and_the_next_snapshot_tries_again():
+    out = run_js(
+        FOLLOW_PRELUDE
+        + """
+        reachable = false;
+        const followed = G.follow(container, { fetch, mount: mounts });
+        await followed.ready;
+        const failed = container.textContent;
+        reachable = true;
+        followed.update({ tick: 1 });
+        await settle(); await settle(); await settle();
+        return { failed, calls };
+        """,
+        bodies=[{"plant": "olefins_lite", "graphic": "/static/graphics/olefins_lite.svg"}],
+    )
+
+    assert out["failed"] == "Process graphic unavailable"
+    assert out["calls"] == [
+        ["graphic", "/static/graphics/olefins_lite.svg", "Loading the schematic"],
+        ["update", "/static/graphics/olefins_lite.svg", 1],
+    ]
+
+
+@needs_node
+def test_a_graphic_that_failed_to_load_is_tried_again_and_one_that_loaded_is_not():
+    out = run_js(
+        FOLLOW_PRELUDE
+        + """
+        loads = false;
+        const followed = G.follow(container, { fetch, mount: mounts });
+        await followed.ready;
+        loads = true;
+        followed.update({ tick: 1 });
+        await settle(); await settle(); await settle();
+        followed.update({ tick: 2 });
+        await settle(); await settle(); await settle();
+        return calls.filter(c => c[0] === 'graphic').length;
+        """,
+        bodies=[{"plant": "olefins_lite", "graphic": "/static/graphics/olefins_lite.svg"}],
+    )
+
+    assert out == 2
 
 
 @needs_node

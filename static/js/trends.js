@@ -52,7 +52,7 @@
   ];
   // app.envelope.evaluator.isa_band, upper-cased as the alarm messages spell
   // it: the side repeated by position, at most twice (HI, HIHI).
-  var SEVERITY_STEPS = { warning: 1, alarm: 2, trip: 2 };
+  var SEVERITY_STEPS = { warning: 1, alarm: 2, trip: 2 }; // as manager.py _MAX_STEPS, graphic.js
 
   // Mirrors --symbol-alarm-* in tokens.css (tests/test_trend_display.py).
   var PRIORITY_GLYPH = { critical: "▲", high: "◆", low: "●" };

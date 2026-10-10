@@ -54,7 +54,7 @@ from app.envelope.evaluator import Severity
 Side = Literal["lo", "hi"]
 
 _SUFFIX: dict[Side, str] = {"lo": "LO", "hi": "HI"}
-_MAX_STEPS = 2  # a variable has two limits a side; the outer one is HIHI/LOLO
+_MAX_STEPS = 2  # two limits a side; the outer is HIHI/LOLO. As graphic.js, trends.js
 
 _NON_NORMAL: tuple[Severity, ...] = (Severity.WARNING, Severity.ALARM, Severity.TRIP)
 

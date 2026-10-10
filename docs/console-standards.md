@@ -70,6 +70,9 @@ surface apart.
 | alarm | `--band-alarm-tint` | red, as `high` |
 | trip | `--band-trip-tint` | red, as `critical` |
 
+Until a third colour returns, alarm and trip share red: on surfaces with no
+glyph (trend bands, equipment outlines) they cannot be told apart.
+
 `--text` must stay legible on every tint. A limit line is drawn in the matching
 alarm `mark` colour so the threshold remains visible where the shading stops.
 

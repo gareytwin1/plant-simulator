@@ -236,7 +236,7 @@ def isa_band(severity: Severity, side: Side) -> str:
     once per step above NORMAL - "lo"/"hi" at WARNING, "lolo"/"hihi" at
     ALARM, "lololo"/"hihihi" at TRIP (C4's snapshot example shows the
     WARNING/hi case: `{"band": "hi", ...}`). NORMAL has no side and is never
-    passed here - a caller filters it out before asking for a label, the same
-    way `app.alarms.manager` builds its own HI/HIHI/HIHIHI suffix from a
-    `Severity` and a side."""
+    passed here - a caller filters it out before asking for a label. The
+    snapshot keeps one repetition per severity step; `app.alarms.manager` and
+    the console name limits by position instead, so a TRIP reads HIHI/LOLO."""
     return side * severity.value

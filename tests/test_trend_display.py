@@ -19,7 +19,7 @@ from flask import Flask
 from app import config
 from app.api.alarms import create_alarm_blueprint
 from app.api.trend import create_trend_blueprint
-from app.envelope.evaluator import Severity, isa_band
+from app.envelope.evaluator import Severity
 from app.scenarios.runner import ScenarioLibrary
 from app.training.session import TrainingSession
 from tests.test_alarm_console import Plant

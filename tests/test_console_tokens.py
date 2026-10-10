@@ -32,6 +32,11 @@ ALARM_STATES = ("critical", "high", "low")
 EQUIP_STATES = ("running", "stopped", "tripped")
 BAND_STATES = ("warning", "alarm", "trip")
 
+# Two alarm colours for now (yellow, red): these pairs share a colour on purpose
+# and the glyph tells them apart. Delete both when the third colour returns.
+SHARED_BAND_PAIR = frozenset({"alarm", "trip"})
+SHARED_FILL_PAIR = frozenset({"critical", "high"})
+
 # Machado, Oliveira and Fernandes (2009), severity 1.0, linear RGB.
 CVD_MATRICES = {
     "protanopia": (
@@ -258,27 +263,31 @@ def test_text_is_legible_on_every_envelope_band_tint(tokens, theme):
         assert contrast(t["--text"], t[f"--band-{state}-tint"]) >= TEXT_CONTRAST, (theme, state)
 
 
+def _band_pairs(t):
+    """Labelled (surface, band tint) pairs that must differ, minus the shared pair."""
+    colours = [("surface", t["--surface"])] + [(s, t[f"--band-{s}-tint"]) for s in BAND_STATES]
+    for (na, a), (nb, b) in itertools.combinations(colours, 2):
+        if {na, nb} == SHARED_BAND_PAIR:
+            assert a == b
+            continue
+        yield (na, a), (nb, b)
+
+
 @pytest.mark.parametrize("theme", THEMES)
 def test_band_tints_are_distinct_from_each_other_and_the_surface(tokens, theme):
     t = tokens[theme]
-    colours = [t["--surface"]] + [t[f"--band-{s}-tint"] for s in BAND_STATES]
-    for a, b in itertools.combinations(colours, 2):
-        if a == b:  # alarm shares trip's red for now; the glyph tells them apart
-            continue
+    for (na, a), (nb, b) in _band_pairs(t):
         d = delta_e_2000(_to_lab(tuple(map(_linear, _rgb(a)))), _to_lab(tuple(map(_linear, _rgb(b)))))
-        assert d >= BAND_MIN_DELTA_E, (theme, a, b, d)
+        assert d >= BAND_MIN_DELTA_E, (theme, na, nb, d)
 
 
 @pytest.mark.parametrize("kind", sorted(CVD_MATRICES))
 @pytest.mark.parametrize("theme", THEMES)
 def test_band_tints_stay_distinct_under_colour_blindness(tokens, theme, kind):
     t = tokens[theme]
-    colours = [t["--surface"]] + [t[f"--band-{s}-tint"] for s in BAND_STATES]
-    for a, b in itertools.combinations(colours, 2):
-        if a == b:
-            continue
+    for (na, a), (nb, b) in _band_pairs(t):
         d = cvd_distance(a, b, kind)
-        assert d >= BAND_MIN_DELTA_E, (theme, kind, a, b, d)
+        assert d >= BAND_MIN_DELTA_E, (theme, kind, na, nb, d)
 
 
 @pytest.mark.parametrize("kind", sorted(CVD_MATRICES))
@@ -286,7 +295,8 @@ def test_band_tints_stay_distinct_under_colour_blindness(tokens, theme, kind):
 def test_alarm_priorities_stay_distinct_under_colour_blindness(tokens, theme, kind):
     t = tokens[theme]
     for a, b in itertools.combinations(ALARM_STATES, 2):
-        if t[f"--alarm-{a}-fill"] == t[f"--alarm-{b}-fill"]:  # high shares critical's red; glyphs differ
+        if {a, b} == SHARED_FILL_PAIR:
+            assert t[f"--alarm-{a}-fill"] == t[f"--alarm-{b}-fill"]
             continue
         d = cvd_distance(t[f"--alarm-{a}-fill"], t[f"--alarm-{b}-fill"], kind)
         assert d >= CVD_MIN_DELTA_E, (theme, kind, a, b, d)

@@ -1,185 +1,344 @@
-/* Controller faceplates (T16-4). Every colour is a token from tokens.css
- * (docs/console-standards.md); nothing here is a hex literal. Load tokens.css
- * and landing.css (buttons, focus ring) first.
+/* Faceplates (T16-4, reshaped by T20-10 from prototype/console-redesign).
+ * Every colour is a token from tokens.css (docs/console-standards.md); nothing
+ * here is a hex literal. Load tokens.css, landing.css (focus ring) and
+ * console.css (buttons, the layer a panel sits in) first.
  *
- * A faceplate stays neutral: mode is a word and a pressed button, never a
- * colour alone, and the output bar is drawn in --text on --surface. */
-
-.faceplates {
-  margin-bottom: 1.5rem;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr));
-  gap: 1rem;
-}
+ * One panel is open at a time, placed beside what it describes by canvas.js.
+ * It stays neutral: mode and run state are words and glyphs, a band is a glyph
+ * and a label, and the output bar is drawn in --text-muted on --surface. */
 
 .faceplate {
-  --faceplate-gap: 0.6rem;
-  display: flex;
-  flex-direction: column;
-  gap: var(--faceplate-gap);
-  padding: 0.75rem;
-  border: 2px solid var(--border);
-  border-radius: 4px;
-  background-color: var(--surface-raised);
+  position: absolute;
+  width: min(330px, calc(100% - 2 * var(--space-2)));
+  max-height: calc(100% - 2 * var(--space-2));
+  overflow: auto;
+  pointer-events: auto;
+  background: var(--surface-raised);
+  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-3);
+  animation: fp-pop-in var(--t-med) var(--ease);
 }
 
-.faceplate-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 0.5rem;
+@keyframes fp-pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
-.faceplate-tag {
+.fp-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-3) var(--space-2) var(--space-4);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 35%, transparent);
+}
+
+.fp-titles {
+  flex: 1;
+  min-width: 0;
+}
+
+.fp-tag {
   margin: 0;
   font-size: 1.05rem;
+  font-weight: 800;
 }
 
-.faceplate-mode {
-  padding: 0.05em 0.5em;
-  border: 2px solid var(--text);
-  border-radius: 3px;
-  font-weight: 700;
-  font-size: 0.85rem;
-  letter-spacing: 0.04em;
-}
-
-.faceplate[data-mode="MANUAL"] .faceplate-mode {
-  background-color: var(--text);
-  color: var(--surface-raised);
-}
-
-/* Three across while each reading fits; a narrow card reflows to two rows
- * rather than cutting a unit off or spilling into the next column. A long
- * reading wraps its unit onto a second line at the space before it. */
-.faceplate-values {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(5.5rem, 1fr));
-  gap: 0.5rem;
+.fp-kind {
   margin: 0;
-}
-
-.faceplate-value {
-  min-width: 0;
-}
-
-.faceplate-value dt {
   color: var(--text-muted);
-  font-size: 0.8rem;
+  font-size: 0.82rem;
   font-weight: 600;
 }
 
-.faceplate-value dd {
-  margin: 0;
-  font-variant-numeric: tabular-nums;
-  font-weight: 700;
-}
-
-.faceplate-bar {
-  height: 0.75rem;
-  border: 2px solid var(--border);
-  border-radius: 2px;
-  background-color: var(--surface);
-  overflow: hidden;
-}
-
-.faceplate-bar-fill {
-  width: 0;
-  height: 100%;
-  background-color: var(--text);
-}
-
-.faceplate-modes {
+.fp-badges {
   display: flex;
-  gap: 0.5rem;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-top: 6px;
 }
 
-.faceplate-modes button {
-  flex: 1;
-  padding: 0.35rem 0.5rem;
+.fp-badges:empty {
+  display: none;
 }
 
-.faceplate-modes button[aria-pressed="true"] {
-  background-color: var(--text);
-  color: var(--surface-raised);
+.fp-close {
+  width: 32px;
+  min-height: 32px;
+  padding: 0;
+  justify-content: center;
 }
 
-.faceplate-entry {
-  display: grid;
-  grid-template-columns: 4rem minmax(0, 1fr) auto;
+.state-badge,
+.band-badge {
+  display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 4px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.state-badge[data-state="running"] {
+  background: var(--equip-running-fill);
+  color: var(--equip-running-on);
+}
+
+.state-badge[data-state="stopped"] {
+  background: var(--equip-stopped-fill);
+  color: var(--equip-stopped-on);
+}
+
+.state-badge[data-mode] {
+  border: 1.5px solid var(--text);
+  color: var(--text);
+}
+
+.band-badge {
+  padding: 0 8px;
+  border: 1.5px solid;
+}
+
+.band-badge[data-severity="warning"] {
+  color: var(--alarm-low-mark);
+  border-color: var(--alarm-low-mark);
+}
+
+.band-badge[data-severity="alarm"] {
+  color: var(--alarm-high-mark);
+  border-color: var(--alarm-high-mark);
+}
+
+.band-badge[data-severity="trip"] {
+  color: var(--alarm-critical-mark);
+  border-color: var(--alarm-critical-mark);
+}
+
+.fp-section {
+  padding: var(--space-3) var(--space-4);
+}
+
+.fp-section + .fp-section {
+  border-top: 1px solid color-mix(in srgb, var(--border) 25%, transparent);
+}
+
+.fp-section h3 {
+  margin: 0 0 var(--space-2);
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.fp-readings {
+  display: grid;
+  gap: 2px;
   margin: 0;
 }
 
-.faceplate-entry label {
-  font-size: 0.9rem;
-  font-weight: 600;
+.fp-reading {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 4px 6px;
+  margin: 0 -6px;
+  border-radius: var(--radius-small);
 }
 
-.faceplate-entry input {
-  width: 100%;
-  min-width: 0;
-  padding: 0.3rem 0.4rem;
-  border: 2px solid var(--border);
-  border-radius: 3px;
-  background-color: var(--surface);
-  color: var(--text);
-  font: inherit;
+.fp-reading dt {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.fp-reading dd {
+  margin: 0;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
 
-.faceplate-entry input::placeholder {
-  color: var(--text-muted);
+.fp-reading dd[data-band="warning"] {
+  color: var(--alarm-low-mark);
 }
 
-.faceplate-entry input:disabled {
-  cursor: not-allowed;
-}
-
-.faceplate-entry button {
-  padding: 0.3rem 0.75rem;
-}
-
-.faceplate-tuning {
-  border-top: 2px solid var(--border);
-  padding-top: 0.5rem;
-}
-
-.faceplate-tuning summary {
-  cursor: pointer;
-  font-weight: 600;
-}
-
-.faceplate-tuning[open] summary {
-  margin-bottom: 0.5rem;
-}
-
-.faceplate-tuning .faceplate-entry + .faceplate-entry {
-  margin-top: 0.5rem;
-}
-
-.faceplate-message {
-  margin: 0;
-  font-size: 0.9rem;
-}
-
-/* Empty, the status region stays rendered (display: none would drop it from
- * the accessibility tree, and a screen reader may not announce text put into
- * a region it never saw); a negative margin cancels the card's flex gap. */
-.faceplate-message:empty {
-  margin-top: calc(-1 * var(--faceplate-gap));
-}
-
-.faceplate-message[data-kind="refused"] {
-  font-weight: 600;
-}
-
-.faceplate-message[data-kind="refused"]::before {
-  content: var(--symbol-alarm-high) " ";
+.fp-reading dd[data-band="alarm"] {
   color: var(--alarm-high-mark);
 }
 
-.faceplate-empty {
+.fp-reading dd[data-band="trip"] {
+  color: var(--alarm-critical-mark);
+}
+
+/* The band's glyph and label beside its reading, so colour is never alone. */
+.fp-band {
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.fp-band[data-severity="warning"] {
+  color: var(--alarm-low-mark);
+}
+
+.fp-band[data-severity="alarm"] {
+  color: var(--alarm-high-mark);
+}
+
+.fp-band[data-severity="trip"] {
+  color: var(--alarm-critical-mark);
+}
+
+.fp-bar {
+  position: relative;
+  height: 10px;
+  margin: 4px 0 2px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.fp-bar-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0;
+  background: var(--text-muted);
+}
+
+.fp-mode {
+  display: inline-flex;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-small);
+  overflow: hidden;
+}
+
+.fp-mode button {
+  min-height: 32px;
+  padding: 0 14px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.fp-mode button[aria-pressed="true"] {
+  background: var(--text);
+  color: var(--surface-raised);
+}
+
+.fp-entry {
+  display: grid;
+  grid-template-columns: 1fr 88px auto;
+  align-items: center;
+  gap: var(--space-2);
+  margin: var(--space-2) 0 0;
+}
+
+.fp-entry label {
   color: var(--text-muted);
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.fp-entry input {
+  width: 100%;
+  min-height: 34px;
+  padding: 0 8px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-small);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.fp-entry input::placeholder {
+  color: var(--text-muted);
+}
+
+.fp-entry input:disabled {
+  border-style: dashed;
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.fp-note {
+  margin: var(--space-2) 0 0;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.fp-note:empty {
+  display: none;
+}
+
+.fp-note strong {
+  color: var(--text);
+}
+
+.fp-open {
+  margin-top: var(--space-2);
+}
+
+/* A tag inside a sentence that opens that tag's faceplate. */
+.fp-link {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.fp-feedback {
+  margin: var(--space-2) 0 0;
+  padding: 6px 10px;
+  border-left: 4px solid var(--border);
+  border-radius: var(--radius-small);
+  background: var(--surface);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.fp-feedback[data-kind="pending"] {
+  border-left-color: var(--text-muted);
+}
+
+.fp-feedback[data-kind="accepted"] {
+  border-left-color: var(--equip-running-fill);
+}
+
+.fp-feedback[data-kind="rejected"] {
+  border-left-color: var(--command-rejected-mark);
+}
+
+.fp-feedback[data-kind="pending"]::before {
+  content: "\2026  ";
+}
+
+.fp-feedback[data-kind="accepted"]::before {
+  content: "\2713  ";
+}
+
+.fp-feedback[data-kind="rejected"]::before {
+  content: "\2715  ";
+  color: var(--command-rejected-mark);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .faceplate {
+    animation: none;
+  }
 }

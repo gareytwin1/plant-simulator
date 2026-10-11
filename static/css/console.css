@@ -381,6 +381,98 @@ body[data-page="console"] main {
   margin: 0;
 }
 
+/* ---- canvas selection (T20-10) --------------------------------------- */
+
+/* Devices, loop balloons and readings open a faceplate. Hover is a quiet tint
+   of the element itself, never a box or a popup; selection is the same hue, a
+   step stronger, with no underline. A ring appears only for keyboard focus. */
+:root {
+  --hover-tint: color-mix(in srgb, var(--focus-ring) 14%, var(--surface-raised));
+  --select-tint: color-mix(in srgb, var(--focus-ring) 26%, var(--surface-raised));
+}
+
+/* A panel sits above the canvas and, later, the trend windows (T20-11); the
+   layer passes clicks through everywhere but the panel itself. */
+.faceplate-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  pointer-events: none;
+}
+
+.plant-graphic [data-canvas-tag] {
+  cursor: pointer;
+}
+
+.plant-graphic [data-canvas-tag]:focus {
+  outline: none;
+}
+
+.plant-graphic [data-canvas-tag] .body,
+.plant-graphic [data-canvas-tag] .actuator,
+.plant-graphic .ctl-balloon,
+.plant-graphic .signal,
+.plant-graphic text {
+  transition: fill var(--t-fast), stroke var(--t-fast);
+}
+
+.plant-graphic .eq[data-canvas-tag]:hover .body,
+.plant-graphic .eq[data-canvas-tag]:hover .actuator {
+  fill: var(--hover-tint);
+}
+
+.plant-graphic .eq[data-selected="true"] .body,
+.plant-graphic .eq[data-selected="true"] .actuator {
+  fill: var(--select-tint);
+}
+
+.plant-graphic .eq[data-selected="true"] .tag {
+  fill: var(--focus-ring);
+}
+
+.plant-graphic .ctl[data-canvas-tag]:hover .ctl-balloon {
+  fill: var(--hover-tint);
+}
+
+.plant-graphic .ctl[data-canvas-tag]:hover .signal,
+.plant-graphic .ctl[data-selected="true"] .signal {
+  stroke: var(--focus-ring);
+}
+
+.plant-graphic .ctl[data-selected="true"] .ctl-balloon {
+  fill: var(--select-tint);
+  stroke: var(--focus-ring);
+}
+
+.plant-graphic text[data-canvas-reading]:hover,
+.plant-graphic text[data-canvas-reading][data-selected="true"] {
+  fill: var(--focus-ring);
+}
+
+/* The hit area behind a device: invisible, it carries clicks on the gaps in
+   the drawing, anchors the panel, and shows the keyboard ring. */
+.plant-graphic .eq-hit {
+  fill: transparent;
+  stroke: transparent;
+  stroke-width: 3;
+  rx: 8;
+  pointer-events: all;
+}
+
+.plant-graphic .eq:focus-visible .eq-hit {
+  stroke: var(--focus-ring);
+}
+
+.plant-graphic .ctl:focus-visible .ctl-balloon {
+  stroke: var(--focus-ring);
+  stroke-width: 2.5;
+}
+
+.plant-graphic text[data-canvas-reading]:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
 .console-sections {
   max-width: 60rem;
   margin: 0 auto;

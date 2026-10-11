@@ -274,6 +274,23 @@ def test_the_worst_band_on_a_device_wins(views):
 
 
 @needs_node
+def test_one_points_band_is_readable_on_its_own_for_a_faceplate(views):
+    snapshot = copy.deepcopy(views["normal"])
+    snapshot["envelope"] = {"V-101.level": {"band": "hihi", "since": 1.0}, "V-101.pressure": {"band": "x"}}
+
+    result = run_js(
+        """
+        const band = G.pointBand(data.snapshot, 'V-101.level');
+        return { band, text: G.bandText(band), none: G.pointBand(data.snapshot, 'V-101.flow'),
+                 junk: G.pointBand(data.snapshot, 'V-101.pressure'), empty: G.pointBand({}, 'V-101.level') };
+        """,
+        snapshot=snapshot,
+    )
+
+    assert result == {"band": {"severity": "alarm", "band": "hihi"}, "text": "\u25C6 HIHI", "none": None, "junk": None, "empty": None}
+
+
+@needs_node
 def test_vessel_fill_height_follows_level(views):
     shown = render(views["tripped"])
     attrs = shown.fill("equipment.V-101.level")

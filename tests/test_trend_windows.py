@@ -388,6 +388,35 @@ def test_arrow_keys_on_the_title_bar_move_and_resize_and_keep_it_in_the_workspac
 
 
 @needs_node
+def test_a_smaller_browser_window_pulls_every_window_back_inside_it(free):
+    result = run_scene(
+        f"""
+        let onResize;
+        globalThis.addEventListener = (type, fn) => {{ if (type === 'resize') onResize = fn; }};
+        globalThis.removeEventListener = (type, fn) => {{ if (fn === onResize) onResize = null; }};
+        const s = await boot();
+        await open(s, '{LEVEL}');
+        const w = win(s, '{LEVEL}');
+        const before = geometry(w);
+        s.workspace.screenRect = rect(W.left, W.top, 500, 300);
+        onResize();
+        const after = geometry(w);
+        s.tw.stop();
+        const removed = onResize === null;
+        delete globalThis.addEventListener;
+        delete globalThis.removeEventListener;
+        return {{ before, after, removed }};
+        """,
+        free,
+    )
+
+    after = result["after"]
+    assert after["x"] + after["w"] <= 500 - 8 and after["y"] <= 300 - 48
+    assert after["x"] < result["before"]["x"]
+    assert result["removed"] is True
+
+
+@needs_node
 def test_a_window_is_dragged_by_its_title_bar_and_resized_by_its_grip(free):
     result = run_scene(
         f"""

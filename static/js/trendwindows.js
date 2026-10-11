@@ -825,16 +825,18 @@
       if (first && order.length) return refresh();
     }
 
+    // A smaller browser window pulls every shown window back inside it.
     function relayout() {
       shownPoints().forEach(function (point) {
         applyGeometry(windows[point]);
+        draw(windows[point]);
       });
     }
 
     if (pollMs) timer = root.setInterval(poll, pollMs);
     var listening = pollMs && root.document && root.document.addEventListener;
     if (listening) root.document.addEventListener("visibilitychange", poll);
-    if (pollMs && root.addEventListener) root.addEventListener("resize", relayout);
+    if (root.addEventListener) root.addEventListener("resize", relayout);
     tray.setAttribute("hidden", "");
 
     return {
@@ -864,7 +866,7 @@
       stop: function () {
         if (timer !== null) root.clearInterval(timer);
         if (listening) root.document.removeEventListener("visibilitychange", poll);
-        if (pollMs && root.removeEventListener) root.removeEventListener("resize", relayout);
+        if (root.removeEventListener) root.removeEventListener("resize", relayout);
       },
     };
   }

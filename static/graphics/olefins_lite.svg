@@ -1,34 +1,48 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 36 480 404" role="img" aria-labelledby="plant-title" preserveAspectRatio="xMidYMid meet" class="plant-graphic">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 440" role="img" aria-labelledby="plant-title" preserveAspectRatio="xMidYMid meet" class="plant-graphic">
   <title id="plant-title">Process overview</title>
   <style>
     /* Neutral by default (docs/console-standards.md rule 2): colour appears
        only for equipment state and envelope band, always beside a glyph and a
        label. Tokens come from static/css/tokens.css on the host page. Text is
-       never under 14 user units, which is 10.5px on a 360px screen. */
+       never under 14 user units, which is 10.5px on a 360px screen. Nothing
+       moves: flow direction is a static arrow. */
     .plant-graphic { display: block; width: 100%; height: auto; max-height: 80vh; }
     .plant-graphic text { fill: var(--text); font-family: system-ui, sans-serif; font-size: 14px; text-anchor: middle; }
-    .plant-graphic .tag { font-size: 15px; font-weight: 700; }
-    .plant-graphic .sym { font-size: 18px; font-weight: 700; dominant-baseline: central; }
-    .plant-graphic .note { fill: var(--text-muted); }
+    .plant-graphic .tag { font-size: 14px; font-weight: 600; }
+    .plant-graphic .sym { font-size: 16px; font-weight: 600; dominant-baseline: central; }
+    .plant-graphic .note { fill: var(--text-muted); font-style: italic; }
     .plant-graphic [data-missing="true"] { fill: var(--text-muted); }
 
-    .plant-graphic .pipe { fill: none; stroke: var(--border); stroke-width: 4; }
-    .plant-graphic .pipe[data-flow-dir="forward"] { stroke: var(--text); stroke-dasharray: 10 6; animation: plant-flow 0.8s linear infinite; }
-    .plant-graphic .pipe[data-flow-dir="reverse"] { stroke: var(--text); stroke-dasharray: 2 6; animation: plant-flow 0.8s linear infinite reverse; }
-    .plant-graphic .pipe[data-flow-dir="none"] { stroke-width: 2; }
-    @keyframes plant-flow { to { stroke-dashoffset: -16; } }
-    @media (prefers-reduced-motion: reduce) { .plant-graphic .pipe { animation: none !important; } }
+    .plant-graphic .pipe { fill: none; stroke: var(--border); stroke-width: 2; stroke-linecap: round; }
+    .plant-graphic .pipe[data-flow-dir="forward"], .plant-graphic .pipe[data-flow-dir="reverse"] { stroke: var(--text); }
+    .plant-graphic .pipe[data-flow-dir="none"] { stroke-width: 1.5; }
+    /* One arrow per pipe, drawn pointing along positive flow. It turns for
+       reverse flow and is hidden for none, unknown or no reading yet. */
+    .plant-graphic .flow-arrow { fill: var(--text); stroke: none; }
+    .plant-graphic .flow-arrow:not([data-flow-dir="forward"]):not([data-flow-dir="reverse"]) { display: none; }
+    .plant-graphic .flow-arrow .arrow-shape { transform-box: fill-box; transform-origin: center; }
+    .plant-graphic .flow-arrow[data-flow-dir="reverse"] .arrow-shape { transform: rotate(180deg); }
 
-    .plant-graphic .body { fill: var(--surface-raised); stroke: var(--border); stroke-width: 2; }
-    .plant-graphic .liquid { fill: var(--border); fill-opacity: 0.35; stroke: none; }
+    .plant-graphic .body { fill: var(--surface-raised); stroke: var(--border); stroke-width: 1.5; }
+    .plant-graphic .stem { stroke: var(--border); stroke-width: 1.5; }
+    .plant-graphic .actuator { fill: var(--surface-raised); stroke: var(--border); stroke-width: 1.5; }
+    .plant-graphic .gauge { fill: var(--surface); stroke: var(--border); stroke-width: 1; }
+    .plant-graphic .gauge-tick { stroke: var(--border); stroke-width: 1; }
+    .plant-graphic .gauge-fill { fill: var(--text-muted); stroke: none; }
     .plant-graphic .boundary { fill: var(--text-muted); stroke: none; }
     .plant-graphic .junction { fill: var(--text); }
 
+    .plant-graphic .signal { fill: none; stroke: var(--text-muted); stroke-width: 1.2; stroke-dasharray: 2 4; stroke-linecap: round; }
+    .plant-graphic .ctl-balloon { fill: var(--surface-raised); stroke: var(--text); stroke-width: 1.5; }
+    .plant-graphic .ctl-divider { stroke: var(--text); stroke-width: 1; }
+    .plant-graphic .ctl text { font-weight: 600; }
+    .plant-graphic .ctl .ctl-mode { fill: var(--text-muted); font-weight: 500; text-anchor: start; }
+
     .plant-graphic .eq[data-state="unknown"] .body { stroke-dasharray: 4 3; }
-    .plant-graphic .eq[data-band="warning"] .body { stroke: var(--alarm-low-mark); stroke-width: 4; }
-    .plant-graphic .eq[data-band="alarm"] .body { stroke: var(--alarm-high-mark); stroke-width: 4; }
-    .plant-graphic .eq[data-band="trip"] .body { stroke: var(--alarm-critical-mark); stroke-width: 4; }
-    .plant-graphic [data-band-of], .plant-graphic [data-bind][data-band="warning"], .plant-graphic [data-bind][data-band="alarm"], .plant-graphic [data-bind][data-band="trip"] { font-weight: 700; }
+    .plant-graphic .eq[data-band="warning"] .body { stroke: var(--alarm-low-mark); stroke-width: 2.5; }
+    .plant-graphic .eq[data-band="alarm"] .body { stroke: var(--alarm-high-mark); stroke-width: 2.5; }
+    .plant-graphic .eq[data-band="trip"] .body { stroke: var(--alarm-critical-mark); stroke-width: 2.5; }
+    .plant-graphic [data-band-of], .plant-graphic [data-bind][data-band="warning"], .plant-graphic [data-bind][data-band="alarm"], .plant-graphic [data-bind][data-band="trip"] { font-weight: 600; }
     .plant-graphic .eq[data-band="warning"] [data-band-of], .plant-graphic [data-bind][data-band="warning"] { fill: var(--alarm-low-mark); }
     .plant-graphic .eq[data-band="alarm"] [data-band-of], .plant-graphic [data-bind][data-band="alarm"] { fill: var(--alarm-high-mark); }
     .plant-graphic .eq[data-band="trip"] [data-band-of], .plant-graphic [data-bind][data-band="trip"] { fill: var(--alarm-critical-mark); }
@@ -41,14 +55,21 @@
   </style>
 
   <!-- Gas side. Every pipe is drawn in the direction of positive branch flow
-       (node_in to node_out), so a reverse flow runs against the drawing. -->
+       (node_in to node_out), so a reverse flow runs against the drawing. Each
+       pipe's arrow sits at its midpoint, binds the same stream and is rotated
+       to the drawn direction. -->
   <path class="pipe" data-flow="streams.B-FV-201.flow" d="M 81 90 H 38" />
+  <g class="flow-arrow" data-flow="streams.B-FV-201.flow" transform="translate(59.5 90) rotate(180)"><path class="arrow-shape" d="M -4.5 -4.5 L 4.5 0 L -4.5 4.5 Z" /></g>
   <path class="pipe" data-flow="streams.B-FV-201.flow" d="M 166 90 H 109" />
+  <g class="flow-arrow" data-flow="streams.B-FV-201.flow" transform="translate(137.5 90) rotate(180)"><path class="arrow-shape" d="M -4.5 -4.5 L 4.5 0 L -4.5 4.5 Z" /></g>
   <path class="pipe" data-flow="streams.B-K-101.flow" d="M 280 90 H 214" />
+  <g class="flow-arrow" data-flow="streams.B-K-101.flow" transform="translate(247 90) rotate(180)"><path class="arrow-shape" d="M -4.5 -4.5 L 4.5 0 L -4.5 4.5 Z" /></g>
   <path class="pipe" data-flow="streams.B-PV-101.flow" d="M 280 90 H 336" />
+  <g class="flow-arrow" data-flow="streams.B-PV-101.flow" transform="translate(308 90) rotate(0)"><path class="arrow-shape" d="M -4.5 -4.5 L 4.5 0 L -4.5 4.5 Z" /></g>
   <path class="pipe" data-flow="streams.B-PV-101.flow" d="M 364 90 H 440" />
-  <path class="pipe" d="M 280 94 V 170" />
-  <circle class="junction" cx="280" cy="90" r="5" />
+  <g class="flow-arrow" data-flow="streams.B-PV-101.flow" transform="translate(402 90) rotate(0)"><path class="arrow-shape" d="M -4.5 -4.5 L 4.5 0 L -4.5 4.5 Z" /></g>
+  <path class="pipe" d="M 280 90 V 170" />
+  <circle class="junction" cx="280" cy="90" r="3" />
 
   <g class="node">
     <rect class="boundary" x="24" y="83" width="14" height="14" />
@@ -57,12 +78,14 @@
   </g>
   <g class="eq" data-tag="FV-201">
     <path class="body" d="M 81 80 L 109 100 L 109 80 L 81 100 Z" />
-    <text class="tag" x="95" y="62">FV-201</text>
-    <text x="95" y="124" data-bind="equipment.FV-201.position" data-format="percent">--</text>
+    <line class="stem" x1="95" y1="90" x2="95" y2="75" />
+    <path class="actuator" d="M 86 75 A 9 9 0 0 1 104 75 Z" />
+    <text class="tag" x="95" y="118">FV-201</text>
+    <text x="95" y="136" data-bind="equipment.FV-201.position" data-format="percent">--</text>
   </g>
   <g class="node">
-    <text x="140" y="114">N-204</text>
-    <text x="140" y="130" data-bind="nodes.N-204.pressure" data-format="fixed:0" data-unit="psia">--</text>
+    <text x="140" y="60">N-204</text>
+    <text x="140" y="76" data-bind="nodes.N-204.pressure" data-format="fixed:0" data-unit="psia">--</text>
   </g>
   <g class="eq" data-tag="K-101">
     <circle class="body" cx="190" cy="90" r="24" />
@@ -75,14 +98,26 @@
     <text x="190" y="198" data-band-of="K-101"></text>
   </g>
   <g class="node">
-    <text x="280" y="60">N-201</text>
-    <text x="280" y="76" data-bind="nodes.N-201.pressure" data-format="fixed:0" data-unit="psia">--</text>
+    <text x="276" y="60" style="text-anchor: end">N-201</text>
+    <text x="276" y="76" style="text-anchor: end" data-bind="nodes.N-201.pressure" data-format="fixed:0" data-unit="psia">--</text>
+  </g>
+  <!-- PIC-101 measures N-201, V-101's headspace, and positions PV-101. -->
+  <g class="ctl" data-controller="PIC-101">
+    <path class="signal" d="M 292 90 V 24 H 330" />
+    <path class="signal" d="M 350 44 V 66" />
+    <circle class="ctl-balloon" cx="350" cy="24" r="20" />
+    <line class="ctl-divider" x1="330" y1="24" x2="370" y2="24" />
+    <text x="350" y="20">PIC</text>
+    <text x="350" y="39">101</text>
+    <text class="ctl-mode" x="376" y="29" data-controller-mode="PIC-101">--</text>
   </g>
   <g class="eq" data-tag="PV-101">
     <path class="body" d="M 336 80 L 364 100 L 364 80 L 336 100 Z" />
-    <text class="tag" x="350" y="62">PV-101</text>
-    <text x="350" y="124" data-bind="equipment.PV-101.position" data-format="percent">--</text>
-    <text x="350" y="142" data-bind="streams.B-PV-101.flow" data-unit="SCFM">--</text>
+    <line class="stem" x1="350" y1="90" x2="350" y2="75" />
+    <path class="actuator" d="M 341 75 A 9 9 0 0 1 359 75 Z" />
+    <text class="tag" x="350" y="118">PV-101</text>
+    <text x="350" y="136" data-bind="equipment.PV-101.position" data-format="percent">--</text>
+    <text x="350" y="154" data-bind="streams.B-PV-101.flow" data-unit="SCFM">--</text>
   </g>
   <g class="node">
     <rect class="boundary" x="440" y="83" width="14" height="14" />
@@ -92,21 +127,32 @@
 
   <!-- Vessel and liquid side. -->
   <path class="pipe" data-flow="streams.B-P-101.flow" d="M 34 300 H 96" />
+  <g class="flow-arrow" data-flow="streams.B-P-101.flow" transform="translate(65 300) rotate(0)"><path class="arrow-shape" d="M -4.5 -4.5 L 4.5 0 L -4.5 4.5 Z" /></g>
   <path class="pipe" data-flow="streams.B-P-101.flow" d="M 144 300 H 235" />
+  <g class="flow-arrow" data-flow="streams.B-P-101.flow" transform="translate(189.5 300) rotate(0)"><path class="arrow-shape" d="M -4.5 -4.5 L 4.5 0 L -4.5 4.5 Z" /></g>
   <path class="pipe" data-flow="streams.B-LV-101.flow" d="M 325 320 H 366" />
+  <g class="flow-arrow" data-flow="streams.B-LV-101.flow" transform="translate(345.5 320) rotate(0)"><path class="arrow-shape" d="M -4.5 -4.5 L 4.5 0 L -4.5 4.5 Z" /></g>
   <path class="pipe" data-flow="streams.B-LV-101.flow" d="M 394 320 H 440" />
+  <g class="flow-arrow" data-flow="streams.B-LV-101.flow" transform="translate(417 320) rotate(0)"><path class="arrow-shape" d="M -4.5 -4.5 L 4.5 0 L -4.5 4.5 Z" /></g>
 
+  <!-- V-101's level is a gauge in the middle of the vessel: a track with
+       quarter ticks, a bar whose height follows the 0..1 level, and the
+       reading under it. -->
   <g class="eq" data-tag="V-101">
     <rect class="body" x="235" y="170" width="90" height="170" rx="16" />
-    <rect class="liquid" x="237" y="172" width="86" height="166" rx="14" data-fill="equipment.V-101.level" data-y0="172" data-h0="166" />
+    <rect class="gauge" x="272" y="186" width="16" height="120" rx="2" />
+    <line class="gauge-tick" x1="266" y1="217" x2="272" y2="217" />
+    <line class="gauge-tick" x1="264" y1="246" x2="272" y2="246" />
+    <line class="gauge-tick" x1="266" y1="275" x2="272" y2="275" />
+    <rect class="gauge-fill" x="274" y="246" width="12" height="58" data-fill="equipment.V-101.level" data-y0="188" data-h0="116" />
+    <text x="280" y="326" data-bind="equipment.V-101.level" data-format="percent">--</text>
     <text class="tag" x="335" y="192" style="text-anchor: start">V-101</text>
-    <text x="335" y="212" style="text-anchor: start" data-bind="equipment.V-101.level" data-format="percent">--</text>
-    <text x="335" y="230" style="text-anchor: start" data-bind="equipment.V-101.pressure" data-format="fixed:0" data-unit="psia">--</text>
-    <text x="335" y="250" style="text-anchor: start" data-band-of="V-101"></text>
+    <text x="335" y="212" style="text-anchor: start" data-bind="equipment.V-101.pressure" data-format="fixed:0" data-unit="psia">--</text>
+    <text x="335" y="232" style="text-anchor: start" data-band-of="V-101"></text>
   </g>
   <g class="node">
-    <text x="190" y="274">N-102</text>
-    <text x="190" y="290" data-bind="nodes.N-102.pressure" data-format="fixed:0" data-unit="psia">--</text>
+    <text x="190" y="262">N-102</text>
+    <text x="190" y="278" data-bind="nodes.N-102.pressure" data-format="fixed:0" data-unit="psia">--</text>
   </g>
   <g class="node">
     <rect class="boundary" x="20" y="293" width="14" height="14" />
@@ -125,9 +171,11 @@
   </g>
   <g class="eq" data-tag="LV-101">
     <path class="body" d="M 366 310 L 394 330 L 394 310 L 366 330 Z" />
-    <text class="tag" x="380" y="292">LV-101</text>
-    <text x="380" y="354" data-bind="equipment.LV-101.position" data-format="percent">--</text>
-    <text x="380" y="372" data-bind="streams.B-LV-101.flow" data-unit="GPM">--</text>
+    <line class="stem" x1="380" y1="320" x2="380" y2="305" />
+    <path class="actuator" d="M 371 305 A 9 9 0 0 1 389 305 Z" />
+    <text class="tag" x="380" y="350">LV-101</text>
+    <text x="380" y="368" data-bind="equipment.LV-101.position" data-format="percent">--</text>
+    <text x="380" y="386" data-bind="streams.B-LV-101.flow" data-unit="GPM">--</text>
   </g>
   <g class="node">
     <rect class="boundary" x="440" y="313" width="14" height="14" />

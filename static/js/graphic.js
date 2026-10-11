@@ -16,11 +16,15 @@
  *   data-band-of="P-101"             text: its worst envelope band, glyph and label
  *   data-bind="streams.B-P-101.flow" text: the value at section.key.field, with
  *     data-format="fixed:N | percent"   (default fixed:1) and data-unit="GPM"
- *   data-flow="streams.B-P-101.flow" a pipe: sets data-flow-dir (forward |
- *                                    reverse | none | unknown); the path is
- *                                    drawn in the direction of positive flow
+ *   data-flow="streams.B-P-101.flow" a pipe, or its flow arrow: sets
+ *                                    data-flow-dir (forward | reverse | none |
+ *                                    unknown); both are drawn in the direction
+ *                                    of positive flow, and the SVG's own style
+ *                                    turns or hides the arrow (T20-7)
  *   data-fill="equipment.V-101.level" a rect with data-y0 and data-h0: its
  *                                    height follows the 0..1 value
+ *   data-controller-mode="PIC-101"   text: the loop's mode from the snapshot's
+ *                                    controllers row (MAN | AUTO | CAS)
  *   data-unplaced                    text: equipment in the snapshot that no
  *                                    data-tag names, so nothing goes unseen
  *
@@ -61,6 +65,9 @@
   // are WARNING, "lolo" ALARM, "lololo" TRIP (app.envelope.evaluator.isa_band).
   var SEVERITY = { 1: "warning", 2: "alarm", 3: "trip" };
   var BAND_GLYPH = { warning: "●", alarm: "◆", trip: "▲" };
+
+  // As faceplate.js's MODE_LABEL: a loop's mode in the words its faceplate uses.
+  var MODE_TEXT = { MANUAL: "MAN", AUTO: "AUTO", CASCADE: "CAS" };
 
   // A stopped machine settles just off zero (0.055 GPM on the reference pump),
   // so only a flow clear of that noise is drawn as moving.
@@ -210,6 +217,14 @@
       el.setAttribute("y", String(y0 + h0 * (1 - fraction)));
       setMissing(el, level === null);
     }
+
+    var loop = attr(el, "data-controller-mode");
+    if (loop !== null) {
+      var mode = resolvePath(snapshot, "controllers." + loop + ".mode");
+      var known = Object.prototype.hasOwnProperty.call(MODE_TEXT, mode);
+      el.textContent = known ? MODE_TEXT[mode] : MISSING;
+      setMissing(el, !known);
+    }
   }
 
   /* Apply `snapshot` to every element, and return {unplaced}: the tags the
@@ -236,7 +251,7 @@
   /* ---- browser glue ---------------------------------------------------- */
 
   var BOUND =
-    "[data-tag],[data-state-of],[data-band-of],[data-bind],[data-flow],[data-fill],[data-unplaced]";
+    "[data-tag],[data-state-of],[data-band-of],[data-bind],[data-flow],[data-fill],[data-controller-mode],[data-unplaced]";
 
   function collect(svg) {
     return Array.prototype.slice.call(svg.querySelectorAll(BOUND));

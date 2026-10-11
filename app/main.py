@@ -13,6 +13,7 @@ from app.api.alarms import create_alarm_blueprint
 from app.api.health import create_health_blueprint
 from app.api.plant import create_plant_blueprint
 from app.api.scenario import create_scenario_blueprint
+from app.api.simulation import create_simulation_blueprint
 from app.api.stream import create_stream_blueprint
 from app.api.trend import create_trend_blueprint
 from app.engine.scheduler import Scheduler
@@ -85,6 +86,7 @@ def load_session() -> None:
 
 
 app.register_blueprint(create_scenario_blueprint(lambda: g.plant))
+app.register_blueprint(create_simulation_blueprint(lambda: g.plant))
 app.register_blueprint(
     create_plant_blueprint(
         lambda: g.plant.plant_description(),

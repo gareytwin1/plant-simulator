@@ -31,6 +31,7 @@ from app.scenarios.runner import (
     ScenarioConfigError,
     ScenarioLibrary,
     ScenarioNotFound,
+    ScenarioStateError,
     ScenarioRunner,
     Tick,
     TickKind,
@@ -871,3 +872,65 @@ def test_a_trip_run_survives_a_json_round_trip_and_still_replays():
     document = json.loads(json.dumps(Recording.of(live).as_dict()))
 
     assert_identical(live, replay(Recording.from_dict(document)))
+
+
+def test_a_run_paused_and_resumed_through_the_runner_replays_exactly():
+    live = started()
+    steps(live, 5)
+    assert live.pause() is False
+    steps(live, 30)
+    live.act("P-101", "start", None)
+    assert live.resume() is True
+    steps(live, 5)
+    live.pause()
+    steps(live, 10)
+    live.resume()
+    run_out(live)
+
+    replayed = replay(Recording.of(live))
+
+    assert any(tick.paused for tick in live.inputs().journal if tick.kind is TickKind.STEP)
+    assert_identical(live, replayed)
+
+
+def test_a_pause_neither_costs_nor_earns_scenario_time():
+    paused = started()
+    steps(paused, 10)
+    paused.pause()
+    steps(paused, 500)
+    paused.resume()
+    steps(paused, 10)
+
+    straight = started()
+    steps(straight, 20)
+
+    assert paused.result().elapsed_s == straight.result().elapsed_s
+    assert paused.phase is Phase.RUNNING
+    assert capture_state(paused.engine) == capture_state(straight.engine)
+
+
+def test_pausing_is_refused_outside_a_running_run():
+    runner = ScenarioRunner()
+
+    with pytest.raises(ScenarioStateError):
+        runner.pause()
+
+    runner.load_config(scenario())
+    for call in (runner.pause, runner.resume):
+        with pytest.raises(ScenarioStateError):
+            call()
+
+    runner.start()
+    runner.abort()
+    for call in (runner.pause, runner.resume):
+        with pytest.raises(ScenarioStateError):
+            call()
+
+
+def test_pausing_a_paused_run_and_resuming_a_running_one_are_no_ops():
+    runner = started()
+
+    assert runner.resume() is True
+    assert runner.pause() is False
+    assert runner.pause() is False
+    assert runner.engine.clock.paused

@@ -399,6 +399,51 @@ def test_a_paused_plant_says_so_in_the_ribbon_and_a_resumed_one_goes_back():
 
 
 @needs_node
+@pytest.mark.parametrize("reply_with", ["reply(429, null)", "reply(500, null)", "reply(400, null)", "reply(200, {})", "reject"])
+def test_every_other_pause_failure_is_worded_and_leaves_the_button_usable(reply_with):
+    got = run_js(
+        STUB
+        + """
+        const { els, doc } = page("idle", "");
+        const failing = data.reply_with === "reject"
+          ? async () => { throw new Error("network"); }
+          : async () => eval(data.reply_with);
+        const fetchImpl = async (url, init) => url.includes("simulation") ? failing() : reply(409, null);
+        const ribbon = R.mount(doc, { fetch: fetchImpl, pollMs: 0 });
+        await ribbon.ready;
+        ribbon.update({ sim_time: 1, running: true });
+        await els["ribbon-pause"].listeners.click();
+        return { notice: els["scenario-notice"].textContent, shown: !els["scenario-notice"].hidden,
+          enabled: !els["ribbon-pause"].disabled, offered: !els["ribbon-pause"].hidden };
+        """,
+        reply_with=reply_with,
+    )
+
+    assert got["notice"] != "" and got["shown"] is True
+    assert got["enabled"] is True and got["offered"] is True
+
+
+@needs_node
+def test_a_successful_pause_leaves_a_notice_it_did_not_write():
+    got = run_js(
+        STUB
+        + """
+        const { els, doc } = page("idle", "");
+        const fetchImpl = async url => url.includes("simulation") ? reply(200, { running: false }) : reply(409, null);
+        const ribbon = R.mount(doc, { fetch: fetchImpl, pollMs: 0 });
+        await ribbon.ready;
+        ribbon.update({ sim_time: 1, running: true });
+        els["scenario-notice"].textContent = "A start refusal";
+        els["scenario-notice"].hidden = false;
+        await els["ribbon-pause"].listeners.click();
+        return { notice: els["scenario-notice"].textContent, shown: !els["scenario-notice"].hidden };
+        """,
+    )
+
+    assert got == {"notice": "A start refusal", "shown": True}
+
+
+@needs_node
 def test_a_refused_pause_says_so_in_the_pages_own_words():
     got = run_js(
         STUB

@@ -189,6 +189,9 @@
     var phase = Scenario.phaseOf(200, { phase: doc.getElementById("scenario-bar").getAttribute("data-phase") }) || "idle";
     var plantRunning = null;
     var pausing = false;
+    // The notice is shared with the run controls, so only a message this
+    // code wrote is this code's to clear.
+    var pauseNotice = "";
     var run = null;
 
     function drawPause() {
@@ -204,6 +207,12 @@
       }
     }
 
+    function say(text) {
+      pauseNotice = text;
+      notice.textContent = text;
+      notice.hidden = text === "";
+    }
+
     async function sendPause(pause) {
       pausing = true;
       drawPause();
@@ -214,15 +223,12 @@
         var running = api.runningOf(response.status, body);
         if (running !== null) {
           plantRunning = running;
-          notice.textContent = "";
-          notice.hidden = true;
+          if (pauseNotice !== "" && notice.textContent === pauseNotice) say("");
         } else {
-          notice.textContent = api.pauseRefusalText(pause, response.status);
-          notice.hidden = false;
+          say(api.pauseRefusalText(pause, response.status));
         }
       } catch (error) {
-        notice.textContent = api.pauseRefusalText(pause, 0);
-        notice.hidden = false;
+        say(api.pauseRefusalText(pause, 0));
       } finally {
         pausing = false;
         drawPause();

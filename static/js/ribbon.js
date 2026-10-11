@@ -12,6 +12,12 @@
  * moved. While running it never steps backwards, so a poll that lands a moment
  * behind the last snapshot holds the clock rather than rewinding it.
  *
+ * Pause and Resume freeze and unfreeze the plant the session shows
+ * (POST /api/simulation/pause and /resume, T20-14). They follow the snapshot's
+ * `running` field, offered in free play and while a run is running, and only
+ * on the console where the run controls are. A refusal is worded here by
+ * status code, never from the server's text.
+ *
  * The alarm summary counts the alarms still on the console by priority, with
  * how many wait on an acknowledgement, and takes the worst priority's colour.
  * It links to the console's alarm section until the alarm overlay (T20-12).
@@ -28,6 +34,9 @@
 
   var PRIORITIES = ["critical", "high", "low"];
   var PRIORITY_LABEL = { critical: "CRIT", high: "HIGH", low: "LOW" };
+
+  var PAUSE_URL = "/api/simulation/pause";
+  var RESUME_URL = "/api/simulation/resume";
 
   var api = {};
 
@@ -70,6 +79,32 @@
         (summary.unacknowledged ? summary.unacknowledged + " not acknowledged" : "all acknowledged") +
         ". Go to the alarm list.",
     };
+  };
+
+  /* Which of Pause and Resume to offer. `running` is the snapshot's field, or
+   * null before the first snapshot, when neither is offered. Only free play
+   * and a running scenario have a clock to stop. */
+  api.pauseControls = function (phase, running) {
+    var live = (phase === "idle" || phase === "running") && typeof running === "boolean";
+    return { pause: live && running, resume: live && !running };
+  };
+
+  api.buildPauseRequest = function (pause) {
+    return { url: pause ? PAUSE_URL : RESUME_URL, init: { method: "POST" } };
+  };
+
+  /* The running state a pause or resume response reports, or null. */
+  api.runningOf = function (status, body) {
+    if (status !== 200 || body === null || typeof body !== "object") return null;
+    return typeof body.running === "boolean" ? body.running : null;
+  };
+
+  api.pauseRefusalText = function (pause, status) {
+    var verb = pause ? "pause" : "resume";
+    if (status === 409) return "There is nothing to " + verb + " now. The run may have ended or been unloaded from another tab.";
+    if (status === 429) return "Too many requests. Wait a moment and try again.";
+    if (status === 0 || status >= 500) return "The request did not finish. Check whether the plant is running before trying again.";
+    return "Something went wrong, so nothing was changed. Try again.";
   };
 
   api.formatClock = function (seconds) {
@@ -146,8 +181,56 @@
     var alarmText = doc.getElementById("ribbon-alarm-summary");
     var clockEls = [doc.getElementById("run-clock"), doc.getElementById("run-clock-value"), doc.getElementById("run-clock-inline")];
     var clock = api.createRunClock();
+    var pauseButton = doc.getElementById("ribbon-pause");
+    var resumeButton = doc.getElementById("ribbon-resume");
+    var notice = doc.getElementById("scenario-notice");
     var timer = null;
     var latest = 0;
+    var phase = Scenario.phaseOf(200, { phase: doc.getElementById("scenario-bar").getAttribute("data-phase") }) || "idle";
+    var plantRunning = null;
+    var pausing = false;
+    var run = null;
+
+    function drawPause() {
+      if (run) run.render();
+      var offered = api.pauseControls(phase, plantRunning);
+      if (pauseButton) {
+        pauseButton.hidden = !offered.pause;
+        pauseButton.disabled = pausing;
+      }
+      if (resumeButton) {
+        resumeButton.hidden = !offered.resume;
+        resumeButton.disabled = pausing;
+      }
+    }
+
+    async function sendPause(pause) {
+      pausing = true;
+      drawPause();
+      try {
+        var request = api.buildPauseRequest(pause);
+        var response = await doFetch(request.url, request.init);
+        var body = response.ok ? await response.json() : null;
+        var running = api.runningOf(response.status, body);
+        if (running !== null) {
+          plantRunning = running;
+          notice.textContent = "";
+          notice.hidden = true;
+        } else {
+          notice.textContent = api.pauseRefusalText(pause, response.status);
+          notice.hidden = false;
+        }
+      } catch (error) {
+        notice.textContent = api.pauseRefusalText(pause, 0);
+        notice.hidden = false;
+      } finally {
+        pausing = false;
+        drawPause();
+      }
+    }
+
+    if (pauseButton) pauseButton.addEventListener("click", function () { return sendPause(true); });
+    if (resumeButton) resumeButton.addEventListener("click", function () { return sendPause(false); });
 
     function drawClock() {
       var text = api.clockText(clock.read(), clock.times());
@@ -185,15 +268,20 @@
       refresh();
     }
 
-    var run = Scenario.mount(doc, {
+    run = Scenario.mount(doc, {
       fetch: doFetch,
+      isPaused: function () {
+        return plantRunning === false && (phase === "idle" || phase === "running");
+      },
       pollMs: pollMs,
       onChange: settings.onChange,
       onResult: function (status, body) {
-        var phase = Scenario.phaseOf(status, body);
-        if (phase === null) return;
+        var next = Scenario.phaseOf(status, body);
+        if (next === null) return;
+        phase = next;
         clock.result(phase, api.runTimes(status, body));
         drawClock();
+        drawPause();
       },
     });
 
@@ -209,6 +297,10 @@
         if (!snapshot || typeof snapshot.sim_time !== "number") return;
         clock.snapshot(snapshot.sim_time);
         drawClock();
+        if (typeof snapshot.running === "boolean" && !pausing) {
+          plantRunning = snapshot.running;
+          drawPause();
+        }
       },
       stop: function () {
         if (timer !== null) root.clearInterval(timer);

@@ -58,7 +58,8 @@
   background: var(--equip-running-fill);
 }
 
-.ribbon-run[data-phase="idle"][data-plant-running="false"] .run-dot {
+.ribbon-run[data-phase="idle"][data-plant-running="false"] .run-dot,
+.ribbon-run[data-paused="true"] .run-dot {
   background: var(--text-muted);
 }
 

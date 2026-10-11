@@ -13,7 +13,7 @@
   {% block head %}{% endblock %}
 </head>
 <body data-page="{{ request.endpoint }}">
-  {# The ribbon (T20-8). Start and Abort are on the console only (T16-15): the
+  {# The ribbon (T20-8). Start, Abort, Pause and Resume are on the console only (T16-15): the
      landing page never starts the plant's clock. #}
   <header class="ribbon" id="ribbon" data-severity="none" data-unack="false" data-interval-seconds="{{ stream_interval_seconds }}">
     <a class="ribbon-brand" href="{{ url_for('landing') }}" aria-label="Plant Simulator home">
@@ -32,6 +32,8 @@
       </div>
       <span class="run-clock" id="run-clock" hidden><span class="visually-hidden">Run time </span><span id="run-clock-value"></span></span>
       {% if request.endpoint == 'console' %}
+      <button type="button" class="btn" id="ribbon-pause" hidden><span class="btn-glyph" aria-hidden="true">&#10074;&#10074;</span>Pause</button>
+      <button type="button" class="btn" id="ribbon-resume" hidden><span class="btn-glyph" aria-hidden="true">&#9654;</span>Resume</button>
       <button type="button" class="btn btn-primary" id="scenario-start" hidden><span class="btn-glyph" aria-hidden="true">&#9654;</span>Start run</button>
       <button type="button" class="btn" id="scenario-abort" hidden><span class="btn-glyph" aria-hidden="true">&#9632;</span>Abort run</button>
       <span class="run-confirm" id="scenario-confirm" hidden>

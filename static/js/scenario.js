@@ -105,9 +105,11 @@
   };
 
   /* `running` is whether the plant's clock advances: the landing page never
-   * starts it, so a session that has not opened the console has not. */
-  api.runState = function (labels, phase, running) {
-    if (phase === "idle") return running ? "Plant running" : "Plant not started";
+   * starts it, so a session that has not opened the console has not. `paused`
+   * is the operator's pause (T20-14), told apart from not having started. */
+  api.runState = function (labels, phase, running, paused) {
+    if (phase === "idle") return paused ? "Plant paused" : running ? "Plant running" : "Plant not started";
+    if (paused && phase === "running") return "Scenario \u00B7 Paused";
     return "Scenario \u00B7 " + api.phaseLabel(labels, phase);
   };
 
@@ -117,7 +119,9 @@
    * page or test can supply its own transport and timer. `options.onChange`,
    * when given, is called after a response moves the phase or the title, which
    * is when the plant the session shows may have changed (T20-2).
-   * `options.onResult(status, body)` sees every response the bar applies. The
+   * `options.onResult(status, body)` sees every response the bar applies.
+   * `options.isPaused()` says whether the operator has paused the plant, read
+   * at each render; call the returned `render` after it changes. The
    * buttons and the choose link are optional, so a page can show the run
    * without offering them. Returns {poll, stop, state}. */
   function mount(doc, options) {
@@ -161,7 +165,10 @@
 
       els.title.textContent = api.runTitle(state.phase, state.title);
       els.title.setAttribute("title", api.modeText(state.phase, state.title));
-      els.state.textContent = api.runState(labels, state.phase, running);
+      var paused = !!(settings.isPaused && settings.isPaused());
+
+      els.state.textContent = api.runState(labels, state.phase, running, paused);
+      bar.setAttribute("data-paused", paused ? "true" : "false");
       show(els.start, controls.start);
       show(els.abort, controls.abort);
       show(els.confirmGroup, controls.confirm);
@@ -356,6 +363,7 @@
 
     return {
       poll: poll,
+      render: render,
       state: state,
       stop: function () {
         if (timer !== null) root.clearInterval(timer);

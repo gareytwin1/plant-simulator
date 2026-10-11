@@ -22,10 +22,10 @@ otherwise. Free play does not advance while a scenario is loaded, and unloading
 hands it back exactly where it was left.
 
 **Every write is a scheduler command**, so it runs under `step_lock` and
-publishes at once: `act`, `acknowledge`, and a scenario's `load`, `start`,
-`abort` and `unload`, and `pause` and `resume`. A response read straight after a write sees it, and a
-load switches the published snapshot to the scenario's plant in the same
-command. The runner's own lock nests inside `step_lock`, the order
+publishes at once: `act`, `acknowledge`, `pause`, `resume`, and a scenario's
+`load`, `start`, `abort` and `unload`. A response read straight after a write
+sees it, and a load switches the published snapshot to the scenario's plant in
+the same command. The runner's own lock nests inside `step_lock`, the order
 `app.scenarios.runner` documents. Alarm entries are read under `step_lock` too,
 which pins which plant answers: a load or unload cannot land between choosing
 the plant and reading it.

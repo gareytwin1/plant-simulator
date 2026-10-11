@@ -424,6 +424,28 @@ def test_every_other_pause_failure_is_worded_and_leaves_the_button_usable(reply_
 
 
 @needs_node
+def test_a_successful_pause_clears_the_refusal_it_wrote_earlier():
+    got = run_js(
+        STUB
+        + """
+        const { els, doc } = page("idle", "");
+        let calls = 0;
+        const fetchImpl = async url => url.includes("simulation")
+          ? (++calls === 1 ? reply(409, null) : reply(200, { running: false })) : reply(409, null);
+        const ribbon = R.mount(doc, { fetch: fetchImpl, pollMs: 0 });
+        await ribbon.ready;
+        ribbon.update({ sim_time: 1, running: true });
+        await els["ribbon-pause"].listeners.click();
+        const refused = !els["scenario-notice"].hidden;
+        await els["ribbon-pause"].listeners.click();
+        return { refused, notice: els["scenario-notice"].textContent, shown: !els["scenario-notice"].hidden };
+        """,
+    )
+
+    assert got == {"refused": True, "notice": "", "shown": False}
+
+
+@needs_node
 def test_a_successful_pause_leaves_a_notice_it_did_not_write():
     got = run_js(
         STUB

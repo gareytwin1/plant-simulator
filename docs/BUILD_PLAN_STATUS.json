@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "11 October 2026",
-  "main_sha": "bcdf12f",
-  "tests_passing_on_main": 3830,
+  "main_sha": "77ae094",
+  "tests_passing_on_main": 3882,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -118,13 +118,13 @@
     },
     "M20": {
       "name": "Console Redesign",
-      "complete": 7,
+      "complete": 8,
       "total": 20
     }
   },
   "totals": {
     "tasks": 153,
-    "complete": 135,
+    "complete": 136,
     "startable_now": 10
   },
   "tasks": [
@@ -2870,10 +2870,9 @@
         "tests/test_faceplate.py",
         "tests/test_canvas.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true,
-      "note": ""
+      "status": "Complete",
+      "status_key": "done",
+      "note": "COMPLETE - merged to main as 77ae094 (PR #166). 3882 passed post-merge, mypy clean over 88 files, no golden movement. canvas.js owns selection, hit areas, placement (beside the anchor, never on it) and focus; faceplate.js builds device and loop panels from /api/plant and the snapshot, tuning removed from the console (server actions unchanged), commands read 'accepted' never 'done'. Reading names and units also come from /api/trend/points (degrades to field names). Readings outside a device are buttons only when a device lists them; node pressures stay inert until T20-11. Controllers section removed; rejected commands use --command-rejected-mark. Seen in headless Firefox on desktop, both themes; phone width unchecked (desktop first). Unblocks T20-11 (T20-1 done) and, with T20-3, T20-13."
     },
     {
       "id": "T20-11",
@@ -2895,10 +2894,7 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "T20-10"
-      ],
+      "startable": true,
       "note": ""
     },
     {
@@ -2950,7 +2946,6 @@
       "status_key": "todo",
       "startable": false,
       "blocked_by": [
-        "T20-10",
         "T20-3"
       ],
       "note": ""

@@ -9,8 +9,10 @@ restated here: the graphic is right when the file on disk, bound to what the
 plant publishes, says the right thing.
 """
 
+import collections
 import copy
 import json
+import math
 import re
 import shutil
 import subprocess
@@ -39,6 +41,7 @@ BOUND = (
     "data-bind",
     "data-flow",
     "data-fill",
+    "data-controller-mode",
     "data-unplaced",
 )
 
@@ -127,6 +130,9 @@ class Rendered:
     def fill(self, path):
         return self._only(data_fill=path)[0]["attrs"]
 
+    def mode(self, loop):
+        return self._only(data_controller_mode=loop)[0]
+
     def note(self):
         return self._only(data_unplaced="")[0]["text"]
 
@@ -196,6 +202,37 @@ def test_alarm_state_shows_stopped_pump_reverse_flow_and_the_band_on_the_vessel(
     assert shown.band_text("P-101") == "▲ LOLO"
     assert shown.bind("equipment.P-101.flow")[1]["data-band"] == "trip"
     assert shown.tag("K-101")["data-band"] == "none"
+
+
+@needs_node
+@pytest.mark.parametrize("state", ["normal", "alarm"])
+def test_every_flow_arrow_turns_with_its_pipe(views, state):
+    shown = render(views[state])
+    pipes = [e["attrs"] for e in shown.elements if e["attrs"].get("class") == "pipe" and "data-flow" in e["attrs"]]
+    arrows = [e["attrs"] for e in shown.elements if e["attrs"].get("class") == "flow-arrow"]
+
+    assert arrows
+    for arrow in arrows:
+        assert arrow["data-flow-dir"] in {p["data-flow-dir"] for p in pipes if p["data-flow"] == arrow["data-flow"]}
+    if state == "alarm":
+        assert {a["data-flow-dir"] for a in arrows if a["data-flow"] == "streams.B-P-101.flow"} == {"reverse"}
+
+
+@needs_node
+def test_a_loop_balloon_shows_the_mode_the_snapshot_reports(views):
+    snapshot = copy.deepcopy(views["normal"])
+    assert snapshot["controllers"]["PIC-101"]["mode"] == "MANUAL"
+    assert render(snapshot).mode("PIC-101")["text"] == "MAN"
+
+    snapshot["controllers"]["PIC-101"]["mode"] = "AUTO"
+    shown = render(snapshot)
+    assert shown.mode("PIC-101")["text"] == "AUTO"
+    assert "data-missing" not in shown.mode("PIC-101")["attrs"]
+
+    del snapshot["controllers"]["PIC-101"]
+    gone = render(snapshot).mode("PIC-101")
+    assert gone["text"] == "--"
+    assert gone["attrs"]["data-missing"] == "true"
 
 
 @needs_node
@@ -733,3 +770,67 @@ def test_every_state_and_band_the_script_can_set_has_a_style_in_the_graphic(grap
         assert f'data-band="{band}"' in text
     for direction in ("forward", "reverse", "none"):
         assert f'data-flow-dir="{direction}"' in text
+
+
+@pytest.mark.parametrize("graphic", GRAPHICS, ids=lambda path: path.stem)
+def test_a_graphic_has_no_css_animation_or_smil(graphic):
+    text = graphic.read_text()
+
+    assert not re.search(r"@keyframes|\banimation\b|<animate|<set\b", text)
+
+
+def pipe_midpoint_and_angle(d):
+    """The midpoint and drawn direction, in degrees, of a straight pipe."""
+    match = re.fullmatch(r"M ([\d.]+) ([\d.]+) ([HV]) ([\d.]+)", d.strip())
+    assert match, f"a pipe is one straight run: {d}"
+    x, y, axis, end = float(match[1]), float(match[2]), match[3], float(match[4])
+    if axis == "H":
+        return (x + end) / 2, y, 0.0 if end > x else 180.0
+    return x, (y + end) / 2, 90.0 if end > y else 270.0
+
+
+def arrow_placement(arrow):
+    match = re.fullmatch(r"translate\(([\d.]+) ([\d.]+)\) rotate\(([\d.]+)\)", arrow.get("transform", ""))
+    assert match, arrow.get("transform")
+    return float(match[1]), float(match[2]), float(match[3]) % 360
+
+
+@pytest.mark.parametrize("graphic", GRAPHICS, ids=lambda path: path.stem)
+def test_every_flow_carrying_pipe_has_one_arrow_at_its_middle_on_the_same_stream(graphic):
+    root = ET.fromstring(graphic.read_text())
+    pipes = [n for n in root.iter() if n.get("class") == "pipe" and "data-flow" in n.attrib]
+    arrows = [n for n in root.iter() if n.get("class") == "flow-arrow"]
+
+    assert pipes and len(arrows) == len(pipes)
+    unmatched = list(arrows)
+    for pipe in pipes:
+        x, y, angle = pipe_midpoint_and_angle(pipe.get("d"))
+        found = [
+            a
+            for a in unmatched
+            if a.get("data-flow") == pipe.get("data-flow")
+            and all(map(math.isclose, arrow_placement(a), (x, y, angle)))
+        ]
+        assert len(found) == 1, pipe.get("d")
+        unmatched.remove(found[0])
+
+
+@pytest.mark.parametrize("graphic", GRAPHICS, ids=lambda path: path.stem)
+def test_an_arrow_turns_for_reverse_flow_and_hides_without_flow(graphic):
+    text = graphic.read_text()
+
+    assert re.search(r'\.flow-arrow\[data-flow-dir="reverse"\] \.arrow-shape \{ transform: rotate\(180deg\)', text)
+    assert re.search(
+        r'\.flow-arrow:not\(\[data-flow-dir="forward"\]\):not\(\[data-flow-dir="reverse"\]\) \{ display: none',
+        text,
+    )
+
+
+@pytest.mark.parametrize("graphic", GRAPHICS, ids=lambda path: path.stem)
+def test_every_loop_in_the_plant_has_exactly_one_balloon_with_one_mode(graphic, plants):
+    loops = set(plants[graphic.stem]["view"]["controllers"])
+    balloons = collections.Counter(svg_paths(graphic, "data-controller"))
+    modes = collections.Counter(svg_paths(graphic, "data-controller-mode"))
+
+    assert set(balloons) == loops and set(balloons.values()) <= {1}
+    assert set(modes) == loops and set(modes.values()) <= {1}

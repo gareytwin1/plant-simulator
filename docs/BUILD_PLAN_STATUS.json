@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
-  "refreshed": "10 October 2026",
-  "main_sha": "ac4376e",
-  "tests_passing_on_main": 3787,
+  "refreshed": "11 October 2026",
+  "main_sha": "b370e82",
+  "tests_passing_on_main": 3823,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -118,14 +118,14 @@
     },
     "M20": {
       "name": "Console Redesign",
-      "complete": 5,
+      "complete": 6,
       "total": 20
     }
   },
   "totals": {
     "tasks": 153,
-    "complete": 133,
-    "startable_now": 11
+    "complete": 134,
+    "startable_now": 10
   },
   "tasks": [
     {
@@ -2979,10 +2979,9 @@
         "tests/test_ribbon.py",
         "tests/test_scenario_replay.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true,
-      "note": ""
+      "status": "Complete",
+      "status_key": "done",
+      "note": "COMPLETE - merged to main as b370e82 (PR #164). 3823 passed post-merge, mypy clean over 88 files, no golden movement. POST /api/simulation/pause and /resume (app/api/simulation.py) answer {running: bool} and run as scheduler commands on free play while idle or the run while RUNNING, outside the ActionLog and score; any other phase is a 409; both idempotent. Unloading hands free play back in the pause state it was left in. Console ribbon gets Pause and Resume following the snapshot's running field; the run state reads Plant paused / Scenario - Paused (scenario.js, scenario.css). Known: a stale snapshot landing just after a pause response can flip the buttons for one tick; phone width and dark theme unchecked (desktop first). The app/main.py lock is free again."
     },
     {
       "id": "T20-15",
@@ -3127,7 +3126,6 @@
         "T20-11",
         "T20-12",
         "T20-13",
-        "T20-14",
         "T20-16",
         "T20-18"
       ],

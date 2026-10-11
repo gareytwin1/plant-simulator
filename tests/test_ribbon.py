@@ -62,7 +62,7 @@ function page(phase, title, withButtons = true) {
   const ids = ["ribbon", "ribbon-alarms", "ribbon-alarm-summary", "run-clock", "run-clock-value", "run-clock-inline",
     "scenario-bar", "scenario-title", "scenario-state", "scenario-notice"];
   if (withButtons) ids.push("scenario-start", "scenario-abort", "scenario-confirm", "scenario-abort-confirm",
-    "scenario-abort-keep", "scenario-choose", "scenario-choose-label");
+    "scenario-abort-keep", "scenario-choose", "scenario-choose-label", "ribbon-pause", "ribbon-resume");
   const els = Object.fromEntries(ids.map(id => [id, mk(id)]));
   els["scenario-bar"].attrs = { "data-phase": phase, "data-title": title,
     "data-phase-labels": JSON.stringify({ idle: "", loaded: "Loaded, not started", running: "Running", complete: "Finished", aborted: "Aborted" }) };
@@ -293,6 +293,200 @@ def test_start_and_abort_are_on_the_console_only(client):
         assert 'id="ribbon"' in page and 'id="scenario-bar"' in page and 'id="ribbon-alarms"' in page
     assert 'id="scenario-start"' not in landing and 'id="scenario-abort"' not in landing
     assert 'id="scenario-start"' in console and 'id="scenario-abort-confirm"' in console
+
+
+# ---- pause and resume (T20-14) ----------------------------------------------
+
+
+def test_pause_and_resume_are_on_the_console_only(client):
+    landing = client.get("/").get_data(as_text=True)
+    console = client.get("/console").get_data(as_text=True)
+
+    assert 'id="ribbon-pause"' not in landing and 'id="ribbon-resume"' not in landing
+    assert 'id="ribbon-pause"' in console and 'id="ribbon-resume"' in console
+
+
+@needs_node
+@pytest.mark.parametrize(
+    ("phase", "running", "offered"),
+    [
+        ("idle", True, "pause"),
+        ("idle", False, "resume"),
+        ("running", True, "pause"),
+        ("running", False, "resume"),
+        ("idle", None, "none"),
+        ("loaded", True, "none"),
+        ("loaded", False, "none"),
+        ("complete", True, "none"),
+        ("aborted", False, "none"),
+    ],
+)
+def test_pause_or_resume_is_offered_by_phase_and_the_snapshots_running_field(phase, running, offered):
+    got = run_js("const c = R.pauseControls(data.phase, data.running); return c.pause ? 'pause' : c.resume ? 'resume' : 'none';", phase=phase, running=running)
+
+    assert got == offered
+
+
+@needs_node
+def test_the_ribbon_pauses_and_resumes_the_live_plant_following_the_snapshot_over_http(client, served):
+    client.get("/console")
+
+    got = run_js(
+        STUB
+        + HTTP
+        + """
+        const { els, doc } = page("idle", "");
+        const ribbon = R.mount(doc, { fetch: http, pollMs: 0 });
+        await ribbon.ready;
+        const before = { pause: els["ribbon-pause"].hidden, resume: els["ribbon-resume"].hidden };
+        ribbon.update({ sim_time: 1, running: true });
+        const running = { pause: els["ribbon-pause"].hidden, resume: els["ribbon-resume"].hidden };
+        await els["ribbon-pause"].listeners.click();
+        const paused = { pause: els["ribbon-pause"].hidden, resume: els["ribbon-resume"].hidden };
+        ribbon.update({ sim_time: 2, running: false });
+        await els["ribbon-resume"].listeners.click();
+        const resumed = { pause: els["ribbon-pause"].hidden, resume: els["ribbon-resume"].hidden };
+        return { before, running, paused, resumed, sent: calls.filter(u => u.includes("simulation")) };
+        """,
+        base=served,
+        cookie=cookie_of(client),
+    )
+
+    assert got["before"] == {"pause": True, "resume": True}
+    assert got["running"] == {"pause": False, "resume": True}
+    assert got["paused"] == {"pause": True, "resume": False}
+    assert got["resumed"] == {"pause": False, "resume": True}
+    assert got["sent"] == ["/api/simulation/pause", "/api/simulation/resume"]
+
+
+@needs_node
+def test_a_paused_plant_says_so_in_the_ribbon_and_a_resumed_one_goes_back():
+    got = run_js(
+        STUB
+        + """
+        const out = {};
+        for (const phase of ["idle", "running"]) {
+          const { els, doc } = page(phase, "Falling vessel level");
+          const fetchImpl = async url => url.includes("simulation")
+            ? reply(200, { running: true })
+            : url.endsWith("result") ? (phase === "idle" ? reply(409, null)
+              : reply(200, { phase, title: "Falling vessel level", elapsed_s: 1, time_limit_s: 9 })) : reply(200, []);
+          const ribbon = R.mount(doc, { fetch: fetchImpl, pollMs: 0 });
+          await ribbon.ready;
+          ribbon.update({ sim_time: 1, running: true });
+          const live = els["scenario-state"].textContent;
+          ribbon.update({ sim_time: 2, running: false });
+          const frozen = { text: els["scenario-state"].textContent, paused: els["scenario-bar"].attrs["data-paused"] };
+          await els["ribbon-resume"].listeners.click();
+          out[phase] = { live, frozen, after: els["scenario-state"].textContent, paused: els["scenario-bar"].attrs["data-paused"] };
+        }
+        return out;
+        """,
+    )
+
+    assert got["idle"] == {
+        "live": "Plant running",
+        "frozen": {"text": "Plant paused", "paused": "true"},
+        "after": "Plant running",
+        "paused": "false",
+    }
+    assert got["running"] == {
+        "live": f"Scenario {DOT} Running",
+        "frozen": {"text": f"Scenario {DOT} Paused", "paused": "true"},
+        "after": f"Scenario {DOT} Running",
+        "paused": "false",
+    }
+
+
+@needs_node
+@pytest.mark.parametrize("reply_with", ["reply(429, null)", "reply(500, null)", "reply(400, null)", "reply(200, {})", "reject"])
+def test_every_other_pause_failure_is_worded_and_leaves_the_button_usable(reply_with):
+    got = run_js(
+        STUB
+        + """
+        const { els, doc } = page("idle", "");
+        const failing = data.reply_with === "reject"
+          ? async () => { throw new Error("network"); }
+          : async () => eval(data.reply_with);
+        const fetchImpl = async (url, init) => url.includes("simulation") ? failing() : reply(409, null);
+        const ribbon = R.mount(doc, { fetch: fetchImpl, pollMs: 0 });
+        await ribbon.ready;
+        ribbon.update({ sim_time: 1, running: true });
+        await els["ribbon-pause"].listeners.click();
+        return { notice: els["scenario-notice"].textContent, shown: !els["scenario-notice"].hidden,
+          enabled: !els["ribbon-pause"].disabled, offered: !els["ribbon-pause"].hidden };
+        """,
+        reply_with=reply_with,
+    )
+
+    assert got["notice"] != "" and got["shown"] is True
+    assert got["enabled"] is True and got["offered"] is True
+
+
+@needs_node
+def test_a_successful_pause_clears_the_refusal_it_wrote_earlier():
+    got = run_js(
+        STUB
+        + """
+        const { els, doc } = page("idle", "");
+        let calls = 0;
+        const fetchImpl = async url => url.includes("simulation")
+          ? (++calls === 1 ? reply(409, null) : reply(200, { running: false })) : reply(409, null);
+        const ribbon = R.mount(doc, { fetch: fetchImpl, pollMs: 0 });
+        await ribbon.ready;
+        ribbon.update({ sim_time: 1, running: true });
+        await els["ribbon-pause"].listeners.click();
+        const refused = !els["scenario-notice"].hidden;
+        await els["ribbon-pause"].listeners.click();
+        return { refused, notice: els["scenario-notice"].textContent, shown: !els["scenario-notice"].hidden };
+        """,
+    )
+
+    assert got == {"refused": True, "notice": "", "shown": False}
+
+
+@needs_node
+def test_a_successful_pause_leaves_a_notice_it_did_not_write():
+    got = run_js(
+        STUB
+        + """
+        const { els, doc } = page("idle", "");
+        const fetchImpl = async url => url.includes("simulation") ? reply(200, { running: false }) : reply(409, null);
+        const ribbon = R.mount(doc, { fetch: fetchImpl, pollMs: 0 });
+        await ribbon.ready;
+        ribbon.update({ sim_time: 1, running: true });
+        els["scenario-notice"].textContent = "A start refusal";
+        els["scenario-notice"].hidden = false;
+        await els["ribbon-pause"].listeners.click();
+        return { notice: els["scenario-notice"].textContent, shown: !els["scenario-notice"].hidden };
+        """,
+    )
+
+    assert got == {"notice": "A start refusal", "shown": True}
+
+
+@needs_node
+def test_a_refused_pause_says_so_in_the_pages_own_words():
+    got = run_js(
+        STUB
+        + """
+        const { els, doc } = page("running", "Falling vessel level");
+        const fetchImpl = async url => url.includes("simulation")
+          ? reply(409, { error: "cannot pause or resume a scenario that is complete: SECRET" })
+          : url.endsWith("result") ? reply(200, { phase: "running", title: "t", elapsed_s: 1, time_limit_s: 9 }) : reply(200, []);
+        const ribbon = R.mount(doc, { fetch: fetchImpl, pollMs: 0 });
+        await ribbon.ready;
+        ribbon.update({ sim_time: 1, running: true });
+        await els["ribbon-pause"].listeners.click();
+        return { notice: els["scenario-notice"].textContent, shown: !els["scenario-notice"].hidden,
+          pause: els["ribbon-pause"].hidden };
+        """,
+    )
+
+    assert "SECRET" not in got["notice"]
+    assert "nothing to pause" in got["notice"]
+    assert got["shown"] is True
+    assert got["pause"] is False
 
 
 # ---- run clock ------------------------------------------------------------

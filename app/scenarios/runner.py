@@ -724,9 +724,34 @@ class ScenarioRunner:
 
             return self._result(run)
 
+    def pause(self) -> bool:
+        """Freeze the live run's clock; answers whether the plant is running
+        (always False). Idempotent. Only a RUNNING run can pause: before
+        `start` and after the end nothing advances."""
+        return self._set_paused(True)
+
+    def resume(self) -> bool:
+        """Unfreeze the live run's clock; answers whether the plant is running
+        (always True). Idempotent, and only while RUNNING like `pause`."""
+        return self._set_paused(False)
+
     def result(self) -> ScenarioResult:
         with self._lock:
             return self._result(self._loaded())
+
+    def _set_paused(self, paused: bool) -> bool:
+        with self._lock:
+            run = self._loaded()
+
+            if run.phase is not Phase.RUNNING:
+                raise ScenarioStateError(f"cannot pause or resume a scenario that is {run.phase.value}")
+
+            if paused:
+                run.engine.stop()
+            else:
+                run.engine.start()
+
+            return not run.engine.clock.paused
 
     def _loaded(self) -> _Run:
         if self._run is None:

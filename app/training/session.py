@@ -22,10 +22,10 @@ otherwise. Free play does not advance while a scenario is loaded, and unloading
 hands it back exactly where it was left.
 
 **Every write is a scheduler command**, so it runs under `step_lock` and
-publishes at once: `act`, `acknowledge`, and a scenario's `load`, `start`,
-`abort` and `unload`. A response read straight after a write sees it, and a
-load switches the published snapshot to the scenario's plant in the same
-command. The runner's own lock nests inside `step_lock`, the order
+publishes at once: `act`, `acknowledge`, `pause`, `resume`, and a scenario's
+`load`, `start`, `abort` and `unload`. A response read straight after a write
+sees it, and a load switches the published snapshot to the scenario's plant in
+the same command. The runner's own lock nests inside `step_lock`, the order
 `app.scenarios.runner` documents. Alarm entries are read under `step_lock` too,
 which pins which plant answers: a load or unload cannot land between choosing
 the plant and reading it.
@@ -182,6 +182,16 @@ class TrainingSession:
     def unload(self) -> None:
         self._command(self.runner.unload)
 
+    def pause(self) -> bool:
+        """Freeze the plant the snapshot shows; answers whether it is running."""
+        return self._command(lambda: self._set_paused(True))
+
+    def resume(self) -> bool:
+        """Unfreeze the plant the snapshot shows; answers whether it is running.
+        Refusals are the runner's: a loaded, complete or aborted scenario has
+        nothing to pause."""
+        return self._command(lambda: self._set_paused(False))
+
     def result(self) -> ScenarioResult:
         return self.runner.result()
 
@@ -196,6 +206,19 @@ class TrainingSession:
                 return Standing("free_play", phase.value, sim_time, None)
 
             return Standing("scenario", phase.value, sim_time, self.runner.result().scenario_id)
+
+    def _set_paused(self, paused: bool) -> bool:
+        if self.runner.phase is not Phase.IDLE:
+            return self.runner.pause() if paused else self.runner.resume()
+
+        # The runner never touches free play's engine, so unloading hands it
+        # back in the pause state it was left in.
+        if paused:
+            self.free.engine.stop()
+        else:
+            self.free.engine.start()
+
+        return not self.free.engine.clock.paused
 
     def _plant(self) -> PlantRuntime | ScenarioRunner:
         return self.free if self.runner.phase is Phase.IDLE else self.runner

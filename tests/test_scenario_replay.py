@@ -31,8 +31,8 @@ from app.scenarios.runner import (
     ScenarioConfigError,
     ScenarioLibrary,
     ScenarioNotFound,
-    ScenarioStateError,
     ScenarioRunner,
+    ScenarioStateError,
     Tick,
     TickKind,
 )

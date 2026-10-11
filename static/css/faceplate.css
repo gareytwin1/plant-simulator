@@ -146,7 +146,7 @@
 
 .fp-reading {
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: 1fr auto auto auto;
   align-items: center;
   gap: var(--space-2);
   padding: 4px 6px;
@@ -193,6 +193,36 @@
 
 .fp-band[data-severity="trip"] {
   color: var(--alarm-critical-mark);
+}
+
+/* A reading's Trend button opens its trend window (T20-11). */
+.btn-trend {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 26px;
+  padding: 0 8px;
+  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-trend:hover {
+  border-color: var(--text);
+  background: var(--surface);
+}
+
+.btn-trend svg {
+  width: 14px;
+  height: 10px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
 }
 
 .fp-bar {

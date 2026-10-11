@@ -728,3 +728,57 @@ def test_a_device_panel_rewrites_its_rows_in_place_and_keeps_a_row_for_a_missing
     assert result["before"]["speed"] == "100.0 %"
     assert result["after"] == {"speed": "25.0 %", "same": True}
     assert (result["missing"], result["same"], result["count"]) == ("--", True, result["before"]["count"])
+
+
+@needs_node
+def test_every_reading_on_either_panel_has_a_trend_button_that_opens_its_point(session, plant):
+    result = run_panels(
+        """
+        const trended = [];
+        const withTrend = info => Object.assign(ctx(info), { trend: (point, b) => trended.push([point, b.getAttribute('data-trend')]) });
+        const dev = F.createPanel(doc, 'device', 'K-101', withTrend(data.plant.equipment['K-101']));
+        dev.update(data.snapshot);
+        const lp = F.createPanel(doc, 'loop', 'PIC-101', withTrend(data.plant.controllers['PIC-101']));
+        lp.update(data.snapshot);
+        const buttons = p => p.element.querySelectorAll('[data-trend]');
+        const rows = p => p.element.querySelectorAll('.fp-reading').map(r => r.getAttribute('data-point'));
+        buttons(dev)[0].fire('click');
+        buttons(lp)[0].fire('click');
+        return { device: buttons(dev).map(b => b.getAttribute('data-trend')), deviceRows: rows(dev),
+                 loop: buttons(lp).map(b => b.getAttribute('data-trend')),
+                 label: buttons(dev)[0].getAttribute('aria-label'), text: buttons(dev)[0].textContent, trended };
+        """,
+        plant, snapshot=view(session),
+    )
+
+    assert result["device"] == result["deviceRows"] and result["device"]
+    assert result["loop"] == ["PIC-101.pv", "PIC-101.sp", "PIC-101.out"]
+    assert result["label"] == "Show trend of K-101 flow"
+    assert result["text"] == "Trend"
+    assert result["trended"] == [[result["device"][0]] * 2, ["PIC-101.pv"] * 2]
+
+
+@needs_node
+def test_without_trend_windows_a_panel_has_no_trend_button(session, plant):
+    result = run_panels(
+        """
+        const dev = device('K-101');
+        dev.update(data.snapshot);
+        const lp = loop();
+        lp.update(data.snapshot);
+        return dev.element.querySelectorAll('[data-trend]').length + lp.element.querySelectorAll('[data-trend]').length;
+        """,
+        plant, snapshot=view(session),
+    )
+
+    assert result == 0
+
+
+@needs_node
+def test_a_loops_point_reads_from_the_controllers_section():
+    snapshot = {"controllers": {"PIC-101": {"pv": 201.5}}, "equipment": {"K-101": {"flow": 3.0}}}
+
+    assert run_js(
+        "return [F.pointValue(data.s, 'PIC-101.pv'), F.pointValue(data.s, 'K-101.flow'), F.pointValue(data.s, 'X.y')];",
+        s=snapshot,
+    ) == [201.5, 3.0, None]

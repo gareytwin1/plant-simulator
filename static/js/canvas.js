@@ -1,4 +1,4 @@
-/* Canvas selection (T20-10).
+/* Canvas selection (T20-10; trends from T20-11).
  *
  * The process graphic is the console's canvas. This file makes what is drawn
  * on it selectable and owns the one faceplate that is open at a time: which
@@ -7,10 +7,12 @@
  *
  *   a device (a .eq group with data-tag) and a loop's balloon (a .ctl group
  *   with data-controller) are buttons: focusable, named, opened by click,
- *   Enter or Space. A reading (a data-bind text) outside any device group that
- *   a device lists among its points is a button to that device's faceplate;
- *   a reading inside a device is already part of its button, and one no
- *   device owns (a node pressure) stays inert until it has a trend to open.
+ *   Enter or Space. A reading (a data-bind text) outside any device group is
+ *   a button to its trend window when the trend listing publishes its point
+ *   and the page has trend windows (trendwindows.js); without them, one a
+ *   device lists is a button to that device's faceplate, and any other is
+ *   inert. A reading inside a device is already part of its button; its trend
+ *   opens from the faceplate.
  *
  * Which items are selectable, and what each one is, comes from GET /api/plant
  * (T20-2), never from a tag in this file: a tag the plant does not describe is
@@ -151,10 +153,12 @@
     };
   }
 
-  /* The trend listing's words and units, both empty when it is missing. */
+  /* The trend listing's points, words and units, all empty when it is
+   * missing. */
   function vocabOf(listing) {
     var l = isObject(listing) ? listing : {};
     return {
+      points: Array.isArray(l.points) ? l.points : [],
       descriptors: isObject(l.descriptors) ? l.descriptors : {},
       units: isObject(l.units) ? l.units : {},
     };
@@ -210,9 +214,12 @@
    *   fetch       a transport, for a test
    *   faceplates  faceplate.js's exports (default: the page's Faceplates)
    *   obstacles   function returning [{rect, weight}] the panel stays clear of,
-   *               in workspace coordinates (trend windows, from T20-11)
-   * Returns {update, refresh, select, close, selected}: call update with every
-   * snapshot, refresh when the shown plant may have changed. */
+   *               in workspace coordinates (the open trend windows)
+   *   trends      the trend windows: {open(point, opener, anchor), isOpen(point)};
+   *               without them no reading opens a trend
+   * Returns {update, refresh, select, close, selected, panelRect, mark}: call
+   * update with every snapshot, refresh when the shown plant may have changed,
+   * and mark when a trend window opens or closes. */
   function mount(options) {
     var settings = options || {};
     var canvas = settings.canvas;
@@ -221,6 +228,7 @@
     var doc = canvas.ownerDocument;
     var doFetch = settings.fetch || root.fetch.bind(root);
     var F = settings.faceplates || root.Faceplates;
+    var trends = settings.trends || null;
     var post = F.makePost(doFetch);
 
     var plant = null;
@@ -301,11 +309,23 @@
       });
 
       list(drawing, "[data-bind]").forEach(function (reading) {
-        var owner = ownerOf(plant, reading.getAttribute("data-bind"));
-        if (owner === null || inGroup(reading, drawing)) return;
+        if (inGroup(reading, drawing)) return;
         var point = reading.getAttribute("data-bind").split(".").slice(1).join(".");
+        if (trends && vocab.points.indexOf(point) >= 0) {
+          mark(reading, "trend", point, trendLabel(point, reading), true);
+          return;
+        }
+        var owner = ownerOf(plant, reading.getAttribute("data-bind"));
+        if (owner === null) return;
         mark(reading, "device", owner, owner + " " + F.readingLabel(point, vocab).toLowerCase() + ". Open " + owner + " faceplate.", true);
       });
+    }
+
+    /* A trend reading is named with what it shows now. */
+    function trendLabel(point, reading) {
+      var id = point.slice(0, point.lastIndexOf("."));
+      var shown = reading.textContent ? ", " + reading.textContent : "";
+      return id + " " + F.readingLabel(point, vocab).toLowerCase() + shown + ". Open trend.";
     }
 
     /* The hit area behind each device follows what is drawn in the group, so
@@ -337,11 +357,17 @@
       if (!drawing) return;
       list(drawing, "[data-canvas-tag]").forEach(function (node) {
         var reading = has(node, "data-canvas-reading");
-        var chosen =
-          selection !== null &&
-          (reading
-            ? node === selection.opener
-            : node.getAttribute("data-canvas-kind") === selection.kind && node.getAttribute("data-canvas-tag") === selection.tag);
+        var kind = node.getAttribute("data-canvas-kind");
+        var chosen;
+        if (kind === "trend") {
+          // A trend reading is marked while its window is open.
+          chosen = trends.isOpen(node.getAttribute("data-canvas-tag"));
+          node.setAttribute("aria-label", trendLabel(node.getAttribute("data-canvas-tag"), node));
+        } else {
+          chosen =
+            selection !== null &&
+            (reading ? node === selection.opener : kind === selection.kind && node.getAttribute("data-canvas-tag") === selection.tag);
+        }
         node.setAttribute("data-selected", chosen ? "true" : "false");
       });
     }
@@ -445,6 +471,12 @@
         open: function (nextKind, nextTag) {
           select(nextKind, nextTag, null);
         },
+        // A trend opened from a panel sits beside the panel.
+        trend: trends
+          ? function (point, button) {
+              trends.open(point, button, selection ? rectIn(selection.panel.element) : null);
+            }
+          : null,
       });
       layer.appendChild(panel.element);
       if (latest !== null) panel.update(latest);
@@ -452,6 +484,18 @@
       reposition();
       markSelected();
       panel.close.focus();
+    }
+
+    /* Press a canvas item: a reading's trend, or a faceplate. */
+    function press(item) {
+      var kind = item.getAttribute("data-canvas-kind");
+      var tag = item.getAttribute("data-canvas-tag");
+      if (kind !== "trend") {
+        select(kind, tag, item);
+        return;
+      }
+      var at = rectIn(item);
+      trends.open(tag, item, sized(at) ? at : null);
     }
 
     function selectableOf(node) {
@@ -464,10 +508,13 @@
     workspace.addEventListener("click", function (event) {
       // A click on a panel's own button may have replaced the panel (a hop to
       // the loop) before it reaches here: its target is then detached, and the
-      // click was not on empty canvas.
-      if (inside(layer, event.target) || !inside(workspace, event.target)) return;
+      // click was not on empty canvas. A click in a trend window or anything
+      // else floating over the canvas is not on the canvas either.
+      var target = event.target;
+      if (inside(layer, target) || !inside(workspace, target)) return;
+      if (target !== workspace && !inside(canvas, target)) return;
       var item = selectableOf(event.target);
-      if (item) select(item.getAttribute("data-canvas-kind"), item.getAttribute("data-canvas-tag"), item);
+      if (item) press(item);
       else close(false);
     });
 
@@ -477,15 +524,16 @@
       var item = selectableOf(event.target);
       if (!item || item !== event.target) return;
       event.preventDefault();
-      select(item.getAttribute("data-canvas-kind"), item.getAttribute("data-canvas-tag"), item);
+      press(item);
     });
 
-    /* Escape belongs to whatever has focus: it closes the panel from inside
-     * the workspace, or from nowhere in particular. */
+    /* Escape belongs to whatever has focus: it closes the panel from the
+     * panel or the canvas, or from nowhere in particular - not from a trend
+     * window or anything else on the page. */
     doc.addEventListener("keydown", function (event) {
       if (event.key !== "Escape" || !selection) return;
       var active = doc.activeElement;
-      if (active && active !== doc.body && !inside(workspace, active)) return;
+      if (active && active !== doc.body && !inside(layer, active) && !inside(canvas, active)) return;
       close(true);
     });
 
@@ -519,6 +567,10 @@
       selected: function () {
         return selection ? { kind: selection.kind, tag: selection.tag } : null;
       },
+      panelRect: function () {
+        return selection ? rectIn(selection.panel.element) : null;
+      },
+      mark: markSelected,
       update: function (snapshot) {
         latest = snapshot;
         if (plant === null && !loading) refresh();

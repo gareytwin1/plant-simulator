@@ -383,16 +383,17 @@ body[data-page="console"] main {
 
 /* ---- canvas selection (T20-10) --------------------------------------- */
 
-/* Devices, loop balloons and readings open a faceplate. Hover is a quiet tint
-   of the element itself, never a box or a popup; selection is the same hue, a
-   step stronger, with no underline. A ring appears only for keyboard focus. */
+/* Devices and loop balloons open a faceplate, readings their trend. Hover is a
+   quiet tint of the element itself, never a box or a popup; selection (and a
+   reading whose trend is open) is the same hue, a step stronger, with no
+   underline. A ring appears only for keyboard focus. */
 :root {
   --hover-tint: color-mix(in srgb, var(--focus-ring) 14%, var(--surface-raised));
   --select-tint: color-mix(in srgb, var(--focus-ring) 26%, var(--surface-raised));
 }
 
-/* A panel sits above the canvas and, later, the trend windows (T20-11); the
-   layer passes clicks through everywhere but the panel itself. */
+/* A panel sits above the canvas and the trend windows (trends.css); the layer
+   passes clicks through everywhere but the panel itself. */
 .faceplate-layer {
   position: absolute;
   inset: 0;

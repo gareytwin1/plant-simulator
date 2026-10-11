@@ -1,9 +1,10 @@
-// Just enough of a DOM for the console's browser glue (faceplate.js, canvas.js):
-// elements with attributes, children, text, listeners that bubble, focus, a
-// style, geometry a test assigns, and the selectors the glue uses (a tag,
-// classes and [attr] or [attr="v"], comma separated). It checks what a click,
-// a key and a submit do, not how anything looks; that is seen in a browser.
-// Loaded into a `node -e` script by tests/test_faceplate.py and test_canvas.py.
+// Just enough of a DOM for the console's browser glue (faceplate.js, canvas.js,
+// trendwindows.js): elements with attributes, children, text, markup kept as a
+// string, listeners that bubble, focus, a style, geometry a test assigns, and
+// the selectors the glue uses (a tag, classes and [attr] or [attr="v"], comma
+// separated). It checks what a click, a key and a submit do, not how anything
+// looks; that is seen in a browser. Loaded into a `node -e` script by
+// tests/test_faceplate.py, test_canvas.py and test_trend_windows.py.
 
 const ZERO = { left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0 };
 
@@ -16,6 +17,7 @@ class Node {
     this.listeners = {};
     this.style = {};
     this._text = '';
+    this._html = '';
     this.value = '';
     this.disabled = false;
     this.placeholder = '';
@@ -41,9 +43,14 @@ class Node {
     return c;
   }
   removeChild(c) { c.detach(); return c; }
-  set textContent(t) { this.children.forEach(c => { c.parentNode = null; }); this.children = []; this._text = String(t); }
+  set textContent(t) { this.children.forEach(c => { c.parentNode = null; }); this.children = []; this._html = ''; this._text = String(t); }
   get textContent() { return this._text + this.children.map(c => c.textContent).join(''); }
+  // Markup is kept as written, not parsed: a test reads it back as a string.
+  set innerHTML(h) { this.textContent = ''; this._html = String(h); }
+  get innerHTML() { return this._html; }
+  get isConnected() { for (let n = this; n; n = n.parentNode) if (n === doc.body) return true; return false; }
   addEventListener(type, fn) { (this.listeners[type] = this.listeners[type] || []).push(fn); }
+  removeEventListener(type, fn) { this.listeners[type] = (this.listeners[type] || []).filter(f => f !== fn); }
   // Dispatch to this node and up through its ancestors.
   dispatch(type, props) {
     const event = Object.assign({ type, target: this, defaultPrevented: false }, props);
@@ -73,6 +80,7 @@ class Node {
       });
     });
   }
+  closest(sel) { for (let n = this; n && n.matches; n = n.parentNode) if (n.matches(sel)) return n; return null; }
   querySelectorAll(sel) { return this.all().filter(n => n.matches(sel)); }
   querySelector(sel) { return this.querySelectorAll(sel)[0] || null; }
   getBoundingClientRect() {

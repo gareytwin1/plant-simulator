@@ -1,51 +1,295 @@
-/* Trend display (T17-4). Every colour is a token from tokens.css
- * (docs/console-standards.md); nothing here is a hex literal. Load tokens.css
- * and landing.css (buttons, focus ring) first.
+/* Trend windows (T17-4, reshaped by T20-11 from prototype/console-redesign).
+ * Every colour is a token from tokens.css (docs/console-standards.md); nothing
+ * here is a hex literal. Load tokens.css and console.css (the workspace, the
+ * focus ring) first.
  *
- * A pen is a dash pattern and a number as well as a stroke, a band is a
- * labelled rule as well as a tint, and an alarm marker is a glyph as well as
- * a hue, so nothing rests on colour alone. */
+ * A band is a labelled rule as well as a tint, an alarm marker is a glyph as
+ * well as a hue, and the value's band is a glyph and a label beside it, so
+ * nothing rests on colour alone. */
 
-.trend {
+/* ---- the windows ------------------------------------------------------ */
+
+/* Below the faceplate layer (40): a faceplate is transient, one at a time, and
+   never opens hidden behind a window. Windows stack above 10 inside the layer,
+   and the layer passes clicks through everywhere but a window. */
+.window-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  pointer-events: none;
+}
+
+.trend-window {
+  position: absolute;
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
-  margin-bottom: 1.5rem;
+  pointer-events: auto;
+  background: var(--surface-raised);
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-3);
+  animation: tw-pop-in var(--t-med) var(--ease);
 }
 
-.trend-selectors {
+.trend-window[hidden] {
+  display: none;
+}
+
+.trend-window[data-active="true"] {
+  border-color: var(--text-muted);
+}
+
+@keyframes tw-pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.tw-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 6px 6px 6px 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 35%, transparent);
+  border-radius: var(--radius) var(--radius) 0 0;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.tw-bar:active {
+  cursor: grabbing;
+}
+
+.tw-bar:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+
+.tw-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tw-ctl {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: var(--radius-small);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.tw-ctl:hover {
+  background: var(--surface);
+}
+
+.tw-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem 1rem;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: 6px 12px 0;
 }
 
-.trend-selectors select {
-  max-width: 100%;
-  min-height: 2rem;
-  border: 2px solid var(--border);
-  border-radius: 3px;
-  background-color: var(--surface-raised);
-  color: var(--text);
+.tw-reading {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: 0;
 }
 
-.trend-chart {
-  min-width: 0;
-  border: 2px solid var(--border);
-  border-radius: 4px;
-  background-color: var(--surface-raised);
+.tw-value {
+  font-size: 1.5rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
 }
 
-.trend-svg {
+.tw-value small {
+  margin-left: 4px;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.tw-value[data-band="warning"],
+.tw-band[data-severity="warning"] {
+  color: var(--alarm-low-mark);
+}
+
+.tw-value[data-band="alarm"],
+.tw-band[data-severity="alarm"] {
+  color: var(--alarm-high-mark);
+}
+
+.tw-value[data-band="trip"],
+.tw-band[data-severity="trip"] {
+  color: var(--alarm-critical-mark);
+}
+
+.tw-band {
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.tw-spans {
+  display: inline-flex;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-small);
+}
+
+.tw-spans button {
+  min-height: 26px;
+  padding: 0 8px;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.tw-spans button[aria-pressed="true"] {
+  background: var(--text);
+  color: var(--surface-raised);
+}
+
+.tw-chart {
+  flex: 1;
+  min-height: 0;
+  padding: 4px 6px 8px;
+}
+
+.tw-chart .trend-svg {
   display: block;
   width: 100%;
-  height: auto;
+  height: 100%;
 }
 
-.trend-empty {
-  margin: 0;
-  padding: 1rem;
-  color: var(--text-muted);
+/* One pen: its number would only repeat the title. */
+.tw-chart .trend-pen-number {
+  display: none;
 }
+
+.tw-status {
+  margin: 0;
+  padding: 0 12px 8px;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.tw-status:empty {
+  display: none;
+}
+
+.tw-resize {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 18px;
+  height: 18px;
+  cursor: nwse-resize;
+  touch-action: none;
+}
+
+.tw-resize::after {
+  content: "";
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid var(--text-muted);
+  border-bottom: 2px solid var(--text-muted);
+}
+
+/* ---- the tray of minimised windows ------------------------------------ */
+
+.tray {
+  position: absolute;
+  left: var(--space-3);
+  bottom: var(--space-3);
+  z-index: 35;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  max-width: calc(100% - 2 * var(--space-3));
+}
+
+.tray[hidden] {
+  display: none;
+}
+
+.tray-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.tray-chips:empty,
+.tray-status:empty {
+  display: none;
+}
+
+.tray-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-raised);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  box-shadow: var(--shadow-2);
+}
+
+.tray-chip:hover {
+  border-color: var(--text);
+}
+
+.tray-chip svg {
+  width: 14px;
+  height: 10px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+}
+
+.tray-status {
+  margin: 0;
+  padding: 6px 10px;
+  border-radius: var(--radius-small);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-2);
+  color: var(--text);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+/* ---- the chart -------------------------------------------------------- */
 
 .trend-plot {
   fill: var(--surface-raised);
@@ -127,72 +371,8 @@
   --alarm-mark: var(--alarm-low-mark);
 }
 
-.trend-legend {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr));
-  gap: 0.4rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.trend-pen-row {
-  display: flex;
-  gap: 0.35rem;
-  min-width: 0;
-}
-
-.trend-focus {
-  display: flex;
-  flex: 1;
-  align-items: center;
-  gap: 0.45rem;
-  min-width: 0;
-  padding: 0.25rem 0.5rem;
-  border: 2px solid var(--border);
-  border-radius: 3px;
-  background-color: var(--surface-raised);
-  color: var(--text);
-  text-align: left;
-}
-
-.trend-focus[aria-pressed="true"] {
-  border-color: var(--focus-ring);
-  font-weight: 700;
-}
-
-.trend-swatch line {
-  stroke: var(--text);
-  stroke-width: 2;
-}
-
-.trend-pen-index {
-  font-weight: 700;
-}
-
-.trend-pen-point {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.trend-remove {
-  min-width: 2.25rem;
-  padding: 0.25rem 0.5rem;
-  font-size: 1.1rem;
-  line-height: 1;
-  border: 2px solid var(--border);
-  border-radius: 3px;
-  background-color: var(--surface-raised);
-  color: var(--text);
-}
-
-.trend-status {
-  margin: 0;
-  color: var(--text);
-}
-
-.trend-status:empty {
-  display: none;
+@media (prefers-reduced-motion: reduce) {
+  .trend-window {
+    animation: none;
+  }
 }

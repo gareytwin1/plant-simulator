@@ -1,29 +1,25 @@
-/* Trend display (T17-4).
+/* Trend rendering (T17-4, reshaped by T20-11).
  *
- * The console surface for the trend API (app/api/trend.py) and the alarm
- * record (app/api/alarms.py):
- *   GET /api/trend/points  -> {points, limits, descriptors, max_tags, max_points}
+ * The pure half of the console's trends, for the trend API (app/api/trend.py)
+ * and the alarm record (app/api/alarms.py):
+ *   GET /api/trend/points  -> {points, limits, descriptors, units, max_tags, max_points}
  *   GET /api/trend         -> {point: [[t, v], ...]}
  *   GET /api/alarms/history
  *
  * A pen is a trend point (`<id>.<field>`); the server publishes every point,
  * the evaluated envelope bounds of the ones that have them, and the pen bound,
  * so none of that is copied here. Time is simulated seconds, the same clock as
- * the stream's sim_time. The display keeps no history of its own: each fetch
- * replaces what is drawn, so a scenario load, unload or abort (which swaps the
- * history, and can send simulated time backwards) needs no special case.
+ * the stream's sim_time.
  *
  * Every pen is scaled to its own range, so a pressure and a level share one
  * plot. The focused pen gives the y-axis and the envelope bands behind it; a
  * band is a labelled rule as well as a tint, and a pen is a dash pattern and a
- * number as well as a stroke, so nothing rests on colour alone.
+ * number as well as a stroke, so nothing rests on colour alone. A trend window
+ * draws one pen on a held scale (`holdScale`), so a change can be judged by eye.
  *
- * The drawing is sized when it is drawn (the next tick, at most 2 s after a
- * resize or a rotation); in between the SVG scales with its container.
- *
- * Everything above the "browser glue" marker is pure (data in, numbers or an
- * HTML/SVG string out) so it runs under Node without a DOM;
- * tests/test_trend_display.py drives it that way. Colour comes from
+ * Everything here is pure (data in, numbers or an SVG string out) so it runs
+ * under Node without a DOM; tests/test_trend_display.py drives it that way.
+ * The windows that show it are trendwindows.js. Colour comes from
  * static/css/tokens.css through trends.css, never from here.
  */
 (function (root) {
@@ -101,45 +97,11 @@
     return pad(Math.floor(whole / 3600)) + ":" + pad(Math.floor(whole / 60) % 60) + ":" + pad(whole % 60);
   }
 
-  /* ---- selection --------------------------------------------------------- */
-
-  /* The pens shown until the operator picks their own: every point with
-   * evaluated limits, then each loop's PV and SP, up to the server's bound. */
-  function defaultSelection(points, limits, controllers, maxTags) {
-    var known = new Set(points);
-    var wanted = Object.keys(isObject(limits) ? limits : {});
-
-    Object.keys(isObject(controllers) ? controllers : {}).forEach(function (loop) {
-      wanted.push(loop + ".pv", loop + ".sp");
-    });
-
-    var chosen = [];
-    wanted.forEach(function (point) {
-      if (known.has(point) && chosen.indexOf(point) < 0) chosen.push(point);
-    });
-    return chosen.slice(0, maxTags);
-  }
-
-  /* A stored or edited selection reduced to what the plant publishes now:
-   * unknown points dropped, duplicates dropped, capped at the pen bound. */
-  function sanitizeSelection(selection, points, maxTags) {
-    var known = new Set(points);
-    var kept = [];
-    (Array.isArray(selection) ? selection : []).forEach(function (point) {
-      if (known.has(point) && kept.indexOf(point) < 0) kept.push(point);
-    });
-    return kept.slice(0, maxTags);
-  }
+  /* ---- spans and requests ---------------------------------------------- */
 
   function sanitizeSpan(span) {
     return SPANS.indexOf(span) >= 0 ? span : DEFAULT_SPAN;
   }
-
-  function sanitizeFocus(focus, selection) {
-    return selection.indexOf(focus) >= 0 ? focus : selection.length ? selection[0] : null;
-  }
-
-  /* ---- requests ---------------------------------------------------------- */
 
   /* The window ends at the latest simulated time and reaches `span` minutes
    * back, but never before simulated time zero. */
@@ -190,6 +152,22 @@
 
     var pad = (hi - lo) * PAD;
     return { lo: lo - pad, hi: hi + pad };
+  }
+
+  /* A held scale: `scaleFor` widened to take in `held`, the scale drawn last
+   * time. It widens when a reading leaves it and never narrows; the caller
+   * drops what it holds when the span changes. With nothing to scale, what is
+   * held is kept. */
+  function holdScale(held, samples, limits) {
+    var next = scaleFor(samples, limits);
+    var empty = !(samples || []).some(function (pair) {
+      return isNumber(pair[1]);
+    }) && !Object.keys(limits || {}).some(function (key) {
+      return isNumber(limits[key]);
+    });
+    if (!held) return next;
+    if (empty) return held;
+    return { lo: Math.min(held.lo, next.lo), hi: Math.max(held.hi, next.hi) };
   }
 
   /* Roughly `count` round-numbered ticks inside [lo, hi]. */
@@ -311,6 +289,8 @@
    *   input.limits               point -> bounds
    *   input.focus                the pen whose scale and bands are drawn
    *   input.markers              markersFor(...)
+   *   input.scales               optional point -> {lo, hi}, a held scale
+   *   input.label                optional accessible name of the drawing
    */
   function renderChart(input) {
     var width = input.width;
@@ -326,7 +306,8 @@
     };
 
     var scales = input.pens.map(function (pen) {
-      return scaleFor(pen.samples, (input.limits || {})[pen.point]);
+      var held = (input.scales || {})[pen.point];
+      return held || scaleFor(pen.samples, (input.limits || {})[pen.point]);
     });
     var focusIndex = input.pens.findIndex(function (pen) {
       return pen.point === input.focus;
@@ -347,7 +328,7 @@
     svg.push(
       '<svg class="trend-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + width + " " + height +
       '" width="' + width + '" height="' + height + '" role="group" aria-label="' +
-      escapeHtml(chartLabel(input.pens, win)) + '">'
+      escapeHtml(input.label || chartLabel(input.pens, win)) + '">'
     );
 
     svg.push(
@@ -470,56 +451,6 @@
     return (dot < 0 ? point : point.slice(0, dot)) + " " + words;
   }
 
-  /* The span and add-a-pen selectors. Kept apart from the legend so a tick
-   * that only moves a value never rebuilds a select the operator has open. */
-  function renderSelectors(view) {
-    var spans = SPANS.map(function (minutes) {
-      return (
-        '<option value="' + minutes + '"' + (minutes === view.span ? " selected" : "") + ">" +
-        minutes + " min</option>"
-      );
-    }).join("");
-
-    var selected = new Set(view.selection);
-    var addable = view.points.filter(function (point) {
-      return !selected.has(point);
-    });
-    var full = view.selection.length >= view.maxTags;
-    var add =
-      '<option value="">' + (full ? "Pen limit reached (" + view.maxTags + ")" : "Add a pen") + "</option>" +
-      addable.map(function (point) {
-        return '<option value="' + escapeHtml(point) + '">' + escapeHtml(penName(point, view.descriptors)) + "</option>";
-      }).join("");
-
-    return (
-      '<div class="trend-selectors">' +
-      '<label>Span <select class="trend-span" data-span>' + spans + "</select></label>" +
-      '<label>Pen <select class="trend-add" data-add' + (full || !addable.length ? " disabled" : "") + ">" + add +
-      "</select></label></div>"
-    );
-  }
-
-  /* One row per pen: its number, dash, latest value, a focus button and a
-   * remove button. */
-  function renderLegend(view) {
-    return '<ol class="trend-legend">' + view.selection.map(function (point, index) {
-      var dash = DASHES[index % DASHES.length];
-      var focused = point === view.focus;
-      return (
-        '<li class="trend-pen-row" data-pen="' + (index + 1) + '"' + (focused ? ' data-focus="true"' : "") + ">" +
-        '<button type="button" class="trend-focus" data-focus-point="' + escapeHtml(point) +
-        '" aria-pressed="' + (focused ? "true" : "false") + '">' +
-        '<svg class="trend-swatch" viewBox="0 0 28 10" width="28" height="10" aria-hidden="true"><line x1="0" x2="28" y1="5" y2="5"' +
-        (dash ? ' stroke-dasharray="' + dash + '"' : "") + "/></svg>" +
-        '<span class="trend-pen-index">' + (index + 1) + "</span>" +
-        '<span class="trend-pen-point" title="' + escapeHtml(point) + '">' + escapeHtml(penName(point, view.descriptors)) + "</span>" +
-        '<span class="trend-pen-value" data-live-value data-value-point="' + escapeHtml(point) + '">' + formatValue((view.latest || {})[point]) + "</span></button>" +
-        '<button type="button" class="trend-remove" data-remove-point="' + escapeHtml(point) +
-        '" aria-label="Remove ' + escapeHtml(point) + '" title="Remove">\u00D7</button></li>'
-      );
-    }).join("") + "</ol>";
-  }
-
   var api = {
     SPANS: SPANS,
     DEFAULT_SPAN: DEFAULT_SPAN,
@@ -527,369 +458,21 @@
     DASHES: DASHES,
     POINTS_URL: POINTS_URL,
     ALARMS_URL: ALARMS_URL,
-    defaultSelection: defaultSelection,
-    sanitizeSelection: sanitizeSelection,
     sanitizeSpan: sanitizeSpan,
-    sanitizeFocus: sanitizeFocus,
     windowFor: windowFor,
     pointsFor: pointsFor,
     buildTrendUrl: buildTrendUrl,
     scaleFor: scaleFor,
+    holdScale: holdScale,
     ticksFor: ticksFor,
     bandsFor: bandsFor,
     markersFor: markersFor,
     pathFor: pathFor,
     renderChart: renderChart,
     penName: penName,
-    renderSelectors: renderSelectors,
-    renderLegend: renderLegend,
     formatValue: formatValue,
     formatClock: formatClock,
   };
-
-  /* ---- browser glue ---------------------------------------------------- */
-
-  var STORAGE_KEY = "plant-simulator.trends";
-  var TICK_MS = 2000;
-  var FETCH_TIMEOUT_MS = 4 * TICK_MS;
-  var FALLBACK_WIDTH = 640;
-
-  function readStored(storage) {
-    try {
-      var parsed = JSON.parse(storage.getItem(STORAGE_KEY));
-      return isObject(parsed) ? parsed : {};
-    } catch (error) {
-      return {};
-    }
-  }
-
-  function writeStored(storage, value) {
-    try {
-      storage.setItem(STORAGE_KEY, JSON.stringify(value));
-    } catch (error) {
-      // Storage can be absent or full; the display works without it.
-    }
-  }
-
-  function defaultStorage() {
-    try {
-      return root.localStorage;
-    } catch (error) {
-      return null;
-    }
-  }
-
-  /* Mount the trend into `container`. `options.fetch`, `options.pollMs`,
-   * `options.storage` and `options.width` exist so a page or test can supply
-   * its own transport, timer, storage and size. Returns {ready, update,
-   * refresh, poll, stop}: feed it every snapshot with `update`; `ready` resolves
-   * once the first fetch has been drawn. */
-  function mount(container, options) {
-    var settings = options || {};
-    var doFetch = settings.fetch || root.fetch.bind(root);
-    var storage = settings.storage === undefined ? defaultStorage() : settings.storage;
-    var pollMs = settings.pollMs === undefined ? TICK_MS : settings.pollMs;
-    var timeoutMs = settings.timeoutMs || FETCH_TIMEOUT_MS;
-    var doc = container.ownerDocument || root.document;
-    var stored = storage ? readStored(storage) : {};
-
-    var state = {
-      span: sanitizeSpan(stored.span),
-      selection: Array.isArray(stored.selection) ? stored.selection : null,
-      focus: typeof stored.focus === "string" ? stored.focus : null,
-      points: [],
-      limits: {},
-      descriptors: {},
-      maxTags: 8,
-      maxPoints: null,
-      data: {},
-      markers: [],
-      win: null,
-      simTime: null,
-      controllers: {},
-      problem: "",
-    };
-    var ticket = 0;
-    var drawnSelectors = null;
-    var drawnLegend = null;
-    var polling = false;
-    var timer = null;
-
-    var controlsEl = doc.createElement("div");
-    var legendEl = doc.createElement("div");
-    var chartEl = doc.createElement("div");
-    var statusEl = doc.createElement("p");
-    controlsEl.setAttribute("class", "trend-controls");
-    legendEl.setAttribute("class", "trend-legend-box");
-    chartEl.setAttribute("class", "trend-chart");
-    statusEl.setAttribute("class", "trend-status");
-    statusEl.setAttribute("role", "status");
-    container.appendChild(controlsEl);
-    container.appendChild(legendEl);
-    container.appendChild(chartEl);
-    container.appendChild(statusEl);
-
-    function persist() {
-      if (storage) writeStored(storage, { span: state.span, selection: state.selection, focus: state.focus });
-    }
-
-    /* The operator's pens, or the defaults until they choose any. A stored
-     * selection the plant no longer publishes a single point of falls back to
-     * the defaults too; one the operator emptied on purpose stays empty. */
-    function selection() {
-      var defaults = defaultSelection(state.points, state.limits, state.controllers, state.maxTags);
-      if (state.selection === null) return defaults;
-
-      var kept = sanitizeSelection(state.selection, state.points, state.maxTags);
-      return !kept.length && state.selection.length && state.points.length ? defaults : kept;
-    }
-
-    function width() {
-      return Math.max(280, Math.round(settings.width || container.clientWidth || FALLBACK_WIDTH));
-    }
-
-    function draw() {
-      var chosen = selection();
-      var focus = sanitizeFocus(state.focus, chosen);
-      var drawnWidth = width();
-      var latestValues = {};
-
-      var pens = chosen.map(function (point) {
-        var samples = state.data[point] || [];
-        latestValues[point] = latest(samples);
-        return { point: point, samples: samples };
-      });
-
-      var view = {
-        span: state.span,
-        points: state.points,
-        descriptors: state.descriptors,
-        selection: chosen,
-        maxTags: state.maxTags,
-        focus: focus,
-        latest: latestValues,
-      };
-      var selectors = renderSelectors(view);
-      if (selectors !== drawnSelectors) {
-        drawnSelectors = selectors;
-        controlsEl.innerHTML = selectors;
-      }
-      // The legend is rebuilt only when its rows change, so keyboard focus
-      // survives a tick; values are rewritten in place.
-      var legend = renderLegend({ span: view.span, descriptors: state.descriptors, selection: chosen, focus: focus, latest: {} });
-      if (legend !== drawnLegend) {
-        drawnLegend = legend;
-        legendEl.innerHTML = legend;
-      }
-      legendEl.querySelectorAll("[data-live-value]").forEach(function (node) {
-        node.textContent = formatValue(latestValues[node.getAttribute("data-value-point")]);
-      });
-
-      if (state.simTime === null) {
-        chartEl.innerHTML = '<p class="trend-empty">Waiting for the plant.</p>';
-      } else if (!chosen.length) {
-        chartEl.innerHTML = '<p class="trend-empty">No pens selected. Add one to draw it.</p>';
-      } else {
-        chartEl.innerHTML = renderChart({
-          width: drawnWidth,
-          height: drawnWidth < 480 ? 220 : 280,
-          window: state.win || windowFor(state.simTime, state.span),
-          pens: pens,
-          limits: state.limits,
-          focus: focus,
-          markers: state.markers,
-        });
-      }
-
-      statusEl.textContent = state.problem;
-    }
-
-    /* A request that never settles would hold the poll flag for good, so each
-     * one is given a deadline and aborted where the transport allows. */
-    async function get(url) {
-      var controller = typeof AbortController === "function" ? new AbortController() : null;
-      var deadlineTimer;
-      var deadline = new Promise(function (resolve, reject) {
-        deadlineTimer = root.setTimeout(function () {
-          if (controller) controller.abort();
-          reject(new Error("timed out"));
-        }, timeoutMs);
-      });
-
-      try {
-        var response = await Promise.race([doFetch(url, controller ? { signal: controller.signal } : undefined), deadline]);
-        if (!response.ok) throw new Error("HTTP " + response.status);
-        return await Promise.race([response.json(), deadline]);
-      } finally {
-        root.clearTimeout(deadlineTimer);
-      }
-    }
-
-    /* Refetch the point list, the window of the selected pens and the alarm
-     * record, and replace what is drawn with them. Nothing is skipped for a
-     * paused plant: a history swap can leave simulated time where it was, so
-     * only a fetch can tell. A newer refresh supersedes an older one still in
-     * flight. */
-    async function refresh() {
-      var mine = ++ticket;
-
-      try {
-        var listing = await get(POINTS_URL);
-        if (mine !== ticket) return;
-
-        state.points = Array.isArray(listing.points) ? listing.points : [];
-        state.limits = isObject(listing.limits) ? listing.limits : {};
-        state.descriptors = isObject(listing.descriptors) ? listing.descriptors : {};
-        state.maxTags = isNumber(listing.max_tags) ? listing.max_tags : state.maxTags;
-        state.maxPoints = isNumber(listing.max_points) ? listing.max_points : state.maxPoints;
-
-        var chosen = selection();
-
-        if (state.simTime === null || !chosen.length) {
-          state.data = {};
-          state.markers = [];
-          state.win = null;
-        } else {
-          // The window the data is fetched for is the window it is drawn in,
-          // however far a later snapshot has moved the clock meanwhile.
-          var win = windowFor(state.simTime, state.span);
-          var results = await Promise.all([
-            get(buildTrendUrl(chosen, win, pointsFor(width() - MARGIN.left - MARGIN.right, state.maxPoints))),
-            get(ALARMS_URL),
-          ]);
-          if (mine !== ticket) return;
-
-          state.data = isObject(results[0]) ? results[0] : {};
-          state.markers = markersFor(results[1], win);
-          state.win = win;
-        }
-
-        state.problem = "";
-      } catch (error) {
-        if (mine !== ticket) return;
-        state.problem = "Trend unavailable: " + error.message;
-      }
-
-      draw();
-    }
-
-    /* Apply an edit, persist it and refetch. A change to the selection waits
-     * for the point list: before it arrives every selection reads as empty,
-     * and would overwrite the operator's stored one. An edit turned away is
-     * drawn over, so a select snaps back to the real state. */
-    function edit(change, selects) {
-      if (selects && !state.points.length) {
-        drawnSelectors = null;
-        draw();
-        return;
-      }
-      change();
-      persist();
-      draw();
-      return refresh();
-    }
-
-    /* A rebuilt legend loses the focused button; give focus back to the focus
-     * button of `point`, so a keyboard user can press on. */
-    function refocus(point) {
-      if (!point) return;
-      Array.prototype.forEach.call(legendEl.querySelectorAll("[data-focus-point]"), function (button) {
-        if (button.getAttribute("data-focus-point") === point && button.focus) button.focus();
-      });
-    }
-
-    legendEl.addEventListener("click", function (event) {
-      var target = event.target;
-      if (!target || !target.closest) return;
-
-      var focusButton = target.closest("[data-focus-point]");
-      if (focusButton) {
-        state.focus = focusButton.getAttribute("data-focus-point");
-        persist();
-        draw();
-        refocus(state.focus);
-        return;
-      }
-
-      var removeButton = target.closest("[data-remove-point]");
-      if (removeButton) {
-        var gone = removeButton.getAttribute("data-remove-point");
-        var before = selection();
-        var result = edit(function () {
-          state.selection = before.filter(function (point) {
-            return point !== gone;
-          });
-        }, true);
-        // The row that held focus is gone: hand it to the pen that took its place.
-        var rest = state.selection === null ? [] : state.selection;
-        refocus(rest[Math.min(before.indexOf(gone), rest.length - 1)]);
-        return result;
-      }
-    });
-
-    controlsEl.addEventListener("change", function (event) {
-      var target = event.target;
-      if (!target || !target.getAttribute) return;
-
-      if (target.getAttribute("data-span") !== null) {
-        return edit(function () {
-          state.span = sanitizeSpan(Number(target.value));
-        });
-      }
-
-      if (target.getAttribute("data-add") !== null && target.value) {
-        return edit(function () {
-          state.selection = selection().concat([target.value]).slice(0, state.maxTags);
-          state.focus = target.value;
-        }, true);
-      }
-    });
-
-    /* One timer tick: a refresh, unless the page is in a hidden tab or the
-     * last tick is still waiting on a slow server (a user's edit may still
-     * supersede it, a later tick never does). */
-    async function poll() {
-      if ((root.document && root.document.hidden) || polling) return;
-      polling = true;
-      try {
-        await refresh();
-      } finally {
-        polling = false;
-      }
-    }
-
-    /* Called with every snapshot: remembers the clock and the loops. The first
-     * snapshot draws at once instead of waiting for the next tick. */
-    function update(snapshot) {
-      if (!isObject(snapshot) || !isNumber(snapshot.sim_time)) return;
-
-      var first = state.simTime === null;
-      state.simTime = snapshot.sim_time;
-      if (isObject(snapshot.controllers)) state.controllers = snapshot.controllers;
-      if (first) return refresh();
-    }
-
-    draw();
-    var ready = refresh();
-    if (pollMs) timer = root.setInterval(poll, pollMs);
-
-    // A tab that comes back to the front catches up at once, not on the next tick.
-    var listening = pollMs && root.document && root.document.addEventListener;
-    if (listening) root.document.addEventListener("visibilitychange", poll);
-
-    return {
-      ready: ready,
-      update: update,
-      refresh: refresh,
-      poll: poll,
-      stop: function () {
-        if (timer !== null) root.clearInterval(timer);
-        if (listening) root.document.removeEventListener("visibilitychange", poll);
-      },
-    };
-  }
-
-  api.mount = mount;
 
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.Trends = api;

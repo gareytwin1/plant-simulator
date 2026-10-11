@@ -12,18 +12,16 @@
 {% block content %}
 <div id="console" class="console" data-connection="connecting" data-interval-seconds="{{ stream_interval_seconds }}">
   <h1 class="visually-hidden">Console</h1>
-  {# The workspace fills the page under the ribbon. The sections below it go
-     as their replacements land on the canvas (T20-11 and T20-12). #}
+  {# The workspace fills the page under the ribbon. The section below it goes
+     when the alarm overlay lands on the canvas (T20-12). #}
   <section class="workspace" aria-label="Plant">
     <div id="process-graphic" class="canvas" data-live-value></div>
+    <div id="window-layer" class="window-layer"></div>
+    <div id="trend-tray" class="tray" aria-label="Minimised trends" hidden></div>
     <div id="faceplate-layer" class="faceplate-layer"></div>
     <p class="connection-indicator" id="connection-indicator" role="status">CONNECTING</p>
   </section>
   <div class="console-sections">
-    <section aria-labelledby="trends-heading">
-      <h2 id="trends-heading">Trends</h2>
-      <div id="trends" class="trend"></div>
-    </section>
     <section aria-labelledby="alarms-heading">
       <h2 id="alarms-heading" tabindex="-1">Alarms</h2>
       <div id="alarm-banner"></div>
@@ -41,6 +39,7 @@
 <script src="{{ url_for('static', filename='js/faceplate.js') }}"></script>
 <script src="{{ url_for('static', filename='js/canvas.js') }}"></script>
 <script src="{{ url_for('static', filename='js/trends.js') }}"></script>
+<script src="{{ url_for('static', filename='js/trendwindows.js') }}"></script>
 <script>
   (function () {
     var consoleEl = document.getElementById("console");
@@ -56,12 +55,25 @@
     );
     // The shown plant names its graphic; a scenario load or unload swaps it.
     var graphic = ProcessGraphic.follow(document.getElementById("process-graphic"));
-    var canvas = Canvas.mount({
+    var canvas = null;
+    // A trend window and the faceplate each keep clear of the other.
+    var trends = TrendWindows.mount({
+      workspace: document.querySelector(".workspace"),
+      layer: document.getElementById("window-layer"),
+      tray: document.getElementById("trend-tray"),
+      obstacles: function () {
+        var panel = canvas ? canvas.panelRect() : null;
+        return panel ? [{ rect: panel, weight: 4 }] : [];
+      },
+      onChange: function () { if (canvas) canvas.mark(); }
+    });
+    canvas = Canvas.mount({
       canvas: document.getElementById("process-graphic"),
       workspace: document.querySelector(".workspace"),
-      layer: document.getElementById("faceplate-layer")
+      layer: document.getElementById("faceplate-layer"),
+      obstacles: trends.obstacles,
+      trends: trends
     });
-    var trends = Trends.mount(document.getElementById("trends"));
     ConnectionMonitor.mount(consoleEl, document.getElementById("connection-indicator"), {
       intervalSeconds: Number(consoleEl.getAttribute("data-interval-seconds")),
       // Each consumer is isolated: connection.js does not guard this callback,
@@ -74,7 +86,7 @@
       }
     });
     // Last, and isolated: a ribbon that cannot mount must not take the console with it.
-    try { ribbon = Ribbon.mount(document, { onChange: function () { graphic.refresh(); canvas.refresh(); } }); } catch (error) { console.error(error); }
+    try { ribbon = Ribbon.mount(document, { onChange: function () { graphic.refresh(); canvas.refresh(); trends.refresh(); } }); } catch (error) { console.error(error); }
   })();
 </script>
 {% endblock %}

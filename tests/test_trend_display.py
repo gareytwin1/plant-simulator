@@ -1,10 +1,11 @@
-"""Trend display (T17-4): static/js/trends.js and static/css/trends.css.
+"""Trend rendering (T17-4, reshaped by T20-11): static/js/trends.js and the
+chart rules in static/css/trends.css.
 
-There is no JavaScript test runner in this repo, so the pure half of trends.js
+There is no JavaScript test runner in this repo, so trends.js, which is pure,
 runs under Node (a subprocess, JSON in and out) and is fed responses recorded
 from a real `TrainingSession` through the real trend and alarm blueprints. The
-request trends.js builds is sent to the real trend endpoint, and the glue runs
-over a minimal DOM whose fetch replays those recordings.
+request it builds is sent to the real trend endpoint. The windows that show it
+are tests/test_trend_windows.py's.
 """
 
 import json
@@ -35,9 +36,6 @@ TOKENS_CSS = ROOT / "static" / "css" / "tokens.css"
 needs_node = pytest.mark.skipif(shutil.which("node") is None, reason="node is not installed")
 
 LEVEL = "V-101.level"
-# Every point with evaluated limits, then PIC-101's PV and SP. K-101's and
-# P-101's are solved points the engine publishes on each machine's row (T9-5).
-DEFAULTS = ["K-101.outlet_pressure", "P-101.flow", LEVEL, "PIC-101.pv", "PIC-101.sp"]
 STEPS = 40
 
 
@@ -105,36 +103,7 @@ def free(session, client):
     return {"snapshot": snapshot, **record(client)}
 
 
-# ---- Selection, window and request ----
-
-
-@needs_node
-def test_the_default_pens_are_the_limited_points_then_each_loops_pv_and_sp(free):
-    chosen = run_js(
-        "return T.defaultSelection(data.points.points, data.points.limits, data.snapshot.controllers, data.points.max_tags);",
-        **free,
-    )
-
-    assert chosen == DEFAULTS
-
-
-@needs_node
-def test_the_default_pens_never_exceed_the_servers_bound(free):
-    chosen = run_js(
-        "return T.defaultSelection(data.points.points, data.points.limits, data.snapshot.controllers, 2);", **free,
-    )
-
-    assert chosen == DEFAULTS[:2]
-
-
-@needs_node
-def test_a_selection_keeps_only_points_the_plant_publishes_without_repeats(free):
-    chosen = run_js(
-        "return T.sanitizeSelection([data.a, 'GONE.x', data.a, data.b], data.points.points, 8);",
-        a=LEVEL, b="N-101.pressure", **free,
-    )
-
-    assert chosen == [LEVEL, "N-101.pressure"]
+# ---- Span, window and request ----
 
 
 @needs_node
@@ -215,6 +184,67 @@ def test_ticks_are_round_numbers_inside_the_range():
     assert ticks == pytest.approx([0.2, 0.4, 0.6, 0.8])
 
 
+# ---- The held scale ----
+
+
+@needs_node
+def test_a_held_scale_starts_as_the_pens_own_scale():
+    result = run_js("return [T.holdScale(null, data.s, {}), T.scaleFor(data.s, {})];", s=[[0, 10], [1, 20]])
+
+    assert result[0] == result[1]
+
+
+@needs_node
+def test_a_held_scale_widens_when_a_reading_leaves_it_and_never_narrows():
+    result = run_js(
+        """
+        let held = T.holdScale(null, [[0, 10], [1, 20]], {});
+        const first = held;
+        held = T.holdScale(held, [[2, 30]], {});            // a reading above it: widens
+        const widened = held;
+        held = T.holdScale(held, [[3, 15], [4, 16]], {});   // a quiet stretch: does not narrow
+        return { first, widened, quiet: held };
+        """,
+    )
+
+    assert result["first"] == pytest.approx({"lo": 9.5, "hi": 20.5})
+    # A lone reading of 30 scales to 30 +/- 5%; the held scale takes it in.
+    assert result["widened"] == pytest.approx({"lo": 9.5, "hi": 31.5})
+    assert result["quiet"] == result["widened"]
+
+
+@needs_node
+def test_a_held_scale_takes_in_the_limits_and_survives_an_empty_fetch():
+    result = run_js(
+        """
+        const held = T.holdScale(null, [[0, 0.5]], { warning_hi: 0.8 });
+        return { held, empty: T.holdScale(held, [[1, null]], {}), none: T.holdScale(held, [], undefined) };
+        """,
+    )
+
+    assert result["held"]["hi"] > 0.8
+    assert result["empty"] == result["held"] == result["none"]
+
+
+@needs_node
+def test_a_chart_drawn_on_a_held_scale_uses_it_for_the_axis():
+    pens = [{"point": "X.p", "samples": [[0, 15], [100, 16]]}]
+
+    own = render(pens)
+    held = render(pens, scales={"X.p": {"lo": 0, "hi": 100}})
+
+    labels = lambda svg: re.findall(r'class="trend-tick" x="[\d.]+" y="[\d.]+" text-anchor="end"[^>]*>([^<]*)<', svg)
+    assert "100" in labels(held) and "0" in labels(held)
+    assert "100" not in labels(own)
+
+
+@needs_node
+def test_a_chart_can_be_given_its_accessible_name():
+    svg = render([{"point": "X.p", "samples": [[0, 1], [100, 2]]}], label="Trend of X p")
+
+    assert 'aria-label="Trend of X p"' in svg
+
+
 # ---- Bands ----
 
 
@@ -274,9 +304,9 @@ def svg_numbers(svg, element, attribute):
 def render(pens, **extra):
     return run_js(
         "return T.renderChart({width: data.width, height: 260, window: data.window, pens: data.pens,"
-        " limits: data.limits, focus: data.focus, markers: data.markers});",
+        " limits: data.limits, focus: data.focus, markers: data.markers, scales: data.scales, label: data.label});",
         **{"width": 640, "window": {"from": 0, "to": 100}, "limits": {}, "focus": pens[0]["point"],
-           "markers": [], "pens": pens, **extra},
+           "markers": [], "pens": pens, "scales": None, "label": None, **extra},
     )
 
 
@@ -447,13 +477,11 @@ def test_everything_drawn_stays_inside_the_view_box_at_any_width(free, width):
     assert float(plot.group(2)) >= 150
 
 
-def test_the_chart_scales_to_its_container_and_the_legend_wraps():
+def test_a_window_chart_fills_its_window_and_hides_the_pen_number():
     css = TRENDS_CSS.read_text()
 
-    assert re.search(r"\.trend-svg\s*\{[^}]*width:\s*100%;[^}]*height:\s*auto", css)
-    assert re.search(r"\.trend-legend\s*\{[^}]*repeat\(auto-fill,\s*minmax\(min\(100%,", css)
-    assert re.search(r"\.trend-selectors\s*\{[^}]*flex-wrap:\s*wrap", css)
-    assert re.search(r"\.trend-pen-point\s*\{[^}]*text-overflow:\s*ellipsis", css)
+    assert re.search(r"\.tw-chart \.trend-svg\s*\{[^}]*width:\s*100%;[^}]*height:\s*100%", css)
+    assert re.search(r"\.tw-chart \.trend-pen-number\s*\{[^}]*display:\s*none", css)
 
 
 # ---- Themes ----
@@ -469,8 +497,9 @@ def test_the_stylesheet_uses_tokens_only():
     assert set(re.findall(r"var\((--[\w-]+)\)", css)) <= defined
 
 
-def test_the_script_hard_codes_no_colour():
-    script = TRENDS_JS.read_text()
+@pytest.mark.parametrize("name", ["trends.js", "trendwindows.js"])
+def test_the_script_hard_codes_no_colour(name):
+    script = (TRENDS_JS.parent / name).read_text()
 
     assert not re.search(r"#[0-9a-fA-F]{3,8}\b", script)
     assert not re.search(r"\b(rgb|hsl)a?\(", script)
@@ -494,503 +523,18 @@ def test_every_drawn_colour_is_legible_in_both_themes(theme):
             assert contrast(t[f"--alarm-{priority}-mark"], t[f"--band-{tint}-tint"]) >= 1.5, (theme, priority, tint)
 
 
-def test_the_console_loads_the_trend_after_its_tokens_and_mounts_it_on_the_stream():
+def test_the_console_loads_the_trend_windows_and_feeds_them_the_stream():
     page = (ROOT / "templates" / "console.html").read_text()
 
-    assert "css/trends.css" in page and "js/trends.js" in page
-    assert "Trends.mount(" in page
+    assert "css/trends.css" in page
+    assert page.index("js/trends.js") < page.index("js/trendwindows.js")
+    assert "TrendWindows.mount(" in page
     assert re.search(r"try \{ trends\.update\(snapshot\); \} catch", page)
+    # The multi-pen panel is gone.
+    assert 'id="trends"' not in page and "Trends.mount(" not in page
 
 
-# ---- The browser glue, over a minimal DOM ----
-
-FAKE_DOM = """
-class Node {
-  constructor(tag) { this.tagName = tag.toUpperCase(); this.attrs = {}; this.children = [];
-    this.listeners = {}; this._html = ''; this._text = ''; this.ownerDocument = doc; this.clientWidth = 640; }
-  setAttribute(k, v) { this.attrs[k] = String(v); }
-  getAttribute(k) { return k in this.attrs ? this.attrs[k] : null; }
-  appendChild(c) { this.children.push(c); return c; }
-  set innerHTML(h) { this._html = String(h); this.sets = (this.sets || 0) + 1; }
-  get innerHTML() { return this._html; }
-  set textContent(t) { this._text = String(t); }
-  get textContent() { return this._text; }
-  addEventListener(type, fn) { (this.listeners[type] = this.listeners[type] || []).push(fn); }
-  // Just the live values of a legend: a node whose text can be rewritten in place.
-  querySelectorAll(sel) {
-    if (sel === '[data-focus-point]') {
-      return [...this._html.matchAll(/data-focus-point="([^"]*)"/g)].map(m => ({
-        getAttribute: a => (a === 'data-focus-point' ? m[1] : null),
-        focus: () => focusLog.push(m[1]),
-      }));
-    }
-    if (sel !== '[data-live-value]') return [];
-    const host = this;
-    const found = [...this._html.matchAll(/data-live-value data-value-point="([^"]*)"/g)].map(m => m[1]);
-    return found.map(point => ({
-      getAttribute: a => (a === 'data-value-point' ? point : null),
-      set textContent(text) {
-        host._html = host._html.replace(new RegExp('(data-value-point="' + point + '">)[^<]*'), '$1' + text);
-      },
-    }));
-  }
-  async fire(type, event) { for (const fn of this.listeners[type] || []) await fn(event); }
-}
-const focusLog = [];
-const doc = { createElement: tag => new Node(tag) };
-const container = new Node('div');
-const part = cls => container.children.find(c => c.attrs['class'] === cls);
-
-const storageData = {};
-const storage = { getItem: k => (k in storageData ? storageData[k] : null), setItem: (k, v) => { storageData[k] = v; } };
-if (data.stored) storageData['plant-simulator.trends'] = JSON.stringify(data.stored);
-
-let served = data.served;
-const calls = [];
-const fetch = async url => {
-  calls.push(url);
-  const [path, query = ''] = url.split('?');
-  const params = new URLSearchParams(query);
-  const json = body => ({ ok: true, status: 200, json: async () => body });
-  if (path === '/api/trend/points') return json(served.points);
-  if (path === '/api/alarms/history') return json(served.alarms);
-  if (path === '/api/trend') {
-    const from = Number(params.get('from')), to = Number(params.get('to'));
-    const out = {};
-    for (const tag of params.get('tags').split(',')) {
-      out[tag] = (served.series[tag] || []).filter(([t]) => t >= from && t <= to);
-    }
-    return json(out);
-  }
-  return { ok: false, status: 404, json: async () => ({}) };
-};
-const trends = T.mount(container, { fetch, storage, width: 640, pollMs: 0 });
-const chart = () => part('trend-chart').innerHTML;
-const legend = () => part('trend-legend-box').innerHTML;
-const selectors = () => part('trend-controls');
-const pens = () => (legend().match(/data-focus-point="[^"]*"/g) || [])
-  .map(m => m.match(/data-focus-point="([^"]*)"/)[1]);
-const pathsOf = () => Object.fromEntries((chart().match(/<path class="trend-pen"[^>]*>/g) || [])
-  .map(m => [m.match(/data-point="([^"]*)"/)[1], m.match(/ d="([^"]*)"/)[1]]));
-const click = (host, attr, value) => host.fire('click', { target: { closest: sel =>
-  sel === '[' + attr + ']' ? { getAttribute: () => value } : null } });
-const change = (host, attr, value) => host.fire('change', { target: {
-  value, getAttribute: a => (a === attr ? '' : null) } });
-const start = async () => { await trends.ready; await trends.update(data.snapshot); };
-"""
-
-
-def run_glue(body, **data):
-    return run_js(FAKE_DOM + body, **data)
-
-
-def served(free):
-    return {key: free[key] for key in ("points", "series", "alarms")}
-
-
-@needs_node
-def test_the_first_snapshot_draws_the_default_pens_with_their_bands(free):
-    result = run_glue(
-        """
-        await start();
-        return { pens: pens(), chart: chart(), legend: legend(), calls };
-        """,
-        served=served(free), snapshot=free["snapshot"],
-    )
-
-    assert result["pens"] == DEFAULTS
-    assert 'class="trend-band"' in result["chart"]
-    assert "HI 330" in result["chart"] and "HIHI 350" in result["chart"]
-    assert result["legend"].count("trend-pen-row") == len(DEFAULTS)
-    assert any(call.startswith(f"/api/trend?tags={','.join(DEFAULTS)}&from=") for call in result["calls"])
-
-
-@needs_node
-def test_a_timer_tick_asks_for_the_list_the_window_and_the_alarm_record_even_when_paused(free):
-    result = run_glue(
-        """
-        await start();
-        calls.length = 0;
-        await trends.poll();
-        return calls.map(c => c.split('?')[0]).sort();
-        """,
-        served=served(free), snapshot={**free["snapshot"], "running": False},
-    )
-
-    assert result == ["/api/alarms/history", "/api/trend", "/api/trend/points"]
-
-
-@needs_node
-def test_a_hidden_tab_makes_no_requests(free):
-    result = run_glue(
-        """
-        await start();
-        calls.length = 0;
-        globalThis.document = { hidden: true };
-        await trends.poll();
-        const hidden = calls.length;
-        globalThis.document = { hidden: false };
-        await trends.poll();
-        delete globalThis.document;
-        return { hidden, visible: calls.length };
-        """,
-        served=served(free), snapshot=free["snapshot"],
-    )
-
-    assert result == {"hidden": 0, "visible": 3}
-
-
-@needs_node
-def test_a_swap_that_leaves_a_paused_plants_time_unchanged_still_replaces_the_samples(free):
-    swapped = json.loads(json.dumps(served(free)))
-    swapped["series"][LEVEL] = [[t, v + 0.1] for t, v in swapped["series"][LEVEL]]
-
-    result = run_glue(
-        """
-        await start();
-        const before = pathsOf();
-        served = data.swapped;
-        await trends.poll();
-        return { before, after: pathsOf() };
-        """,
-        served=served(free), swapped=swapped, snapshot={**free["snapshot"], "running": False},
-    )
-
-    assert result["before"][LEVEL] != result["after"][LEVEL]
-
-
-@needs_node
-def test_a_history_swap_replaces_every_drawn_sample(session, client, free):
-    session.load("pump-trip")
-    step(session, 15)
-    loaded = record(client)
-
-    result = run_glue(
-        """
-        await start();
-        const before = pathsOf();
-        served = data.after;
-        await trends.update({ ...data.snapshot, sim_time: data.after_time });
-        await trends.refresh();
-        return { before, after: pathsOf() };
-        """,
-        served=served(free), after=served(loaded), snapshot=free["snapshot"],
-        after_time=session.training_scheduler.snapshot().sim_time,
-    )
-
-    assert result["before"][LEVEL] != result["after"][LEVEL]
-    assert result["after"][LEVEL].count("M") == 1
-
-
-@needs_node
-def test_removing_adding_focusing_and_the_span_persist_in_storage(free):
-    result = run_glue(
-        """
-        await start();
-        await click(part('trend-legend-box'), 'data-remove-point', 'PIC-101.sp');
-        const afterRemove = pens();
-        await change(selectors(), 'data-add', 'N-101.pressure');
-        await change(selectors(), 'data-span', '5');
-        await click(part('trend-legend-box'), 'data-focus-point', 'PIC-101.pv');
-        return { afterRemove, pens: pens(), stored: JSON.parse(storageData['plant-simulator.trends']),
-                 url: calls.filter(c => c.startsWith('/api/trend?')).pop() };
-        """,
-        served=served(free), snapshot=free["snapshot"],
-    )
-
-    assert result["afterRemove"] == DEFAULTS[:-1]
-    assert result["pens"] == [*DEFAULTS[:-1], "N-101.pressure"]
-    assert result["stored"] == {"span": 5, "selection": result["pens"], "focus": "PIC-101.pv"}
-    assert "from=" in result["url"]
-    sim_time = free["snapshot"]["sim_time"]
-    assert f"from={int(sim_time) - 300}&to={int(sim_time)}&" in result["url"]
-
-
-@needs_node
-def test_a_stored_selection_comes_back_and_unknown_points_are_dropped(free):
-    result = run_glue(
-        """
-        await start();
-        return pens();
-        """,
-        served=served(free), snapshot=free["snapshot"],
-        stored={"span": 30, "selection": ["N-101.pressure", "GONE.x", LEVEL], "focus": LEVEL},
-    )
-
-    assert result == ["N-101.pressure", LEVEL]
-
-
-@needs_node
-def test_an_emptied_selection_stays_empty_and_says_so(free):
-    result = run_glue(
-        """
-        await start();
-        for (const point of pens()) await click(part('trend-legend-box'), 'data-remove-point', point);
-        return { chart: chart(), pens: pens() };
-        """,
-        served=served(free), snapshot=free["snapshot"],
-    )
-
-    assert result["pens"] == []
-    assert "No pens selected" in result["chart"]
-
-
-@needs_node
-def test_the_pen_bound_comes_from_the_server_and_disables_adding_at_the_limit(free):
-    points = {**free["points"], "max_tags": 3}
-    result = run_glue(
-        """
-        await start();
-        return selectors().innerHTML;
-        """,
-        served={**served(free), "points": points}, snapshot=free["snapshot"],
-    )
-
-    assert "Pen limit reached (3)" in result
-    assert "data-add disabled" in result
-
-
-@needs_node
-def test_a_failing_endpoint_is_reported_and_the_display_survives(free):
-    result = run_glue(
-        """
-        const host = new Node('div');
-        const broken = T.mount(host, { fetch: async () => ({ ok: false, status: 500, json: async () => ({}) }),
-          storage: null, width: 640, pollMs: 0 });
-        await broken.ready;
-        await broken.update(data.snapshot);
-        return host.children.find(c => c.attrs['class'] === 'trend-status').textContent;
-        """,
-        served=served(free), snapshot=free["snapshot"],
-    )
-
-    assert result == "Trend unavailable: HTTP 500"
-
-
-@needs_node
-def test_storage_that_throws_does_not_stop_the_display(free):
-    result = run_glue(
-        """
-        const hostile = { getItem() { throw new Error('blocked'); }, setItem() { throw new Error('blocked'); } };
-        const host = new Node('div');
-        const shown = T.mount(host, { fetch, storage: hostile, width: 640, pollMs: 0 });
-        await shown.ready;
-        await shown.update(data.snapshot);
-        await click(host.children[1], 'data-remove-point', 'PIC-101.sp');
-        return host.children.find(c => c.attrs['class'] === 'trend-chart').innerHTML.includes('trend-pen');
-        """,
-        served=served(free), snapshot=free["snapshot"],
-    )
-
-    assert result is True
-
-
-@needs_node
-def test_a_tick_rebuilds_neither_a_selector_nor_the_legend_the_operator_may_be_using(free):
-    moved = json.loads(json.dumps(served(free)))
-    moved["series"][LEVEL] = [[t, 0.25] for t, _ in moved["series"][LEVEL]]
-
-    result = run_glue(
-        """
-        await start();
-        const before = { selectors: selectors().sets, legend: part('trend-legend-box').sets };
-        const shown = legend();
-        served = data.moved;
-        await trends.poll();
-        return { before, after: { selectors: selectors().sets, legend: part('trend-legend-box').sets },
-                 shown, now: legend() };
-        """,
-        served=served(free), moved=moved, snapshot=free["snapshot"],
-    )
-
-    assert result["after"] == result["before"]
-    assert result["now"] != result["shown"]
-    assert re.search(r'data-value-point="V-101.level">0.25<', result["now"])
-
-
-@needs_node
-def test_changing_the_focus_or_a_pen_does_rebuild_the_legend(free):
-    result = run_glue(
-        """
-        await start();
-        const before = part('trend-legend-box').sets;
-        await click(part('trend-legend-box'), 'data-focus-point', 'PIC-101.pv');
-        return { before, after: part('trend-legend-box').sets, legend: legend() };
-        """,
-        served=served(free), snapshot=free["snapshot"],
-    )
-
-    assert result["after"] == result["before"] + 1
-    assert re.search(r'data-pen="4" data-focus="true"', result["legend"])
-
-
-@needs_node
-def test_a_scenario_alarm_shows_as_a_marker_on_the_trend(session, client):
-    session.load("pump-trip")
-    session.start()
-    snapshot = step(session, 120)
-    recorded = record(client)
-
-    result = run_glue(
-        """
-        await start();
-        return chart();
-        """,
-        served=served(recorded), snapshot=snapshot,
-    )
-
-    raised = [entry for entry in recorded["alarms"] if entry["type"] == "alarm"]
-    assert result.count('class="trend-marker"') == len(
-        [e for e in raised if snapshot["sim_time"] - 600 <= e["sim_time"] <= snapshot["sim_time"]]
-    )
-
-
-@needs_node
-def test_keyboard_focus_goes_back_to_the_legend_after_a_press_rebuilds_it(free):
-    result = run_glue(
-        """
-        await start();
-        await click(part('trend-legend-box'), 'data-focus-point', 'PIC-101.pv');
-        const afterFocus = [...focusLog];
-        await click(part('trend-legend-box'), 'data-remove-point', 'PIC-101.pv');
-        return { afterFocus, afterRemove: [...focusLog] };
-        """,
-        served=served(free), snapshot=free["snapshot"],
-    )
-
-    assert result["afterFocus"] == ["PIC-101.pv"]
-    assert result["afterRemove"][-1] == "PIC-101.sp"
-
-
-@needs_node
-def test_a_tick_while_the_last_one_is_still_waiting_is_skipped_so_the_display_still_draws(free):
-    result = run_glue(
-        """
-        await start();
-        let sent = 0;
-        const slowFetch = async url => { sent += 1; await new Promise(r => setTimeout(r, 30)); return fetch(url); };
-        const host = new Node('div');
-        const shown = T.mount(host, { fetch: slowFetch, storage: null, width: 640, pollMs: 0 });
-        await shown.ready;
-        await shown.update(data.snapshot);
-        sent = 0;
-        const first = shown.poll();
-        const second = shown.poll();
-        await Promise.all([first, second]);
-        return { sent, drawn: host.children.find(c => c.attrs['class'] === 'trend-chart').innerHTML.includes('trend-pen') };
-        """,
-        served=served(free), snapshot=free["snapshot"],
-    )
-
-    assert result == {"sent": 3, "drawn": True}
-
-
-@needs_node
-def test_the_chart_keeps_the_window_its_data_was_fetched_for(free):
-    result = run_glue(
-        """
-        await start();
-        const drawn = chart();
-        await trends.update({ ...data.snapshot, sim_time: data.snapshot.sim_time + 500 });
-        // Something else draws (a focus press) after the clock has moved.
-        await click(part('trend-legend-box'), 'data-focus-point', 'PIC-101.pv');
-        // The time axis only: the value axis follows whichever pen is focused.
-        const ticks = html => JSON.stringify(html.match(/<text class="trend-tick"[^>]*text-anchor="middle">[^<]*<\\/text>/g));
-        const paths = html => JSON.stringify((html.match(/<path class="trend-pen"[^>]*>/g) || [])
-          .map(m => [m.match(/data-point="([^"]*)"/)[1], m.match(/ d="([^"]*)"/)[1]]).sort());
-        return { sameTicks: ticks(chart()) === ticks(drawn), samePaths: paths(chart()) === paths(drawn),
-                 hasTicks: ticks(drawn).length > 10 };
-        """,
-        served=served(free), snapshot=free["snapshot"],
-    )
-
-    assert result == {"sameTicks": True, "samePaths": True, "hasTicks": True}
-
-
-@needs_node
-def test_a_request_that_never_settles_times_out_and_the_next_tick_recovers(free):
-    result = run_glue(
-        """
-        await start();
-        let hang = true;
-        const flaky = url => (hang ? new Promise(() => {}) : fetch(url));
-        const host = new Node('div');
-        const shown = T.mount(host, { fetch: flaky, storage: null, width: 640, pollMs: 0, timeoutMs: 40 });
-        await shown.update(data.snapshot);
-        await shown.poll();
-        const status = host.children.find(c => c.attrs['class'] === 'trend-status').textContent;
-        hang = false;
-        await shown.poll();
-        return { status, drawn: host.children.find(c => c.attrs['class'] === 'trend-chart').innerHTML.includes('trend-pen') };
-        """,
-        served=served(free), snapshot=free["snapshot"],
-    )
-
-    assert result == {"status": "Trend unavailable: timed out", "drawn": True}
-
-
-@needs_node
-def test_a_span_change_before_the_point_list_arrives_is_kept_and_a_pen_edit_is_turned_away(free):
-    result = run_glue(
-        """
-        const host = new Node('div');
-        const early = T.mount(host, { fetch: () => new Promise(() => {}), storage, width: 640, pollMs: 0, timeoutMs: 20 });
-        await change(host.children[0], 'data-span', '5');
-        const afterSpan = JSON.parse(storageData['plant-simulator.trends']);
-        const setsBefore = host.children[0].sets;
-        await change(host.children[0], 'data-add', 'N-101.pressure');
-        return { afterSpan, snapped: host.children[0].sets === setsBefore + 1,
-                 stored: JSON.parse(storageData['plant-simulator.trends']) };
-        """,
-        served=served(free), snapshot=free["snapshot"],
-        stored={"span": 30, "selection": [LEVEL], "focus": LEVEL},
-    )
-
-    assert result["afterSpan"] == {"span": 5, "selection": [LEVEL], "focus": LEVEL}
-    assert result["snapped"] is True
-    assert result["stored"] == result["afterSpan"]
-
-
-@needs_node
-def test_a_tab_that_comes_back_to_the_front_refreshes_at_once(free):
-    result = run_glue(
-        """
-        let onChange;
-        globalThis.document = { hidden: true, addEventListener: (type, fn) => { onChange = fn; },
-                                removeEventListener: () => { onChange = null; } };
-        const host = new Node('div');
-        const shown = T.mount(host, { fetch, storage: null, width: 640, pollMs: 60000 });
-        await shown.ready;
-        await shown.update(data.snapshot);
-        calls.length = 0;
-        await onChange();
-        const whileHidden = calls.length;
-        document.hidden = false;
-        await onChange();
-        const afterShown = calls.length;
-        shown.stop();
-        const removed = onChange === null;
-        delete globalThis.document;
-        return { whileHidden, afterShown, removed };
-        """,
-        served=served(free), snapshot=free["snapshot"],
-    )
-
-    assert result == {"whileHidden": 0, "afterShown": 3, "removed": True}
-
-
-@needs_node
-def test_a_stored_selection_the_plant_no_longer_publishes_falls_back_to_the_defaults(free):
-    result = run_glue(
-        """
-        await start();
-        return pens();
-        """,
-        served=served(free), snapshot=free["snapshot"],
-        stored={"span": 10, "selection": ["GONE.a", "GONE.b"], "focus": "GONE.a"},
-    )
-
-    assert result == DEFAULTS
+# ---- Names ----
 
 
 @needs_node
@@ -1004,21 +548,3 @@ def test_a_pen_is_named_by_its_id_and_descriptor_and_a_point_without_one_by_its_
     )
 
     assert names == ["K-101 discharge pressure", "PIC-101 pv", "X-1.unlisted", "K-101.outlet_pressure"]
-
-
-@needs_node
-def test_the_legend_and_the_add_a_pen_list_show_the_descriptor_and_keep_the_point_id(free):
-    descriptors = free["points"]["descriptors"]
-    point = "K-101.outlet_pressure"
-
-    legend, selectors = run_js(
-        "return [T.renderLegend({span: 10, descriptors: data.d, selection: [data.p], focus: data.p, latest: {}}),"
-        " T.renderSelectors({span: 10, points: [data.p], descriptors: data.d, selection: [], maxTags: 8})];",
-        d=descriptors, p=point,
-    )
-
-    assert ">K-101 discharge pressure</span>" in legend
-    assert f'title="{point}"' in legend
-    assert f'data-remove-point="{point}"' in legend
-    assert f'aria-label="Remove {point}"' in legend
-    assert f'<option value="{point}">K-101 discharge pressure</option>' in selectors

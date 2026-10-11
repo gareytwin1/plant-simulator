@@ -775,3 +775,141 @@ def test_the_selection_rules_use_tokens_only():
 
     assert not re.search(r"#[0-9a-fA-F]{3,8}\b", css)
     assert not re.search(r"\b(rgb|hsl)a?\(", css)
+
+
+# ---- Readings open their trend (T20-11) ----
+
+TRENDS = """
+const shown = new Set();
+const opened = [];
+const trends = { open: (point, opener, anchor) => { opened.push({ point, opener, anchor }); shown.add(point); },
+                 isOpen: point => shown.has(point) };
+const reading = (s, path) => s.svg.querySelectorAll('[data-bind]').find(n => n.getAttribute('data-bind') === path);
+"""
+
+
+@needs_node
+def test_with_trend_windows_a_reading_outside_a_device_is_a_button_to_its_trend(console):
+    result = run_scene(
+        TRENDS
+        + """
+        const s = await boot({ trends });
+        const node = reading(s, 'nodes.N-201.pressure');
+        const stream = reading(s, 'streams.B-PV-101.flow');
+        const named = node.getAttribute('aria-label');
+        node.textContent = '201.3 psia';
+        s.canvas.update(data.snapshot);
+        const kept = node.getAttribute('aria-label') === named;
+        const inside = group(s.svg, 'data-tag', 'P-101').querySelector('text');
+        const state = n => ({ role: n.getAttribute('role'), tab: n.getAttribute('tabindex'), kind: n.getAttribute('data-canvas-kind'),
+                              tag: n.getAttribute('data-canvas-tag'), label: n.getAttribute('aria-label') });
+        node.fire('click');
+        const enter = stream.fire('keydown', { key: 'Enter' });
+        return { kept, node: state(node), stream: state(stream), inside: inside.getAttribute('role'),
+                 opened: opened.map(o => ({ point: o.point, opener: o.opener === node ? 'node' : o.opener === stream ? 'stream' : '?',
+                                            anchor: o.anchor })),
+                 enter: enter.defaultPrevented, panels: panels(s).length };
+        """,
+        console,
+    )
+
+    assert result["node"] == {"role": "button", "tab": "0", "kind": "trend", "tag": "N-201.pressure",
+                              "label": "N-201 pressure. Open trend."}
+    assert result["stream"]["kind"] == "trend" and result["stream"]["tag"] == "B-PV-101.flow"
+    # The name does not follow the value, so a screen reader is not told again every snapshot.
+    assert result["kept"] is True
+    # A reading inside a device stays part of the device's button.
+    assert result["inside"] is None
+    # A trend opens beside the reading it was opened from; no faceplate opens.
+    assert result["opened"] == [
+        # A reading with no size (not laid out) has nothing to sit beside.
+        {"point": "N-201.pressure", "opener": "node", "anchor": None},
+        {"point": "B-PV-101.flow", "opener": "stream", "anchor": {"left": 60, "top": 500, "right": 110, "bottom": 516}},
+    ]
+    assert result["enter"] is True
+    assert result["panels"] == 0
+
+
+@needs_node
+def test_a_reading_whose_trend_is_open_is_marked(console):
+    result = run_scene(
+        TRENDS
+        + """
+        const s = await boot({ trends });
+        const node = reading(s, 'nodes.N-201.pressure');
+        const before = node.getAttribute('data-selected');
+        shown.add('N-201.pressure');
+        s.canvas.mark();
+        const open = node.getAttribute('data-selected');
+        shown.delete('N-201.pressure');
+        s.canvas.mark();
+        return [before, open, node.getAttribute('data-selected')];
+        """,
+        console,
+    )
+
+    assert result == ["false", "true", "false"]
+
+
+@needs_node
+def test_a_faceplates_trend_button_opens_the_trend_beside_the_panel(console):
+    result = run_scene(
+        TRENDS
+        + """
+        const s = await boot({ trends });
+        group(s.svg, 'data-tag', 'K-101').fire('click');
+        const panel = panels(s)[0];
+        panel.screenRect = rect(W.left + 400, W.top + 100, 330, 260);
+        const button = panel.querySelectorAll('[data-trend]')[0];
+        button.fire('click');
+        return { point: opened[0].point, opener: opened[0].opener === button, anchor: opened[0].anchor,
+                 panelRect: s.canvas.panelRect(), panels: panels(s).length };
+        """,
+        console,
+    )
+
+    assert result["point"] == console["plant"]["equipment"]["K-101"]["points"][0]
+    assert result["opener"] is True
+    assert result["anchor"] == {"left": 400, "top": 100, "right": 730, "bottom": 360}
+    assert result["panelRect"] == result["anchor"]
+    # The faceplate stays open.
+    assert result["panels"] == 1
+
+
+@needs_node
+def test_escape_in_a_trend_window_leaves_the_faceplate_open(console):
+    result = run_scene(
+        TRENDS
+        + """
+        const s = await boot({ trends });
+        group(s.svg, 'data-tag', 'P-101').fire('click');
+        const windowBar = make('div', { tabindex: '0' }, make('div', {}, s.workspace));
+        windowBar.focus();
+        windowBar.fire('keydown', { key: 'Escape' });
+        const fromWindow = panels(s).length;
+        group(s.svg, 'data-tag', 'P-101').focus();
+        doc.activeElement.fire('keydown', { key: 'Escape' });
+        return { fromWindow, fromCanvas: panels(s).length };
+        """,
+        console,
+    )
+
+    assert result == {"fromWindow": 1, "fromCanvas": 0}
+
+
+@needs_node
+def test_a_click_in_a_trend_window_leaves_the_faceplate_open(console):
+    result = run_scene(
+        TRENDS
+        + """
+        const s = await boot({ trends });
+        group(s.svg, 'data-tag', 'P-101').fire('click');
+        make('button', {}, make('div', {}, make('div', {}, s.workspace))).fire('click');
+        const fromWindow = panels(s).length;
+        s.workspace.fire('click');
+        return { fromWindow, fromGutter: panels(s).length };
+        """,
+        console,
+    )
+
+    assert result == {"fromWindow": 1, "fromGutter": 0}

@@ -12,6 +12,9 @@
  *           output entry. There is no tuning anywhere on the console; the
  *           server's tuning actions are unchanged.
  *
+ * Every reading, on either panel, has a Trend button that opens the point's
+ * trend window (trendwindows.js, T20-11) when the page gives one.
+ *
  * This file knows no tag: what a device is, which points it has and which loop
  * drives it come from GET /api/plant (T20-2), and the values from the
  * snapshot. A reading's words and unit come from the trend listing
@@ -52,7 +55,7 @@
   var ENTRY_ACTION = { sp: "set_setpoint", out: "set_output" };
 
   // The snapshot sections a point's id can name, in the order they are tried.
-  var POINT_SECTIONS = ["equipment", "streams", "nodes"];
+  var POINT_SECTIONS = ["equipment", "streams", "nodes", "controllers"];
 
   var RUN_TEXT = { running: "▶ RUN", stopped: "■ STOP" };
 
@@ -334,6 +337,29 @@
     return { element: node, kind: kind, badges: badges, close: close };
   }
 
+  var SVG_NS = "http://www.w3.org/2000/svg";
+
+  /* A reading's Trend button, or null when the page has no trend windows or
+   * the trend listing does not publish the point. */
+  function trendButton(doc, point, label, ctx) {
+    if (typeof ctx.trend !== "function") return null;
+    var listed = isObject(ctx.vocab) && Array.isArray(ctx.vocab.points) ? ctx.vocab.points : [];
+    if (listed.indexOf(point) < 0) return null;
+    var button = el(doc, "button", { type: "button", class: "btn-trend", "data-trend": point, "aria-label": "Show trend of " + label });
+    var icon = doc.createElementNS(SVG_NS, "svg");
+    icon.setAttribute("viewBox", "0 0 14 10");
+    icon.setAttribute("aria-hidden", "true");
+    var line = doc.createElementNS(SVG_NS, "path");
+    line.setAttribute("d", "M1 8 L5 3 L8 6 L13 1");
+    icon.appendChild(line);
+    button.appendChild(icon);
+    button.appendChild(el(doc, "span", {}, "Trend"));
+    button.addEventListener("click", function () {
+      ctx.trend(point, button);
+    });
+    return button;
+  }
+
   function section(doc, title) {
     var node = el(doc, "section", { class: "fp-section" });
     if (title) node.appendChild(el(doc, "h3", {}, title));
@@ -367,8 +393,8 @@
     return el(doc, "span", Object.assign({ class: className }, attrs), text);
   }
 
-  /* A device's panel. `ctx` is {info, vocab, close, open(kind, tag)}. Returns
-   * {element, update(snapshot), close (the close button)}. */
+  /* A device's panel. `ctx` is {info, vocab, close, open(kind, tag), trend}.
+   * Returns {element, update(snapshot), close (the close button)}. */
   function buildDevicePanel(doc, tag, ctx) {
     var panel = panelShell(doc, "device", tag);
     var top = head(doc, tag, ctx.close);
@@ -423,6 +449,8 @@
           row.appendChild(el(doc, "dt", {}, r.label));
           row.appendChild(value);
           row.appendChild(band);
+          var trend = trendButton(doc, r.point, tag + " " + r.label.toLowerCase(), ctx);
+          if (trend) row.appendChild(trend);
           list.appendChild(row);
           rows[r.point] = { value: value, band: band };
         });
@@ -441,7 +469,7 @@
     return { element: panel, update: update, close: top.close };
   }
 
-  /* A loop's panel. `ctx` is {info, close, open(kind, tag), post}. */
+  /* A loop's panel. `ctx` is {info, close, open(kind, tag), post, trend}. */
   function buildLoopPanel(doc, tag, ctx) {
     var info = isObject(ctx.info) ? ctx.info : {};
     var panel = panelShell(doc, "loop", tag);
@@ -455,10 +483,15 @@
     var values = el(doc, "dl", { class: "fp-readings", "data-live-value": "" });
     var fields = {};
     [["PV", "Process value (PV)"], ["SP", "Setpoint (SP)"], ["OUT", "Output (OUT)"]].forEach(function (pair) {
-      var row = el(doc, "div", { class: "fp-reading" });
+      var point = tag + "." + pair[0].toLowerCase();
+      var row = el(doc, "div", { class: "fp-reading", "data-point": point });
       fields[pair[0]] = el(doc, "dd", {}, MISSING);
       row.appendChild(el(doc, "dt", {}, pair[1]));
       row.appendChild(fields[pair[0]]);
+      // The device rows' band column, empty: the Trend buttons line up.
+      row.appendChild(el(doc, "span", { class: "fp-band" }));
+      var trend = trendButton(doc, point, tag + " " + pair[0], ctx);
+      if (trend) row.appendChild(trend);
       values.appendChild(row);
     });
     loop.appendChild(values);
@@ -591,7 +624,8 @@
   }
 
   /* Build one panel: `kind` is "device" or "loop". `ctx` is {info, vocab,
-   * post, close, open(kind, tag)}; the panel builds its elements once and
+   * post, close, open(kind, tag), trend(point, button)}; without trend no
+   * reading has a Trend button. The panel builds its elements once and
    * update(snapshot) rewrites their values. */
   function createPanel(doc, kind, tag, ctx) {
     return kind === "loop" ? buildLoopPanel(doc, tag, ctx) : buildDevicePanel(doc, tag, ctx);

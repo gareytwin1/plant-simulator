@@ -312,7 +312,7 @@
         if (inGroup(reading, drawing)) return;
         var point = reading.getAttribute("data-bind").split(".").slice(1).join(".");
         if (trends && vocab.points.indexOf(point) >= 0) {
-          mark(reading, "trend", point, trendLabel(point, reading), true);
+          mark(reading, "trend", point, trendLabel(point), true);
           return;
         }
         var owner = ownerOf(plant, reading.getAttribute("data-bind"));
@@ -321,11 +321,11 @@
       });
     }
 
-    /* A trend reading is named with what it shows now. */
-    function trendLabel(point, reading) {
+    /* A trend reading's name is fixed: a name that followed the value would be
+     * announced again with every snapshot. */
+    function trendLabel(point) {
       var id = point.slice(0, point.lastIndexOf("."));
-      var shown = reading.textContent ? ", " + reading.textContent : "";
-      return id + " " + F.readingLabel(point, vocab).toLowerCase() + shown + ". Open trend.";
+      return id + " " + F.readingLabel(point, vocab).toLowerCase() + ". Open trend.";
     }
 
     /* The hit area behind each device follows what is drawn in the group, so
@@ -362,7 +362,6 @@
         if (kind === "trend") {
           // A trend reading is marked while its window is open.
           chosen = trends.isOpen(node.getAttribute("data-canvas-tag"));
-          node.setAttribute("aria-label", trendLabel(node.getAttribute("data-canvas-tag"), node));
         } else {
           chosen =
             selection !== null &&

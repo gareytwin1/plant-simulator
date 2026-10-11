@@ -86,7 +86,7 @@
       }
     });
     // Last, and isolated: a ribbon that cannot mount must not take the console with it.
-    try { ribbon = Ribbon.mount(document, { onChange: function () { graphic.refresh(); canvas.refresh(); trends.refresh(); } }); } catch (error) { console.error(error); }
+    try { ribbon = Ribbon.mount(document, { onChange: function () { graphic.refresh(); canvas.refresh(); trends.reset(); } }); } catch (error) { console.error(error); }
   })();
 </script>
 {% endblock %}

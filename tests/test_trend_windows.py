@@ -355,6 +355,9 @@ def test_arrow_keys_on_the_title_bar_move_and_resize_and_keep_it_in_the_workspac
         const w = win(s, '{LEVEL}');
         const bar = part(w, 'tw-bar');
         const start = geometry(w);
+        // An arrow on a title-bar button does not move the window.
+        w.querySelector('[data-tw="close"]').fire('keydown', {{ key: 'ArrowRight' }});
+        const unmoved = geometry(w);
         const right = bar.fire('keydown', {{ key: 'ArrowRight' }});
         const moved = geometry(w);
         bar.fire('keydown', {{ key: 'ArrowDown', shiftKey: true }});
@@ -366,13 +369,14 @@ def test_arrow_keys_on_the_title_bar_move_and_resize_and_keep_it_in_the_workspac
         for (let i = 0; i < 200; i++) bar.fire('keydown', {{ key: 'ArrowUp' }});
         const near = geometry(w);
         for (let i = 0; i < 100; i++) bar.fire('keydown', {{ key: 'ArrowLeft', shiftKey: true }});
-        return {{ start, moved, resized, far, near, small: geometry(w), prevented: right.defaultPrevented,
+        return {{ start, unmoved, moved, resized, far, near, small: geometry(w), prevented: right.defaultPrevented,
                  stored: JSON.parse(storageData[TW.STORAGE_KEY])['{LEVEL}'] }};
         """,
         free,
     )
 
     start, moved, resized = result["start"], result["moved"], result["resized"]
+    assert result["unmoved"] == start
     assert moved == {**start, "x": start["x"] + 16}
     assert resized == {**moved, "h": moved["h"] + 16}
     assert result["prevented"] is True
@@ -658,6 +662,34 @@ def test_the_scale_widens_when_a_reading_leaves_it_and_holds_until_the_span_chan
     top = lambda ticks: max(float(t) for t in ticks)
     assert top(result["widened"]) > top(result["first"]) + 300
     assert result["held"] == result["widened"]
+    assert top(result["reset"]) < top(result["widened"]) - 300
+
+
+@needs_node
+def test_a_reset_drops_the_held_scale_even_when_time_moves_on(free):
+    quiet = json.loads(json.dumps(served(free)))
+    spike = json.loads(json.dumps(quiet))
+    spike["series"][NODE][-1][1] += 500
+
+    result = run_js(
+        SCENE
+        + f"""
+        const s = await boot();
+        await open(s, '{NODE}');
+        const w = win(s, '{NODE}');
+        served = data.spike;
+        await s.tw.poll();
+        const widened = yTicks(w);
+        // Another history, ahead of the old one: time did not go back.
+        served = data.quiet;
+        await s.tw.update({{ ...data.snapshot, sim_time: data.snapshot.sim_time + 10 }});
+        await s.tw.reset();
+        return {{ widened, reset: yTicks(w) }};
+        """,
+        served=quiet, spike=spike, quiet=quiet, snapshot=free["snapshot"],
+    )
+
+    top = lambda ticks: max(float(t) for t in ticks)
     assert top(result["reset"]) < top(result["widened"]) - 300
 
 

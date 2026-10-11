@@ -795,15 +795,17 @@ def test_with_trend_windows_a_reading_outside_a_device_is_a_button_to_its_trend(
         + """
         const s = await boot({ trends });
         const node = reading(s, 'nodes.N-201.pressure');
-        node.textContent = '201.3 psia';
         const stream = reading(s, 'streams.B-PV-101.flow');
+        const named = node.getAttribute('aria-label');
+        node.textContent = '201.3 psia';
         s.canvas.update(data.snapshot);
+        const kept = node.getAttribute('aria-label') === named;
         const inside = group(s.svg, 'data-tag', 'P-101').querySelector('text');
         const state = n => ({ role: n.getAttribute('role'), tab: n.getAttribute('tabindex'), kind: n.getAttribute('data-canvas-kind'),
                               tag: n.getAttribute('data-canvas-tag'), label: n.getAttribute('aria-label') });
         node.fire('click');
         const enter = stream.fire('keydown', { key: 'Enter' });
-        return { node: state(node), stream: state(stream), inside: inside.getAttribute('role'),
+        return { kept, node: state(node), stream: state(stream), inside: inside.getAttribute('role'),
                  opened: opened.map(o => ({ point: o.point, opener: o.opener === node ? 'node' : o.opener === stream ? 'stream' : '?',
                                             anchor: o.anchor })),
                  enter: enter.defaultPrevented, panels: panels(s).length };
@@ -812,8 +814,10 @@ def test_with_trend_windows_a_reading_outside_a_device_is_a_button_to_its_trend(
     )
 
     assert result["node"] == {"role": "button", "tab": "0", "kind": "trend", "tag": "N-201.pressure",
-                              "label": "N-201 pressure, 201.3 psia. Open trend."}
+                              "label": "N-201 pressure. Open trend."}
     assert result["stream"]["kind"] == "trend" and result["stream"]["tag"] == "B-PV-101.flow"
+    # The name does not follow the value, so a screen reader is not told again every snapshot.
+    assert result["kept"] is True
     # A reading inside a device stays part of the device's button.
     assert result["inside"] is None
     # A trend opens beside the reading it was opened from; no faceplate opens.

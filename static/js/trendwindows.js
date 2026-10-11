@@ -520,6 +520,8 @@
         raise(win);
       });
       bar.addEventListener("keydown", function (event) {
+        // An arrow on the Minimise or Close button is not a move.
+        if (event.target !== bar) return;
         var next = keyGeometry(win, event.key, event.shiftKey, event.altKey);
         if (!next) return;
         event.preventDefault();
@@ -850,6 +852,14 @@
       },
       update: update,
       refresh: refresh,
+      // The shown plant or its history may have changed (a scenario load,
+      // unload or abort): hold no scale over from the old one.
+      reset: function () {
+        order.forEach(function (point) {
+          windows[point].hold = null;
+        });
+        return refresh();
+      },
       poll: poll,
       stop: function () {
         if (timer !== null) root.clearInterval(timer);

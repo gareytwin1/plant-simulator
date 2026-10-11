@@ -339,9 +339,12 @@
 
   var SVG_NS = "http://www.w3.org/2000/svg";
 
-  /* A reading's Trend button, or null when the page has no trend windows. */
+  /* A reading's Trend button, or null when the page has no trend windows or
+   * the trend listing does not publish the point. */
   function trendButton(doc, point, label, ctx) {
     if (typeof ctx.trend !== "function") return null;
+    var listed = isObject(ctx.vocab) && Array.isArray(ctx.vocab.points) ? ctx.vocab.points : [];
+    if (listed.indexOf(point) < 0) return null;
     var button = el(doc, "button", { type: "button", class: "btn-trend", "data-trend": point, "aria-label": "Show trend of " + label });
     var icon = doc.createElementNS(SVG_NS, "svg");
     icon.setAttribute("viewBox", "0 0 14 10");

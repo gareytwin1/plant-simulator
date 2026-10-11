@@ -782,3 +782,28 @@ def test_a_loops_point_reads_from_the_controllers_section():
         "return [F.pointValue(data.s, 'PIC-101.pv'), F.pointValue(data.s, 'K-101.flow'), F.pointValue(data.s, 'X.y')];",
         s=snapshot,
     ) == [201.5, 3.0, None]
+
+
+@needs_node
+def test_a_point_the_trend_listing_does_not_publish_has_no_trend_button(session, plant):
+    result = run_panels(
+        """
+        const trend = () => {};
+        const vocab = { ...data.vocab, points: data.vocab.points.filter(p => p !== 'K-101.flow' && p !== 'PIC-101.sp') };
+        const make = (kind, tag, info, v) => F.createPanel(doc, kind, tag, { ...ctx(info), vocab: v, trend });
+        const buttons = p => p.element.querySelectorAll('[data-trend]').map(b => b.getAttribute('data-trend'));
+        const dev = make('device', 'K-101', data.plant.equipment['K-101'], vocab);
+        dev.update(data.snapshot);
+        const lp = make('loop', 'PIC-101', data.plant.controllers['PIC-101'], vocab);
+        lp.update(data.snapshot);
+        const none = make('device', 'K-101', data.plant.equipment['K-101'], {});
+        none.update(data.snapshot);
+        return { device: buttons(dev), loop: buttons(lp), none: buttons(none), rows: dev.element.querySelectorAll('.fp-reading').length };
+        """,
+        plant, snapshot=view(session),
+    )
+
+    assert "K-101.flow" not in result["device"] and len(result["device"]) == result["rows"] - 1
+    assert result["loop"] == ["PIC-101.pv", "PIC-101.out"]
+    # No listing (it failed to load), no buttons.
+    assert result["none"] == []

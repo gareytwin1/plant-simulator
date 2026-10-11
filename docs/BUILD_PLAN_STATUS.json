@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "11 October 2026",
-  "main_sha": "77ae094",
-  "tests_passing_on_main": 3882,
+  "main_sha": "6421296",
+  "tests_passing_on_main": 3906,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -118,13 +118,13 @@
     },
     "M20": {
       "name": "Console Redesign",
-      "complete": 8,
+      "complete": 9,
       "total": 20
     }
   },
   "totals": {
     "tasks": 153,
-    "complete": 136,
+    "complete": 137,
     "startable_now": 10
   },
   "tasks": [
@@ -2892,10 +2892,9 @@
         "tests/test_trend_display.py",
         "tests/test_trend_windows.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true,
-      "note": ""
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged as 6421296 (PR #167); 3906 passed on main, mypy clean, no golden moved. Floating trend windows replace the Trends section: one window per point (value and unit, 1/5/10/30 min, bands, own alarm markers, held scale), move/resize by pointer and keyboard, tray, sessionStorage geometry, one 3-request tick for all windows. Readings outside equipment now open a trend, not a faceplate. roborev-refine: two fix rounds, then Pass; Escape does not close a window (left on purpose). Seen in headless Firefox, both themes; phone width unchecked (desktop first)."
     },
     {
       "id": "T20-12",
@@ -2918,10 +2917,7 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "T20-11"
-      ],
+      "startable": true,
       "note": ""
     },
     {
@@ -3113,7 +3109,6 @@
       "status_key": "todo",
       "startable": false,
       "blocked_by": [
-        "T20-11",
         "T20-12",
         "T20-13",
         "T20-16",

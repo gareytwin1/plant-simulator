@@ -125,6 +125,15 @@
     return SEVERITY[band.length / 2] || null;
   }
 
+  /* The envelope band `point` ("TAG.variable") is outside of, as
+   * {severity, band}, or null when it is inside its limits or has none. */
+  function pointBand(snapshot, point) {
+    var envelope = isObject(snapshot) ? snapshot.envelope : null;
+    var own = isObject(envelope) ? envelope[point] : null;
+    var severity = isObject(own) ? bandSeverity(own.band) : null;
+    return severity === null ? null : { severity: severity, band: own.band };
+  }
+
   /* The worst envelope band on any point of `tag`, as {severity, band} or null.
    * An envelope key is "TAG.variable"; the first of equal severity wins. */
   function worstBand(snapshot, tag) {
@@ -196,12 +205,8 @@
 
       // equipment.TAG.field is one envelope point, keyed "TAG.field".
       var parts = bind.split(".");
-      var envelope = isObject(snapshot) ? snapshot.envelope : null;
-      var own =
-        parts[0] === "equipment" && parts.length === 3 && isObject(envelope)
-          ? envelope[parts[1] + "." + parts[2]]
-          : null;
-      el.setAttribute("data-band", (isObject(own) && bandSeverity(own.band)) || "none");
+      var own = parts[0] === "equipment" && parts.length === 3 ? pointBand(snapshot, parts[1] + "." + parts[2]) : null;
+      el.setAttribute("data-band", own ? own.severity : "none");
     }
 
     var flow = attr(el, "data-flow");
@@ -421,7 +426,9 @@
     resolvePath: resolvePath,
     formatValue: formatValue,
     flowDirection: flowDirection,
+    pointBand: pointBand,
     worstBand: worstBand,
+    bandText: bandText,
     deviceState: deviceState,
     update: update,
     collect: collect,

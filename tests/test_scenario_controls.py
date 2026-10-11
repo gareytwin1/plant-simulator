@@ -320,7 +320,8 @@ def test_the_console_renders_free_play_with_no_scenario_text(client):
     assert ">Free play<" in page
     assert ">Plant running<" in page
     assert "js/scenario.js" in page
-    assert "Ribbon.mount(document, { onChange: graphic.refresh })" in page
+    # A scenario load or unload may change the plant: the graphic and the canvas both follow it.
+    assert "Ribbon.mount(document, { onChange: function () { graphic.refresh(); canvas.refresh(); } })" in page
     assert page.index("Trends.mount") < page.index("Ribbon.mount(document, {")
 
 

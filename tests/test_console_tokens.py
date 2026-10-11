@@ -224,6 +224,7 @@ def test_every_expected_token_is_defined_in_both_themes(tokens):
     for group, state in _fill_states():
         expected |= {f"--{group}-{state}-fill", f"--{group}-{state}-on"}
     expected |= {f"--alarm-{s}-mark" for s in ALARM_STATES}
+    expected.add("--command-rejected-mark")
     expected |= {f"--band-{s}-tint" for s in BAND_STATES}
     for theme in THEMES:
         assert expected <= tokens[theme].keys(), (theme, expected - tokens[theme].keys())
@@ -244,6 +245,14 @@ def test_alarm_marks_meet_graphic_contrast_on_the_surface(tokens, theme):
         for surface in ("--surface", "--surface-raised"):
             ratio = contrast(t[f"--alarm-{state}-mark"], t[surface])
             assert ratio >= GRAPHIC_CONTRAST, (theme, state, surface, ratio)
+
+
+@pytest.mark.parametrize("theme", THEMES)
+def test_the_rejected_command_mark_meets_graphic_contrast_on_the_surface(tokens, theme):
+    t = tokens[theme]
+    for surface in ("--surface", "--surface-raised"):
+        ratio = contrast(t["--command-rejected-mark"], t[surface])
+        assert ratio >= GRAPHIC_CONTRAST, (theme, surface, ratio)
 
 
 @pytest.mark.parametrize("theme", THEMES)

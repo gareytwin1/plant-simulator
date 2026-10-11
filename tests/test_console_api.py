@@ -87,14 +87,16 @@ def test_the_console_mounts_the_graphic_on_the_connection_stream(client):
     assert client.get("/static/js/graphic.js").status_code == 200
 
 
-def test_the_console_mounts_the_faceplates_on_the_same_stream(client):
+def test_the_console_mounts_the_canvas_and_its_faceplates_on_the_same_stream(client):
     body = client.get("/console").get_data(as_text=True)
 
-    assert "faceplate.js" in body and "faceplate.css" in body
-    assert 'id="faceplates"' in body
-    assert "faceplates.update(snapshot)" in body
+    assert "faceplate.js" in body and "canvas.js" in body and "faceplate.css" in body
+    assert 'id="faceplate-layer"' in body
+    assert 'id="faceplates"' not in body
+    assert "canvas.update(snapshot)" in body
     assert body.count("new EventSource") == 0
     assert client.get("/static/js/faceplate.js").status_code == 200
+    assert client.get("/static/js/canvas.js").status_code == 200
     assert client.get("/static/css/faceplate.css").status_code == 200
 
 

@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "10 October 2026",
-  "main_sha": "f4ac696",
-  "tests_passing_on_main": 3768,
+  "main_sha": "ac4376e",
+  "tests_passing_on_main": 3787,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -118,14 +118,14 @@
     },
     "M20": {
       "name": "Console Redesign",
-      "complete": 4,
+      "complete": 5,
       "total": 20
     }
   },
   "totals": {
     "tasks": 153,
-    "complete": 132,
-    "startable_now": 12
+    "complete": 133,
+    "startable_now": 11
   },
   "tasks": [
     {
@@ -2847,10 +2847,9 @@
         "app/main.py",
         "tests/test_landing.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true,
-      "note": ""
+      "status": "Complete",
+      "status_key": "done",
+      "note": "COMPLETE - merged to main as ac4376e (PR #163). 3787 passed post-merge, mypy clean over 87 files, no golden movement. The landing page leads with one selected scenario (title, difficulty, time limit, briefing, inert plant thumbnail); START loads then starts it and opens the console; other scenarios sit behind 'Choose another scenario' and the choice persists in localStorage behind try/catch; Free play and an empty Recent scenarios card sit below; a return strip shows while a scenario stands. A run in progress is aborted only after an in-page confirmation, for START and free play; a confirmed abort carries on if the run already ended elsewhere, and a 409 from load or unload makes the next click ask first. GET / passes the plant graphic url and nothing else about the plant. Old landing.js Node tests moved from test_console_api.py to test_landing.py. Known: a returning trainee sees the default scenario for about one frame before the remembered one is applied; phone width unchecked (desktop first, user 10 Oct). Unblocks T20-14 (the app/main.py lock is free again)."
     },
     {
       "id": "T20-10",
@@ -3043,8 +3042,7 @@
       "status_key": "todo",
       "startable": false,
       "blocked_by": [
-        "T20-15",
-        "T20-9"
+        "T20-15"
       ],
       "note": ""
     },
@@ -3126,7 +3124,6 @@
       "status_key": "todo",
       "startable": false,
       "blocked_by": [
-        "T20-9",
         "T20-11",
         "T20-12",
         "T20-13",

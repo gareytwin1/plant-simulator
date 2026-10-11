@@ -8,10 +8,10 @@ regrowth rule is in [.claude/rules/docs.md](../../.claude/rules/docs.md).
 
 ## Right now
 
-**Last state refresh:** 10 October 2026, at `f4ac696` (Merge T20-8, PR #162: console shell and ribbon) - **this is a snapshot,
-not a live pointer.** Run `git log f4ac696..HEAD --oneline` to see what has
+**Last state refresh:** 10 October 2026, at `ac4376e` (Merge T20-9, PR #163: landing page) - **this is a snapshot,
+not a live pointer.** Run `git log ac4376e..HEAD --oneline` to see what has
 merged since.
-**Full suite as of this refresh:** **3768 passed** · `python -m mypy` clean over 87 source files · no golden trace movement
+**Full suite as of this refresh:** **3787 passed** · `python -m mypy` clean over 87 source files · no golden trace movement
 **In flight:** nothing. The spine lock and the `app/main.py` lock are free.
 No task is Blocked. CI runs on every PR, and `main` requires its
 `test` check before a merge.
@@ -21,12 +21,12 @@ No task is Blocked. CI runs on every PR, and `main` requires its
 
 | Task | SHA | What landed |
 |---|---|---|
+| **T20-9** | `ac4376e` | Landing page: leads with one selected scenario (title, difficulty, time limit, briefing, inert plant thumbnail from `GET /` passing the graphic url); START loads then starts it and opens the console; the rest behind "Choose another scenario", the choice kept in localStorage behind try/catch; Free play and an empty Recent scenarios card; a return strip while a scenario stands. A run in progress is aborted only after an in-page confirmation (START and free play); a 409 makes the next click ask first. Decided by Opus, built on Sonnet (PR #163). Seen in headless Firefox on desktop, both themes; phone width unchecked (desktop first) |
 | **T20-8** | `f4ac696` | Console shell and ribbon: one ribbon in `base.html` on the landing page and the console (brand, Home and Console, run title and state, run clock, Start and two-step Abort on the console only, Change scenario, alarm summary by priority with the unacknowledged count, theme toggle). `scenario.js` still runs the run controls (Escape disarms Abort from inside them; focus follows the visible control); new `ribbon.js` adds the run clock (result `elapsed_s`/`time_limit_s` carried forward by snapshot `sim_time`, never a wall clock) and the summary (worst priority's tint, a "N new" badge, links to the console's alarm section until T20-12). The console is a full-height workspace around the canvas with the old Controllers, Trends and Alarms sections scrolled below until T20-10 to T20-12. Prototype radius, shadow, spacing and motion tokens joined `tokens.css` (motion zero under reduced motion). Landing and console pass `plant_running`; a landing page nobody has opened the console from says "Plant not started". The console polls alarm history twice until T20-12. Decided by Opus (PR #162). Seen in headless Firefox and by the user on desktop; phone width unchecked (desktop first, user 10 Oct) |
 | **T20-6** | `f6f7eb2` | Limits named by position: the outer limit reads HIHI/LOLO whether it alarms or trips (`AlarmManager` caps the suffix at two steps; `graphic.js` band text and `trends.js` rule labels follow; alarm ids and snapshot band labels `hi`/`hihi`/`hihihi` unchanged). Palette is two colours for now (user, 10 October): yellow for HI/LO, red for HIHI/LOLO, so `high` and the alarm band share `critical` and trip's red; `test_console_tokens.py` skips only those two pairs (`SHARED_BAND_PAIR`, `SHARED_FILL_PAIR`, delete when orange returns). Rejected-command styling uses `--alarm-high-mark` and now reads red. Seen in a real browser (yellow and red) |
 | **T20-2** | `ddaba90` | Plant description: `GET /api/plant` (`app/api/plant.py`) returns the shown plant's id (the plant file stem), its graphic (`static/graphics/<id>.svg`, or null) and, per device, `kind` (a `KIND` table beside `VISIBLE`), `service`, operator-visible `points` plus its branch's stream, `actions` and `driven_by` (a loop-driven device lists none); per loop `service`, `pv` point and `out`; per interlock only the devices it acts on. Built once per `PlantRuntime`, read with the id under `step_lock`. C3 equipment and controllers entries take an optional `service` (config 2.1.0). `plant.svg` is now `olefins_lite.svg`; `ProcessGraphic.follow` mounts the named graphic, re-mounts only when the plant id changes (the scenario bar's `onChange` triggers a refresh) and retries a failed load on the next snapshot. A swap to a second graphic is tested in Node only until T20-17. Decided by Opus (PR #159) |
 | **T20-1** | `d975feb` | Units per point: `app/plant/units.py` `point_units` names each trend point's unit once per `PlantRuntime` (equipment fields from a per-class `FIELD_UNITS` allowlist, node pressure psia, loop pv/sp its `pv_unit` and out `fraction`, stream and machine flow the domain's unit from the coupling's classification, never a name); disagreeing sources raise at runtime build, an unclassified domain gets `''`. `GET /api/trend/points` adds `units`. Follow-up T20-20: refuse a domain whose units disagree at load. Decided by Opus (PR #158) |
 | **T10-6** | `f8911a7` | Point descriptors: a per-class `DESCRIPTORS` table in `app/api/visibility.py` (with `descriptor(device, field)`) names a pump's or compressor's `inlet_pressure` and `outlet_pressure` as suction and discharge pressure, else the field with spaces. `PlantRuntime._observe` builds the alarm `pv` from it, so a K-101 alarm reads `K-101 discharge pressure HIHI` (its alarm id changes); `GET /api/trend/points` adds `descriptors` (one per listed point, via `trend_descriptors()` on `PlantRuntime`, `ScenarioRunner` and `TrainingSession`; `create_trend_blueprint` takes a fourth callable); the trend legend and add-a-pen list show `<id> <descriptor>`, the point id staying the key. Decided by Opus (PR #157). Not seen in a real browser |
-| **T9-5** | `91c5b46` | Device points in the snapshot: `Engine._truth` adds `flow`, `inlet_pressure` and `outlet_pressure` to the equipment row of every device that sits in exactly one branch (from that branch and its two nodes; by direction, never port name; the device holds none, and a device's own field of that name wins). A limit, interlock condition, restart-gate permissive or plant-state gate naming an unpublished field now raises at construction instead of warning. PSHH-101 and the `K-101.outlet_pressure` (renamed from `discharge_pressure`) and `P-101.flow` limits evaluate live; K-101 `hi` moved 320 to 330 psia because the cold start peaks at 323. `VISIBLE` shows the points for pumps and compressors, so they are trend pens with bands. Config 2.0.0. A stopped P-101 now alarms `P-101 flow LOLOLO` (no check valve). Decided by Opus (PR #156) |
 
 **ADRs on `main`:** [0001](../../docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md)
 (+ Amendment 1) and [0002](../../docs/ADR_0002_TYPED_PORTS.md) (+ Amendments
@@ -40,24 +40,24 @@ Complete: **M0-M9, M12-M18, MR**. Open:
 |---|---|---|
 | **M10** Alarms | 5/6 | T10-1, T10-2, T10-3, T10-5, T10-6; T10-4 startable (V1.1-deferred) |
 | **M11** Interlocks and Trips | 3/4 | T11-1, T11-2, T11-3; T11-4 startable (V1.1-deferred) |
-| **M20** Console Redesign | 4/20 | T20-1, T20-2, T20-6, T20-8; startable T20-3, T20-4, T20-5, T20-7, T20-9, T20-14, T20-15, T20-20 |
+| **M20** Console Redesign | 5/20 | T20-1, T20-2, T20-6, T20-8, T20-9; startable T20-3, T20-4, T20-5, T20-7, T20-14, T20-15, T20-20 |
 | M19 | 0 | - |
 
-**132 of 153 tasks Complete.** Checkpoints A-C reached. Checkpoint **D** (M8)
+**133 of 153 tasks Complete.** Checkpoints A-C reached. Checkpoint **D** (M8)
 needs only its "loops reject an injected disturbance" gate, which T20-17 meets
 on the separator plant.
 
 ## The next task
 
-**Startable in M20:** T20-3 (spine), T20-4 (spine), T20-5, T20-7, T20-9, T20-14,
+**Startable in M20:** T20-3 (spine), T20-4 (spine), T20-5, T20-7, T20-14,
 T20-15 and T20-20 - the `startable` field of
 [BUILD_PLAN_STATUS.json](../../docs/BUILD_PLAN_STATUS.json). All are Opus but
-T20-7, T20-9, T20-14 and T20-20 (Sonnet). T20-3 and T20-4 share the one spine lock, so run them one at a
+T20-7, T20-14 and T20-20 (Sonnet). T20-3 and T20-4 share the one spine lock, so run them one at a
 time. Also startable but deferred: T10-4 and T11-4 (V1.1), T19-1 and T19-2 (V2).
 
 **CP-G passed for the current console** (user's browser pass, 9 October 2026). The console is about to be redesigned, so the full pass (all six scenarios, both themes, phone width, a real alarm marker) is an acceptance criterion of that redesign rather than repeated on this console.
 
-**Next by leverage:** **M20 Console Redesign** (added 9 October 2026, see [BUILD_PLAN.html](../../docs/BUILD_PLAN.html)). The accepted design is frozen in [prototype/console-redesign/](../../prototype/console-redesign/index.html): every M20 task ports from it, and it is never edited to follow production. **User priority (10 October 2026): the new design replaces the old pages first.** T20-6 and T20-8 (ribbon and console shell) are merged. Run T20-9 (landing page) next, on Sonnet; it waits on no contract task. The user is working desktop first: phone-width checks are deferred. T20-3, T20-4 and T20-5 run alongside, and T20-10 to T20-12 follow. T20-1 (units per point), T20-2 (plant description and a graphic per plant) and T20-6 (alarm palette and limit names) are merged. The contract tasks left: T20-3 (interlock state in C4, spine), T20-4 (loops on any point, spine) and T20-5 (two-phase feed ADR). Checkpoint D's remaining gate is now met on the separator plant (T20-17), with PIC-101 left in MANUAL because olefins_lite stays untouched. `app/main.py` and `app/config.py` are free.
+**Next by leverage:** **M20 Console Redesign** (added 9 October 2026, see [BUILD_PLAN.html](../../docs/BUILD_PLAN.html)). The accepted design is frozen in [prototype/console-redesign/](../../prototype/console-redesign/index.html): every M20 task ports from it, and it is never edited to follow production. **User priority (10 October 2026): the new design replaces the old pages first.** T20-6, T20-8 (ribbon and console shell) and T20-9 (landing page) are merged, so the old pages are replaced. Run T20-14 (pause and resume, Sonnet, takes the `app/main.py` lock) or T20-7 (schematic restyle, Sonnet) next. The user is working desktop first: phone-width checks are deferred. T20-3, T20-4 and T20-5 run alongside, and T20-10 to T20-12 follow. T20-1 (units per point), T20-2 (plant description and a graphic per plant) and T20-6 (alarm palette and limit names) are merged. The contract tasks left: T20-3 (interlock state in C4, spine), T20-4 (loops on any point, spine) and T20-5 (two-phase feed ADR). Checkpoint D's remaining gate is now met on the separator plant (T20-17), with PIC-101 left in MANUAL because olefins_lite stays untouched. `app/main.py` and `app/config.py` are free.
 
 **Scheduling notes.** The spine lock is one global lock
 ([DEVELOPMENT.md](../../DEVELOPMENT.md#file-ownership)); it is free. **The container runs

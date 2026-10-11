@@ -732,6 +732,25 @@ def test_the_hit_area_follows_the_drawn_group(console):
     assert result["hits"] == 1
 
 
+@needs_node
+def test_a_group_that_is_not_rendered_does_not_stop_the_faceplate_updating(console):
+    moved = json.loads(json.dumps(console["snapshot"]))
+    moved["equipment"]["P-101"]["speed"] = 0.25
+
+    result = run_scene(
+        """
+        const s = await boot();
+        group(s.svg, 'data-tag', 'P-101').fire('click');
+        group(s.svg, 'data-tag', 'K-101').getBBox = () => { throw new Error('not rendered'); };
+        s.canvas.update(data.moved);
+        return panels(s)[0].querySelectorAll('div').find(n => n.getAttribute('data-point') === 'P-101.speed').children[1].textContent;
+        """,
+        console, moved=moved,
+    )
+
+    assert result == "25.0 %"
+
+
 # ---- Selection looks like a tint, not an underline ----
 
 

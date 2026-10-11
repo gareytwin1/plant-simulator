@@ -313,9 +313,9 @@
     form.appendChild(
       el(doc, "input", { id: id, type: "text", inputmode: "decimal", autocomplete: "off", "aria-describedby": id + "-unit" })
     );
-    var button = el(doc, "button", { type: "submit", class: "btn" }, "Set");
-    button.appendChild(el(doc, "span", { id: id + "-unit", class: "visually-hidden" }, unit));
-    form.appendChild(button);
+    // Outside the button, so the button's name stays "Set".
+    form.appendChild(el(doc, "span", { id: id + "-unit", class: "visually-hidden" }, unit));
+    form.appendChild(el(doc, "button", { type: "submit", class: "btn" }, "Set"));
     return form;
   }
 

@@ -547,6 +547,22 @@ def test_output_entry_is_disabled_outside_manual_and_says_why(session, plant):
 
 
 @needs_node
+def test_a_set_button_is_named_set_and_its_unit_is_described_outside_it(session, plant):
+    result = run_panels(
+        """
+        const panel = loop();
+        return ['sp', 'out'].map(kind => ({
+          button: form(panel, kind).querySelector('button').textContent,
+          unit: find(panel, n => n.getAttribute('id') === 'fp-PIC-101-' + kind + '-unit').parentNode === form(panel, kind),
+        }));
+        """,
+        plant,
+    )
+
+    assert result == [{"button": "Set", "unit": True}] * 2
+
+
+@needs_node
 def test_a_loop_faceplate_has_the_mode_and_two_entries_and_nothing_to_tune(session, plant):
     result = run_panels(
         """

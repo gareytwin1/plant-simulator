@@ -318,7 +318,12 @@
         if (!hit || typeof group.getBBox !== "function") return;
         hit.setAttribute("width", "0");
         hit.setAttribute("height", "0");
-        var box = group.getBBox();
+        var box;
+        try {
+          box = group.getBBox();
+        } catch (error) {
+          return; // not rendered (display:none): the next snapshot tries again
+        }
         if (!box.width) return;
         hit.setAttribute("x", String(box.x - 6));
         hit.setAttribute("y", String(box.y - 6));

@@ -44,7 +44,7 @@
   --alarm-critical-mark: light-dark(#b00020, #ff6b7a);
   /* Two colours for now: yellow for HI/LO, red for HIHI/LOLO whether the outer
      limit alarms or trips. high and the alarm band share red with critical and
-     the trip band; the glyph separates them only where one is drawn; a rejected command, which also uses high, reads red too. A third colour (orange, #ff8a00
+     the trip band; the glyph separates them only where one is drawn. A third colour (orange, #ff8a00
      in prototype/console-redesign) may take high and alarm later. */
   --alarm-high-fill: light-dark(#b00020, #ff6b7a);
   --alarm-high-on: light-dark(#ffffff, #2a0008);
@@ -52,6 +52,10 @@
   --alarm-low-fill: light-dark(#ffd23f, #ffd23f);
   --alarm-low-on: light-dark(#1a1400, #1a1400);
   --alarm-low-mark: light-dark(#a65100, #ffd23f);
+
+  /* A command the server or the faceplate refused. Its own token, so it keeps
+     its meaning if high takes a third colour; it is red like high today. */
+  --command-rejected-mark: light-dark(#b00020, #ff6b7a);
 
   /* Envelope bands (app.envelope.evaluator.Severity): the hue of the alarm
      priority each severity raises by default, as a quiet tint */

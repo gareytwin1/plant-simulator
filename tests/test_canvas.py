@@ -537,14 +537,17 @@ def test_focus_returns_to_the_item_that_opened_the_faceplate_after_a_hop_through
         const note = panels(s)[0].textContent;
         panels(s)[0].querySelectorAll('button').find(b => b.getAttribute('data-open') === 'PIC-101').fire('click');
         const hop = { selected: s.canvas.selected(), panels: panels(s).length, kind: panels(s)[0].getAttribute('data-kind') };
+        const stays = { panels: panels(s).length, focus: doc.activeElement === panels(s)[0].querySelector('.fp-close') };
         panels(s)[0].querySelector('.fp-close').fire('click');
-        return { note, hop, focusOnBalloon: doc.activeElement === balloon, closed: s.canvas.selected() };
+        return { note, hop, stays, focusOnBalloon: doc.activeElement === balloon, closed: s.canvas.selected() };
         """,
         console,
     )
 
     assert "PV-101 is driven by PIC-101." in result["note"]
     assert result["hop"] == {"selected": {"kind": "loop", "tag": "PIC-101"}, "panels": 1, "kind": "loop"}
+    # The click that hopped also reaches the workspace; it must not close what it opened.
+    assert result["stays"] == {"panels": 1, "focus": True}
     assert result["focusOnBalloon"] is True
     assert result["closed"] is None
 
@@ -556,12 +559,12 @@ def test_a_loops_drives_button_opens_the_device_it_drives(console):
         const s = await boot();
         group(s.svg, 'data-controller', 'PIC-101').fire('click');
         panels(s)[0].querySelectorAll('button').find(b => b.getAttribute('data-open') === 'PV-101').fire('click');
-        return s.canvas.selected();
+        return { selected: s.canvas.selected(), panels: panels(s).length };
         """,
         console,
     )
 
-    assert result == {"kind": "device", "tag": "PV-101"}
+    assert result == {"selected": {"kind": "device", "tag": "PV-101"}, "panels": 1}
 
 
 @needs_node

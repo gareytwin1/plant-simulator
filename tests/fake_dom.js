@@ -44,11 +44,15 @@ class Node {
   set textContent(t) { this.children.forEach(c => { c.parentNode = null; }); this.children = []; this._text = String(t); }
   get textContent() { return this._text + this.children.map(c => c.textContent).join(''); }
   addEventListener(type, fn) { (this.listeners[type] = this.listeners[type] || []).push(fn); }
-  // Dispatch to this node and up through its ancestors, as a browser does.
+  // Dispatch to this node and up through its ancestors.
   dispatch(type, props) {
     const event = Object.assign({ type, target: this, defaultPrevented: false }, props);
     event.preventDefault = () => { event.defaultPrevented = true; };
-    for (let n = this; n; n = n.parentNode) (n.listeners[type] || []).forEach(fn => fn(event));
+    // The path is fixed before any listener runs, as in a browser: a listener
+    // that detaches the target does not stop the event reaching its ancestors.
+    const path = [];
+    for (let n = this; n; n = n.parentNode) path.push(n);
+    path.forEach(n => (n.listeners[type] || []).forEach(fn => fn(event)));
     (doc.listeners[type] || []).forEach(fn => fn(event));
     return event;
   }

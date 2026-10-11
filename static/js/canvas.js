@@ -457,7 +457,10 @@
     }
 
     workspace.addEventListener("click", function (event) {
-      if (inside(layer, event.target)) return;
+      // A click on a panel's own button may have replaced the panel (a hop to
+      // the loop) before it reaches here: its target is then detached, and the
+      // click was not on empty canvas.
+      if (inside(layer, event.target) || !inside(workspace, event.target)) return;
       var item = selectableOf(event.target);
       if (item) select(item.getAttribute("data-canvas-kind"), item.getAttribute("data-canvas-tag"), item);
       else close(false);

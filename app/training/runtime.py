@@ -164,10 +164,16 @@ class PlantRuntime:
                 if value is not None:
                     raise ValueError(f"{target}.{RESET} takes no value, got {value!r}")
 
-                if not self.trips.interlocks[target].reset():
-                    raise ValueError(
-                        f"{target} was not reset: it is not tripped, or its condition still holds",
-                    )
+                interlock = self.trips.interlocks[target]
+
+                if not interlock.tripped:
+                    raise ValueError(f"{target} was not reset: it is not tripped")
+
+                if interlock.definition.reset != "manual":
+                    raise ValueError(f"{target} was not reset: it resets itself once its condition clears")
+
+                if not interlock.reset():
+                    raise ValueError(f"{target} was not reset: its condition still holds")
 
                 self.actions.record(tag=target, action=RESET, value=None, sim_time=sim_time)
             else:

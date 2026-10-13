@@ -934,7 +934,7 @@ def test_reset_is_not_offered_for_an_automatic_interlock(session, plant):
 def test_a_reset_the_server_refuses_says_so_on_the_faceplate(session, plant):
     result = run_panels(
         """
-        reply = { ok: false, status: 400, body: { error: 'PSHH-101 was not reset: it is not tripped, or its condition still holds' } };
+        reply = { ok: false, status: 400, body: { error: 'PSHH-101 was not reset: its condition still holds' } };
         const panel = device('K-101');
         panel.update(data.snapshot);
         panel.element.all().find(n => n.getAttribute('data-reset') !== null).fire('click');
@@ -944,7 +944,7 @@ def test_a_reset_the_server_refuses_says_so_on_the_faceplate(session, plant):
         plant, snapshot=tripped_view(session),
     )
 
-    assert result == {"message": "PSHH-101 was not reset: it is not tripped, or its condition still holds", "kind": "rejected"}
+    assert result == {"message": "PSHH-101 was not reset: its condition still holds", "kind": "rejected"}
 
 
 @needs_node

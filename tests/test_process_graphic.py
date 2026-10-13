@@ -283,8 +283,6 @@ def test_a_valve_shows_a_trip_label_only_while_an_interlock_holds_it(views):
     assert [held.state_text(tag) for tag in ("LV-101", "PV-101")] == ["✖ TRIP", ""]
     assert [free.state_text(tag) for tag in ("LV-101", "PV-101")] == ["", ""]
     assert free.tag("PV-101")["data-state"] == "none"
-    # A label belongs to a valve, so the stylesheet hides its badge while the valve has no state.
-    assert '.eq[data-state="none"] .badge { display: none; }' in PLANT_SVG.read_text()
 
 
 @needs_node

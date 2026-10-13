@@ -137,6 +137,17 @@ def test_a_manual_interlock_stays_tripped_until_reset_after_the_condition_clears
     assert [event.message for event in runtime.actions].count("XS-1 reset") == 1
 
 
+def test_a_reset_is_refused_with_the_reason_it_would_do_nothing():
+    runtime = build()
+    with pytest.raises(ValueError, match="XS-1 was not reset: it is not tripped$"):
+        runtime.act("XS-1", "reset", None)
+
+    auto = build(interlocks=({**TRIP, "reset": "auto"},))
+    run(auto, 6.0)
+    with pytest.raises(ValueError, match="resets itself once its condition clears"):
+        auto.act("XS-1", "reset", None)
+
+
 # Interlock state in the snapshot (T20-3)
 
 

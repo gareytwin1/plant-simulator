@@ -647,6 +647,7 @@
 
       m.targets.forEach(function (t) {
         var cells = bars[t.action];
+        if (!cells) return;
         cells.caption.textContent = t.caption;
         cells.fill.style.width = (t.actualPercent === null ? 0 : t.actualPercent) + "%";
         cells.mark.style.left = "calc(" + (t.targetPercent === null ? 0 : t.targetPercent) + "% - 1px)";

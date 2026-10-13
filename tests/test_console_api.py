@@ -294,7 +294,7 @@ def test_a_scenario_that_restarts_a_machine_completes_with_the_consoles_own_requ
     assert [objective["status"] for objective in result["objectives"]] == ["succeeded"]
 
 
-def test_a_reset_the_condition_still_blocks_is_refused_with_words_the_faceplate_shows(client):
+def test_a_reset_that_would_do_nothing_is_refused_with_words_the_faceplate_shows(client):
     client.get("/console")
     settle(session_of(client))
     assert client.post("/api/scenario/load", json={"scenario": scenario_key("pump_trip")}).status_code == 200
@@ -302,4 +302,4 @@ def test_a_reset_the_condition_still_blocks_is_refused_with_words_the_faceplate_
     refused = client.post("/api/action", json={"target": "LSLL-101", "action": "reset", "value": None})
 
     assert refused.status_code == 400
-    assert "condition still holds" in refused.get_json()["error"]
+    assert refused.get_json()["error"] == "LSLL-101 was not reset: it is not tripped"

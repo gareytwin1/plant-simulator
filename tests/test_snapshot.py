@@ -1,13 +1,22 @@
 import dataclasses
 import json
+import typing
 from pathlib import Path
 
 import pytest
 
 from app.engine.engine import Engine
 from app.engine.network import SolverResult
-from app.engine.snapshot import SOLVER_KEYS, InterlockStatus, build_snapshot, solver_status
+from app.engine.snapshot import (
+    INTERLOCK_RESETS,
+    INTERLOCK_STATES,
+    SOLVER_KEYS,
+    InterlockStatus,
+    build_snapshot,
+    solver_status,
+)
 from app.plant.loader import load_plant_file
+from app.safety.interlocks import InterlockState, Reset
 
 
 REFERENCE_PLANTS = sorted(
@@ -198,6 +207,12 @@ def test_mutating_the_source_interlocks_after_construction_does_not_leak():
 def test_an_interlock_state_or_reset_outside_its_words_is_refused(field, value):
     with pytest.raises(ValueError, match=field):
         tripped_k101(**{field: value})
+
+
+def test_the_snapshots_interlock_words_are_the_safety_modules():
+    # Repeated in C4 so it depends on no subsystem; this keeps the copies in step.
+    assert set(INTERLOCK_STATES) == {state.value for state in InterlockState}
+    assert set(INTERLOCK_RESETS) == set(typing.get_args(Reset))
 
 
 def test_solver_explicit_empty_dict_is_not_replaced_by_the_default():

@@ -45,9 +45,16 @@
       {% endif %}
     </div>
 
-    <a class="ribbon-alarms" id="ribbon-alarms" href="{{ url_for('console') }}#alarms-heading" aria-label="No active alarms. Go to the alarm list.">
+    {% if request.endpoint == 'console' %}
+    <button type="button" class="ribbon-alarms" id="ribbon-alarms" aria-haspopup="dialog" aria-expanded="false" aria-controls="alarm-overlay" aria-label="No active alarms. Open the alarm list.">
+      <span class="alarm-summary-text" id="ribbon-alarm-summary">No active alarms</span>
+      <span class="alarm-chevron" aria-hidden="true">&#9662;</span>
+    </button>
+    {% else %}
+    <a class="ribbon-alarms" id="ribbon-alarms" href="{{ url_for('console') }}" aria-label="No active alarms. Go to the alarm list.">
       <span class="alarm-summary-text" id="ribbon-alarm-summary">No active alarms</span>
     </a>
+    {% endif %}
 
     <button type="button" id="theme-toggle" class="btn btn-quiet theme-toggle" hidden>Theme: Auto</button>
 

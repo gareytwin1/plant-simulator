@@ -828,28 +828,6 @@ def test_a_failed_alarm_read_keeps_the_summary_it_had():
     assert got == {"failed": "low", "thrown": "low"}
 
 
-@needs_node
-def test_an_acknowledgement_in_the_alarm_list_tells_the_page_at_once():
-    got = run_js(
-        """
-        const A = require(data.alarms);
-        const mk = () => ({ innerHTML: "", listeners: {}, addEventListener(t, f) { this.listeners[t] = f; } });
-        const banner = mk(), summary = mk();
-        const reply = (status, body) => ({ ok: status === 200, status, json: async () => body });
-        let told = 0;
-        const fetchImpl = async url => url.endsWith("acknowledge") ? reply(200, { recorded: true }) : reply(200, []);
-        const console_ = A.mount(banner, summary, { fetch: fetchImpl, pollMs: 0, onAcknowledge: () => { told += 1; } });
-        await console_.ready;
-        const button = { getAttribute: () => "a" };
-        await summary.listeners.click({ target: { closest: sel => sel === "[data-alarm-id]" ? button : null } });
-        return told;
-        """,
-        alarms=str(ROOT / "static" / "js" / "alarms.js"),
-    )
-
-    assert got == 1
-
-
 # ---- pages ----------------------------------------------------------------
 
 
@@ -913,11 +891,31 @@ def test_every_ribbon_control_is_a_native_link_or_button_in_the_tab_order(client
         assert tag == "a" or attrs.get("type") == "button", attrs
 
 
-def test_the_alarm_summary_links_to_the_consoles_alarm_section_until_the_overlay(client):
-    page = client.get("/console").get_data(as_text=True)
+def test_the_alarm_summary_opens_the_overlay_on_the_console_and_links_to_it_elsewhere(client):
+    console = client.get("/console").get_data(as_text=True)
+    landing = client.get("/").get_data(as_text=True)
 
-    assert 'id="ribbon-alarms" href="/console#alarms-heading"' in page
-    assert 'id="alarms-heading"' in page
+    assert re.search(r'<button[^>]*id="ribbon-alarms"[^>]*aria-expanded="false"', console)
+    assert 'Open the alarm list.' in console
+    assert 'id="ribbon-alarms" href="/console"' in landing
+    assert "Go to the alarm list." in landing
+
+
+@needs_node
+def test_the_alarm_summarys_spoken_label_says_what_pressing_it_does():
+    got = run_js(
+        """
+        const summary = R.summarize([{ priority: "high", state: "unack" }]);
+        return [R.summaryView(summary).label, R.summaryView(summary, "Open").label,
+          R.summaryView(R.summarize([]), "Open").label];
+        """
+    )
+
+    assert got == [
+        "1 HIGH alarms, 1 not acknowledged. Go to the alarm list.",
+        "1 HIGH alarms, 1 not acknowledged. Open the alarm list.",
+        "No active alarms. Open the alarm list.",
+    ]
 
 
 def test_the_ribbon_stylesheet_uses_tokens_and_no_colour_literals():

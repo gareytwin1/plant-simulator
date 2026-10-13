@@ -12,8 +12,8 @@
 {% block content %}
 <div id="console" class="console" data-connection="connecting" data-interval-seconds="{{ stream_interval_seconds }}">
   <h1 class="visually-hidden">Console</h1>
-  {# The workspace fills the page under the ribbon. The section below it goes
-     when the alarm overlay lands on the canvas (T20-12). #}
+  {# The workspace fills the page under the ribbon. The alarm overlay opens
+     over it from the ribbon's alarm summary and makes it inert meanwhile. #}
   <section class="workspace" aria-label="Plant">
     <div id="process-graphic" class="canvas" data-live-value></div>
     <div id="window-layer" class="window-layer"></div>
@@ -21,13 +21,50 @@
     <div id="faceplate-layer" class="faceplate-layer"></div>
     <p class="connection-indicator" id="connection-indicator" role="status">CONNECTING</p>
   </section>
-  <div class="console-sections">
-    <section aria-labelledby="alarms-heading">
-      <h2 id="alarms-heading" tabindex="-1">Alarms</h2>
-      <div id="alarm-banner"></div>
-      <div id="alarm-summary" class="alarm-summary-scroll"></div>
-    </section>
-  </div>
+  <section class="alarm-overlay" id="alarm-overlay" role="dialog" aria-modal="true" aria-labelledby="alarm-overlay-title" hidden>
+    <div class="overlay-panel" tabindex="-1">
+      <div class="overlay-head">
+        <h2 id="alarm-overlay-title">Active alarms</h2>
+        <p class="overlay-sub" id="alarm-overlay-sub"></p>
+        <button type="button" class="btn btn-quiet btn-icon" id="alarm-overlay-close" aria-label="Close alarms">&#10005;</button>
+      </div>
+      <div class="overlay-filters" role="group" aria-label="Filter alarms">
+        <fieldset class="filter-group">
+          <legend>Priority</legend>
+          <label class="toggle"><input type="checkbox" id="filter-critical" checked><span class="alarm-badge" data-priority="critical">CRIT</span><span class="count" id="count-critical">0</span></label>
+          <label class="toggle"><input type="checkbox" id="filter-high" checked><span class="alarm-badge" data-priority="high">HIGH</span><span class="count" id="count-high">0</span></label>
+          <label class="toggle"><input type="checkbox" id="filter-low" checked><span class="alarm-badge" data-priority="low">LOW</span><span class="count" id="count-low">0</span></label>
+        </fieldset>
+        <label class="filter-field">Acknowledgement
+          <select id="filter-state">
+            <option value="all">All</option>
+            <option value="unacked">Not acknowledged</option>
+            <option value="acked">Acknowledged</option>
+          </select>
+        </label>
+        <label class="filter-field">Equipment
+          <select id="filter-tag"><option value="all">All equipment</option></select>
+        </label>
+        <label class="filter-field filter-search">Search
+          <input type="search" id="filter-search" placeholder="Tag or message" autocomplete="off">
+        </label>
+      </div>
+      <div class="overlay-table-wrap">
+        <table class="alarm-table">
+          <thead>
+            <tr><th scope="col">Priority</th><th scope="col">Raised</th><th scope="col">Tag</th><th scope="col">Message</th><th scope="col">Condition</th><th scope="col">Acknowledged</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr>
+          </thead>
+          <tbody id="alarm-rows"></tbody>
+        </table>
+        <p class="alarm-empty" id="alarm-empty" hidden></p>
+      </div>
+      <div class="overlay-foot">
+        <button type="button" class="btn btn-quiet" id="ack-visible">Acknowledge all shown</button>
+        <p class="overlay-note">Acknowledging records that you have seen an alarm. It does not clear the condition.</p>
+        <p class="overlay-note" id="alarm-feedback" role="status" hidden></p>
+      </div>
+    </div>
+  </section>
 </div>
 {% endblock %}
 
@@ -44,15 +81,6 @@
   (function () {
     var consoleEl = document.getElementById("console");
     var ribbon = null;
-    AlarmConsole.mount(
-      document.getElementById("alarm-banner"),
-      document.getElementById("alarm-summary"),
-      {
-        pollMs: Number(consoleEl.getAttribute("data-interval-seconds")) * 1000,
-        // The ribbon polls on its own; an acknowledgement should not wait for it.
-        onAcknowledge: function () { if (ribbon) ribbon.refresh(); }
-      }
-    );
     // The shown plant names its graphic; a scenario load or unload swaps it.
     var graphic = ProcessGraphic.follow(document.getElementById("process-graphic"));
     var canvas = null;
@@ -73,6 +101,16 @@
       layer: document.getElementById("faceplate-layer"),
       obstacles: trends.obstacles,
       trends: trends
+    });
+    // Opened from the ribbon's alarm summary; Show trend and Locate act on the canvas.
+    AlarmConsole.mount(document, {
+      opener: document.getElementById("ribbon-alarms"),
+      inert: document.querySelector(".workspace"),
+      pollMs: Number(consoleEl.getAttribute("data-interval-seconds")) * 1000,
+      // The ribbon polls on its own; an acknowledgement should not wait for it.
+      onAcknowledge: function () { if (ribbon) ribbon.refresh(); },
+      onShowTrend: function (alarm) { canvas.showTrend(alarm.tag, alarm.point); },
+      onLocate: function (alarm) { canvas.locate(alarm.tag, alarm.point); }
     });
     ConnectionMonitor.mount(consoleEl, document.getElementById("connection-indicator"), {
       intervalSeconds: Number(consoleEl.getAttribute("data-interval-seconds")),

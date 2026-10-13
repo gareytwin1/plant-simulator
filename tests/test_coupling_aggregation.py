@@ -444,11 +444,11 @@ def test_a_reversed_feed_arrives_negatively_and_is_not_clamped():
 def conflicting_phases():
     """Two nozzles on one node, one liquid and one vapor.
 
-    Deliberately on a valve-only node: a valve confirms no unit, so nothing
-    in the plant could expose the contradiction and the declarations have to
-    be checked against each other. Both ports are the vessel's own fixed
-    `inlet` / `outlet` — no configured-port mode needed to declare a phase
-    conflict.
+    Deliberately on a valve-only node: a valve confirms no unit, so only the
+    two declarations contradict each other. The loader refuses this config
+    (T20-20); `contradicted_after_loading` reaches the coupling's own refusal,
+    which stays as a backstop. Both ports are the vessel's own fixed `inlet` /
+    `outlet` — no configured-port mode needed to declare a phase conflict.
     """
     return {
         "nodes": [

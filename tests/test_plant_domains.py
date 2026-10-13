@@ -411,6 +411,24 @@ def test_a_typed_port_on_a_machine_is_a_source_too():
     assert "$.equipment[0].ports.suction (K-101, phase 'vapor')" in errors[0]
     assert "$.equipment[1].ports.inlet" in errors[0]
 
+
+def test_a_named_form_machine_confirms_its_unit_from_its_inlet_node():
+    config = vessel_beside("control_valve", "vapor")
+    config["equipment"][0] = {
+        "tag": "P-101",
+        "type": "pump",
+        "ports": {"suction": "N-01", "discharge": "N-02"},
+        "paths": [{"from": "suction", "to": "discharge"}],
+        "design": {},
+    }
+
+    errors = rejected(config)
+
+    assert len(errors) == 1
+    assert "GPM at $.equipment[0] (P-101)" in errors[0]
+    assert "SCFM at $.equipment[1].ports.inlet" in errors[0]
+
+
 def test_a_machine_and_ports_that_agree_load():
     load_plant(vessel_beside("pump", "liquid"))
     load_plant(vessel_beside("compressor", "vapor"))

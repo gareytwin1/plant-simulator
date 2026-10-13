@@ -76,7 +76,7 @@ from typing import Any
 
 import yaml
 
-from app.engine.coupling import FLOW_UNITS, PHASE_UNITS, UNIT_NEUTRAL
+from app.engine.coupling import PHASE_UNITS, UNIT_NEUTRAL, class_flow_unit
 from app.equipment.base import (
     INLET,
     OUTLET,
@@ -988,7 +988,8 @@ def _unit_agreement_errors(
         else:
             continue
 
-        unit = _class_flow_unit(types.get(item["type"]))
+        device_type = types.get(item["type"])
+        unit = class_flow_unit(device_type) if device_type is not None else None
 
         if unit is not None and unit != UNIT_NEUTRAL and inlet is not None:
             add(inlet, unit, f"{path} ({tag})")
@@ -1013,18 +1014,6 @@ def _unit_agreement_errors(
             )
 
     return errors
-
-
-def _class_flow_unit(device_type: type[Equipment] | None) -> str | None:
-    # `coupling.flow_unit`'s lookup, on a class: no device is built yet.
-    if device_type is None:
-        return None
-
-    for kind in device_type.__mro__:
-        if kind in FLOW_UNITS:
-            return FLOW_UNITS[kind]
-
-    return None
 
 
 def _build(

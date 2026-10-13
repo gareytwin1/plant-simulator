@@ -437,7 +437,8 @@ els['alarm-rows'].querySelectorAll = () => [...els['alarm-rows'].innerHTML.match
 els['alarm-rows'].contains = n => inRows.has(n);
 const workspace = mk('workspace');
 const keys = [];
-const doc = { getElementById: id => els[id] || null, activeElement: null, addEventListener(t, f) { if (t === 'keydown') keys.push(f); } };
+const doc = { getElementById: id => els[id] || null, activeElement: null, addEventListener(t, f) { if (t === 'keydown') keys.push(f); },
+  removeEventListener(t, f) { const at = keys.indexOf(f); if (t === 'keydown' && at >= 0) keys.splice(at, 1); } };
 const reply = (body) => ({ ok: true, status: 200, json: async () => body });
 // A button in the table: the row listener asks the target for its closest row action.
 const press = (action, id) => {
@@ -775,7 +776,7 @@ def test_an_alarm_id_with_quotes_does_not_break_the_redraw():
 @needs_node
 @pytest.mark.parametrize(
     ("action", "words"),
-    [("trend", "No trend is available"), ("locate", "not drawn on the canvas")],
+    [("trend", "Could not show a trend"), ("locate", "not drawn on the canvas")],
 )
 def test_a_show_trend_or_locate_that_finds_nothing_reopens_the_overlay_and_says_so(plant, action, words):
     plant.set_band("K-101", "discharge pressure", Severity.TRIP, at=1.0, point="K-101.discharge_pressure")
@@ -801,6 +802,42 @@ def test_a_show_trend_or_locate_that_finds_nothing_reopens_the_overlay_and_says_
     assert got["open"] is True and got["inert"] == "" and got["shown"] is True
     assert words in got["note"]
     assert got["focus"] == f"{action}|{alarm_id}"
+
+
+@needs_node
+def test_a_handler_that_throws_is_treated_as_finding_nothing(plant):
+    plant.set_band("K-101", "discharge pressure", Severity.TRIP, at=1.0, point="K-101.discharge_pressure")
+    alarm_id = _alarm_id("K-101", "discharge pressure")
+
+    got = mounted(
+        """
+        console.error = () => {};
+        const overlay = A.mount(doc, { fetch: async () => reply(data.entries), opener: els['ribbon-alarms'],
+          onShowTrend: () => { throw new Error('boom'); } });
+        overlay.open();
+        await overlay.ready;
+        press('trend', data.id);
+        return { open: overlay.isOpen(), note: els['alarm-feedback'].textContent };
+        """,
+        entries=plant.entries(),
+        id=alarm_id,
+    )
+
+    assert got == {"open": True, "note": "Could not show a trend for this alarm."}
+
+
+@needs_node
+def test_stopping_the_overlay_takes_its_escape_listener_off_the_document():
+    got = mounted(
+        """
+        const overlay = A.mount(doc, { fetch: async () => reply([]), opener: els['ribbon-alarms'] });
+        const mounted_ = keys.length;
+        overlay.stop();
+        return [mounted_, keys.length];
+        """,
+    )
+
+    assert got == [1, 0]
 
 
 @needs_node

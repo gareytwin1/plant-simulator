@@ -469,11 +469,17 @@
       // Show trend and Locate hand focus to the canvas, so the overlay lets go of it.
       closeOverlay(false);
       var handler = action === "trend" ? settings.onShowTrend : settings.onLocate;
-      if (handler && handler(alarm) !== false) return;
+      var shownIt = false;
+      try {
+        shownIt = !!handler && handler(alarm) !== false;
+      } catch (error) {
+        console.error(error);
+      }
+      if (shownIt) return;
       // Nothing to show: the overlay comes back with the reason, focus on the
       // button that was pressed, rather than vanishing without a word.
       openOverlay();
-      say(action === "trend" ? "No trend is available for this alarm." : "This alarm is not drawn on the canvas.");
+      say(action === "trend" ? "Could not show a trend for this alarm." : "This alarm is not drawn on the canvas.");
       focusAfterRedraw(action, id);
     });
 
@@ -523,9 +529,10 @@
         first.focus();
       }
     });
-    doc.addEventListener("keydown", function (event) {
+    function onEscape(event) {
       if (event.key === "Escape" && open) closeOverlay(true);
-    });
+    }
+    doc.addEventListener("keydown", onEscape);
 
     return {
       get ready() {
@@ -541,6 +548,7 @@
       },
       stop: function () {
         closeOverlay(false);
+        doc.removeEventListener("keydown", onEscape);
       },
     };
   }

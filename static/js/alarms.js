@@ -444,7 +444,11 @@
       }));
       say(failed === 0 ? "" : failed + (failed === 1 ? " acknowledgement" : " acknowledgements") + " could not be recorded.");
       await refresh();
-      if (settings.onAcknowledge) settings.onAcknowledge();
+      try {
+        if (settings.onAcknowledge) settings.onAcknowledge();
+      } catch (error) {
+        console.error(error);
+      }
     }
 
     function rowAlarm(id) {

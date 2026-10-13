@@ -937,11 +937,38 @@ def test_the_console_page_is_an_overlay_dialog_opened_from_the_ribbon_and_has_no
         assert gone not in page
 
 
-def test_the_status_line_is_always_in_the_page_so_it_is_announced_when_it_fills():
+def test_the_status_line_is_in_the_page_and_the_accessibility_tree_even_when_empty():
     page = (ROOT / "templates" / "console.html").read_text()
+    css = ALARMS_CSS.read_text()
 
-    assert re.search(r'<p[^>]*id="alarm-feedback"[^>]*role="status"[^>]*></p>', page)
-    assert 'id="alarm-feedback"' in page and "hidden" not in re.search(r'<p[^>]*id="alarm-feedback"[^>]*>', page).group(0)
+    line = re.search(r'<p[^>]*id="alarm-feedback"[^>]*>', page).group(0)
+    assert 'role="status"' in line and "hidden" not in line
+    empty = rule_for(css, ".overlay-note:empty")
+    assert "display" not in empty and "visibility" not in empty
+
+
+@needs_node
+def test_a_throwing_acknowledge_callback_does_not_become_an_unhandled_rejection(plant):
+    alarm_id = plant.set_band("K-101", "discharge pressure", Severity.TRIP, at=1.0)
+
+    got = mounted(
+        """
+        console.error = () => {};
+        let unhandled = 0;
+        process.on('unhandledRejection', () => { unhandled += 1; });
+        const doFetch = async (url, init) => (init && init.method === 'POST' ? reply({ ok: true }) : reply(data.entries));
+        const overlay = A.mount(doc, { fetch: doFetch, opener: els['ribbon-alarms'], onAcknowledge: () => { throw new Error('boom'); } });
+        overlay.open();
+        await overlay.ready;
+        press('ack', data.id);
+        await settle(); await settle(); await settle();
+        return unhandled;
+        """,
+        entries=plant.entries(),
+        id=alarm_id,
+    )
+
+    assert got == 0
 
 
 def test_the_overlay_has_every_element_the_script_looks_up():

@@ -286,10 +286,15 @@
   padding: var(--space-3) var(--space-5) var(--space-4);
 }
 
-/* The status line is always in the page, empty until there is something to
-   say, so a screen reader announces the text when it arrives. */
+/* The status line stays in the page and in the accessibility tree, empty
+   until there is something to say, so a screen reader announces the text when
+   it arrives; empty, it takes no room. Never display: none. */
 .overlay-note:empty {
-  display: none;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
 }
 
 .overlay-note {

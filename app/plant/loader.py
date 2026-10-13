@@ -19,7 +19,9 @@ A node may declare a flow `domain`. `NetworkSolver` solves one domain only, so
 the loader partitions the plant into one Topology per domain and rejects a
 branch whose two nodes disagree, where the error can name a config path. A node
 that declares nothing is in DEFAULT_DOMAIN; a domain is never inherited from a
-neighbour.
+neighbour. A domain also carries one flow unit (T20-20): a machine's
+`FLOW_UNITS` entry and a typed port's declared phase each name one, and two
+that disagree within a domain are refused, naming every source.
 
 A device is wired in one of two forms. `node_in` / `node_out` is sugar for a
 device with one inlet and one outlet. `ports` (port name -> node id) declares
@@ -74,6 +76,7 @@ from typing import Any
 
 import yaml
 
+from app.engine.coupling import FLOW_UNITS, PHASE_UNITS, UNIT_NEUTRAL
 from app.equipment.base import (
     INLET,
     OUTLET,
@@ -550,6 +553,8 @@ def _reference_errors(
         else:
             errors.append(f"{path}: {_wiring_form_problem(item)}")
 
+    errors += _unit_agreement_errors(config, types)
+
     return errors
 
 
@@ -939,6 +944,84 @@ def _domain_agreement_errors(
         f"{path}: {tag!r} joins two flow domains, "
         f"{described[0]} but {described[1]} — a branch cannot cross domains",
     ]
+
+
+def _unit_agreement_errors(
+    config: Mapping[str, Any],
+    types: Mapping[str, type[Equipment]],
+) -> list[str]:
+    """Refuse a domain whose flow-unit sources name two units (T20-20).
+
+    The sources are the coupling's and `app.plant.units.domain_units`': a
+    machine's `FLOW_UNITS` entry, looked up on its class from the device
+    registry (a unit-neutral device confirms nothing), and a typed port's
+    declared phase. A machine sits in the domain of its inlet node. No domain,
+    node or port name says anything. A reference that does not resolve is
+    reported elsewhere in this pass and skipped here.
+    """
+    node_domains = {node["id"]: _domain_of(node) for node in config["nodes"]}
+
+    sources: dict[str, dict[str, list[str]]] = {}
+
+    def add(node_id: str, unit: str, source: str) -> None:
+        if node_id in node_domains:
+            sources.setdefault(node_domains[node_id], {}).setdefault(unit, []).append(source)
+
+    for i, item in enumerate(config["equipment"]):
+        path = f"$.equipment[{i}]"
+        tag = item["tag"]
+        form = _wiring_form(item)
+
+        declarations: dict[str, PortDeclaration] = {}
+        inlet: str | None
+
+        if form == SUGAR_FORM:
+            inlet = item["node_in"]
+        elif form == NAMED_FORM:
+            declarations, _ = _port_declarations(item["ports"], f"{path}.ports")
+            pairs = item.get("paths") or []
+            first = declarations.get(pairs[0]["from"]) if pairs else None
+            inlet = first.node if first is not None else None
+        else:
+            continue
+
+        unit = _class_flow_unit(types.get(item["type"]))
+
+        if unit is not None and unit != UNIT_NEUTRAL and inlet is not None:
+            add(inlet, unit, f"{path} ({tag})")
+
+        for name, declaration in declarations.items():
+            if declaration.phase in PHASE_UNITS:
+                add(
+                    declaration.node,
+                    PHASE_UNITS[declaration.phase],
+                    f"{path}.ports.{name} ({tag}, phase {declaration.phase!r})",
+                )
+
+    errors: list[str] = []
+
+    for domain, found in sources.items():
+        if len(found) > 1:
+            named = "; ".join(
+                f"{unit} at {', '.join(where)}" for unit, where in sorted(found.items())
+            )
+            errors.append(
+                f"$.equipment: domain {domain!r} has no single flow unit - {named}",
+            )
+
+    return errors
+
+
+def _class_flow_unit(device_type: type[Equipment] | None) -> str | None:
+    # `coupling.flow_unit`'s lookup, on a class: no device is built yet.
+    if device_type is None:
+        return None
+
+    for kind in device_type.__mro__:
+        if kind in FLOW_UNITS:
+            return FLOW_UNITS[kind]
+
+    return None
 
 
 def _build(

@@ -38,6 +38,8 @@ port set of exactly `inlet` / `outlet` needs no `direction` at all and stays
 in the fixed-port mode every other device uses.
 """
 
+import copy
+
 import pytest
 
 from app.engine.coupling import (
@@ -52,7 +54,7 @@ from app.equipment.compressor import GasCompressor
 from app.equipment.pump import CentrifugalPump
 from app.equipment.valve import ControlValve
 from app.equipment.vessel import Vessel
-from app.plant.loader import load_plant
+from app.plant.loader import PlantConfigError, load_plant
 
 
 RUNNING_PUMP = {"running": True, "speed": 1.0, "speed_target": 1.0}
@@ -475,11 +477,36 @@ def conflicting_phases():
     }
 
 
+def contradicted_after_loading(config, tag, port, phase, purpose):
+    """Load `config` with `port` agreeing with the rest of the plant, then
+    declare `phase` on the live port.
+
+    The loader refuses the contradiction in configuration (T20-20), so the
+    coupling's own refusal is a backstop reached only by a plant changed after
+    it was loaded - which is how these tests reach it.
+    """
+    with pytest.raises(PlantConfigError, match="has no single flow unit"):
+        load_plant(config, device_types=types_for())
+
+    agreeing = copy.deepcopy(config)
+    agreeing_phase = "vapor" if phase == "liquid" else "liquid"
+
+    for item in agreeing["equipment"]:
+        for entry in item.get("ports", {}).values():
+            if isinstance(entry, dict):
+                entry["phase"] = agreeing_phase
+
+    plant = load_plant(agreeing, device_types=types_for())
+    plant.devices[tag].port(port).declare(phase=phase, purpose=purpose)
+
+    return plant
+
+
 def test_two_phases_declared_on_one_node_are_refused():
     """A node may not be counted once as liquid and again as vapor, and the
     refusal names the node and both ports.
     """
-    plant = load_plant(conflicting_phases(), device_types=types_for())
+    plant = contradicted_after_loading(conflicting_phases(), "V-101", "outlet", "vapor", "vent")
 
     with pytest.raises(ValueError) as raised:
         Engine.from_plant(plant)
@@ -676,17 +703,17 @@ def test_a_declared_phase_the_machines_contradict_is_refused():
     """A pump is GPM and a compressor is SCFM. Either one beside the opposite
     declaration is a modelling error, named by port.
     """
-    liquid_plant = load_plant(
+    liquid_plant = contradicted_after_loading(
         vessel_across("pump", phase="vapor", design=dict(RUNNING_PUMP)),
-        device_types=types_for(),
+        "V-101", "inlet", "vapor", "process",
     )
 
     with pytest.raises(ValueError, match=r"V-101\.\w+ declares phase 'vapor'"):
         Engine.from_plant(liquid_plant)
 
-    gas_plant = load_plant(
+    gas_plant = contradicted_after_loading(
         vessel_across("compressor", phase="liquid", design=dict(LOADED_COMPRESSOR)),
-        device_types=types_for(),
+        "V-101", "inlet", "liquid", "process",
     )
 
     with pytest.raises(ValueError, match=r"V-101\.\w+ declares phase 'liquid'"):
@@ -872,7 +899,7 @@ def test_a_phase_conflict_is_caught_before_any_pressure_is_written():
     vessel pressure a vapor nozzle would replace it with, nor the head a
     liquid one would add.
     """
-    plant = load_plant(conflicting_phases(), device_types=types_for())
+    plant = contradicted_after_loading(conflicting_phases(), "V-101", "outlet", "vapor", "vent")
 
     with pytest.raises(ValueError, match="one node carries one phase"):
         Engine.from_plant(plant)

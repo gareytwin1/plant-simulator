@@ -38,7 +38,8 @@ from app.equipment.pump import CentrifugalPump
 from app.equipment.relief import ReliefValve
 from app.equipment.valve import ControlValve
 from app.equipment.vessel import Vessel
-from app.plant.loader import load_plant
+from app.plant.loader import PlantConfigError, load_plant
+from app.plant.topology import Branch, Node, Topology
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -612,10 +613,29 @@ def test_a_node_whose_branches_disagree_on_flow_unit_is_refused():
         ],
     }
 
-    plant = load_plant(config)
+    # The loader refuses the whole domain (T20-20); the coupling's per-node
+    # refusal stays as a backstop for a topology built by hand.
+    with pytest.raises(PlantConfigError, match="has no single flow unit"):
+        load_plant(config)
+
+    topology = Topology(
+        nodes=[
+            Node(id=node["id"], pressure=node["pressure"], is_boundary=node["boundary"])
+            for node in config["nodes"]
+        ],
+    )
+    pump, compressor, vessel = CentrifugalPump("P-101"), GasCompressor("K-101"), Vessel("V-101")
+    topology.add_branch(
+        Branch(id="B-P-101", from_node=topology.node("N-101"), to_node=topology.node("N-102"), device=pump),
+    )
+    topology.add_branch(
+        Branch(id="B-K-101", from_node=topology.node("N-101"), to_node=topology.node("N-103"), device=compressor),
+    )
+    vessel.port("inlet").connect(topology.node("N-102"))
+    vessel.port("outlet").connect(topology.node("N-101"))
 
     with pytest.raises(ValueError, match="disagree on flow unit"):
-        Engine.from_plant(plant)
+        build_couplings([pump, compressor, vessel], {"default": topology})
 
 
 class UnclassifiedDevice(Equipment):

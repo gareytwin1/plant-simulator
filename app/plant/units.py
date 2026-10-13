@@ -78,7 +78,12 @@ def domain_units(
     couplings: Iterable[VesselCoupling],
 ) -> dict[str, str]:
     """The flow unit of each domain, `''` where nothing classifies it.
-    `ValueError` when two sources in one domain disagree."""
+    `ValueError` when two sources in one domain disagree.
+
+    `load_plant` refuses such a plant first (T20-20), so this check is a
+    backstop that a loaded plant never reaches; it stays for topologies built
+    by hand.
+    """
     sources: dict[str, dict[str, str]] = {domain: {} for domain in topologies}
 
     for domain, topology in topologies.items():

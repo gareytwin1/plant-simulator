@@ -61,28 +61,26 @@ network with a single flow variable.
 No cross-phase flow conversion exists, and none should be invented to make the
 solver or this document simpler.
 
-**This rule is a modelling constraint, not yet an enforced one — open issue.**
-One `NetworkSolver` solve (`app/engine/network.py`, T4-2) assumes the topology
-it is handed is a single compatible hydraulic/process domain, because a mass
-balance sums the flows meeting a node and summing GPM with SCFM is meaningless.
-Nothing checks that assumption: **C2, C3 and `NetworkSolver` carry no
-flow-domain metadata**, so there is nothing for the solver to enforce against
-and a mixed-domain topology would solve and return a confidently wrong answer.
-Keeping one domain per topology is the responsibility of whoever builds it.
+**The loader enforces this per domain (T20-20).** One `NetworkSolver` solve
+(`app/engine/network.py`, T4-2) assumes the topology it is handed is a single
+compatible hydraulic/process domain, because a mass balance sums the flows
+meeting a node and summing GPM with SCFM is meaningless. `load_plant` refuses
+a domain whose sources name two flow units, as a `PlantConfigError` naming
+each disagreeing config path. The sources are a machine's `FLOW_UNITS` entry
+(a unit-neutral device confirms nothing) and a typed port's declared phase; a
+domain with no source still loads. The solver itself still carries no
+domain metadata, so a topology built by hand rather than loaded is the
+builder's responsibility.
 
 **For display, a domain's unit is now derived (T20-1).** `app/plant/units.py`
 names the unit of each trend point the console shows: an equipment field
 listed in its `FIELD_UNITS` allowlist (an unlisted field has none), a node
 pressure, a loop's points, and a stream, which takes its domain's flow unit
 from the same classification the coupling applies - the machines in the
-domain confirm one, and a vessel attachment's declared phase gives one. Two
-sources that disagree are an error: building a plant runtime now fails when
-the machines or vessel attachments in one domain name different flow units.
-A domain nothing classifies has no unit rather than a guess. The loader,
-`Engine` and `NetworkSolver` do not check agreement across a whole domain
-(the coupling checks only each vessel's attachment node), so a plain `Engine`
-built from such a plant still solves, and the modelling constraint above
-stands.
+domain confirm one, and a vessel attachment's declared phase gives one. A
+domain nothing classifies has no unit rather than a guess. Two sources that
+disagree are refused at load, so `domain_units` raising is a backstop a loaded
+plant never reaches.
 
 How the liquid and gas domains get split and coupled — separate hydraulic
 problems joined through the V-101 separator's inventory rather than through a

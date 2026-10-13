@@ -8,6 +8,7 @@ band crossing and a trip at a time the test can state. The end-to-end test at
 the bottom runs the reference plant, where the trip is a real process variable.
 """
 
+import json
 import threading
 import time
 from pathlib import Path
@@ -133,6 +134,92 @@ def test_a_manual_interlock_stays_tripped_until_reset_after_the_condition_clears
 
     assert runtime.trips.tripped == ()
     assert [event.message for event in runtime.actions].count("XS-1 reset") == 2
+
+
+# Interlock state in the snapshot (T20-3)
+
+
+def annunciated(snapshot, tag="XS-1"):
+    return snapshot.as_dict()["interlocks"][tag]
+
+
+def test_every_snapshot_annunciates_each_interlock_from_construction_on():
+    runtime = build()
+
+    assert runtime.snapshot().as_dict()["interlocks"] == {
+        "XS-1": {"state": "normal", "reset": "manual", "devices": ["P-1"]},
+    }
+
+
+def test_an_interlock_waiting_out_its_delay_reads_pending_then_tripped_in_the_step_that_latches():
+    runtime = build()
+
+    assert annunciated(runtime.step(STEP))["state"] == "pending"
+
+    states = [annunciated(runtime.step(STEP))["state"] for _ in range(5)]
+
+    assert states == ["pending", "pending", "pending", "pending", "tripped"]
+    assert runtime.trips.tripped == ("XS-1",)
+
+
+def test_a_manual_interlock_reads_tripped_after_its_condition_clears_until_it_is_reset():
+    runtime = build()
+    run(runtime, 6.0)
+    runtime.act("XV-1", "set_position_target", 0.5)
+    run(runtime, 20.0)
+
+    assert annunciated(runtime.snapshot())["state"] == "tripped"
+
+    runtime.act("XS-1", "reset", None)
+
+    assert annunciated(runtime.snapshot())["state"] == "normal", "a reset shows before the next step"
+    assert annunciated(runtime.step(STEP))["state"] == "normal"
+
+
+def test_an_auto_interlock_returns_to_normal_by_itself():
+    runtime = build(interlocks=({**TRIP, "reset": "auto"},))
+    run(runtime, 6.0)
+    assert annunciated(runtime.snapshot()) == {"state": "tripped", "reset": "auto", "devices": ["P-1"]}
+
+    runtime.act("XV-1", "set_position_target", 0.5)
+    run(runtime, 20.0)
+
+    assert annunciated(runtime.snapshot())["state"] == "normal"
+
+
+def test_an_interlock_entry_never_carries_its_condition():
+    runtime = build()
+    run(runtime, 6.0)
+
+    for snapshot in (runtime.snapshot(), runtime.step(STEP)):
+        assert set(annunciated(snapshot)) == {"state", "reset", "devices"}
+        assert "XV-1" not in str(snapshot.as_dict()["interlocks"])
+
+
+def test_the_engine_under_the_runtime_still_knows_nothing_of_trips():
+    runtime = build()
+    run(runtime, 6.0)
+
+    assert runtime.trips.tripped == ("XS-1",)
+    assert runtime.engine.snapshot().interlocks == {}
+
+
+def test_a_replayed_run_with_a_trip_and_a_reset_is_bit_identical():
+    def record():
+        runtime = build()
+        published = [runtime.step(STEP).as_dict() for _ in range(8)]
+        runtime.act("XV-1", "set_position_target", 0.5)
+        published += [runtime.step(STEP).as_dict() for _ in range(20)]
+        runtime.act("XS-1", "reset", None)
+        published += [runtime.step(STEP).as_dict() for _ in range(5)]
+
+        return published
+
+    first = record()
+
+    assert [row["interlocks"]["XS-1"]["state"] for row in first][7] == "tripped"
+    assert first[-1]["interlocks"]["XS-1"]["state"] == "normal"
+    assert json.dumps(record()) == json.dumps(first)
 
 
 # Alarms

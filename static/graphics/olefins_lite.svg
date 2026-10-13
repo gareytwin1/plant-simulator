@@ -52,6 +52,8 @@
     .plant-graphic .eq[data-state="stopped"] .badge { fill: var(--equip-stopped-fill); stroke: none; }
     .plant-graphic .eq[data-state="running"] [data-state-of] { fill: var(--equip-running-on); }
     .plant-graphic .eq[data-state="stopped"] [data-state-of] { fill: var(--equip-stopped-on); }
+    .plant-graphic .eq[data-state="tripped"] .badge { fill: var(--equip-tripped-fill); stroke: none; }
+    .plant-graphic .eq[data-state="tripped"] [data-state-of] { fill: var(--equip-tripped-on); }
   </style>
 
   <!-- Gas side. Every pipe is drawn in the direction of positive branch flow

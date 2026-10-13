@@ -23,6 +23,7 @@ C4_KEYS = {
     "streams",
     "controllers",
     "envelope",
+    "interlocks",
     "alarms",
     "solver",
 }

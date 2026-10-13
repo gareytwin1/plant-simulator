@@ -92,7 +92,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 
 from app.controls.arbitration import AGREEMENT, Actuator, CommandArbiter, Source
-from app.engine.snapshot import Snapshot
+from app.engine.snapshot import InterlockStatus, Snapshot
 from app.equipment.base import Equipment
 from app.equipment.compressor import GasCompressor
 from app.equipment.pump import CentrifugalPump
@@ -274,6 +274,20 @@ class TripSystem:
     @property
     def tripped(self) -> tuple[str, ...]:
         return tuple(tag for tag, interlock in self.interlocks.items() if interlock.tripped)
+
+    def status(self) -> dict[str, InterlockStatus]:
+        """Every interlock as the snapshot annunciates it (T20-3): its state
+        as the last `update` or reset left it, its reset kind, and the devices
+        its actions name, each once and in action order. Never its
+        condition."""
+        return {
+            tag: InterlockStatus(
+                state=interlock.state.value,
+                reset=interlock.definition.reset,
+                devices=tuple(dict.fromkeys(action.tag for action in self.actions[tag])),
+            )
+            for tag, interlock in self.interlocks.items()
+        }
 
     def update(self, snapshot: Snapshot) -> None:
         """Evaluate every interlock on `snapshot`, hold or release

@@ -308,6 +308,23 @@ def test_a_device_shows_its_run_state_and_worst_band(session, plant):
 
 
 @needs_node
+def test_a_device_a_tripped_interlock_holds_shows_trip(session, plant):
+    tripped = json.loads(json.dumps(view(session)))
+    tripped["interlocks"]["PSHH-101"]["state"] = "tripped"
+    tripped["equipment"]["K-101"]["running"] = False
+
+    shown = device_model("K-101", plant["plant"]["equipment"]["K-101"], tripped, plant["vocab"])
+
+    assert (shown["state"], shown["stateText"]) == ("tripped", "✖ TRIP")
+
+    # A valve has no run flag and so no badge, until an interlock holds it.
+    lv = plant["plant"]["equipment"]["LV-101"]
+    assert device_model("LV-101", lv, tripped, plant["vocab"])["stateText"] == ""
+    tripped["interlocks"]["LSLL-101"]["state"] = "tripped"
+    assert device_model("LV-101", lv, tripped, plant["vocab"])["stateText"] == "✖ TRIP"
+
+
+@needs_node
 def test_a_device_says_which_loop_drives_it(session, plant):
     driven = device_model("PV-101", plant["plant"]["equipment"]["PV-101"], view(session), plant["vocab"])
     free = device_model("P-101", plant["plant"]["equipment"]["P-101"], view(session), plant["vocab"])

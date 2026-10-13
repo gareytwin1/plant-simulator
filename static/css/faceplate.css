@@ -247,6 +247,46 @@
   background: var(--text-muted);
 }
 
+.fp-bar-caption {
+  margin: var(--space-3) 0 0;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.fp-bar-target {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 2px;
+  background: var(--text);
+}
+
+.fp-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.fp-actions .btn,
+.fp-reset {
+  min-height: 34px;
+}
+
+.fp-reset {
+  margin-top: var(--space-2);
+}
+
+.fp-reset[hidden] {
+  display: none;
+}
+
+.btn-equip[data-equip-action="start"] .btn-glyph {
+  color: var(--equip-running-fill);
+}
+
 .fp-mode {
   display: inline-flex;
   border: 1.5px solid var(--border);

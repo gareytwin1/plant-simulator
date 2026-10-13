@@ -213,7 +213,11 @@ def test_the_route_never_starts_a_scheduler():
 # tag, a device class or a device action, so a new plant is configuration and
 # a graphic, never JavaScript. Comments may cite examples; code may not.
 
+# The verbs every machine shares, which a faceplate's Start and Stop buttons
+# send and whose enabled state it reads from the run flag (T20-13). Every other
+# action - a target, say - is named by /api/plant and derived from its name.
 SCENARIO_VERBS = {"start"}  # POST /api/scenario/start, the scenario bar's own verb
+RUN_VERBS = {"start", "stop"}
 
 
 def js_code(path):
@@ -232,7 +236,7 @@ def test_no_browser_script_names_a_tag_a_device_class_or_a_device_action():
         for section in ("equipment", "controllers", "interlocks"):
             tags |= {entry["tag"] for entry in document.get(section, [])}
     classes = {device_type.__name__ for device_type in DEVICE_TYPES.values()}
-    actions = {spec.method for specs in ACTIONS.values() for spec in specs} - SCENARIO_VERBS
+    actions = {spec.method for specs in ACTIONS.values() for spec in specs} - SCENARIO_VERBS - RUN_VERBS
 
     assert tags and classes and actions
     for script in sorted((ROOT / "static" / "js").glob("*.js")):

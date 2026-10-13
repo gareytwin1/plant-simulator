@@ -385,7 +385,7 @@ const fetch = (url, init) => { posted.push({ url, body: JSON.parse(init.body) })
   return Promise.resolve({ ok: reply.ok, status: reply.status, json: () => Promise.resolve(reply.body) }); };
 const post = F.makePost(fetch);
 const opened = [];
-const ctx = info => ({ info, vocab: data.vocab, post, close: () => opened.push('close'),
+const ctx = info => ({ info, vocab: data.vocab, interlocks: data.plant.interlocks, post, close: () => opened.push('close'),
   open: (kind, tag) => opened.push([kind, tag]) });
 const loop = () => F.createPanel(doc, 'loop', 'PIC-101', ctx(data.plant.controllers['PIC-101']));
 const device = tag => F.createPanel(doc, 'device', tag, ctx(data.plant.equipment[tag]));
@@ -633,7 +633,7 @@ def test_live_values_carry_the_attribute_that_dims_them_when_stale(session, plan
         plant,
     )
 
-    assert result == [["fp-badges", "fp-readings", "fp-bar"], ["fp-badges", "fp-readings"]]
+    assert result == [["fp-badges", "fp-readings", "fp-bar"], ["fp-badges", "fp-readings", "fp-bar-caption", "fp-bar"]]
 
 
 @needs_node
@@ -701,21 +701,264 @@ def test_a_device_driven_by_a_loop_says_so_and_opens_the_loop(session, plant):
 
 
 @needs_node
-def test_a_device_no_loop_drives_has_readings_and_nothing_to_operate_yet(session, plant):
+def test_a_device_no_loop_drives_offers_the_actions_the_plant_lists(session, plant):
     result = run_panels(
         """
         const panel = device('P-101');
         panel.update(data.snapshot);
         return { buttons: panel.element.all().filter(n => n.tagName === 'BUTTON').map(n => n.textContent),
-                 inputs: panel.element.all().filter(n => n.tagName === 'INPUT').length,
-                 sections: panel.element.all().filter(n => n.classes.includes('fp-section')).length,
+                 entries: panel.element.all().filter(n => n.tagName === 'FORM').map(n => n.getAttribute('data-entry')),
                  kind: find(panel, n => n.classes.includes('fp-kind')).textContent,
                  badges: find(panel, n => n.classes.includes('fp-badges')).children.map(n => n.textContent) };
         """,
         plant, snapshot=view(session),
     )
 
-    assert result == {"buttons": ["✕"], "inputs": 0, "sections": 1, "kind": "Centrifugal pump", "badges": ["▶ RUN"]}
+    assert plant["plant"]["equipment"]["P-101"]["actions"] == ["start", "stop", "set_speed_target"]
+    assert result == {
+        "buttons": ["✕", "▶Start P-101", "■Stop P-101", "Set", "Reset LSHH-101"],  # hidden until it trips
+        "entries": ["set_speed_target"],
+        "kind": "Centrifugal pump",
+        "badges": ["▶ RUN"],
+    }
+
+
+@needs_node
+def test_a_device_with_no_actions_says_so(session, plant):
+    result = run_panels(
+        """
+        const panel = device('V-101');
+        panel.update(data.snapshot);
+        return { buttons: panel.element.all().filter(n => n.tagName === 'BUTTON').map(n => n.textContent),
+                 notes: panel.element.all().filter(n => n.classes.includes('fp-note')).map(n => n.textContent) };
+        """,
+        plant, snapshot=view(session),
+    )
+
+    assert result == {"buttons": ["✕"], "notes": ["No operator actions on V-101. It follows what flows in and out."]}
+
+
+@needs_node
+def test_a_loop_driven_device_offers_no_action_only_its_loop(session, plant):
+    result = run_panels(
+        """
+        const panel = device('PV-101');
+        panel.update(data.snapshot);
+        return { actions: panel.element.all().filter(n => n.getAttribute('data-equip-action') !== null).length,
+                 forms: panel.element.all().filter(n => n.tagName === 'FORM').length };
+        """,
+        plant, snapshot=view(session),
+    )
+
+    assert plant["plant"]["equipment"]["PV-101"]["actions"] == []
+    assert result == {"actions": 0, "forms": 0}
+
+
+@needs_node
+def test_start_is_disabled_while_the_device_runs_and_stop_while_it_is_stopped(session, plant):
+    stopped = json.loads(json.dumps(view(session)))
+    stopped["equipment"]["P-101"]["running"] = False
+
+    result = run_panels(
+        """
+        const panel = device('P-101');
+        const states = () => ['start', 'stop'].map(a => find(panel, n => n.getAttribute('data-equip-action') === a).disabled);
+        panel.update(data.running);
+        const running = states();
+        panel.update(data.stopped);
+        return { running, stopped: states() };
+        """,
+        plant, running=view(session), stopped=stopped,
+    )
+
+    assert result == {"running": [True, False], "stopped": [False, True]}
+
+
+@needs_node
+def test_start_and_stop_post_their_action_and_read_accepted_never_done(session, plant):
+    result = run_panels(
+        """
+        const panel = device('P-101');
+        panel.update(data.snapshot);
+        find(panel, n => n.getAttribute('data-equip-action') === 'stop').fire('click');
+        const pending = message(panel).textContent;
+        await settle();
+        return { posted, pending, after: message(panel).textContent, kind: message(panel).getAttribute('data-kind') };
+        """,
+        plant, snapshot=view(session),
+    )
+
+    assert result["posted"] == [{"url": "/api/action", "body": {"target": "P-101", "action": "stop", "value": None}}]
+    assert result["pending"] == "Sending stop P-101…"
+    assert result["after"] == "Stop P-101 accepted. The plant responds over the next steps."
+    assert result["kind"] == "accepted"
+
+
+@needs_node
+def test_a_target_is_entered_in_percent_and_posted_as_a_fraction(session, plant):
+    result = run_panels(
+        """
+        const panel = device('P-101');
+        panel.update(data.snapshot);
+        const field = panel.element.all().find(n => n.tagName === 'INPUT');
+        field.value = '80';
+        panel.element.all().find(n => n.tagName === 'FORM').fire('submit');
+        await settle();
+        return { posted, message: message(panel).textContent, left: field.value };
+        """,
+        plant, snapshot=view(session),
+    )
+
+    assert result["posted"] == [{"url": "/api/action", "body": {"target": "P-101", "action": "set_speed_target", "value": 0.8}}]
+    assert result["message"] == "Speed target 80.0 % for P-101 accepted. The plant responds over the next steps."
+    assert result["left"] == ""
+
+
+@pytest.mark.parametrize(("text", "expected"), [("150", "Target must be between 0 and 100 %."), ("-1", "Target must be between 0 and 100 %."), ("fast", "Enter a number."), ("", "Enter a number.")])
+@needs_node
+def test_a_bad_target_is_shown_and_never_posted(session, plant, text, expected):
+    result = run_panels(
+        """
+        const panel = device('P-101');
+        panel.update(data.snapshot);
+        panel.element.all().find(n => n.tagName === 'INPUT').value = data.text;
+        panel.element.all().find(n => n.tagName === 'FORM').fire('submit');
+        await settle();
+        return { posted, message: message(panel).textContent };
+        """,
+        plant, snapshot=view(session), text=text,
+    )
+
+    assert result == {"posted": [], "message": expected}
+
+
+@needs_node
+def test_a_hundred_percent_target_posts_exactly_one():
+    assert run_js("return F.parseTarget('100');") == {"value": 1}
+    assert run_js("return F.parseTarget(' 57.5 ');") == {"value": 0.575}
+
+
+@needs_node
+def test_the_bar_shows_the_actual_value_and_the_target_together(session, plant):
+    snapshot = json.loads(json.dumps(view(session)))
+    snapshot["equipment"]["P-101"]["speed"] = 0.5
+    snapshot["equipment"]["P-101"]["speed_target"] = 0.9
+
+    result = run_panels(
+        """
+        const panel = device('P-101');
+        panel.update(data.snapshot);
+        const bar = find(panel, n => n.getAttribute('role') === 'meter');
+        return { caption: find(panel, n => n.classes.includes('fp-bar-caption')).textContent,
+                 fill: find(panel, n => n.classes.includes('fp-bar-fill')).style.width,
+                 mark: find(panel, n => n.classes.includes('fp-bar-target')).style.left,
+                 now: bar.getAttribute('aria-valuenow'),
+                 placeholder: panel.element.all().find(n => n.tagName === 'INPUT').placeholder };
+        """,
+        plant, snapshot=snapshot,
+    )
+
+    assert result == {
+        "caption": "Speed 50.0 % · target 90.0 %",
+        "fill": "50%",
+        "mark": "calc(90% - 1px)",
+        "now": "50.0",
+        "placeholder": "90.0",
+    }
+
+
+@needs_node
+def test_a_refused_device_action_shows_the_servers_words(session, plant):
+    result = run_panels(
+        """
+        reply = { ok: false, status: 400, body: { error: 'P-101 is driven by loop FIC-101; command it through FIC-101' } };
+        const panel = device('P-101');
+        panel.update(data.snapshot);
+        find(panel, n => n.getAttribute('data-equip-action') === 'start').fire('click');
+        await settle(); await settle();
+        return { message: message(panel).textContent, kind: message(panel).getAttribute('data-kind') };
+        """,
+        plant, snapshot=view(session),
+    )
+
+    assert result == {"message": "P-101 is driven by loop FIC-101; command it through FIC-101", "kind": "rejected"}
+
+
+def tripped_view(session, name="PSHH-101", reset="manual"):
+    tripped = json.loads(json.dumps(view(session)))
+    tripped["interlocks"][name]["state"] = "tripped"
+    tripped["interlocks"][name]["reset"] = reset
+
+    return tripped
+
+
+@needs_node
+def test_a_device_a_tripped_manual_interlock_holds_offers_its_reset(session, plant):
+    result = run_panels(
+        """
+        const panel = device('K-101');
+        const reset = () => panel.element.all().filter(n => n.getAttribute('data-reset') !== null);
+        panel.update(data.normal);
+        const before = reset().map(n => n.getAttribute('hidden') !== null);
+        panel.update(data.tripped);
+        const after = reset().map(n => [n.getAttribute('data-reset'), n.getAttribute('hidden') !== null, n.textContent]);
+        reset()[0].fire('click');
+        await settle();
+        return { before, after, posted, message: message(panel).textContent };
+        """,
+        plant, normal=view(session), tripped=tripped_view(session),
+    )
+
+    assert plant["plant"]["interlocks"]["PSHH-101"]["devices"] == ["K-101"]
+    assert result["before"] == [True]
+    assert result["after"] == [["PSHH-101", False, "Reset PSHH-101"]]
+    assert result["posted"] == [{"url": "/api/action", "body": {"target": "PSHH-101", "action": "reset", "value": None}}]
+    assert result["message"] == "Reset PSHH-101 accepted. The plant responds over the next steps."
+
+
+@needs_node
+def test_reset_is_not_offered_for_an_automatic_interlock(session, plant):
+    result = run_panels(
+        """
+        const panel = device('K-101');
+        panel.update(data.snapshot);
+        return panel.element.all().filter(n => n.getAttribute('data-reset') !== null).map(n => n.getAttribute('hidden') !== null);
+        """,
+        plant, snapshot=tripped_view(session, reset="auto"),
+    )
+
+    assert result == [True]
+
+
+@needs_node
+def test_a_reset_the_server_refuses_says_so_on_the_faceplate(session, plant):
+    result = run_panels(
+        """
+        reply = { ok: false, status: 400, body: { error: 'PSHH-101 was not reset: it is not tripped, or its condition still holds' } };
+        const panel = device('K-101');
+        panel.update(data.snapshot);
+        panel.element.all().find(n => n.getAttribute('data-reset') !== null).fire('click');
+        await settle(); await settle();
+        return { message: message(panel).textContent, kind: message(panel).getAttribute('data-kind') };
+        """,
+        plant, snapshot=tripped_view(session),
+    )
+
+    assert result == {"message": "PSHH-101 was not reset: it is not tripped, or its condition still holds", "kind": "rejected"}
+
+
+@needs_node
+def test_a_loop_driven_device_a_tripped_interlock_holds_still_offers_the_reset(session, plant):
+    result = run_panels(
+        """
+        const panel = device('LV-101');
+        panel.update(data.snapshot);
+        return panel.element.all().filter(n => n.getAttribute('data-reset') !== null).map(n => [n.getAttribute('data-reset'), n.getAttribute('hidden') !== null]);
+        """,
+        plant, snapshot=tripped_view(session, name="LSLL-101"),
+    )
+
+    assert result == [["LSLL-101", False]]
 
 
 @needs_node

@@ -10,7 +10,7 @@ import pytest
 
 from app import config, main
 from app.engine.sessions import SessionRegistry
-from app.scenarios.runner import scenario_key
+from app.scenarios.runner import Phase, scenario_key
 from app.training.session import TrainingSession
 
 
@@ -260,3 +260,46 @@ def test_a_session_with_an_open_stream_is_not_reclaimed_while_idle(client, monke
 
     assert registry.reclaim_idle() == 1
     assert session.training_scheduler.closed is True
+
+
+@pytest.mark.parametrize(
+    ("key", "commands"),
+    [
+        ("pump_trip", [("P-101", "start", None), ("P-101", "set_speed_target", 1.0)]),
+        ("stuck_drain_valve", [("P-101", "start", None), ("P-101", "set_speed_target", 1.0)]),
+        ("compressor_trip", [("K-101", "start", None), ("K-101", "set_load_target", 1.0)]),
+    ],
+)
+def test_a_scenario_that_restarts_a_machine_completes_with_the_consoles_own_requests(client, key, commands):
+    """The requests faceplate.js builds for Start and a percent target (a
+    fraction on the wire), posted to the live action route."""
+    client.get("/console")
+    scheduler = settle(session_of(client))
+
+    assert client.post("/api/scenario/load", json={"scenario": scenario_key(key)}).status_code == 200
+    assert client.post("/api/scenario/start").status_code == 200
+
+    for target, action, value in commands:
+        taken = client.post("/api/action", json={"target": target, "action": action, "value": value})
+        assert taken.status_code == 200, taken.get_json()
+
+    for _ in range(4000):
+        if session_of(client).runner.phase is not Phase.RUNNING:
+            break
+        scheduler.step_once()
+
+    result = client.get("/api/scenario/result").get_json()
+
+    assert result["phase"] == "complete"
+    assert [objective["status"] for objective in result["objectives"]] == ["succeeded"]
+
+
+def test_a_reset_the_condition_still_blocks_is_refused_with_words_the_faceplate_shows(client):
+    client.get("/console")
+    settle(session_of(client))
+    assert client.post("/api/scenario/load", json={"scenario": scenario_key("pump_trip")}).status_code == 200
+
+    refused = client.post("/api/action", json={"target": "LSLL-101", "action": "reset", "value": None})
+
+    assert refused.status_code == 400
+    assert "condition still holds" in refused.get_json()["error"]

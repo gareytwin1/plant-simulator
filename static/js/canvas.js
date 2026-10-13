@@ -143,14 +143,15 @@
 
   /* ---- what the plant says --------------------------------------------- */
 
-  /* A GET /api/plant body as {id, equipment, controllers}, or null when it
-   * names no plant. */
+  /* A GET /api/plant body as {id, equipment, controllers, interlocks}, or null
+   * when it names no plant. */
   function descriptionOf(body) {
     if (!isObject(body) || typeof body.plant !== "string") return null;
     return {
       id: body.plant,
       equipment: isObject(body.equipment) ? body.equipment : {},
       controllers: isObject(body.controllers) ? body.controllers : {},
+      interlocks: isObject(body.interlocks) ? body.interlocks : {},
     };
   }
 
@@ -516,6 +517,7 @@
       var panel = F.createPanel(doc, kind, tag, {
         info: info,
         vocab: vocab,
+        interlocks: plant.interlocks,
         post: post,
         close: function () {
           close(true);

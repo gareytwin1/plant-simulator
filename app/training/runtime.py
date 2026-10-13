@@ -33,9 +33,10 @@ the first step.
 
 **An operator's input is one call, `act`.** A device action goes through
 `app.api.action.apply_action` and is logged. An interlock tag accepts only
-`reset`, which clears a tripped interlock whose condition has cleared, and is
-logged either way: a reset that took no effect is still something the operator
-did. The trip system releases the interlock's demands on the next step.
+`reset`, which clears a tripped interlock whose condition has cleared. A reset
+that would take no effect is refused with a `ValueError` and not logged, like
+any refused action, so the console can say why. The trip system releases the
+interlock's demands on the next step.
 
 **Every step is also recorded for the trend API (T17-3).** `trends` is one
 `Historian`, and `_observe` records every point of the operator view
@@ -164,7 +165,17 @@ class PlantRuntime:
                 if value is not None:
                     raise ValueError(f"{target}.{RESET} takes no value, got {value!r}")
 
-                self.trips.interlocks[target].reset()
+                interlock = self.trips.interlocks[target]
+
+                if not interlock.tripped:
+                    raise ValueError(f"{target} was not reset: it is not tripped")
+
+                if interlock.definition.reset != "manual":
+                    raise ValueError(f"{target} was not reset: it resets itself once its condition clears")
+
+                if not interlock.reset():
+                    raise ValueError(f"{target} was not reset: its condition still holds")
+
                 self.actions.record(tag=target, action=RESET, value=None, sim_time=sim_time)
             else:
                 apply_action(

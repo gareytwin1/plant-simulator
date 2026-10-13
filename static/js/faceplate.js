@@ -7,7 +7,10 @@
  *   device  its kind and service, a run badge and its worst band, every
  *           numeric reading the plant lists for it, and - when a loop drives
  *           it - a note saying so and a button to that loop. A device a loop
- *           does not drive has nothing to operate here yet (T20-13).
+ *           does not drive offers exactly the actions the plant lists for it
+ *           (T20-13): Start and Stop, and an entry for each target with the
+ *           actual value and the target on one bar. A device an interlock
+ *           holds offers a Reset for each tripped, manual-reset interlock.
  *   loop    PV, SP and OUT with an OUT bar, MAN and AUTO, and setpoint and
  *           output entry. There is no tuning anywhere on the console; the
  *           server's tuning actions are unchanged.
@@ -15,8 +18,9 @@
  * Every reading, on either panel, has a Trend button that opens the point's
  * trend window (trendwindows.js, T20-11) when the page gives one.
  *
- * This file knows no tag: what a device is, which points it has and which loop
- * drives it come from GET /api/plant (T20-2), and the values from the
+ * This file knows no tag: what a device is, which points it has, which actions
+ * it offers, which loop drives it and which interlocks hold it come from
+ * GET /api/plant (T20-2), and the values and interlock states from the
  * snapshot. A reading's words and unit come from the trend listing
  * (GET /api/trend/points: `descriptors`, `units`), which names every point the
  * plant lists; with neither, a reading shows its field name and a bare number.
@@ -30,7 +34,8 @@
  * server worded it.
  *
  * Output is entered and shown in percent of the loop's output range, the way an
- * operator reads a valve; the action carries the loop's own units. A command
+ * operator reads a valve; the action carries the loop's own units. A device
+ * target is entered in percent and posted as the fraction the device takes. A command
  * reads "accepted" once the server takes it and never "done": the values on a
  * faceplate are the snapshot's, so a change appears when the next snapshot
  * carries it, never before.
@@ -123,14 +128,20 @@
     };
   }
 
+  /* The number `text` spells, or null. Number("") is 0 and Number("1e") is
+   * NaN; only a plain decimal is a value. */
+  function plainNumber(text) {
+    var trimmed = String(text).trim();
+    var value = /^[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$/.test(trimmed) ? Number(trimmed) : NaN;
+    return isFinite(value) ? value : null;
+  }
+
   /* Read one entry: `kind` is sp or out and `text` what the operator typed.
    * Returns {action, value} to post, or {error} to show. */
   function parseEntry(kind, text, row) {
     var r = isObject(row) ? row : {};
-    var trimmed = String(text).trim();
-    // Number("") is 0 and Number("1e") is NaN; only a plain decimal is a value.
-    var value = /^[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$/.test(trimmed) ? Number(trimmed) : NaN;
-    if (!isFinite(value)) return { error: "Enter a number." };
+    var value = plainNumber(text);
+    if (value === null) return { error: "Enter a number." };
 
     if (kind === "sp") {
       if (value < 0) return { error: "Setpoint cannot be negative." };
@@ -165,6 +176,9 @@
    * "Sending <words>..." and "<Words> accepted." */
   function describeCommand(tag, action, value, row) {
     var m = model(tag, row);
+    if (action === "start" || action === "stop" || action === "reset") return action + " " + tag;
+    var field = targetField(action);
+    if (field !== null) return field.replace(/_/g, " ") + " target " + fixed(value * 100, 1) + " % for " + tag;
     if (action === "manual") return "switch " + tag + " to MAN";
     if (action === "auto") return "switch " + tag + " to AUTO";
     if (action === "set_setpoint") {
@@ -182,6 +196,42 @@
 
   function acceptedText(words) {
     return capitalised(words) + " accepted. The plant responds over the next steps.";
+  }
+
+  /* The field a target action sets ("set_speed_target" -> "speed"), or null
+   * for any other action. */
+  function targetField(action) {
+    var found = /^set_(\w+)_target$/.exec(String(action));
+    return found ? found[1] : null;
+  }
+
+  /* Read a target entry, typed in percent: {value} as the fraction the device
+   * takes, or {error}. */
+  function parseTarget(text) {
+    var value = plainNumber(text);
+    if (value === null) return { error: "Enter a number." };
+    if (value < 0 || value > 100) return { error: "Target must be between 0 and 100 %." };
+    return { value: value === 100 ? 1 : value / 100 };
+  }
+
+  /* The interlocks of GET /api/plant's `interlocks` section that hold `tag`. */
+  function heldBy(interlocks, tag) {
+    if (!isObject(interlocks)) return [];
+    return Object.keys(interlocks).filter(function (name) {
+      var row = interlocks[name];
+      return isObject(row) && Array.isArray(row.devices) && row.devices.indexOf(tag) !== -1;
+    });
+  }
+
+  /* Of the interlocks `held`, those a Reset is offered for: tripped, and
+   * needing a manual reset. Whether the condition has cleared is the server's
+   * to say, on the press. */
+  function resetOffers(snapshot, held) {
+    var rows = isObject(snapshot) && isObject(snapshot.interlocks) ? snapshot.interlocks : {};
+    return held.filter(function (name) {
+      var row = rows[name];
+      return isObject(row) && row.state === "tripped" && row.reset === "manual";
+    });
   }
 
   /* ---- devices --------------------------------------------------------- */
@@ -247,6 +297,30 @@
     var state = g ? g.deviceState(snapshot, tag) : "unknown";
     var worst = g ? g.worstBand(snapshot, tag) : null;
 
+    var actions = (Array.isArray(i.actions) ? i.actions : []).filter(function (a) {
+      return typeof a === "string";
+    });
+    var running = pointValue(snapshot, tag + ".running");
+    var targets = actions
+      .filter(function (a) {
+        return targetField(a) !== null;
+      })
+      .map(function (a) {
+        var field = targetField(a);
+        var actual = numeric(pointValue(snapshot, tag + "." + field));
+        var target = numeric(pointValue(snapshot, tag + "." + field + "_target"));
+        var word = field.replace(/_/g, " ");
+        return {
+          action: a,
+          label: capitalised(word),
+          actual: actual,
+          target: target,
+          actualPercent: actual === null ? null : Math.min(100, Math.max(0, actual * 100)),
+          targetPercent: target === null ? null : Math.min(100, Math.max(0, target * 100)),
+          caption: capitalised(word) + " " + readingText(actual, "fraction") + " · target " + readingText(target, "fraction"),
+        };
+      });
+
     return {
       tag: tag,
       kind: typeof i.kind === "string" ? i.kind : "",
@@ -257,6 +331,12 @@
       bandText: worst ? g.bandText(worst) : "",
       readings: readings,
       drivenBy: typeof i.driven_by === "string" ? i.driven_by : null,
+      actions: actions,
+      // Start is off while it runs and Stop while it is stopped; with no run
+      // flag to read, neither is.
+      canStart: running !== true,
+      canStop: running !== false,
+      targets: targets,
     };
   }
 
@@ -271,6 +351,10 @@
     readingLabel: readingLabel,
     readingText: readingText,
     deviceModel: deviceModel,
+    parseTarget: parseTarget,
+    targetField: targetField,
+    heldBy: heldBy,
+    resetOffers: resetOffers,
   };
 
   /* ---- browser glue ---------------------------------------------------- */
@@ -307,6 +391,21 @@
         }
       );
     };
+  }
+
+  /* Send one command and walk `feedback` through pending, then accepted or
+   * the server's refusal; never "done" (see the module comment). `done` runs
+   * on acceptance. */
+  function sendCommand(feedback, post, tag, action, value, words, done) {
+    feedback.show("pending", "Sending " + words + "…");
+    post(tag, action, value).then(function (error) {
+      if (error) {
+        feedback.show("rejected", error);
+      } else {
+        feedback.show("accepted", acceptedText(words));
+        if (done) done();
+      }
+    });
   }
 
   function entryForm(doc, tag, kind, label, unit) {
@@ -393,7 +492,8 @@
     return el(doc, "span", Object.assign({ class: className }, attrs), text);
   }
 
-  /* A device's panel. `ctx` is {info, vocab, close, open(kind, tag), trend}.
+  /* A device's panel. `ctx` is {info, vocab, interlocks, post, close,
+   * open(kind, tag), trend}.
    * Returns {element, update(snapshot), close (the close button)}. */
   function buildDevicePanel(doc, tag, ctx) {
     var panel = panelShell(doc, "device", tag);
@@ -405,9 +505,27 @@
     readings.appendChild(list);
     panel.appendChild(readings);
 
-    var driver = isObject(ctx.info) && typeof ctx.info.driven_by === "string" ? ctx.info.driven_by : null;
+    var info = isObject(ctx.info) ? ctx.info : {};
+    var driver = typeof info.driven_by === "string" ? info.driven_by : null;
+    var actions = (Array.isArray(info.actions) ? info.actions : []).filter(function (a) {
+      return typeof a === "string";
+    });
+    var targetActions = actions.filter(function (a) {
+      return targetField(a) !== null;
+    });
+    var held = heldBy(ctx.interlocks, tag);
+    var operate = section(doc, "Operate " + tag);
+    var feedback = feedbackLine(doc);
+    var startButton = null;
+    var stopButton = null;
+    var bars = {};
+    var resets = {};
+
+    function send(action, value, done, target) {
+      sendCommand(feedback, ctx.post, target || tag, action, value, describeCommand(target || tag, action, value), done);
+    }
+
     if (driver !== null) {
-      var operate = section(doc, "Operate " + tag);
       var note = el(doc, "p", { class: "fp-note" });
       note.appendChild(el(doc, "strong", {}, tag + " is driven by " + driver + "."));
       note.appendChild(doc.createTextNode(" Operate it from the controller; a direct command would be overwritten on the next step."));
@@ -417,8 +535,76 @@
         ctx.open("loop", driver);
       });
       operate.appendChild(open);
-      panel.appendChild(operate);
+    } else {
+      var hasStart = actions.indexOf("start") >= 0;
+      var hasStop = actions.indexOf("stop") >= 0;
+      if (hasStart || hasStop) {
+        var group = el(doc, "div", { class: "fp-actions", role: "group", "aria-label": tag + " start and stop" });
+        [["start", "▶", hasStart], ["stop", "■", hasStop]].forEach(function (spec) {
+          if (!spec[2]) return;
+          var button = el(doc, "button", { type: "button", class: "btn btn-equip", "data-equip-action": spec[0] });
+          button.appendChild(el(doc, "span", { class: "btn-glyph", "aria-hidden": "true" }, spec[1]));
+          button.appendChild(doc.createTextNode(capitalised(spec[0]) + " " + tag));
+          button.addEventListener("click", function () {
+            send(spec[0], null);
+          });
+          group.appendChild(button);
+          if (spec[0] === "start") startButton = button;
+          else stopButton = button;
+        });
+        operate.appendChild(group);
+      }
+
+      targetActions.forEach(function (action) {
+        var t = { action: action, label: capitalised(targetField(action).replace(/_/g, " ")) };
+        var caption = el(doc, "p", { class: "fp-bar-caption", "data-live-value": "" });
+        var bar = el(doc, "div", {
+          class: "fp-bar",
+          role: "meter",
+          "aria-label": tag + " " + t.label.toLowerCase(),
+          "aria-valuemin": "0",
+          "aria-valuemax": "100",
+          "data-live-value": "",
+        });
+        var fill = el(doc, "span", { class: "fp-bar-fill" });
+        var mark = el(doc, "i", { class: "fp-bar-target" });
+        bar.appendChild(fill);
+        bar.appendChild(mark);
+        var form = entryForm(doc, tag, t.action, t.label + " target (%)", "percent");
+        operate.appendChild(caption);
+        operate.appendChild(bar);
+        operate.appendChild(form);
+        bars[t.action] = { caption: caption, bar: bar, fill: fill, mark: mark, input: form.querySelector("input") };
+        form.addEventListener("submit", function (event) {
+          event.preventDefault();
+          var sent = bars[t.action].input.value;
+          var parsed = parseTarget(sent);
+          if (parsed.error) {
+            feedback.show("rejected", parsed.error);
+            return;
+          }
+          send(t.action, parsed.value, function () {
+            // Only what was sent is cleared, as on a loop.
+            if (bars[t.action].input.value === sent) bars[t.action].input.value = "";
+          });
+        });
+      });
     }
+
+    held.forEach(function (name) {
+      var button = el(doc, "button", { type: "button", class: "btn btn-equip fp-reset", "data-reset": name, hidden: "" }, "Reset " + name);
+      button.addEventListener("click", function () {
+        send("reset", null, null, name);
+      });
+      operate.appendChild(button);
+      resets[name] = button;
+    });
+
+    if (driver === null && actions.length === 0 && held.length === 0) {
+      operate.appendChild(el(doc, "p", { class: "fp-note" }, "No operator actions on " + tag + ". It follows what flows in and out."));
+    }
+    operate.appendChild(feedback.element);
+    panel.appendChild(operate);
 
     var rowsKey = null;
     var rows = {};
@@ -455,6 +641,31 @@
           rows[r.point] = { value: value, band: band };
         });
       }
+
+      if (startButton) startButton.disabled = !m.canStart;
+      if (stopButton) stopButton.disabled = !m.canStop;
+
+      m.targets.forEach(function (t) {
+        var cells = bars[t.action];
+        if (!cells) return;
+        cells.caption.textContent = t.caption;
+        cells.fill.style.width = (t.actualPercent === null ? 0 : t.actualPercent) + "%";
+        cells.mark.style.left = "calc(" + (t.targetPercent === null ? 0 : t.targetPercent) + "% - 1px)";
+        if (t.actualPercent === null) {
+          cells.bar.removeAttribute("aria-valuenow");
+          cells.bar.setAttribute("aria-hidden", "true");
+        } else {
+          cells.bar.setAttribute("aria-valuenow", t.actualPercent.toFixed(1));
+          cells.bar.removeAttribute("aria-hidden");
+        }
+        if (t.target !== null) cells.input.placeholder = fixed(t.targetPercent, 1);
+      });
+
+      var offered = resetOffers(snapshot, held);
+      held.forEach(function (name) {
+        if (offered.indexOf(name) >= 0) resets[name].removeAttribute("hidden");
+        else resets[name].setAttribute("hidden", "");
+      });
 
       m.readings.forEach(function (r) {
         var cells = rows[r.point];
@@ -546,16 +757,7 @@
     var row = null;
 
     function send(action, value, done) {
-      var words = describeCommand(tag, action, value, row);
-      feedback.show("pending", "Sending " + words + "…");
-      ctx.post(tag, action, value).then(function (error) {
-        if (error) {
-          feedback.show("rejected", error);
-        } else {
-          feedback.show("accepted", acceptedText(words));
-          if (done) done();
-        }
-      });
+      sendCommand(feedback, ctx.post, tag, action, value, describeCommand(tag, action, value, row), done);
     }
 
     Object.keys(buttons).forEach(function (action) {

@@ -266,9 +266,23 @@ def test_a_held_valve_with_no_run_flag_draws_as_trip_and_a_device_not_published_
     snapshot = copy.deepcopy(views["normal"])
     snapshot["interlocks"]["LSLL-101"]["state"] = "tripped"
     assert render(snapshot).tag("LV-101")["data-state"] == "tripped"
+    assert render(snapshot).state_text("LV-101") == "✖ TRIP"
 
     del snapshot["equipment"]["LV-101"]
     assert render(snapshot).tag("LV-101")["data-state"] == "unknown"
+
+
+@needs_node
+def test_a_valve_shows_a_trip_label_only_while_an_interlock_holds_it(views):
+    snapshot = copy.deepcopy(views["normal"])
+    snapshot["interlocks"]["LSLL-101"]["state"] = "tripped"
+    snapshot["interlocks"]["PSHH-101"]["state"] = "tripped"
+    held = render(snapshot)
+    free = render(views["normal"])
+
+    assert [held.state_text(tag) for tag in ("LV-101", "PV-101")] == ["✖ TRIP", ""]
+    assert [free.state_text(tag) for tag in ("LV-101", "PV-101")] == ["", ""]
+    assert free.tag("PV-101")["data-state"] == "none"
 
 
 @needs_node

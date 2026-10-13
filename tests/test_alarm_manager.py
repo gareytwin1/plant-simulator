@@ -305,3 +305,34 @@ def test_a_point_that_never_left_normal_is_not_cleared():
     manager.evaluate([normal], sim_time=1.0)
 
     assert manager.last_cleared() == ()
+
+
+def test_an_event_carries_the_monitored_point_when_the_envelope_event_names_one():
+    manager = AlarmManager()
+
+    (event,) = manager.evaluate(
+        [
+            EnvelopeEvent(
+                tag="K-101", pv="discharge pressure", severity=Severity.ALARM, side="hi",
+                point="K-101.discharge_pressure",
+            )
+        ],
+        sim_time=1.0,
+    )
+
+    assert event.data == {
+        "pv": "discharge pressure",
+        "severity": "ALARM",
+        "point": "K-101.discharge_pressure",
+    }
+
+
+def test_an_event_without_a_point_leaves_the_data_as_it_was():
+    manager = AlarmManager()
+
+    (event,) = manager.evaluate(
+        [EnvelopeEvent(tag="K-101", pv="discharge pressure", severity=Severity.ALARM, side="hi")],
+        sim_time=1.0,
+    )
+
+    assert event.data == {"pv": "discharge pressure", "severity": "ALARM"}

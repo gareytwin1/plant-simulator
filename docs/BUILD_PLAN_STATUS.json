@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "12 October 2026",
-  "main_sha": "53401af",
-  "tests_passing_on_main": 3916,
+  "main_sha": "98ad205",
+  "tests_passing_on_main": 3951,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -118,13 +118,13 @@
     },
     "M20": {
       "name": "Console Redesign",
-      "complete": 10,
+      "complete": 11,
       "total": 20
     }
   },
   "totals": {
     "tasks": 153,
-    "complete": 138,
+    "complete": 139,
     "startable_now": 8
   },
   "tasks": [
@@ -2915,10 +2915,9 @@
         "tests/test_alarm_console.py",
         "tests/test_alarm_manager.py"
       ],
-      "status": "Ready for Review",
-      "status_key": "review",
-      "startable": true,
-      "note": "PR #169 (feature/alarm-overlay), 3941 passed, mypy clean, no golden moved. Modal alarm overlay opened from the ribbon (filters, Acknowledge, Show trend, Locate, Acknowledge all shown); C6 data gains point; canvas locate and showTrend. roborev-refine: final full-branch review clean. roborev aria-modal finding dismissed on purpose (ribbon stays operable). Seen in headless Firefox, both themes; phone width unchecked (desktop first)."
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged as 98ad205 (PR #169); 3951 passed on main, mypy clean, no golden moved. Modal alarm overlay replaces the alarm banner and summary section: filters by priority, acknowledgement, equipment and text, per-row Acknowledge, Show trend and Locate, Acknowledge all shown; workspace inert behind it; history polled only while open. C6 data gains point (<tag>.<variable>) additively; canvas gains locate and showTrend. roborev-refine: several rounds, final full-branch review clean; aria-modal finding dismissed on purpose (ribbon stays operable). Raised column shows plant sim time, not run-relative. Seen in headless Firefox, both themes; phone width unchecked (desktop first)."
     },
     {
       "id": "T20-13",
@@ -3109,7 +3108,6 @@
       "status_key": "todo",
       "startable": false,
       "blocked_by": [
-        "T20-12",
         "T20-13",
         "T20-16",
         "T20-18"

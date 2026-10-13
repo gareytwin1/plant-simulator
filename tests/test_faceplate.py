@@ -317,6 +317,12 @@ def test_a_device_a_tripped_interlock_holds_shows_trip(session, plant):
 
     assert (shown["state"], shown["stateText"]) == ("tripped", "✖ TRIP")
 
+    # A valve has no run flag and so no badge, until an interlock holds it.
+    lv = plant["plant"]["equipment"]["LV-101"]
+    assert device_model("LV-101", lv, tripped, plant["vocab"])["stateText"] == ""
+    tripped["interlocks"]["LSLL-101"]["state"] = "tripped"
+    assert device_model("LV-101", lv, tripped, plant["vocab"])["stateText"] == "✖ TRIP"
+
 
 @needs_node
 def test_a_device_says_which_loop_drives_it(session, plant):

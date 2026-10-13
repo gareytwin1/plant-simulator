@@ -215,6 +215,24 @@ def test_nothing_advances_before_start():
     assert runner.phase is Phase.LOADED
 
 
+def test_a_loaded_run_annunciates_every_interlock_before_it_starts():
+    runner = ScenarioRunner()
+    runner.load_config(scenario())
+
+    for snapshot in (runner.snapshot(), runner.step(DT)):
+        assert set(snapshot.as_dict()["interlocks"]) == {"LSHH-101", "LSLL-101", "PSHH-101"}
+
+
+def test_a_trip_still_reads_tripped_once_the_run_is_over():
+    # Ignored, the feed pump trip drains V-101 past LSLL-101, which latches.
+    runner = started(scenario(objectives=[], time_limit_s=300))
+    run_out(runner)
+
+    assert runner.phase is Phase.COMPLETE
+    for snapshot in (runner.snapshot(), runner.step(DT)):
+        assert snapshot.interlocks["LSLL-101"].state == "tripped"
+
+
 def test_act_applies_and_logs_an_action_on_the_live_run():
     runner = started()
 

@@ -262,6 +262,16 @@ def test_only_a_tripped_interlock_draws_the_devices_it_holds_as_trip(views, stat
 
 
 @needs_node
+def test_a_held_valve_with_no_run_flag_draws_as_trip_and_a_device_not_published_stays_unknown(views):
+    snapshot = copy.deepcopy(views["normal"])
+    snapshot["interlocks"]["LSLL-101"]["state"] = "tripped"
+    assert render(snapshot).tag("LV-101")["data-state"] == "tripped"
+
+    del snapshot["equipment"]["LV-101"]
+    assert render(snapshot).tag("LV-101")["data-state"] == "unknown"
+
+
+@needs_node
 def test_a_pshh_101_trip_draws_k_101_as_trip_in_the_next_published_snapshot():
     library = ScenarioLibrary()
     runtime = PlantRuntime.from_plant(load_plant(read_plant_config(library.plant_path(config.FREE_PLAY_PLANT))))

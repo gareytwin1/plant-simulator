@@ -168,9 +168,9 @@
   }
 
   function deviceState(snapshot, tag) {
-    if (heldByTrip(snapshot, tag)) return "tripped";
     var row = resolvePath(snapshot, "equipment." + tag);
     if (!isObject(row)) return "unknown";
+    if (heldByTrip(snapshot, tag)) return "tripped";
     if (row.running === true) return "running";
     if (row.running === false) return "stopped";
     return "none";

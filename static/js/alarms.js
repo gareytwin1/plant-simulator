@@ -300,7 +300,8 @@
    *   fetch, pollMs  a transport and the refresh period while open, for a page or test
    *   onAcknowledge  called after an acknowledgement is recorded
    *   onShowTrend    called with the alarm (tag, point) after the overlay closes;
-   *   onLocate       likewise. Each returns false when it had nothing to show.
+   *   onLocate       likewise. Each returns false when it had nothing to show,
+   *                  and the overlay then opens again saying so.
    * Returns {ready, refresh, open, close, isOpen, stop}. The history is fetched
    * on opening and then every `pollMs` while open; nothing polls while closed. */
   function mount(doc, options) {
@@ -468,9 +469,12 @@
       // Show trend and Locate hand focus to the canvas, so the overlay lets go of it.
       closeOverlay(false);
       var handler = action === "trend" ? settings.onShowTrend : settings.onLocate;
-      // A handler that finds nothing to show says so with false, and focus goes
-      // back to the ribbon button rather than to nowhere.
-      if (!handler || handler(alarm) === false) opener.focus();
+      if (handler && handler(alarm) !== false) return;
+      // Nothing to show: the overlay comes back with the reason, focus on the
+      // button that was pressed, rather than vanishing without a word.
+      openOverlay();
+      say(action === "trend" ? "No trend is available for this alarm." : "This alarm is not drawn on the canvas.");
+      focusAfterRedraw(action, id);
     });
 
     // Exactly the unacknowledged rows on screen, not whatever the history says now.

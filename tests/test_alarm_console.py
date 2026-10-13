@@ -773,32 +773,55 @@ def test_an_alarm_id_with_quotes_does_not_break_the_redraw():
 
 
 @needs_node
-def test_a_show_trend_or_locate_that_finds_nothing_gives_focus_back_to_the_ribbon(plant):
+@pytest.mark.parametrize(
+    ("action", "words"),
+    [("trend", "No trend is available"), ("locate", "not drawn on the canvas")],
+)
+def test_a_show_trend_or_locate_that_finds_nothing_reopens_the_overlay_and_says_so(plant, action, words):
     plant.set_band("K-101", "discharge pressure", Severity.TRIP, at=1.0, point="K-101.discharge_pressure")
     alarm_id = _alarm_id("K-101", "discharge pressure")
 
     got = mounted(
         """
-        const results = { trend: false, locate: undefined };
-        const overlay = A.mount(doc, { fetch: async () => reply(data.entries), opener: els['ribbon-alarms'],
-          onShowTrend: () => results.trend, onLocate: () => results.locate });
-        const focusAfter = async (action) => {
-          overlay.open(); await overlay.ready;
-          focusLog.length = 0;
-          press(action, data.id);
-          return focusLog.slice();
-        };
-        // Nothing to show: focus returns to the opener. A handler that shows something keeps it.
-        const nothing = await focusAfter('trend');
-        results.trend = true;
-        const shown = await focusAfter('trend');
-        return { nothing, shown };
+        const overlay = A.mount(doc, { fetch: async () => reply(data.entries), opener: els['ribbon-alarms'], inert: workspace,
+          onShowTrend: () => false, onLocate: () => false });
+        overlay.open();
+        await overlay.ready;
+        const buttons = els['alarm-rows'].querySelectorAll();
+        doc.activeElement = buttons[0];
+        press(data.action, data.id);
+        return { open: overlay.isOpen(), inert: workspace.getAttribute('inert'), note: els['alarm-feedback'].textContent,
+          shown: !els['alarm-feedback'].hidden, focus: doc.activeElement.id };
+        """,
+        entries=plant.entries(),
+        id=alarm_id,
+        action=action,
+    )
+
+    assert got["open"] is True and got["inert"] == "" and got["shown"] is True
+    assert words in got["note"]
+    assert got["focus"] == f"{action}|{alarm_id}"
+
+
+@needs_node
+def test_a_show_trend_that_shows_something_leaves_the_overlay_closed(plant):
+    plant.set_band("K-101", "discharge pressure", Severity.TRIP, at=1.0, point="K-101.discharge_pressure")
+    alarm_id = _alarm_id("K-101", "discharge pressure")
+
+    got = mounted(
+        """
+        const overlay = A.mount(doc, { fetch: async () => reply(data.entries), opener: els['ribbon-alarms'], onShowTrend: () => true });
+        overlay.open();
+        await overlay.ready;
+        focusLog.length = 0;
+        press('trend', data.id);
+        return { open: overlay.isOpen(), focusLog };
         """,
         entries=plant.entries(),
         id=alarm_id,
     )
 
-    assert got == {"nothing": ["ribbon-alarms"], "shown": []}
+    assert got == {"open": False, "focusLog": []}
 
 
 @needs_node

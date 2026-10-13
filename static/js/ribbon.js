@@ -56,10 +56,10 @@
 
   /* The summary's markup and its spoken label. Numbers and fixed words only,
    * so nothing here needs escaping. The glyph is drawn by CSS from tokens.css.
-   * `goes` is what pressing it does: "Open" the alarm list on the console;
+   * `opensList` is true on the console, where pressing it opens the alarm list;
    * from any other page it goes to the console, where the list is closed. */
-  api.summaryView = function (summary, goes) {
-    var action = goes === "Open" ? "Open the alarm list." : "Go to the console.";
+  api.summaryView = function (summary, opensList) {
+    var action = opensList ? "Open the alarm list." : "Go to the console.";
 
     if (summary.total === 0) {
       return { html: "No active alarms", label: "No active alarms. " + action };
@@ -251,7 +251,7 @@
 
     function drawAlarms(alarms) {
       var summary = api.summarize(alarms);
-      var view = api.summaryView(summary, alarmLink.tagName === "BUTTON" ? "Open" : "Go to");
+      var view = api.summaryView(summary, alarmLink.tagName === "BUTTON");
       ribbon.setAttribute("data-severity", summary.worst);
       ribbon.setAttribute("data-unack", summary.unacknowledged > 0 ? "true" : "false");
       alarmText.innerHTML = view.html;

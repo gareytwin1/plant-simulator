@@ -906,8 +906,8 @@ def test_the_alarm_summarys_spoken_label_says_what_pressing_it_does():
     got = run_js(
         """
         const summary = R.summarize([{ priority: "high", state: "unack" }]);
-        return [R.summaryView(summary).label, R.summaryView(summary, "Open").label,
-          R.summaryView(R.summarize([]), "Open").label];
+        return [R.summaryView(summary).label, R.summaryView(summary, true).label,
+          R.summaryView(R.summarize([]), true).label];
         """
     )
 

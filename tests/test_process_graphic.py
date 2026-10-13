@@ -247,6 +247,48 @@ def test_tripped_state_shows_the_trip_band_on_the_point_that_crossed_it(views):
 
 
 @needs_node
+@pytest.mark.parametrize(
+    "state, shown_as, text",
+    [("tripped", "tripped", "✖ TRIP"), ("pending", "running", "▶ RUN"), ("normal", "running", "▶ RUN")],
+)
+def test_only_a_tripped_interlock_draws_the_devices_it_holds_as_trip(views, state, shown_as, text):
+    snapshot = copy.deepcopy(views["normal"])
+    snapshot["interlocks"]["PSHH-101"]["state"] = state
+    shown = render(snapshot)
+
+    assert shown.tag("K-101")["data-state"] == shown_as
+    assert shown.state_text("K-101") == text
+    assert shown.tag("P-101")["data-state"] == "running"
+
+
+@needs_node
+def test_a_pshh_101_trip_draws_k_101_as_trip_in_the_next_published_snapshot():
+    library = ScenarioLibrary()
+    runtime = PlantRuntime.from_plant(load_plant(read_plant_config(library.plant_path(config.FREE_PLAY_PLANT))))
+    runtime.engine.start()
+    for tag in ("P-101", "K-101"):
+        runtime.act(tag, "start", None)
+    for _ in range(30):
+        runtime.step(1.0)
+
+    # As tests/test_trip_actions.py: a discharge header pressed past 350 psia
+    # carries K-101's outlet with it, and PSHH-101 latches after its 2 s delay.
+    runtime.engine.topologies["gas"].node("N-202").set_boundary_pressure(400.0)
+    published = [runtime.step(1.0) for _ in range(4)]
+    states = [snapshot.interlocks["PSHH-101"].state for snapshot in published]
+    latched = states.index("tripped")
+
+    assert "pending" in states[:latched]
+    assert runtime.trips.tripped == ("PSHH-101",)
+    view = operator_view(published[latched], runtime.engine.equipment)
+    assert view["interlocks"]["PSHH-101"] == {"state": "tripped", "reset": "manual", "devices": ["K-101"]}
+
+    shown = render(view)
+    assert shown.tag("K-101")["data-state"] == "tripped"
+    assert shown.state_text("K-101") == "✖ TRIP"
+
+
+@needs_node
 def test_an_alarm_band_reads_as_the_alarm_severity_on_its_own_device(views):
     snapshot = copy.deepcopy(views["normal"])
     snapshot["envelope"] = {"K-101.outlet_pressure": {"band": "hihi", "since": 14500.0}}

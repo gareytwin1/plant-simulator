@@ -97,6 +97,11 @@
   color: var(--equip-stopped-on);
 }
 
+.state-badge[data-state="tripped"] {
+  background: var(--equip-tripped-fill);
+  color: var(--equip-tripped-on);
+}
+
 .state-badge[data-mode] {
   border: 1.5px solid var(--text);
   color: var(--text);

@@ -57,7 +57,7 @@
   // The snapshot sections a point's id can name, in the order they are tried.
   var POINT_SECTIONS = ["equipment", "streams", "nodes", "controllers"];
 
-  var RUN_TEXT = { running: "▶ RUN", stopped: "■ STOP" };
+  var RUN_TEXT = { running: "▶ RUN", stopped: "■ STOP", tripped: "✖ TRIP" };
 
   function isObject(value) {
     return value !== null && typeof value === "object";

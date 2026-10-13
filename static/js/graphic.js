@@ -10,7 +10,8 @@
  * unload. A plant with no graphic says so and still lists its equipment.
  *
  *   data-tag="P-101"                 a device's symbol group: sets data-state
- *                                    (running | stopped | none | unknown) and
+ *                                    (running | stopped | tripped | none |
+ *                                    unknown) and
  *                                    data-band (none | warning | alarm | trip)
  *   data-state-of="P-101"            text: the device's state, glyph and label
  *   data-band-of="P-101"             text: its worst envelope band, glyph and label
@@ -33,10 +34,10 @@
  * graphic does not draw yet, or the other way round.
  *
  * What it reads is the operator view (app/api/visibility.py), the only shape a
- * browser receives. State comes from `running` alone. The snapshot does not
- * say an interlock has tripped, so the graphic does not claim one: a trip shows
- * as the envelope's trip band on the point that crossed it, and a machine the
- * trip stopped shows as STOP.
+ * browser receives. A device that a tripped interlock holds - one its
+ * `interlocks` row lists under `devices` (T20-3) - is tripped, whatever its
+ * `running` says; otherwise state comes from `running` alone. An interlock
+ * still waiting out its delay holds nothing yet, so it changes no state.
  *
  * Everything above the "browser glue" marker takes element-likes (getAttribute,
  * setAttribute, removeAttribute, textContent) so it runs under Node without a
@@ -57,6 +58,7 @@
   var STATE_TEXT = {
     running: "▶ RUN",
     stopped: "■ STOP",
+    tripped: "✖ TRIP",
     none: "",
     unknown: MISSING,
   };
@@ -153,7 +155,20 @@
     return worst;
   }
 
+  /* Whether a tripped interlock in the snapshot lists `tag` among the devices
+   * it holds. */
+  function heldByTrip(snapshot, tag) {
+    var interlocks = isObject(snapshot) ? snapshot.interlocks : null;
+    if (!isObject(interlocks)) return false;
+
+    return Object.keys(interlocks).some(function (key) {
+      var row = interlocks[key];
+      return isObject(row) && row.state === "tripped" && Array.isArray(row.devices) && row.devices.indexOf(tag) !== -1;
+    });
+  }
+
   function deviceState(snapshot, tag) {
+    if (heldByTrip(snapshot, tag)) return "tripped";
     var row = resolvePath(snapshot, "equipment." + tag);
     if (!isObject(row)) return "unknown";
     if (row.running === true) return "running";
@@ -429,6 +444,7 @@
     pointBand: pointBand,
     worstBand: worstBand,
     bandText: bandText,
+    heldByTrip: heldByTrip,
     deviceState: deviceState,
     update: update,
     collect: collect,

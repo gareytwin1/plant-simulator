@@ -593,6 +593,51 @@ def test_acknowledge_all_shown_acknowledges_exactly_the_unacknowledged_rows_show
 
 
 @needs_node
+def test_focus_stays_in_the_dialog_when_acknowledge_all_shown_turns_itself_off(plant):
+    plant.set_band("K-101", "discharge pressure", Severity.TRIP, at=1.0)
+    first = plant.entries()
+    plant.client.post("/api/alarms/acknowledge", json={"alarm_id": _alarm_id("K-101", "discharge pressure")})
+    second = plant.entries()
+
+    got = mounted(
+        """
+        const replies = [data.first, data.second];
+        const doFetch = async (url, init) => (init && init.method === 'POST' ? reply({ ok: true }) : reply(replies.shift() || data.second));
+        const overlay = A.mount(doc, { fetch: doFetch, opener: els['ribbon-alarms'] });
+        overlay.open();
+        await overlay.ready;
+        els['ack-visible'].focus();
+        els['ack-visible'].fire('click');
+        await settle(); await settle();
+        return { off: els['ack-visible'].disabled, focus: doc.activeElement.id };
+        """,
+        first=first,
+        second=second,
+    )
+
+    assert got == {"off": True, "focus": "alarm-overlay-close"}
+
+
+@needs_node
+def test_escape_in_the_search_field_clears_it_first_and_the_next_one_closes():
+    got = mounted(
+        """
+        const overlay = A.mount(doc, { fetch: async () => reply([]), opener: els['ribbon-alarms'] });
+        overlay.open();
+        await overlay.ready;
+        els['filter-search'].value = 'pump';
+        const escape = target => keys.forEach(f => f({ key: 'Escape', target }));
+        escape(els['filter-search']);
+        const cleared = { value: els['filter-search'].value, open: overlay.isOpen() };
+        escape(els['filter-search']);
+        return { cleared, open: overlay.isOpen() };
+        """,
+    )
+
+    assert got == {"cleared": {"value": "", "open": True}, "open": False}
+
+
+@needs_node
 def test_acknowledge_all_shown_is_off_when_nothing_shown_needs_it(plant):
     first = plant.set_band("K-101", "discharge pressure", Severity.TRIP, at=1.0)
     plant.client.post("/api/alarms/acknowledge", json={"alarm_id": first})

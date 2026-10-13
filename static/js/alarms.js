@@ -362,6 +362,8 @@
       empty.hidden = shown.length > 0;
       empty.textContent = emptyText(alarms);
       ackAll.disabled = unacknowledged(shown).length === 0;
+      // A control that is disabled while it has focus drops focus to the page.
+      if (ackAll.disabled && doc.activeElement === ackAll) $("alarm-overlay-close").focus();
 
       // A redraw that changes nothing is skipped, so a click is never lost to a
       // button replaced between its press and its release.
@@ -533,7 +535,14 @@
       }
     });
     function onEscape(event) {
-      if (event.key === "Escape" && open) closeOverlay(true);
+      if (event.key !== "Escape" || !open) return;
+      // In a search field with text, Escape clears it; the next one closes.
+      if (event.target === search && search.value !== "") {
+        search.value = "";
+        draw();
+        return;
+      }
+      closeOverlay(true);
     }
     doc.addEventListener("keydown", onEscape);
 

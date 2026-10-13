@@ -5,8 +5,8 @@ import pytest
 
 from app.engine.engine import Engine
 from app.equipment.base import INLET, OUTLET, Equipment
-from app.equipment.compressor import GasCompressor
 from app.equipment.pump import CentrifugalPump
+from app.equipment.valve import ControlValve
 from app.plant.loader import (
     Plant,
     PlantConfigError,
@@ -44,7 +44,7 @@ def valid_config():
         "nodes": [
             {"id": "N-01", "boundary": True, "pressure": 50.0},
             {"id": "N-02", "boundary": False, "pressure": 60.0},
-            {"id": "N-03", "boundary": True, "pressure": 875.0},
+            {"id": "N-03", "boundary": True, "pressure": 40.0},
         ],
         "equipment": [
             {
@@ -55,8 +55,8 @@ def valid_config():
                 "design": {"shutoff_pressure_rise": 90.0, "max_flow": 1000.0},
             },
             {
-                "tag": "K-101",
-                "type": "compressor",
+                "tag": "FV-101",
+                "type": "control_valve",
                 "node_in": "N-02",
                 "node_out": "N-03",
                 "design": {},
@@ -84,7 +84,7 @@ def test_loads_a_valid_config_into_a_topology():
     assert set(plant.topology.nodes) == {"N-01", "N-02", "N-03"}
     assert set(plant.topology.boundary_nodes) == {"N-01", "N-03"}
     assert isinstance(plant.topology.device("P-101"), CentrifugalPump)
-    assert isinstance(plant.topology.device("K-101"), GasCompressor)
+    assert isinstance(plant.topology.device("FV-101"), ControlValve)
     assert plant.topology.unconnected_ports() == ()
 
 
@@ -110,7 +110,7 @@ def test_node_pressures_come_from_the_config():
     plant = load_plant(valid_config())
 
     assert plant.topology.node("N-02").pressure == pytest.approx(60.0)
-    assert plant.topology.node("N-03").pressure == pytest.approx(875.0)
+    assert plant.topology.node("N-03").pressure == pytest.approx(40.0)
 
 
 def test_loads_from_a_json_file(tmp_path):
@@ -119,7 +119,7 @@ def test_loads_from_a_json_file(tmp_path):
 
     plant = load_plant_file(path)
 
-    assert set(plant.topology.devices) == {"P-101", "K-101"}
+    assert set(plant.topology.devices) == {"P-101", "FV-101"}
 
 
 # Rejections
@@ -146,7 +146,7 @@ def test_a_device_with_more_ports_than_the_config_can_wire_is_rejected():
         config,
         device_types={
             "vessel": ManifoldDouble,
-            "compressor": GasCompressor,
+            "control_valve": ControlValve,
         },
     )
 
@@ -295,7 +295,7 @@ def test_a_type_with_no_device_model_is_rejected():
     config = valid_config()
     config["equipment"][0]["type"] = "furnace"
 
-    errors = rejected(config, device_types={"compressor": GasCompressor})
+    errors = rejected(config, device_types={"control_valve": ControlValve})
 
     assert any("$.equipment[0].type" in error and "furnace" in error for error in errors)
 
@@ -509,7 +509,7 @@ def test_a_service_text_on_equipment_and_a_loop_loads_and_round_trips():
     config = valid_config()
     config["equipment"][0]["service"] = "Feed pump"
     config["controllers"] = [
-        {"tag": "PIC-101", "pv": "N-02", "sp": 60.0, "out": "K-101", "mode": "MANUAL",
+        {"tag": "PIC-101", "pv": "N-02", "sp": 60.0, "out": "FV-101", "mode": "MANUAL",
          "kp": 0.0, "ki": 0.0, "kd": 0.0, "service": "Header pressure controller"},
     ]
 
@@ -532,7 +532,7 @@ def test_a_service_that_is_not_a_non_empty_string_is_rejected(value):
     config = valid_config()
     config["equipment"][1]["service"] = value
     config["controllers"] = [
-        {"tag": "PIC-101", "pv": "N-02", "sp": 60.0, "out": "K-101", "mode": "MANUAL",
+        {"tag": "PIC-101", "pv": "N-02", "sp": 60.0, "out": "FV-101", "mode": "MANUAL",
          "kp": 0.0, "ki": 0.0, "kd": 0.0, "service": value},
     ]
 

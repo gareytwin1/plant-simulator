@@ -626,7 +626,13 @@ def _confirmed_unit(
 
 
 def flow_unit(device: Equipment) -> str | None:
-    for kind in type(device).__mro__:
+    return class_flow_unit(type(device))
+
+
+def class_flow_unit(device_type: type[Equipment]) -> str | None:
+    """The unit a device class is written in, for a caller with no instance
+    yet (the plant loader checks a config before it builds a device)."""
+    for kind in device_type.__mro__:
         if kind in FLOW_UNITS:
             return FLOW_UNITS[kind]
 

@@ -38,7 +38,7 @@ def legacy_config():
         "nodes": [
             {"id": "N-01", "boundary": True, "pressure": 50.0},
             {"id": "N-02", "boundary": False, "pressure": 60.0},
-            {"id": "N-03", "boundary": True, "pressure": 875.0},
+            {"id": "N-03", "boundary": True, "pressure": 40.0},
         ],
         "equipment": [
             {
@@ -49,8 +49,8 @@ def legacy_config():
                 "design": {},
             },
             {
-                "tag": "K-101",
-                "type": "compressor",
+                "tag": "FV-101",
+                "type": "control_valve",
                 "node_in": "N-02",
                 "node_out": "N-03",
                 "design": {},
@@ -319,3 +319,154 @@ def test_equipment_round_trips_in_config_order_across_domains():
         "K-101",
         "P-101",
     ]
+
+
+# Flow-unit agreement within a domain (T20-20)
+
+
+def typed_port(node_id, phase):
+    return {"node": node_id, "phase": phase, "purpose": "process"}
+
+
+def vessel_beside(machine_type, phase):
+    """A machine between two boundaries in one domain, with a vessel whose
+    typed ports sit on the machine's nodes."""
+    return {
+        "nodes": [
+            {"id": "N-01", "boundary": True, "pressure": 50.0},
+            {"id": "N-02", "boundary": True, "pressure": 60.0},
+        ],
+        "equipment": [
+            {
+                "tag": "M-101",
+                "type": machine_type,
+                "node_in": "N-01",
+                "node_out": "N-02",
+                "design": {},
+            },
+            {
+                "tag": "V-101",
+                "type": "vessel",
+                "ports": {"inlet": typed_port("N-02", phase), "outlet": typed_port("N-01", phase)},
+                "paths": [],
+                "design": {},
+            },
+        ],
+    }
+
+
+def pump_beside_compressor():
+    config = legacy_config()
+    config["equipment"][1]["type"] = "compressor"
+    config["equipment"][1]["tag"] = "K-101"
+
+    return config
+
+
+def test_a_pump_and_a_compressor_in_one_domain_are_refused_naming_both():
+    errors = rejected(pump_beside_compressor())
+
+    assert errors == [
+        "$.equipment: domain 'default' has no single flow unit - "
+        "GPM at $.equipment[0] (P-101); SCFM at $.equipment[1] (K-101)",
+    ]
+
+
+def test_a_pump_in_a_domain_with_a_vapor_port_is_refused_naming_the_pump_and_the_port():
+    errors = rejected(vessel_beside("pump", "vapor"))
+
+    assert len(errors) == 1
+    assert "GPM at $.equipment[0] (M-101)" in errors[0]
+    assert "SCFM at $.equipment[1].ports.inlet (V-101, phase 'vapor')" in errors[0]
+
+
+def test_two_typed_ports_of_different_phases_in_one_domain_are_refused():
+    config = vessel_beside("control_valve", "liquid")
+    config["equipment"][1]["ports"]["outlet"]["phase"] = "vapor"
+
+    errors = rejected(config)
+
+    assert len(errors) == 1
+    assert "$.equipment[1].ports.inlet" in errors[0]
+    assert "$.equipment[1].ports.outlet" in errors[0]
+    assert "M-101" not in errors[0]
+
+
+def test_a_typed_port_on_a_machine_is_a_source_too():
+    config = vessel_beside("control_valve", "liquid")
+    config["equipment"][0] = {
+        "tag": "K-101",
+        "type": "compressor",
+        "ports": {
+            "suction": typed_port("N-01", "vapor"),
+            "discharge": typed_port("N-02", "vapor"),
+        },
+        "paths": [{"from": "suction", "to": "discharge"}],
+        "design": {},
+    }
+
+    errors = rejected(config)
+
+    assert len(errors) == 1
+    assert "$.equipment[0].ports.suction (K-101, phase 'vapor')" in errors[0]
+    assert "$.equipment[1].ports.inlet" in errors[0]
+
+
+def test_a_named_form_machine_confirms_its_unit_from_its_inlet_node():
+    config = vessel_beside("control_valve", "vapor")
+    config["equipment"][0] = {
+        "tag": "P-101",
+        "type": "pump",
+        "ports": {"suction": "N-01", "discharge": "N-02"},
+        "paths": [{"from": "suction", "to": "discharge"}],
+        "design": {},
+    }
+
+    errors = rejected(config)
+
+    assert len(errors) == 1
+    assert "GPM at $.equipment[0] (P-101)" in errors[0]
+    assert "SCFM at $.equipment[1].ports.inlet" in errors[0]
+
+
+def test_a_machine_and_ports_that_agree_load():
+    load_plant(vessel_beside("pump", "liquid"))
+    load_plant(vessel_beside("compressor", "vapor"))
+
+
+def test_a_valve_only_domain_loads():
+    load_plant(legacy_config())
+
+
+def test_a_branchless_typed_vent_loads():
+    config = vessel_beside("pump", "liquid")
+    config["nodes"].append(
+        {"id": "N-09", "boundary": True, "pressure": 15.0, "domain": "vent"},
+    )
+    config["equipment"][1]["ports"]["vent"] = {
+        **typed_port("N-09", "vapor"),
+        "purpose": "vent",
+    }
+    config["equipment"][1]["ports"]["inlet"]["direction"] = "inlet"
+    config["equipment"][1]["ports"]["outlet"]["direction"] = "outlet"
+    config["equipment"][1]["ports"]["vent"]["direction"] = "outlet"
+
+    plant = load_plant(config)
+
+    assert not plant.topologies["vent"].branches
+
+
+def test_the_same_unit_in_two_domains_is_two_checks():
+    load_plant(two_domain_config())
+
+
+def test_a_unit_disagreement_is_reported_with_other_domain_problems():
+    config = pump_beside_compressor()
+    config["nodes"].append(
+        {"id": "N-09", "boundary": False, "pressure": 30.0, "domain": "vent"},
+    )
+
+    errors = rejected(config)
+
+    assert len(errors) == 2
+    assert any("has no single flow unit" in error for error in errors)

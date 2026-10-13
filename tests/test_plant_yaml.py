@@ -4,8 +4,8 @@ import json
 import pytest
 import yaml
 
-from app.equipment.compressor import GasCompressor
 from app.equipment.pump import CentrifugalPump
+from app.equipment.valve import ControlValve
 from app.plant.loader import PlantConfigError, load_plant, load_plant_file
 
 
@@ -14,7 +14,7 @@ def valid_config():
         "nodes": [
             {"id": "N-01", "boundary": True, "pressure": 50.0},
             {"id": "N-02", "boundary": False, "pressure": 60.0},
-            {"id": "N-03", "boundary": True, "pressure": 875.0},
+            {"id": "N-03", "boundary": True, "pressure": 40.0},
         ],
         "equipment": [
             {
@@ -25,8 +25,8 @@ def valid_config():
                 "design": {"shutoff_pressure_rise": 90.0, "max_flow": 1000.0},
             },
             {
-                "tag": "K-101",
-                "type": "compressor",
+                "tag": "FV-101",
+                "type": "control_valve",
                 "node_in": "N-02",
                 "node_out": "N-03",
                 "design": {},
@@ -57,7 +57,7 @@ def rejected_file(path, **kwargs):
 def test_each_supported_suffix_loads_the_same_plant(tmp_path, name):
     plant = load_plant_file(write(tmp_path, name, valid_config()))
 
-    assert set(plant.topology.devices) == {"P-101", "K-101"}
+    assert set(plant.topology.devices) == {"P-101", "FV-101"}
     assert set(plant.topology.nodes) == {"N-01", "N-02", "N-03"}
 
 
@@ -81,7 +81,7 @@ def test_yaml_boundary_pressures_are_loaded(tmp_path):
     plant = load_plant_file(write(tmp_path, "plant.yaml", valid_config()))
 
     assert plant.topology.nodes["N-01"].pressure == pytest.approx(50.0)
-    assert plant.topology.nodes["N-03"].pressure == pytest.approx(875.0)
+    assert plant.topology.nodes["N-03"].pressure == pytest.approx(40.0)
     assert plant.topology.nodes["N-01"].is_boundary
     assert not plant.topology.nodes["N-02"].is_boundary
 
@@ -198,7 +198,7 @@ def test_a_type_with_no_model_is_refused_rather_than_stood_in_for(tmp_path):
 
     errors = rejected_file(
         write(tmp_path, "plant.yaml", config),
-        device_types={"pump": CentrifugalPump, "compressor": GasCompressor},
+        device_types={"pump": CentrifugalPump, "control_valve": ControlValve},
     )
 
     assert any("'furnace' has no device model yet" in error for error in errors)

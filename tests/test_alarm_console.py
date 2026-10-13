@@ -627,13 +627,13 @@ def test_a_failed_acknowledgement_says_so_and_the_list_is_fetched_again(plant):
         await overlay.ready;
         press('ack', data.id);
         await settle(); await settle();
-        return { note: els['alarm-feedback'].textContent, shown: !els['alarm-feedback'].hidden, gets };
+        return { note: els['alarm-feedback'].textContent, gets };
         """,
         entries=plant.entries(),
         id=alarm_id,
     )
 
-    assert got == {"note": "1 acknowledgement could not be recorded.", "shown": True, "gets": 2}
+    assert got == {"note": "1 acknowledgement could not be recorded.", "gets": 2}
 
 
 @needs_node
@@ -792,14 +792,14 @@ def test_a_show_trend_or_locate_that_finds_nothing_reopens_the_overlay_and_says_
         doc.activeElement = buttons[0];
         press(data.action, data.id);
         return { open: overlay.isOpen(), inert: workspace.getAttribute('inert'), note: els['alarm-feedback'].textContent,
-          shown: !els['alarm-feedback'].hidden, focus: doc.activeElement.id };
+          focus: doc.activeElement.id };
         """,
         entries=plant.entries(),
         id=alarm_id,
         action=action,
     )
 
-    assert got["open"] is True and got["inert"] == "" and got["shown"] is True
+    assert got["open"] is True and got["inert"] == ""
     assert words in got["note"]
     assert got["focus"] == f"{action}|{alarm_id}"
 
@@ -935,6 +935,13 @@ def test_the_console_page_is_an_overlay_dialog_opened_from_the_ribbon_and_has_no
     assert 'aria-labelledby="alarm-overlay-title"' in page
     for gone in ("alarm-banner", 'id="alarm-summary"', "alarms-heading", "console-sections"):
         assert gone not in page
+
+
+def test_the_status_line_is_always_in_the_page_so_it_is_announced_when_it_fills():
+    page = (ROOT / "templates" / "console.html").read_text()
+
+    assert re.search(r'<p[^>]*id="alarm-feedback"[^>]*role="status"[^>]*></p>', page)
+    assert 'id="alarm-feedback"' in page and "hidden" not in re.search(r'<p[^>]*id="alarm-feedback"[^>]*>', page).group(0)
 
 
 def test_the_overlay_has_every_element_the_script_looks_up():

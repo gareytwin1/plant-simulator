@@ -340,7 +340,6 @@
 
     function say(text) {
       feedback.textContent = text;
-      feedback.hidden = text === "";
     }
 
     function draw() {

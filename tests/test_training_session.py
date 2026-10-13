@@ -193,14 +193,16 @@ def test_a_scenario_action_reaches_the_scenarios_plant_not_free_play(session):
 def test_an_interlock_reset_goes_to_the_runtime_of_the_plant_in_play(session):
     interlock = next(iter(session.free.trips.interlocks))
 
-    session.act(interlock, "reset", None)
+    with pytest.raises(ValueError, match=f"{interlock} was not reset"):
+        session.act(interlock, "reset", None)
 
-    assert actions_of(session.free) == [(interlock, "reset")]
+    assert actions_of(session.free) == [], "a reset that takes no effect is refused, so not logged"
 
     session.load("pump-trip")
-    session.act(interlock, "reset", None)
+    with pytest.raises(ValueError, match=f"{interlock} was not reset"):
+        session.act(interlock, "reset", None)
 
-    assert [a["tag"] for a in session.runner.result().actions] == [interlock]
+    assert session.runner.result().actions == ()
 
 
 def test_a_refused_action_raises_and_publishes_nothing(session):

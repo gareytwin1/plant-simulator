@@ -118,11 +118,12 @@ def test_a_manual_interlock_stays_tripped_until_reset_after_the_condition_clears
     run(runtime, 6.0)
     assert runtime.trips.tripped == ("XS-1",)
 
-    runtime.act("XS-1", "reset", None)
+    with pytest.raises(ValueError, match="condition still holds"):
+        runtime.act("XS-1", "reset", None)
     run(runtime, 2.0)
 
     assert runtime.trips.tripped == ("XS-1",), "a reset while the condition holds changes nothing"
-    assert [event.message for event in runtime.actions].count("XS-1 reset") == 1
+    assert [event.message for event in runtime.actions].count("XS-1 reset") == 0, "a refusal is not logged"
 
     runtime.act("XV-1", "set_position_target", 0.5)
     run(runtime, 20.0)
@@ -133,7 +134,7 @@ def test_a_manual_interlock_stays_tripped_until_reset_after_the_condition_clears
     run(runtime, 1.0)
 
     assert runtime.trips.tripped == ()
-    assert [event.message for event in runtime.actions].count("XS-1 reset") == 2
+    assert [event.message for event in runtime.actions].count("XS-1 reset") == 1
 
 
 # Interlock state in the snapshot (T20-3)

@@ -629,6 +629,12 @@ def test_an_interlock_reset_is_an_operator_action_the_run_journals():
     runner = brimming_run()
     run_for(runner, 30)
 
+    with pytest.raises(ValueError, match="condition still holds"):
+        runner.act("LSHH-101", "reset", None)
+    assert "reset" not in [row["action"] for row in runner.result().actions]
+
+    runner.act("LV-101", "set_position_target", 1.0)
+    run_for(runner, 20)
     runner.act("LSHH-101", "reset", None)
 
     assert [row["action"] for row in runner.result().actions][-1] == "reset"

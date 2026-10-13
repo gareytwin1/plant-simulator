@@ -27,6 +27,13 @@ device that sits in exactly one branch, from that branch and its two nodes,
 so a consumer names `K-101.outlet_pressure` without reading the topology. The
 device holds none of them; see app/engine/engine.py.
 
+**Interlocks are filled around the engine, never by it (T20-3).** Trips run
+in `PlantRuntime`, outside `Engine`, so an engine builds every snapshot with
+`interlocks` empty, and the runtime returns `dataclasses.replace(snapshot,
+interlocks=...)` from its trip system after each step. Every snapshot the
+scheduler publishes therefore carries one `InterlockStatus` per configured
+interlock, while the engine still knows nothing of trips.
+
 **True and indicated (T13-2).** equipment, nodes and streams — the measured
 sections — are what the plant's instruments *indicate*, not what the physics
 says. That is the reading every consumer takes without asking - today the
@@ -140,6 +147,44 @@ class Truth:
         }
 
 
+INTERLOCK_STATES = ("normal", "pending", "tripped")
+
+INTERLOCK_RESETS = ("auto", "manual")
+
+
+@dataclass(frozen=True)
+class InterlockStatus:
+    """One interlock as the snapshot annunciates it (T20-3): its state, how it
+    resets and the devices its actions hold. Its condition - the point it
+    reads and the threshold - is deliberately not here: a console shows that
+    an interlock tripped and what it holds, never what it watches.
+
+    The words are `app.safety.interlocks`'s `InterlockState` and `Reset`,
+    repeated rather than imported so C4 depends on no subsystem."""
+
+    state: str
+    reset: str
+    devices: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        if self.state not in INTERLOCK_STATES:
+            raise ValueError(f"interlock state is one of {list(INTERLOCK_STATES)}, got {self.state!r}")
+        if self.reset not in INTERLOCK_RESETS:
+            raise ValueError(f"interlock reset is one of {list(INTERLOCK_RESETS)}, got {self.reset!r}")
+
+    def as_dict(self) -> dict[str, JSONValue]:
+        return {"state": self.state, "reset": self.reset, "devices": list(self.devices)}
+
+
+InterlockSection = MappingProxyType[str, InterlockStatus]
+
+
+def interlock_section(rows: Mapping[str, InterlockStatus] | None = None) -> InterlockSection:
+    """Freeze `rows` into a snapshot's interlocks section. Each row is
+    already immutable, so a shallow copy is enough."""
+    return MappingProxyType(dict(rows or {}))
+
+
 @dataclass(frozen=True)
 class Snapshot:
     sim_time: float
@@ -153,6 +198,7 @@ class Snapshot:
     alarms: tuple[Mapping[str, JSONValue], ...]
     solver: MappingProxyType[str, JSONValue]
     truth: Truth
+    interlocks: InterlockSection
 
     def as_dict(self) -> dict[str, JSONValue]:
         """Flat, JSON-safe dict matching C4 exactly: the indicated view only."""
@@ -165,6 +211,7 @@ class Snapshot:
             "streams": _thawed(self.streams),
             "controllers": _thawed(self.controllers),
             "envelope": _thawed(self.envelope),
+            "interlocks": {tag: row.as_dict() for tag, row in self.interlocks.items()},
             "alarms": [dict(alarm) for alarm in self.alarms],
             "solver": dict(self.solver),
         }
@@ -182,6 +229,7 @@ def build_snapshot(
     alarms: Iterable[Mapping[str, JSONValue]] | None = None,
     solver: Mapping[str, JSONValue] | None = None,
     truth: Mapping[str, SectionInput] | None = None,
+    interlocks: Mapping[str, InterlockStatus] | None = None,
 ) -> Snapshot:
     """Assemble an immutable Snapshot from plain mutable inputs.
 
@@ -228,6 +276,7 @@ def build_snapshot(
             )
         ),
         truth=Truth(**_validated_truth(indicated, truth)),
+        interlocks=interlock_section(interlocks),
         **frozen_sections,
     )
 

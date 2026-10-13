@@ -6,7 +6,7 @@ import pytest
 
 from app.engine.engine import Engine
 from app.engine.network import SolverResult
-from app.engine.snapshot import SOLVER_KEYS, build_snapshot, solver_status
+from app.engine.snapshot import SOLVER_KEYS, InterlockStatus, build_snapshot, solver_status
 from app.plant.loader import load_plant_file
 
 
@@ -24,6 +24,7 @@ C4_KEYS = {
     "streams",
     "controllers",
     "envelope",
+    "interlocks",
     "alarms",
     "solver",
 }
@@ -60,6 +61,7 @@ def test_unpopulated_sections_default_to_empty():
     assert snapshot.as_dict()["streams"] == {}
     assert snapshot.as_dict()["controllers"] == {}
     assert snapshot.as_dict()["envelope"] == {}
+    assert snapshot.as_dict()["interlocks"] == {}
     assert snapshot.as_dict()["alarms"] == []
 
 
@@ -156,6 +158,48 @@ def test_mutating_the_source_alarm_after_construction_does_not_leak():
     assert snapshot.as_dict()["alarms"] == [{"id": "a1", "severity": "high"}]
 
 
+def tripped_k101(**overrides):
+    return InterlockStatus(**{"state": "tripped", "reset": "manual", "devices": ("K-101",), **overrides})
+
+
+def test_interlocks_section_carries_state_reset_and_devices():
+    snapshot = make_snapshot(interlocks={"PSHH-101": tripped_k101()})
+
+    assert snapshot.as_dict()["interlocks"] == {
+        "PSHH-101": {"state": "tripped", "reset": "manual", "devices": ["K-101"]},
+    }
+    assert snapshot.interlocks["PSHH-101"].state == "tripped"
+
+
+def test_interlocks_cannot_be_mutated_through_the_snapshot_or_its_dict():
+    snapshot = make_snapshot(interlocks={"PSHH-101": tripped_k101()})
+
+    with pytest.raises(TypeError):
+        snapshot.interlocks["LSHH-101"] = tripped_k101()
+
+    with pytest.raises(dataclasses.FrozenInstanceError):
+        snapshot.interlocks["PSHH-101"].state = "normal"
+
+    snapshot.as_dict()["interlocks"]["PSHH-101"]["devices"].append("P-101")
+
+    assert snapshot.interlocks["PSHH-101"].devices == ("K-101",)
+
+
+def test_mutating_the_source_interlocks_after_construction_does_not_leak():
+    source = {"PSHH-101": tripped_k101()}
+    snapshot = make_snapshot(interlocks=source)
+
+    source["LSHH-101"] = tripped_k101()
+
+    assert set(snapshot.interlocks) == {"PSHH-101"}
+
+
+@pytest.mark.parametrize("field, value", [("state", "latched"), ("reset", "never")])
+def test_an_interlock_state_or_reset_outside_its_words_is_refused(field, value):
+    with pytest.raises(ValueError, match=field):
+        tripped_k101(**{field: value})
+
+
 def test_solver_explicit_empty_dict_is_not_replaced_by_the_default():
     """solver={} is a meaningful value (distinct from "not provided"),
     unlike nodes/streams/controllers/envelope where empty and unset are
@@ -241,6 +285,7 @@ def test_every_reference_plant_publishes_strict_json(path):
     engine = Engine.from_plant(load_plant_file(path))
 
     json.dumps(engine.snapshot().as_dict(), allow_nan=False)
+    assert engine.snapshot().interlocks == {}, "the engine knows nothing of trips"
 
     for device in engine.equipment.values():
         start = getattr(device, "start", None)

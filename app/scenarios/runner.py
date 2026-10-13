@@ -687,7 +687,7 @@ class ScenarioRunner:
             run = self._loaded()
 
             if run.phase is not Phase.RUNNING:
-                return run.engine.snapshot()
+                return run.runtime.snapshot()
 
             clock = run.engine.clock
             tick = Tick(TickKind.STEP, len(run.actions), dt=dt, speed=clock.speed, paused=clock.paused)
@@ -700,7 +700,7 @@ class ScenarioRunner:
 
     def snapshot(self) -> Snapshot:
         with self._lock:
-            return self._loaded().engine.snapshot()
+            return self._loaded().runtime.snapshot()
 
     def abort(self) -> ScenarioResult:
         with self._lock:

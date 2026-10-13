@@ -19,7 +19,10 @@ class with no entry, or a tag the plant does not know, shows an empty row.
 Server-side consumers - trips, alarms, scenarios, scoring, replay - read the
 full snapshot; only what leaves for a browser goes through here. `nodes` and
 `streams` still show every solved point, because instruments are not in C3
-(recorded technical debt).
+(recorded technical debt). `interlocks` passes unchanged (T20-3): a real
+console annunciates an interlock's state, what resets it and what it holds,
+and the section never carries the condition it watches, which stays on the
+server.
 """
 
 from collections.abc import Mapping

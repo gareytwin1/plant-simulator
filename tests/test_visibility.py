@@ -103,6 +103,16 @@ def test_other_sections_pass_through_unchanged(session):
         assert view[section] == full[section], section
 
 
+def test_the_view_annunciates_every_interlock_and_none_of_their_conditions(session):
+    view = session.operator_view(session.snapshot())
+
+    assert view["interlocks"] == {
+        "LSHH-101": {"state": "normal", "reset": "manual", "devices": ["P-101"]},
+        "LSLL-101": {"state": "normal", "reset": "manual", "devices": ["LV-101"]},
+        "PSHH-101": {"state": "normal", "reset": "manual", "devices": ["K-101"]},
+    }
+
+
 def test_a_stuck_valve_and_a_capacity_malfunction_change_nothing_in_the_view_but_values(session):
     valve_device = free_equipment(session)["LV-101"]
     before = session.operator_view(session.snapshot())["equipment"]["LV-101"]

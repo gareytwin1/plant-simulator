@@ -15,6 +15,11 @@ so a `Scheduler` drives it exactly as it drives an engine.
 2. `Engine.step(dt)`.
 3. The alarm pipeline on the snapshot that step returned.
 
+**The snapshot it returns annunciates every interlock (T20-3).** `step` and
+`snapshot` fill the `interlocks` section the engine leaves empty from
+`TripSystem.status`, so a reset shows at once and a trip latched in step 1
+shows in the snapshot that step publishes.
+
 **The alarm pipeline is fed one `EnvelopeEvent` per configured limit on every
 step.** The snapshot's `envelope` section lists only the points currently
 outside their limits, so a point that is absent reads NORMAL, which is how
@@ -49,7 +54,7 @@ from __future__ import annotations
 
 import threading
 from collections.abc import Sequence
-from dataclasses import fields
+from dataclasses import fields, replace
 
 from app import config
 from app.alarms.acknowledge import Acknowledged, acknowledge_alarm
@@ -59,7 +64,7 @@ from app.api.action import UnknownAction, apply_action
 from app.api.plant import describe
 from app.api.visibility import descriptor, operator_view
 from app.engine.engine import Engine
-from app.engine.snapshot import Snapshot
+from app.engine.snapshot import Snapshot, interlock_section
 from app.envelope.evaluator import Severity, Side, isa_band
 from app.historian.buffer import Historian, Sample
 from app.historian.points import trend_values
@@ -131,7 +136,7 @@ class PlantRuntime:
             before = self._published if self._published is not None else self.engine.snapshot()
             self.trips.update(before)
 
-            snapshot = self.engine.step(dt)
+            snapshot = self._annunciated(self.engine.step(dt))
             self._published = snapshot
             self._observe(snapshot)
 
@@ -139,7 +144,12 @@ class PlantRuntime:
 
     def snapshot(self) -> Snapshot:
         with self._lock:
-            return self.engine.snapshot()
+            return self._annunciated(self.engine.snapshot())
+
+    def _annunciated(self, snapshot: Snapshot) -> Snapshot:
+        """`snapshot` with the trip system's interlock states filled in. The
+        engine builds the section empty; only the runtime knows of trips."""
+        return replace(snapshot, interlocks=interlock_section(self.trips.status()))
 
     def act(self, target: str, action: str, value: float | None) -> None:
         """Apply one operator action and log it. Raises `KeyError`,

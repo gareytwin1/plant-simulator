@@ -112,7 +112,11 @@ all read NORMAL - and empty too for a `limits` entry naming a `variable`
 this engine cannot yet resolve to a published point (only one a device's own
 `get_state()` carries can be, today; see `app/engine/engine.py`'s module
 docstring). `alarms` is empty for **every** engine, connected or not: nothing
-fills it yet.
+fills it yet. `interlocks` is empty in every `Engine` snapshot too, because
+trips run outside the engine: `PlantRuntime` fills it after each step from its
+`TripSystem`, one `{state, reset, devices}` row per interlock (T20-3), so every
+snapshot a scheduler publishes carries it. An interlock's condition is never in
+it.
 
 A solve that fails to converge is reported, never raised and never guessed at:
 the plant keeps the state it had, `Engine.step()` still advances time and slow
@@ -431,8 +435,9 @@ app/
   safety/
     interlocks.py         T11-1: Interlock - condition, delay, latch, reset
     actions.py            T11-2: TripSystem - trip actions as interlock
-                          demands on the arbiter; meant to run before each
-                          Engine.step, not yet called from Scheduler
+                          demands on the arbiter, run by PlantRuntime before
+                          each Engine.step; status() fills the snapshot's
+                          interlocks section (T20-3)
   plant/
     topology.py           C2: Node / Branch / Stream / Topology  [SPINE]
     thermo.py             Heat capacity, stream mixing, ThermalDevice hook

@@ -40,6 +40,7 @@
   var MARGIN = 8; // between a panel and the workspace edge
   var OTHER_WEIGHT = 1; // drawn items: covered only if nothing better is free
   var FALLBACK_SIZE = { w: 330, h: 260 };
+  var LOCATE_MS = 1600; // how long Locate tints the mark it points at
 
   function isObject(value) {
     return value !== null && typeof value === "object";
@@ -217,9 +218,11 @@
    *               in workspace coordinates (the open trend windows)
    *   trends      the trend windows: {open(point, opener, anchor), isOpen(point)};
    *               without them no reading opens a trend
-   * Returns {update, refresh, select, close, selected, panelRect, mark}: call
-   * update with every snapshot, refresh when the shown plant may have changed,
-   * and mark when a trend window opens or closes. */
+   * Returns {update, refresh, select, close, selected, panelRect, mark,
+   * locate, showTrend}: call update with every snapshot, refresh when the shown
+   * plant may have changed, and mark when a trend window opens or closes.
+   * locate and showTrend act for the alarm overlay on a tag and, when the
+   * alarm names one, its point (`<tag>.<variable>`). */
   function mount(options) {
     var settings = options || {};
     var canvas = settings.canvas;
@@ -319,6 +322,55 @@
         if (owner === null) return;
         mark(reading, "device", owner, owner + " " + F.readingLabel(point, vocab).toLowerCase() + ". Open " + owner + " faceplate.", true);
       });
+    }
+
+    /* What stands for an alarm on the canvas: the reading of its point if one
+     * is drawn, else its device or loop, else any reading of its tag (a node
+     * has no item of its own). Null when the graphic shows none of them. */
+    function findMark(tag, point) {
+      var drawing = svg();
+      if (!drawing) return null;
+      var readings = list(drawing, "[data-canvas-reading]").filter(function (node) {
+        return node.getAttribute("data-canvas-kind") === "trend";
+      });
+      var exact = point ? readings.filter(function (node) {
+        return node.getAttribute("data-canvas-tag") === point;
+      })[0] : null;
+      if (exact) return exact;
+      var own = subjectElement("device", tag) || subjectElement("loop", tag);
+      if (own) return own;
+      return readings.filter(function (node) {
+        return node.getAttribute("data-canvas-tag").indexOf(tag + ".") === 0;
+      })[0] || null;
+    }
+
+    var located = null; // {node, timer}
+
+    function unlocate() {
+      if (!located) return;
+      root.clearTimeout(located.timer);
+      located.node.removeAttribute("data-located");
+      located = null;
+    }
+
+    /* Point at an alarm's tag: tint its mark for a moment and put focus on it.
+     * Opens nothing. Returns false when the graphic does not show it. */
+    function locate(tag, point) {
+      var node = findMark(tag, point);
+      unlocate();
+      if (!node) return false;
+      node.setAttribute("data-located", "true");
+      located = { node: node, timer: root.setTimeout(unlocate, LOCATE_MS) };
+      if (typeof node.focus === "function") node.focus();
+      return true;
+    }
+
+    /* Open an alarm's point in a trend window beside its mark. */
+    function showTrend(tag, point) {
+      if (!trends || !point) return false;
+      var node = findMark(tag, point);
+      var at = node ? rectIn(node) : null;
+      return trends.open(point, node, sized(at) ? at : null);
     }
 
     /* A trend reading's name is fixed: a name that followed the value would be
@@ -570,6 +622,8 @@
         return selection ? rectIn(selection.panel.element) : null;
       },
       mark: markSelected,
+      locate: locate,
+      showTrend: showTrend,
       update: function (snapshot) {
         latest = snapshot;
         if (plant === null && !loading) refresh();

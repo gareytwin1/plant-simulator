@@ -758,7 +758,7 @@ def selection_css():
     css = CONSOLE_CSS.read_text()
     start = css.index("canvas selection (T20-10)")
 
-    return css[start : css.index(".console-sections {", start)]
+    return css[start : css.index("small screens", start)]
 
 
 def test_selection_and_hover_are_tints_and_nothing_is_underlined():
@@ -913,3 +913,105 @@ def test_a_click_in_a_trend_window_leaves_the_faceplate_open(console):
     )
 
     assert result == {"fromWindow": 1, "fromGutter": 0}
+
+
+# ---- Locate and Show trend for the alarm overlay (T20-12) ----
+
+# Timers are held so a test can let Locate's tint expire without waiting for it.
+HELD_TIMERS = """
+const realSetTimeout = globalThis.setTimeout;
+const timers = [];
+globalThis.setTimeout = fn => timers.push(fn);
+globalThis.clearTimeout = id => { timers[id - 1] = null; };
+const release = () => { globalThis.setTimeout = realSetTimeout; };
+const located = s => s.svg.querySelectorAll('[data-located]').map(n => n.getAttribute('data-canvas-tag'));
+"""
+
+
+@needs_node
+def test_locate_tints_the_alarms_reading_or_device_and_focuses_it_without_opening_anything(console):
+    result = run_scene(
+        TRENDS
+        + """
+        const s = await boot({ trends });
+        """
+        + HELD_TIMERS
+        + """
+        const out = {};
+        out.reading = [s.canvas.locate('N-201', 'N-201.pressure'), located(s), doc.activeElement.getAttribute('data-canvas-tag')];
+        // Moving on to a device takes the tint off the reading.
+        out.device = [s.canvas.locate('P-101', 'P-101.discharge_pressure'), located(s), doc.activeElement.getAttribute('data-canvas-tag')];
+        // A point the graphic does not draw falls back to the tag's own mark.
+        out.fallback = [s.canvas.locate('P-101', 'P-101.no_such_point'), located(s)];
+        // A node with no reading of the named variable falls back to a reading of the node.
+        out.node = [s.canvas.locate('N-201', 'N-201.no_such_point'), located(s)];
+        out.missing = [s.canvas.locate('X-999', null), located(s)];
+        timers.filter(Boolean).forEach(fn => fn());
+        out.expired = located(s);
+        release();
+        out.opened = opened.length;
+        out.panels = panels(s).length;
+        return out;
+        """,
+        console,
+    )
+
+    assert result["reading"] == [True, ["N-201.pressure"], "N-201.pressure"]
+    assert result["device"] == [True, ["P-101"], "P-101"]
+    assert result["fallback"] == [True, ["P-101"]]
+    assert result["node"][0] is True and result["node"][1] and result["node"][1][0].startswith("N-201.")
+    # Nothing to point at: the previous tint is gone and nothing new appears.
+    assert result["missing"] == [False, []]
+    assert result["expired"] == []
+    assert (result["opened"], result["panels"]) == (0, 0)
+
+
+@needs_node
+def test_show_trend_opens_the_alarms_point_beside_its_mark(console):
+    result = run_scene(
+        TRENDS
+        + """
+        const s = await boot({ trends });
+        const node = reading(s, 'nodes.N-201.pressure');
+        const stream = reading(s, 'streams.B-PV-101.flow');
+        const out = {};
+        out.node = s.canvas.showTrend('N-201', 'N-201.pressure');
+        out.stream = s.canvas.showTrend('B-PV-101', 'B-PV-101.flow');
+        out.device = s.canvas.showTrend('P-101', 'P-101.discharge_pressure');
+        out.noPoint = s.canvas.showTrend('P-101', null);
+        out.opened = opened.map(o => ({ point: o.point, opener: o.opener === node ? 'node' : o.opener === stream ? 'stream'
+          : o.opener.getAttribute('data-canvas-tag'), anchor: o.anchor }));
+        return out;
+        """,
+        console,
+    )
+
+    assert result["noPoint"] is False
+    assert result["opened"] == [
+        {"point": "N-201.pressure", "opener": "node", "anchor": None},
+        {"point": "B-PV-101.flow", "opener": "stream", "anchor": {"left": 60, "top": 500, "right": 110, "bottom": 516}},
+        # A device is anchored by its own group.
+        {"point": "P-101.discharge_pressure", "opener": "P-101",
+         "anchor": {"left": 500, "top": 300, "right": 560, "bottom": 360}},
+    ]
+
+
+@needs_node
+def test_without_trend_windows_show_trend_does_nothing(console):
+    result = run_scene(
+        """
+        const s = await boot();
+        return s.canvas.showTrend('N-201', 'N-201.pressure');
+        """,
+        console,
+    )
+
+    assert result is False
+
+
+def test_a_located_mark_is_tinted_like_a_selection():
+    css = CONSOLE_CSS.read_text()
+
+    for selector in ('.plant-graphic .eq[data-located="true"] .body', '.plant-graphic .ctl[data-located="true"] .ctl-balloon',
+                     'text[data-canvas-reading][data-located="true"]'):
+        assert selector in css

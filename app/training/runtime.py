@@ -246,11 +246,11 @@ class PlantRuntime:
             pv = descriptor(self.engine.equipment.get(tag), variable)
 
             if row is None:
-                events.append(EnvelopeEvent(tag=tag, pv=pv, severity=Severity.NORMAL))
+                events.append(EnvelopeEvent(tag=tag, pv=pv, severity=Severity.NORMAL, point=point))
                 continue
 
             severity, side = _band_of(row.get("band"), point)
-            events.append(EnvelopeEvent(tag=tag, pv=pv, severity=severity, side=side))
+            events.append(EnvelopeEvent(tag=tag, pv=pv, severity=severity, side=side, point=point))
 
         raised = self.alarms.evaluate(events, snapshot.sim_time)
         self.history.record_events(raised)

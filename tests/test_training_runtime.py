@@ -185,6 +185,18 @@ def test_the_alarm_pipeline_names_a_point_by_its_variable_with_spaces():
     assert event.message.startswith("XV-1 position")
 
 
+def test_a_raised_alarm_names_its_point_as_tag_dot_variable():
+    runtime = build(interlocks=())
+    runtime.act("XV-1", "set_position_target", 0.5)
+
+    run(runtime, 20.0)
+
+    events = [entry for entry in runtime.alarm_entries() if isinstance(entry, Event)]
+    assert len(events) == 2, "hihi at construction, then hi"
+    assert [event.data["point"] for event in events] == ["XV-1.position", "XV-1.position"]
+    assert runtime.trend_history(["XV-1.position"]), "the point is one the trend API answers for"
+
+
 def test_alarm_events_are_the_alarm_managers_own_events():
     manager = AlarmManager()
     runtime = build(interlocks=(), alarms=manager)

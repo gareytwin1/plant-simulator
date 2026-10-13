@@ -235,9 +235,20 @@
   padding: 0 var(--space-3);
   border: 1.5px solid transparent;
   border-radius: var(--radius-small);
+  background-color: transparent;
   color: var(--text-muted);
+  font: inherit;
   font-weight: 600;
   text-decoration: none;
+  cursor: pointer;
+}
+
+.alarm-chevron {
+  transition: transform var(--t-med) var(--ease);
+}
+
+.ribbon-alarms[aria-expanded="true"] .alarm-chevron {
+  transform: rotate(180deg);
 }
 
 .ribbon-alarms:hover {
@@ -446,8 +457,24 @@ body[data-page="console"] main {
 }
 
 .plant-graphic text[data-canvas-reading]:hover,
-.plant-graphic text[data-canvas-reading][data-selected="true"] {
+.plant-graphic text[data-canvas-reading][data-selected="true"],
+.plant-graphic text[data-canvas-reading][data-located="true"] {
   fill: var(--focus-ring);
+}
+
+/* Locate (T20-12): the alarm's mark, tinted like a selection for a moment. */
+.plant-graphic .eq[data-located="true"] .body,
+.plant-graphic .eq[data-located="true"] .actuator {
+  fill: var(--select-tint);
+}
+
+.plant-graphic .eq[data-located="true"] .tag {
+  fill: var(--focus-ring);
+}
+
+.plant-graphic .ctl[data-located="true"] .ctl-balloon {
+  fill: var(--select-tint);
+  stroke: var(--focus-ring);
 }
 
 /* The hit area behind a device: invisible, it carries clicks on the gaps in
@@ -472,12 +499,6 @@ body[data-page="console"] main {
 .plant-graphic text[data-canvas-reading]:focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
-}
-
-.console-sections {
-  max-width: 60rem;
-  margin: 0 auto;
-  padding: var(--space-4);
 }
 
 /* ---- small screens --------------------------------------------------- */

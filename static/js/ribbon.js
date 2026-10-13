@@ -20,7 +20,7 @@
  *
  * The alarm summary counts the alarms still on the console by priority, with
  * how many wait on an acknowledgement, and takes the worst priority's colour.
- * It links to the console's alarm section until the alarm overlay (T20-12).
+ * On the console it opens the alarm overlay (alarms.js); elsewhere it links there.
  *
  * Everything above the "browser glue" marker is pure so it runs under Node
  * without a DOM; tests/test_ribbon.py drives it that way.
@@ -55,10 +55,14 @@
   };
 
   /* The summary's markup and its spoken label. Numbers and fixed words only,
-   * so nothing here needs escaping. The glyph is drawn by CSS from tokens.css. */
-  api.summaryView = function (summary) {
+   * so nothing here needs escaping. The glyph is drawn by CSS from tokens.css.
+   * `opensList` is true on the console, where pressing it opens the alarm list;
+   * from any other page it goes to the console, where the list is closed. */
+  api.summaryView = function (summary, opensList) {
+    var action = opensList ? "Open the alarm list." : "Go to the console.";
+
     if (summary.total === 0) {
-      return { html: "No active alarms", label: "No active alarms. Go to the alarm list." };
+      return { html: "No active alarms", label: "No active alarms. " + action };
     }
 
     var shown = PRIORITIES.filter(function (priority) {
@@ -77,7 +81,7 @@
       html: badges.join("") + '<span class="alarm-unack">' + unack + "</span>",
       label: spoken + " alarms, " +
         (summary.unacknowledged ? summary.unacknowledged + " not acknowledged" : "all acknowledged") +
-        ". Go to the alarm list.",
+        ". " + action,
     };
   };
 
@@ -247,7 +251,7 @@
 
     function drawAlarms(alarms) {
       var summary = api.summarize(alarms);
-      var view = api.summaryView(summary);
+      var view = api.summaryView(summary, alarmLink.tagName === "BUTTON");
       ribbon.setAttribute("data-severity", summary.worst);
       ribbon.setAttribute("data-unack", summary.unacknowledged > 0 ? "true" : "false");
       alarmText.innerHTML = view.html;

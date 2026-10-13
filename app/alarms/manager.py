@@ -83,12 +83,16 @@ class EnvelopeEvent:
     """One monitored point's current classification, as T9-1's `Evaluator`
     would produce it: `pv` names the symptom ("discharge pressure"), `side`
     is which limit it is against. `side` is required whenever `severity` is
-    not NORMAL - a band always has a side, and NORMAL never needs one."""
+    not NORMAL - a band always has a side, and NORMAL never needs one.
+    `point` is the monitored point, `<tag>.<variable>`, which `pv` (a
+    descriptor, not a field) cannot name; it travels in the raised event's
+    `data` so a console can open the point's trend (T20-12)."""
 
     tag: str
     pv: str
     severity: Severity
     side: Side | None = None
+    point: str | None = None
 
     def __post_init__(self) -> None:
         if self.severity is not Severity.NORMAL and self.side is None:
@@ -195,11 +199,14 @@ class AlarmManager:
     def _event(self, alarm_id: str, envelope_event: EnvelopeEvent, sim_time: float) -> Event:
         assert envelope_event.side is not None  # enforced by EnvelopeEvent.__post_init__
         suffix = _SUFFIX[envelope_event.side] * min(envelope_event.severity.value, _MAX_STEPS)
+        data: dict[str, object] = {"pv": envelope_event.pv, "severity": envelope_event.severity.name}
+        if envelope_event.point is not None:
+            data["point"] = envelope_event.point
         return Event(
             id=alarm_id,
             sim_time=sim_time,
             tag=envelope_event.tag,
             priority=self._priorities[envelope_event.severity],
             message=f"{envelope_event.tag} {envelope_event.pv} {suffix}",
-            data={"pv": envelope_event.pv, "severity": envelope_event.severity.name},
+            data=data,
         )

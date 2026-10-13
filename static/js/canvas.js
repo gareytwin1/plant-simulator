@@ -365,9 +365,10 @@
       return true;
     }
 
-    /* Open an alarm's point in a trend window beside its mark. */
+    /* Open an alarm's point in a trend window beside its mark. False when the
+     * point is not one the trend listing offers, or the window did not open. */
     function showTrend(tag, point) {
-      if (!trends || !point) return false;
+      if (!trends || !point || vocab.points.indexOf(point) < 0) return false;
       var node = findMark(tag, point);
       var at = node ? rectIn(node) : null;
       return trends.open(point, node, sized(at) ? at : null);

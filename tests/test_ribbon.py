@@ -751,7 +751,7 @@ def test_the_summary_counts_a_seeded_history_by_priority_and_acknowledgement():
         ("low", "1", "LOW"),
     ]
     assert "3 new" in got["html"]
-    assert got["label"] == "1 CRIT, 2 HIGH, 1 LOW alarms, 3 not acknowledged. Go to the alarm list."
+    assert got["label"] == "1 CRIT, 2 HIGH, 1 LOW alarms, 3 not acknowledged. Go to the console."
 
 
 @needs_node
@@ -898,7 +898,7 @@ def test_the_alarm_summary_opens_the_overlay_on_the_console_and_links_to_it_else
     assert re.search(r'<button[^>]*id="ribbon-alarms"[^>]*aria-expanded="false"', console)
     assert 'Open the alarm list.' in console
     assert 'id="ribbon-alarms" href="/console"' in landing
-    assert "Go to the alarm list." in landing
+    assert "Go to the console." in landing
 
 
 @needs_node
@@ -912,7 +912,7 @@ def test_the_alarm_summarys_spoken_label_says_what_pressing_it_does():
     )
 
     assert got == [
-        "1 HIGH alarms, 1 not acknowledged. Go to the alarm list.",
+        "1 HIGH alarms, 1 not acknowledged. Go to the console.",
         "1 HIGH alarms, 1 not acknowledged. Open the alarm list.",
         "No active alarms. Open the alarm list.",
     ]

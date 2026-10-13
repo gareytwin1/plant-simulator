@@ -109,8 +109,8 @@
       pollMs: Number(consoleEl.getAttribute("data-interval-seconds")) * 1000,
       // The ribbon polls on its own; an acknowledgement should not wait for it.
       onAcknowledge: function () { if (ribbon) ribbon.refresh(); },
-      onShowTrend: function (alarm) { canvas.showTrend(alarm.tag, alarm.point); },
-      onLocate: function (alarm) { canvas.locate(alarm.tag, alarm.point); }
+      onShowTrend: function (alarm) { return canvas.showTrend(alarm.tag, alarm.point); },
+      onLocate: function (alarm) { return canvas.locate(alarm.tag, alarm.point); }
     });
     ConnectionMonitor.mount(consoleEl, document.getElementById("connection-indicator"), {
       intervalSeconds: Number(consoleEl.getAttribute("data-interval-seconds")),

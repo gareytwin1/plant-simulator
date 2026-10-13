@@ -428,6 +428,13 @@ const els = Object.fromEntries(ids.map(id => [id, mk(id)]));
 els['filter-state'].value = 'all';
 els['filter-tag'].value = 'all';
 els['alarm-overlay'].controls = [els['alarm-overlay-close'], els['ack-visible']];
+// The table's buttons, as rendered: what a redraw can put focus back on.
+const inRows = new Set();
+els['alarm-rows'].querySelectorAll = () => [...els['alarm-rows'].innerHTML.matchAll(/data-row-action="(\w+)" data-alarm-id="([^"]*)"/g)]
+  .map(m => { const id = m[1] + '|' + m[2].replace(/&quot;/g, '"');
+    const b = mk(id, { attrs: { 'data-row-action': m[1], 'data-alarm-id': m[2].replace(/&quot;/g, '"') } });
+    inRows.add(b); return b; });
+els['alarm-rows'].contains = n => inRows.has(n);
 const workspace = mk('workspace');
 const keys = [];
 const doc = { getElementById: id => els[id] || null, activeElement: null, addEventListener(t, f) { if (t === 'keydown') keys.push(f); } };
@@ -662,22 +669,136 @@ def test_show_trend_and_locate_close_the_overlay_and_leave_focus_to_the_canvas(p
 def test_the_history_is_polled_only_while_the_overlay_is_open():
     got = mounted(
         """
+        const ticks = new Map();
+        let next = 0;
+        globalThis.setInterval = fn => { ticks.set(++next, fn); return next; };
+        globalThis.clearInterval = id => { ticks.delete(id); };
         let gets = 0;
         const overlay = A.mount(doc, { fetch: async () => { gets += 1; return reply([]); }, opener: els['ribbon-alarms'], pollMs: 15 });
-        const idle = gets;
-        await new Promise(r => setTimeout(r, 60));
-        const stillIdle = gets;
+        const closed = { timers: ticks.size, gets };
         overlay.open();
-        await new Promise(r => setTimeout(r, 120));
-        const polling = gets;
+        await overlay.ready;
+        const open = { timers: ticks.size, gets };
+        ticks.forEach(fn => fn());
+        await settle();
+        const afterTick = gets;
         overlay.close();
-        const atClose = gets;
-        await new Promise(r => setTimeout(r, 60));
-        return { idle, stillIdle, polling: polling >= 3, quiet: gets === atClose };
+        return { closed, open, afterTick, after: ticks.size };
         """,
     )
 
-    assert got == {"idle": 0, "stillIdle": 0, "polling": True, "quiet": True}
+    assert got == {"closed": {"timers": 0, "gets": 0}, "open": {"timers": 1, "gets": 1}, "afterTick": 2, "after": 0}
+
+
+@needs_node
+def test_after_acknowledging_focus_never_lands_on_another_alarms_acknowledge(plant):
+    plant.set_band("K-101", "discharge pressure", Severity.TRIP, at=1.0, point="K-101.discharge_pressure")
+    plant.set_band("P-101", "suction pressure", Severity.WARNING, side="lo", at=2.0)
+    k101 = _alarm_id("K-101", "discharge pressure")
+    first = plant.entries()
+    plant.client.post("/api/alarms/acknowledge", json={"alarm_id": k101})
+    second = plant.entries()
+
+    got = mounted(
+        """
+        const replies = [data.first, data.second];
+        const doFetch = async (url, init) => (init && init.method === 'POST' ? reply({ ok: true }) : reply(replies.shift() || data.second));
+        const overlay = A.mount(doc, { fetch: doFetch, opener: els['ribbon-alarms'] });
+        overlay.open();
+        await overlay.ready;
+        // Focus is on the top row's Acknowledge when it is pressed.
+        const buttons = els['alarm-rows'].querySelectorAll();
+        const ack = buttons.find(b => b.getAttribute('data-row-action') === 'ack');
+        doc.activeElement = ack;
+        press('ack', ack.getAttribute('data-alarm-id'));
+        await settle(); await settle();
+        return doc.activeElement.id;
+        """,
+        first=first,
+        second=second,
+    )
+
+    # K-101 is acknowledged and its row keeps Show trend and Locate: focus stays in that row.
+    assert got == f"trend|{k101}"
+
+
+@needs_node
+def test_focus_goes_to_the_close_button_when_the_alarms_row_is_gone(plant):
+    alarm_id = plant.set_band("K-101", "discharge pressure", Severity.TRIP, at=1.0)
+    first = plant.entries()
+    plant.set_band("K-101", "discharge pressure", Severity.NORMAL, at=2.0)
+    plant.client.post("/api/alarms/acknowledge", json={"alarm_id": alarm_id})
+    gone = plant.entries()
+    plant.set_band("P-101", "suction pressure", Severity.WARNING, side="lo", at=3.0)
+    other = plant.entries()
+
+    got = mounted(
+        """
+        const replies = [data.first, data.other];
+        const overlay = A.mount(doc, { fetch: async () => reply(replies.shift() || data.other), opener: els['ribbon-alarms'] });
+        overlay.open();
+        await overlay.ready;
+        const ack = els['alarm-rows'].querySelectorAll().find(b => b.getAttribute('data-row-action') === 'ack');
+        doc.activeElement = ack;
+        await overlay.refresh();
+        return doc.activeElement.id;
+        """,
+        first=first,
+        other=other,
+    )
+
+    assert got == "alarm-overlay-close"
+
+
+@needs_node
+def test_an_alarm_id_with_quotes_does_not_break_the_redraw():
+    entries = [
+        {"type": "alarm", "id": '1:a"]\\x', "tag": "A", "sim_time": 1.0, "priority": "low", "message": "m", "data": {}}
+    ]
+
+    got = mounted(
+        """
+        const overlay = A.mount(doc, { fetch: async () => reply(data.entries), opener: els['ribbon-alarms'] });
+        overlay.open();
+        await overlay.ready;
+        doc.activeElement = els['alarm-rows'].querySelectorAll()[0];
+        els['filter-search'].value = 'a';
+        els['filter-search'].fire('input');
+        return els['alarm-rows'].innerHTML.includes('data-row-action="ack"');
+        """,
+        entries=entries,
+    )
+
+    assert got is True
+
+
+@needs_node
+def test_a_show_trend_or_locate_that_finds_nothing_gives_focus_back_to_the_ribbon(plant):
+    plant.set_band("K-101", "discharge pressure", Severity.TRIP, at=1.0, point="K-101.discharge_pressure")
+    alarm_id = _alarm_id("K-101", "discharge pressure")
+
+    got = mounted(
+        """
+        const results = { trend: false, locate: undefined };
+        const overlay = A.mount(doc, { fetch: async () => reply(data.entries), opener: els['ribbon-alarms'],
+          onShowTrend: () => results.trend, onLocate: () => results.locate });
+        const focusAfter = async (action) => {
+          overlay.open(); await overlay.ready;
+          focusLog.length = 0;
+          press(action, data.id);
+          return focusLog.slice();
+        };
+        // Nothing to show: focus returns to the opener. A handler that shows something keeps it.
+        const nothing = await focusAfter('trend');
+        results.trend = true;
+        const shown = await focusAfter('trend');
+        return { nothing, shown };
+        """,
+        entries=plant.entries(),
+        id=alarm_id,
+    )
+
+    assert got == {"nothing": ["ribbon-alarms"], "shown": []}
 
 
 @needs_node

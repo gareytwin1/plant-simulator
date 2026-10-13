@@ -977,8 +977,9 @@ def test_show_trend_opens_the_alarms_point_beside_its_mark(console):
         const out = {};
         out.node = s.canvas.showTrend('N-201', 'N-201.pressure');
         out.stream = s.canvas.showTrend('B-PV-101', 'B-PV-101.flow');
-        out.device = s.canvas.showTrend('P-101', 'P-101.discharge_pressure');
+        out.device = s.canvas.showTrend('P-101', 'P-101.flow');
         out.noPoint = s.canvas.showTrend('P-101', null);
+        out.unlisted = s.canvas.showTrend('P-101', 'P-101.no_such_point');
         out.opened = opened.map(o => ({ point: o.point, opener: o.opener === node ? 'node' : o.opener === stream ? 'stream'
           : o.opener.getAttribute('data-canvas-tag'), anchor: o.anchor }));
         return out;
@@ -987,11 +988,13 @@ def test_show_trend_opens_the_alarms_point_beside_its_mark(console):
     )
 
     assert result["noPoint"] is False
+    # A point the trend listing does not offer would open a window the next listing refresh closes.
+    assert result["unlisted"] is False
     assert result["opened"] == [
         {"point": "N-201.pressure", "opener": "node", "anchor": None},
         {"point": "B-PV-101.flow", "opener": "stream", "anchor": {"left": 60, "top": 500, "right": 110, "bottom": 516}},
         # A device is anchored by its own group.
-        {"point": "P-101.discharge_pressure", "opener": "P-101",
+        {"point": "P-101.flow", "opener": "P-101",
          "anchor": {"left": 500, "top": 300, "right": 560, "bottom": 360}},
     ]
 

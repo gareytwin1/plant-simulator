@@ -299,8 +299,8 @@
    *   inert          the element made inert behind the overlay (the workspace)
    *   fetch, pollMs  a transport and the refresh period while open, for a page or test
    *   onAcknowledge  called after an acknowledgement is recorded
-   *   onShowTrend    called with the alarm (tag, point) after the overlay closes
-   *   onLocate       called with the alarm after the overlay closes
+   *   onShowTrend    called with the alarm (tag, point) after the overlay closes;
+   *   onLocate       likewise. Each returns false when it had nothing to show.
    * Returns {ready, refresh, open, close, isOpen, stop}. The history is fetched
    * on opening and then every `pollMs` while open; nothing polls while closed. */
   function mount(doc, options) {
@@ -374,11 +374,21 @@
         ? [active.getAttribute("data-row-action"), active.getAttribute("data-alarm-id")]
         : null;
       rows.innerHTML = html;
-      if (kept) {
-        var again = rows.querySelector('[data-row-action="' + kept[0] + '"][data-alarm-id="' + kept[1] + '"]')
-          || rows.querySelector("[data-row-action]");
-        (again || $("alarm-overlay-close")).focus();
-      }
+      if (kept) focusAfterRedraw(kept[0], kept[1]);
+    }
+
+    /* Put focus back where it was in the redrawn table: on the same button, or
+     * on another action of the same alarm's row, or on the close button. Never
+     * on another alarm's button: an acknowledgement would then land on a row
+     * the operator has not looked at. */
+    function focusAfterRedraw(action, id) {
+      var buttons = Array.prototype.slice.call(rows.querySelectorAll("[data-row-action]")).filter(function (button) {
+        return button.getAttribute("data-alarm-id") === id;
+      });
+      var same = buttons.filter(function (button) {
+        return button.getAttribute("data-row-action") === action;
+      })[0];
+      (same || buttons[0] || $("alarm-overlay-close")).focus();
     }
 
     async function refresh() {
@@ -457,8 +467,10 @@
       }
       // Show trend and Locate hand focus to the canvas, so the overlay lets go of it.
       closeOverlay(false);
-      if (action === "trend" && settings.onShowTrend) settings.onShowTrend(alarm);
-      if (action === "locate" && settings.onLocate) settings.onLocate(alarm);
+      var handler = action === "trend" ? settings.onShowTrend : settings.onLocate;
+      // A handler that finds nothing to show says so with false, and focus goes
+      // back to the ribbon button rather than to nowhere.
+      if (!handler || handler(alarm) === false) opener.focus();
     });
 
     // Exactly the unacknowledged rows on screen, not whatever the history says now.

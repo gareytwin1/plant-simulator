@@ -392,6 +392,25 @@ def test_two_typed_ports_of_different_phases_in_one_domain_are_refused():
     assert "M-101" not in errors[0]
 
 
+def test_a_typed_port_on_a_machine_is_a_source_too():
+    config = vessel_beside("control_valve", "liquid")
+    config["equipment"][0] = {
+        "tag": "K-101",
+        "type": "compressor",
+        "ports": {
+            "suction": typed_port("N-01", "vapor"),
+            "discharge": typed_port("N-02", "vapor"),
+        },
+        "paths": [{"from": "suction", "to": "discharge"}],
+        "design": {},
+    }
+
+    errors = rejected(config)
+
+    assert len(errors) == 1
+    assert "$.equipment[0].ports.suction (K-101, phase 'vapor')" in errors[0]
+    assert "$.equipment[1].ports.inlet" in errors[0]
+
 def test_a_machine_and_ports_that_agree_load():
     load_plant(vessel_beside("pump", "liquid"))
     load_plant(vessel_beside("compressor", "vapor"))

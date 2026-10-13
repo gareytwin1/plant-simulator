@@ -952,10 +952,13 @@ def _unit_agreement_errors(
 ) -> list[str]:
     """Refuse a domain whose flow-unit sources name two units (T20-20).
 
-    The sources are the coupling's and `app.plant.units.domain_units`': a
-    machine's `FLOW_UNITS` entry, looked up on its class from the device
-    registry (a unit-neutral device confirms nothing), and a typed port's
-    declared phase. A machine sits in the domain of its inlet node. No domain,
+    The sources are a machine's `FLOW_UNITS` entry, looked up on its class
+    from the device registry (a unit-neutral device confirms nothing), and
+    the declared phase of every typed port on any device. That is wider than
+    the coupling and `app.plant.units.domain_units`, which read phases only
+    off vessel attachments: typing comes from configuration, never from a
+    device class, so a phase declared anywhere is a claim about its domain.
+    A machine sits in the domain of its inlet node. No domain,
     node or port name says anything. A reference that does not resolve is
     reported elsewhere in this pass and skipped here.
     """

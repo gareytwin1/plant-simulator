@@ -67,10 +67,10 @@ compatible hydraulic/process domain, because a mass balance sums the flows
 meeting a node and summing GPM with SCFM is meaningless. `load_plant` refuses
 a domain whose sources name two flow units, as a `PlantConfigError` naming
 each disagreeing config path. The sources are a machine's `FLOW_UNITS` entry
-(a unit-neutral device confirms nothing) and a typed port's declared phase; a
-domain with no source still loads. The solver itself still carries no
-domain metadata, so a topology built by hand rather than loaded is the
-builder's responsibility.
+(a unit-neutral device confirms nothing) and any typed port's declared phase,
+on a vessel or not; a domain with no source still loads. The solver itself
+still carries no domain metadata, so a topology built by hand rather than
+loaded is the builder's responsibility.
 
 **For display, a domain's unit is now derived (T20-1).** `app/plant/units.py`
 names the unit of each trend point the console shows: an equipment field

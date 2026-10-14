@@ -61,6 +61,12 @@ network with a single flow variable.
 No cross-phase flow conversion exists, and none should be invented to make the
 solver or this document simpler.
 
+The one number that spans phases is a vessel's `feed_gas_ratio`, in
+**SCFM/GPM**: the gas a two-phase feed carries per GPM of its liquid, released
+into the vessel's gas space. It is a configured composition, not a conversion.
+No SCFM ever enters a liquid network, and the liquid feed is solved in GPM
+alone ([ADR 0002, Amendment 4](ADR_0002_TYPED_PORTS.md#amendment-4---a-two-phase-feed-is-a-liquid-line-carrying-gas-at-a-ratio)).
+
 **The loader enforces this per domain (T20-20).** One `NetworkSolver` solve
 (`app/engine/network.py`, T4-2) assumes the topology it is handed is a single
 compatible hydraulic/process domain, because a mass balance sums the flows

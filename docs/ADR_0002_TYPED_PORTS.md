@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Accepted 20 September 2026, **amended three times**. [Amendment 1](#amendment-1--a-connection-has-four-descriptors-not-three), before T3-7, replaces the single `service` axis with independent `purpose` and `control` descriptors. [Amendment 2](#amendment-2--the-node-is-the-unit-of-account-not-the-port), before T5-6, makes the **node** the unit of account for the aggregation D3.3 wrote as a sum over ports. [Amendment 3](#amendment-3--t5-7-comes-before-t5-5-and-a-vessel-may-take-its-ports-from-configuration), before T5-5 and T5-7, corrects the Section 6 sequencing, puts **T5-7 before T5-5**, and lets an opted-in device take its structural port set from configuration. It also specifies T5-7. Read Section 3 together with all three: **where they disagree, the later amendment wins.** |
+| **Status** | Accepted 20 September 2026, **amended four times**. [Amendment 1](#amendment-1--a-connection-has-four-descriptors-not-three), before T3-7, replaces the single `service` axis with independent `purpose` and `control` descriptors. [Amendment 2](#amendment-2--the-node-is-the-unit-of-account-not-the-port), before T5-6, makes the **node** the unit of account for the aggregation D3.3 wrote as a sum over ports. [Amendment 3](#amendment-3--t5-7-comes-before-t5-5-and-a-vessel-may-take-its-ports-from-configuration), before T5-5 and T5-7, corrects the Section 6 sequencing, puts **T5-7 before T5-5**, and lets an opted-in device take its structural port set from configuration. It also specifies T5-7. [Amendment 4](#amendment-4---a-two-phase-feed-is-a-liquid-line-carrying-gas-at-a-ratio), for T20-5, lets a two-phase feed enter through one liquid line, with the gas it carries a configured ratio of the liquid. Read Section 3 together with all four: **where they disagree, the later amendment wins.** |
 | **Date** | 20 September 2026 |
 | **Decides for** | T3-7 (new), T5-6 (new), T5-7 (new), T5-5 (unblocked, re-sequenced), T7-5 (new, deferred), and the M5/M8 boundary |
 | **Verified against** | `main` at `f8aab59`, 753 tests passing, `mypy` clean over 24 source files |
@@ -1354,3 +1354,154 @@ These are unchanged:
 
 After this amendment merges, T5-7 is implemented on Sonnet against C.4–C.11.
 T5-5 then runs against the corrected specification, also on Sonnet.
+
+---
+
+## Amendment 4 - a two-phase feed is a liquid line carrying gas at a ratio
+
+| | |
+|---|---|
+| **Status** | Accepted 14 October 2026. **Implemented by T20-5** on branch `docs/two-phase-feed`, alongside this text (`app/equipment/vessel.py`, `app/engine/coupling.py`, `app/disturbances/malfunction.py`, `app/plant/units.py`). |
+| **Raised by** | The separator plant (T20-17): the feed the user proposed is two-phase, through one valve and one line, under one flow controller, and the gas it carries must be something a scenario can change. Deferred-mechanics item 7 of the console redesign. |
+| **Verified against** | `main` at `80251f0`, 4041 tests passing, `mypy` clean |
+| **Amends** | Nothing earlier is overturned. It adds one design value to `Vessel`, one term to its gas balance, one entry to the C8 allowlist and two fields to a gas-active vessel's C4 row. |
+
+### D.0 The problem
+
+D3.1 reserves `phase: mixed` and rejects it at load, because a stream carrying
+both phases has to split and splitting is a flash (D6, section 3.6). The
+prototype (`prototype/console-redesign/separator.yaml`) therefore fed its drum
+through two typed inlets, liquid through FV-301 and vapour through FV-302, and
+moved both valves together from a loop run outside the engine. Production
+cannot do that: no engine loop drives two valves, and the operator would see
+two feed valves where the drawing has one.
+
+### D.1 Decision
+
+**The feed is solved as liquid, and the gas it carries is a configured ratio
+of that liquid.** The vessel gains one design value and the gas balance one
+term:
+
+```text
+feed_gas_ratio                                    SCFM per GPM, >= 0, default 0
+feed_gas_flow  = feed_gas_ratio * max(0, inlet_flow)            SCFM
+dP/dt          = P_std * (gas_inlet_flow + feed_gas_flow - gas_outlet_flow) / V_gas
+```
+
+- The feed line and its valve are ordinary liquid branches. The solver never
+  sees the gas, and FIC-301 is one loop on the one feed valve's solved flow.
+- The release keys on `inlet_flow`, the liquid inlet aggregate the coupling
+  already writes from **declared `phase` and `direction`**, so A3 holds as
+  written: no other descriptor decides a balance. Liquid running backwards
+  out of the vessel carries no gas, hence the `max`.
+- `feed_gas_ratio` is a **design value a malfunction may move** (C8): a gas
+  breakthrough is a step or ramp on `V-301.feed_gas_ratio`. It is never
+  integrated state, so a malfunction writing it disturbs the plant rather than
+  teleporting it.
+- `feed_gas_ratio` and `feed_gas_flow` are published on a gas-active vessel's
+  row, in SCFM/GPM and SCFM.
+
+### D.2 Options weighed
+
+| Option | Kept or rejected, and why |
+|---|---|
+| **(a)** Two inlets, two valves, one loop whose output drives both | Rejected. A ganged output is a C3 change to `controllers.out`, the operator sees two feed valves, and the split between them is whatever the two valve curves happen to give rather than a number anyone chose. |
+| **(b)** One valve stem, two configured paths (liquid and vapour branches) | Rejected. One device in two branches is refused by the loader, T9-5's single-branch solved points stop applying, and the vapour path would need a gas supply pressure that has no physical meaning on a liquid line. Most contract movement for the least teaching value. |
+| **(c)** A fixed vapour-to-liquid ratio, gas as a coupling source | **Kept, as D.1.** One valve, one line, one FIC. A feed surge raises level and pressure together. No solved flow and no curve moves, and conservation is closed by construction (D.3). |
+| **(c') (c) with the ratio as a port descriptor** | Rejected. A port carries connection metadata that never moves while the plant runs (A.7), and the user wants a scenario to change the ratio. It would also add a third descriptor to A3's conservation pair and touch C1's `Port`. |
+| **(d)** Separate liquid and gas feeds, loop on liquid only, gas fixed | Rejected. It needs no decision, but it is not what the user proposed: a feed surge would not raise pressure. |
+
+### D.3 Conservation holds by construction
+
+The feed gas has no branch, so it cannot be read off one. It is defined as the
+ratio times the same `inlet_flow` the liquid ledger already uses, and it enters
+the gas balance beside the piped gas. Section 7.1's identity becomes
+
+```text
+Δ gas_inventory = Σ (gas_inlet_flow + feed_gas_flow - gas_outlet_flow)_n · dt / 60
+Σ feed_gas_flow_n · dt / 60 = feed_gas_ratio · Σ inlet_flow_n · dt / 60   (inlet_flow ≥ 0)
+```
+
+`tests/test_mass_balance.py` closes both ledgers through a surge on the one feed
+valve (`tests/fixtures/two_phase_feed.yaml`). Because the release is a function
+of `inlet_flow`, B.10's hold carries through unchanged: a liquid domain that
+fails to converge holds `inlet_flow`, and the release holds with it. With a
+ratio of zero the gas balance is the old expression bit for bit, so no existing
+plant, golden trace or initial condition moves; the four initial-condition files
+gain only the new `_feed_gas_ratio: 0.0` attribute.
+
+### D.4 The solver is untouched
+
+The release is computed in `Vessel.integrate`, after the solve and outside it,
+from a flow the coupling has already written. No `characteristic` changes, so
+monotonicity and Newton-Raphson convergence are exactly what they were. The
+`max` is a clamp on slow-state arithmetic, not on a curve.
+
+### D.5 What moves in the contracts
+
+| Contract | Change |
+|---|---|
+| C1 | None. `Port` is unchanged; `Vessel` is a device, not the interface. |
+| C2 | None. |
+| C3 | One more vessel `design` key, `feed_gas_ratio`. `design` is an untyped object in the schema, so the schema text does not change. |
+| C4 | A gas-active vessel's row gains `feed_gas_ratio` and `feed_gas_flow`. |
+| C8 | `WRITABLE[Vessel]` gains `feed_gas_ratio`, its first entry. |
+
+### D.6 Refusals
+
+- A vessel with `feed_gas_ratio` above zero and no vapor attachment is refused
+  when the engine is built: the gas would have nowhere to go and would leave
+  the balance without a trace.
+- A vessel whose gas phase is not active integrates no gas, feed gas included.
+  A malfunction raising the ratio on a liquid-only vessel therefore changes
+  nothing, exactly as fouling an exchanger with no flow through it changes
+  nothing; there is no gas ledger for it to break.
+- A negative ratio is refused by the setter, at load and at malfunction `add`.
+
+### D.7 Limits, stated so they are not rediscovered
+
+- **The ratio is the vessel's, and applies to all of its liquid inflow.** A
+  vessel with a second liquid inlet that carries no gas (a degassed recycle)
+  would release gas from it too. No shipped plant has one; the first that does
+  needs a further amendment naming which inflow carries gas.
+- **The gas is released instantly and at a fixed ratio.** It does not depend
+  on drum pressure or temperature, as a flash would. That is the D6 line, and
+  it is the right level for teaching: an operator learns that more feed means
+  more gas, and that a gas breakthrough raises pressure with no change in
+  level.
+- **The feed stream publishes liquid only.** The gas it carries is read off the
+  vessel's `feed_gas_flow`. A schematic that wants to label the line's gas reads
+  that field.
+
+### D.8 What the separator config (T20-17) writes
+
+The prototype's numbers, with FV-302 and its gas supply node removed and the
+ratio set from the prototype's design point, 10 SCFM over 50 GPM:
+
+```yaml
+  - tag: V-301
+    type: vessel
+    ports:
+      feed:      {node: N-302, phase: liquid, purpose: process, direction: inlet}
+      drain:     {node: N-302, phase: liquid, purpose: drain,   direction: outlet}
+      vapor_out: {node: N-312, phase: vapor,  purpose: process, direction: outlet}
+    paths: []
+    design: {capacity: 200.0, head_at_full: 20.0, level: 0.5, gas_volume: 10.0,
+             initial_pressure: 200.0, feed_gas_ratio: 0.2}
+controllers:
+  - {tag: FIC-301, pv: FV-301.flow, sp: 50.0, out: FV-301, ...}
+```
+
+`tests/fixtures/two_phase_feed.yaml` is that plant without its loops, limits
+and interlocks, and pins the design point: level 0.5 and 200 psia with nothing
+moving. A gas breakthrough scenario is a malfunction on
+`V-301.feed_gas_ratio`, and belongs to T20-18.
+
+### D.9 What Amendment 4 does not reopen
+
+- `phase: mixed` stays reserved and rejected at load (D3.1). No stream is
+  two-phase in the solver.
+- No composition, no flash, no K-values (D6, section 3.6).
+- A3: conservation is decided by `phase` and `direction` only.
+- Node accounting and the hold on a failed domain (Amendment 2).
+- What `Port` may carry (A.7).

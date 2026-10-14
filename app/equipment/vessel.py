@@ -60,10 +60,10 @@ aggregate the coupling already writes from the declared phase and direction,
 so no port descriptor beyond those two decides it, and a held liquid domain
 holds the release with it. Liquid running backwards out of the vessel carries
 no gas. `feed_gas_ratio` is a design value a malfunction may move (a gas
-breakthrough), never integrated state. A ratio above zero needs a gas phase
-for the gas to go to, so the coupling refuses one on a vessel with no vapor
-attachment; a vessel whose gas phase is not active integrates no gas at all,
-feed gas included. See docs/ADR_0002_TYPED_PORTS.md, Amendment 4.
+breakthrough), never integrated state. A ratio above zero is refused on a
+vessel that cannot release it (`feed_gas_problem` in app/engine/coupling.py);
+a vessel whose gas phase is not active integrates no gas at all, feed gas
+included. See docs/ADR_0002_TYPED_PORTS.md, Amendment 4.
 
 Range guards sit on the attributes rather than in `__init__` because design
 values arrive by `setattr` from the C3 loader: a capacity of zero set from

@@ -188,6 +188,16 @@ machines at its node, and refused where they settle nothing. A typed
 attachment couples with no branch at the node at all, and one node may be
 claimed by only one inventory device.
 
+**A two-phase feed is a liquid line carrying gas at a ratio** (ADR 0002
+Amendment 4, T20-5). The feed is solved as liquid; a vessel's
+`feed_gas_ratio` (SCFM/GPM, a malfunction-writable design value) releases
+`ratio * max(0, inlet_flow)` into its gas balance as `feed_gas_flow`, so one
+valve and one flow loop move both phases. The release is the vessel's own
+arithmetic after the solve, so no curve moves. A ratio above zero is refused
+on a vessel with no vapor attachment, or with a one-direction liquid node a
+branch runs the other way through, whether it is configured, raised by a
+malfunction or restored (Amendment 4, D.6).
+
 `purpose` and `control` are read nowhere in any of this (Amendment 1 A.3).
 
 ## 3. Target architecture
@@ -519,7 +529,9 @@ The connected train was assembled by **T5-5**, to ADR 0002's re-specification:
   dependency and deadlock M5 against M8.
 - **Component inventory and phase equilibrium stay out of V1.** No composition,
   no flash, no K-values, no component balances. The vessel keeps scalar liquid
-  inventory (level, gallons) and scalar vapour inventory (pressure, psia). The
+  inventory (level, gallons) and scalar vapour inventory (pressure, psia). A
+  two-phase feed carries its gas at a fixed configured ratio, not a flash
+  (ADR 0002 Amendment 4). The
   port model is built to carry more metadata later, so adding composition would
   extend a typed connection rather than rediscover what a connection is.
 

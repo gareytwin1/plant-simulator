@@ -20,7 +20,6 @@ import math
 import pytest
 
 from app.controls.arbitration import Source
-from app.controls.loader import load_loops
 from app.controls.modes import Mode
 from app.engine.engine import Engine, _reading
 from app.engine.instruments import Instrument
@@ -450,12 +449,10 @@ def test_a_plant_with_no_controllers_publishes_an_empty_section():
 
 
 def test_a_loop_tag_already_in_use_is_refused():
-    plant = load_plant(config())
-    binding = load_loops(plant)["PIC-101"]
-    engine = Engine.from_plant(plant)
+    engine = Engine.from_plant(load_plant(config()))
 
     with pytest.raises(ValueError, match="already in use"):
-        engine.add_loop(binding)
+        engine.add_loop(engine.loops["PIC-101"])
 
 
 def test_an_instrument_cannot_take_a_loop_tag():
@@ -470,7 +467,7 @@ def test_a_second_loop_on_a_driven_output_is_refused():
     engine = Engine.from_plant(plant)
     cfg = config()
     cfg["controllers"][0]["tag"] = "PIC-102"
-    second = load_loops(load_plant(cfg))["PIC-102"]
+    second = Engine.from_plant(load_plant(cfg)).loops["PIC-102"]
 
     with pytest.raises(ValueError, match="already bound"):
         engine.add_loop(second)
@@ -478,7 +475,7 @@ def test_a_second_loop_on_a_driven_output_is_refused():
 
 def test_a_loop_on_a_device_outside_the_engine_is_refused():
     plant = load_plant(config())
-    binding = load_loops(plant)["PIC-101"]
+    binding = Engine.from_plant(plant).loops["PIC-101"]
     engine = Engine(
         [plant.devices["HV-101"]],
         topologies=plant.topologies,
@@ -490,7 +487,7 @@ def test_a_loop_on_a_device_outside_the_engine_is_refused():
 
 def test_a_loop_measuring_an_unpublished_point_is_refused():
     plant = load_plant(config())
-    binding = load_loops(plant)["PIC-101"]
+    binding = Engine.from_plant(plant).loops["PIC-101"]
     engine = Engine(plant.devices.values())
 
     with pytest.raises(ValueError, match="does not publish"):
@@ -532,3 +529,104 @@ def test_the_controllers_row_follows_a_retune():
 
     assert engine.snapshot().controllers["PIC-101"]["kp"] == 0.02
     assert engine.snapshot().controllers["PIC-101"]["tunable"] is True
+
+
+# --------------------------------------------------------------------------
+# Loops on any published point (T20-4)
+# --------------------------------------------------------------------------
+#
+# The vessel plant: FV-301 feeds V-301 from a 100 psia supply, and LV-301
+# drains it to a 20 psia header. Both valves sit on N-302, whose pressure is
+# its configured 50.0 psia plus V-301's head (20.0 * level), so at the design
+# level 0.5 each valve takes 40 psi. At travel 0.5 each is Cv 10, and both pass
+# 10 * sqrt(40) GPM: the plant starts balanced. FIC-301 measures the feed's
+# stream flow and LIC-301 the vessel's level - neither is a node pressure.
+
+VESSEL_FEED = 10.0 * math.sqrt(40.0)
+FEED_SETPOINT = 50.0
+LEVEL_SETPOINT = 0.5
+
+
+def vessel_config():
+    return {
+        "nodes": [
+            {"id": "N-301", "boundary": True, "pressure": 100.0},
+            {"id": "N-302", "boundary": True, "pressure": 50.0},
+            {"id": "N-303", "boundary": True, "pressure": 20.0},
+        ],
+        "equipment": [
+            valve("FV-301", "N-301", "N-302"),
+            valve("LV-301", "N-302", "N-303"),
+            {
+                "tag": "V-301",
+                "type": "vessel",
+                "ports": {
+                    "feed": {"node": "N-302", "phase": "liquid", "purpose": "process", "direction": "inlet"},
+                    "drain": {"node": "N-302", "phase": "liquid", "purpose": "drain", "direction": "outlet"},
+                },
+                "paths": [],
+                "design": {"capacity": 500.0, "head_at_full": 20.0, "level": LEVEL_SETPOINT},
+            },
+        ],
+        "controllers": [
+            {
+                "tag": "FIC-301", "pv": "B-FV-301.flow", "sp": VESSEL_FEED, "out": "FV-301",
+                "mode": "AUTO", "kp": 0.002, "ki": 0.002, "kd": 0.0,
+            },
+            {
+                "tag": "LIC-301", "pv": "V-301.level", "sp": LEVEL_SETPOINT, "out": "LV-301",
+                "mode": "AUTO", "action": "DIRECT", "kp": 10.0, "ki": 0.1, "kd": 0.0,
+            },
+        ],
+    }
+
+
+def test_a_level_loop_and_a_flow_loop_hold_their_setpoints():
+    """The operator cuts the feed to 50 GPM. FIC-301 closes FV-301 until the
+    stream reads 50, and LIC-301 closes LV-301 until the drain matches it at
+    the level setpoint: travel 50 / (20 * sqrt(40)) at 40 psi."""
+    _, engine = running(vessel_config())
+    engine.loops["FIC-301"].loop.pid.setpoint = FEED_SETPOINT
+
+    snapshot = run(engine, 1000)
+
+    assert snapshot.streams["B-FV-301"]["flow"] == pytest.approx(FEED_SETPOINT, abs=1e-6)
+    assert snapshot.equipment["V-301"]["level"] == pytest.approx(LEVEL_SETPOINT, abs=1e-6)
+    assert snapshot.equipment["LV-301"]["position"] == pytest.approx(
+        FEED_SETPOINT / (20.0 * math.sqrt(40.0)), abs=1e-6
+    )
+    assert snapshot.controllers["FIC-301"]["pv"] == snapshot.streams["B-FV-301"]["flow"]
+    assert snapshot.controllers["LIC-301"]["pv"] == snapshot.equipment["V-301"]["level"]
+
+
+def test_a_loop_publishes_the_unit_of_the_point_it_measures():
+    _, engine = running(vessel_config())
+
+    controllers = engine.snapshot().controllers
+
+    assert controllers["FIC-301"]["pv_unit"] == "GPM"
+    assert controllers["LIC-301"]["pv_unit"] == "fraction"
+
+
+def test_a_level_transmitter_bias_moves_the_level_loop():
+    """LIC-301 holds what LT-301 indicates, so a +0.05 bias settles the true
+    level 0.05 low - the instrument fault an operator has to find."""
+    transmitter = Instrument("LT-301", "equipment", "V-301", "level")
+    _, engine = running(vessel_config(), instruments=[transmitter])
+    run(engine, 10)
+
+    transmitter.bias = 0.05
+    snapshot = run(engine, 1000)
+
+    assert snapshot.controllers["LIC-301"]["pv"] == pytest.approx(LEVEL_SETPOINT, abs=1e-6)
+    assert snapshot.truth.equipment["V-301"]["level"] == pytest.approx(LEVEL_SETPOINT - 0.05, abs=1e-6)
+
+
+def test_loops_on_points_give_bit_identical_traces():
+    def trace():
+        _, engine = running(vessel_config())
+        engine.loops["FIC-301"].loop.pid.setpoint = FEED_SETPOINT
+
+        return [engine.step(DT).as_dict() for _ in range(200)]
+
+    assert trace() == trace()

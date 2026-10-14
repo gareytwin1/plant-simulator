@@ -12,6 +12,7 @@ from app.scenarios.replay import Recording, replay
 from app.scenarios.runner import Phase, ScenarioRunner
 from app.scoring.actionlog import ActionLog
 from app.training.session import TrainingSession
+from tests.test_loop_execution import vessel_config
 
 
 # ---- apply_action: the pure core, no Flask involved ----
@@ -440,6 +441,40 @@ def test_a_negative_setpoint_is_refused():
 
     assert engine.snapshot().controllers["PIC-101"]["sp"] == SETPOINT
     assert len(log) == 0
+
+
+@pytest.mark.parametrize("value", [1.01, -0.01], ids=["above-1", "below-0"])
+def test_a_fraction_setpoint_outside_0_to_1_is_refused(value):
+    engine = Engine.from_plant(load_plant(vessel_config()))
+    log = ActionLog()
+
+    with pytest.raises(ValueError, match=r"LIC-301\.set_setpoint value must be a fraction within \[0, 1\]"):
+        act(engine, log, "LIC-301", "set_setpoint", value)
+
+    assert engine.snapshot().controllers["LIC-301"]["sp"] == 0.5
+    assert len(log) == 0
+
+
+@pytest.mark.parametrize("value", [0.0, 1.0], ids=["empty", "full"])
+def test_a_fraction_setpoint_takes_either_end(value):
+    engine = Engine.from_plant(load_plant(vessel_config()))
+
+    act(engine, ActionLog(), "LIC-301", "set_setpoint", value)
+
+    assert engine.snapshot().controllers["LIC-301"]["sp"] == value
+
+
+def test_a_fraction_setpoint_outside_0_to_1_is_a_400_at_the_endpoint():
+    engine = Engine.from_plant(load_plant(vessel_config()))
+    log = ActionLog()
+    app = Flask(__name__)
+    app.register_blueprint(create_action_blueprint(get_engine=lambda: engine, get_log=lambda: log))
+
+    response = post(app.test_client(), "LIC-301", "set_setpoint", 1.5)
+
+    assert response.status_code == 400
+    assert "fraction" in response.get_json()["error"]
+    assert engine.snapshot().controllers["LIC-301"]["sp"] == 0.5
 
 
 def test_set_output_in_auto_is_refused():

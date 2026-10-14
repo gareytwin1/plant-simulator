@@ -43,7 +43,6 @@ from pathlib import Path
 
 import pytest
 
-from app.controls.loader import load_loops
 from app.controls.modes import Mode
 from app.controls.pid import Action
 from app.engine.engine import Engine
@@ -229,9 +228,9 @@ def test_pic_101_loads_and_binds_to_n_201_and_pv_101():
     direct-acting - see the controllers comment in the fixture."""
     plant = load()
 
-    binding = load_loops(plant)["PIC-101"]
+    binding = Engine.from_plant(plant).loops["PIC-101"]
 
-    assert binding.pv_node is plant.nodes["N-201"]
+    assert binding.pv_point == ("nodes", "N-201", "pressure")
     assert binding.out_tag == "PV-101"
     assert binding.loop.mode is Mode.MANUAL
     assert binding.loop.pid.action is Action.DIRECT

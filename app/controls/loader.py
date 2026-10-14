@@ -171,7 +171,7 @@ def setpoint_problem(value: float, unit: str) -> str | None:
 
     if floor is not None:
         if value <= floor:
-            return f"must be above absolute zero ({floor} {unit})"
+            return f"must be above {floor} {unit}"
     elif value < 0.0:
         return f"must be non-negative {unit}".rstrip()
 

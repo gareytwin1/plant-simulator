@@ -405,5 +405,5 @@ def test_a_temperature_setpoint_at_or_below_absolute_zero_is_a_load_error():
     config["controllers"][0]["sp"] = -459.67
 
     assert rejected(config) == [
-        "$.controllers[0].sp: must be above absolute zero (-459.67 °F), got -459.67",
+        "$.controllers[0].sp: must be above -459.67 °F, got -459.67",
     ]

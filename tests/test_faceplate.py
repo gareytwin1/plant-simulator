@@ -236,7 +236,7 @@ def test_a_temperature_setpoint_may_be_below_zero():
     row = dict(LEVEL_ROW, pv=-35.0, sp=-40.0, pv_unit="°F")
 
     assert parse("sp", "-45", row) == {"action": "set_setpoint", "value": -45}
-    assert parse("sp", "-459.67", row) == {"error": "Setpoint must be above absolute zero."}
+    assert parse("sp", "-459.67", row) == {"error": "Setpoint must be above -459.67 °F."}
 
 
 # ---- There is no tuning on the console ----

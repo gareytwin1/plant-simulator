@@ -155,7 +155,7 @@
         return { action: ENTRY_ACTION.sp, value: value === 100 ? 1 : value / 100 };
       }
       var floor = Object.prototype.hasOwnProperty.call(SETPOINT_FLOORS, r.pv_unit) ? SETPOINT_FLOORS[r.pv_unit] : null;
-      if (floor !== null && value <= floor) return { error: "Setpoint must be above absolute zero." };
+      if (floor !== null && value <= floor) return { error: "Setpoint must be above " + floor + " " + r.pv_unit + "." };
       if (floor === null && value < 0) return { error: "Setpoint cannot be negative." };
       return { action: ENTRY_ACTION.sp, value: value };
     }

@@ -18,17 +18,19 @@ declared phase gives. Two sources that disagree are a build error naming both;
 a domain nothing classifies - only valves, no vessel - has no unit, rather
 than a guess.
 
-**Nodes** are pressures, psia. **Loops**: pv and sp take the unit of the
-loop's measurement (`LoopBinding.pv_unit`), and out is a fraction.
+**Nodes** carry psia for pressure and °F for temperature; a stream's pressure
+and temperature read the same. **Loops**: pv and sp take the unit of the
+loop's measurement (`LoopBinding.pv_unit`, which `app.controls.loader` takes
+from `unit_lookup` when it binds the loop), and out is a fraction.
 
 `FRACTION` marks a value from 0 to 1 that every display shows as a percent.
 """
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
+from typing import TYPE_CHECKING
 
-from app.controls.loader import LoopBinding
 from app.engine.coupling import UNIT_NEUTRAL, VesselCoupling, flow_unit
 from app.equipment.base import Equipment
 from app.equipment.compressor import GasCompressor
@@ -40,6 +42,11 @@ from app.equipment.vessel import Vessel
 from app.historian.points import trend_values
 from app.plant.topology import Topology
 from app.statetypes import JSONValue
+
+if TYPE_CHECKING:
+    # The loader takes its loops' units from this module, so the import runs
+    # one way only at runtime.
+    from app.controls.loader import LoopBinding
 
 
 PSIA = "psia"
@@ -66,11 +73,22 @@ FIELD_UNITS: dict[type[Equipment], dict[str, str]] = {
         "inlet_pressure": PSIA,
         "outlet_pressure": PSIA,
     },
-    ControlValve: {"position": FRACTION, "position_target": FRACTION},
+    ControlValve: {
+        "position": FRACTION,
+        "position_target": FRACTION,
+        # Solved points the engine composes onto the row (T9-5): the operator
+        # view hides them, but a loop may measure them (T20-4).
+        "flow": DOMAIN_FLOW,
+        "inlet_pressure": PSIA,
+        "outlet_pressure": PSIA,
+    },
     Vessel: {"level": FRACTION, "pressure": PSIA},
     HeatExchanger: {"inlet_temperature": DEG_F},
     Furnace: {"firing_rate": BTU_PER_HOUR, "duty_setpoint": BTU_PER_HOUR},
 }
+
+NODE_UNITS: dict[str, str] = {"pressure": PSIA, "temperature": DEG_F}
+STREAM_UNITS: dict[str, str] = {"flow": DOMAIN_FLOW, "pressure": PSIA, "temperature": DEG_F}
 
 
 def domain_units(
@@ -111,6 +129,38 @@ def domain_units(
     return units
 
 
+def unit_lookup(
+    equipment: Mapping[str, Equipment],
+    topologies: Mapping[str, Topology],
+    couplings: Iterable[VesselCoupling],
+) -> Callable[[str, str, str], str]:
+    """`unit(section, row_id, field)`: the unit of one published point of the
+    plant whose equipment, topologies and couplings are given, `''` where
+    nothing names one."""
+    by_domain = domain_units(topologies, couplings)
+    flow_units: dict[str, dict[str, str]] = {"equipment": {}, "streams": {}}
+
+    for domain, topology in topologies.items():
+        for branch in topology.branches.values():
+            flow_units["streams"][branch.id] = by_domain[domain]
+            flow_units["equipment"][branch.device.tag] = by_domain[domain]
+
+    def unit(section: str, row_id: str, field: str) -> str:
+        if section == "equipment":
+            device = equipment.get(row_id)
+            found = FIELD_UNITS.get(type(device), {}).get(field, NO_UNIT) if device is not None else NO_UNIT
+        elif section == "nodes":
+            found = NODE_UNITS.get(field, NO_UNIT)
+        elif section == "streams":
+            found = STREAM_UNITS.get(field, NO_UNIT)
+        else:
+            found = NO_UNIT
+
+        return flow_units.get(section, {}).get(row_id, NO_UNIT) if found == DOMAIN_FLOW else found
+
+    return unit
+
+
 def point_units(
     view: Mapping[str, JSONValue],
     equipment: Mapping[str, Equipment],
@@ -120,31 +170,16 @@ def point_units(
 ) -> dict[str, str]:
     """The unit of every trend point of `view`, an operator view of the plant
     whose equipment, loops, topologies and couplings are given."""
-    by_domain = domain_units(topologies, couplings)
-    branch_unit: dict[str, str] = {}
-    device_unit: dict[str, str] = {}
-
-    for domain, topology in topologies.items():
-        for branch in topology.branches.values():
-            branch_unit[branch.id] = by_domain[domain]
-            device_unit[branch.device.tag] = by_domain[domain]
-
+    unit = unit_lookup(equipment, topologies, couplings)
     units: dict[str, str] = {}
 
-    for point in _points(view, "equipment"):
-        tag, field = point.rsplit(".", 1)
-        device = equipment.get(tag)
-        unit = FIELD_UNITS.get(type(device), {}).get(field, NO_UNIT) if device is not None else NO_UNIT
-        units[point] = device_unit.get(tag, NO_UNIT) if unit == DOMAIN_FLOW else unit
-
-    for point in _points(view, "nodes"):
-        units[point] = PSIA
-
-    for point in _points(view, "streams"):
-        units[point] = branch_unit.get(point.rsplit(".", 1)[0], NO_UNIT)
+    for section in ("equipment", "nodes", "streams"):
+        for point in _points(view, section):
+            row_id, _, field = point.rpartition(".")
+            units[point] = unit(section, row_id, field)
 
     for point in _points(view, "controllers"):
-        tag, field = point.rsplit(".", 1)
+        tag, _, field = point.rpartition(".")
         binding = loops.get(tag)
 
         if field == "out":

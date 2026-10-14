@@ -309,8 +309,9 @@ def test_a_breakthrough_on_a_vessel_that_can_release_gas_is_accepted():
     _check_feed_gas_malfunction(engine, Malfunction("V-301", "feed_gas_ratio", 0.0))
 
 
-def test_arming_a_scenario_refuses_a_breakthrough_the_plant_cannot_release(tmp_path):
-    """The refusal is wired where a run is armed, not only callable."""
+def test_arming_a_scenario_refuses_feed_gas_the_plant_cannot_release(tmp_path):
+    """The refusal is wired where a run is armed, for a malfunction and for an
+    initial-condition override alike."""
     cfg = without(separator_config(), "drain")
     library = ScenarioLibrary(
         scenarios=tmp_path / "scenarios",
@@ -342,3 +343,8 @@ def test_arming_a_scenario_refuses_a_breakthrough_the_plant_cannot_release(tmp_p
     scenario["malfunctions"][0]["value"] = 0.0
     ScenarioRunner(library).load_config(scenario)
 
+    del scenario["malfunctions"]
+    scenario["initial_condition"]["overrides"] = {"V-301._feed_gas_ratio": RATIO}
+
+    with pytest.raises(ValueError, match="feed_gas_ratio is 0.2.*inlet-only"):
+        ScenarioRunner(library).load_config(scenario)

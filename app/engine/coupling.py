@@ -437,7 +437,7 @@ def build_couplings(
     ]
 
     _reject_shared_nodes(couplings)
-    _check_feed_gas(couplings)
+    check_feed_gas(couplings)
 
     return couplings
 
@@ -511,8 +511,10 @@ def _reject_shared_nodes(couplings: Iterable[VesselCoupling]) -> None:
             )
 
 
-def _check_feed_gas(couplings: Iterable[VesselCoupling]) -> None:
-    """Refuse a configured feed gas ratio on a vessel that cannot release it."""
+def check_feed_gas(couplings: Iterable[VesselCoupling]) -> None:
+    """Refuse a feed gas ratio, as the vessels hold it now, on a vessel that
+    cannot release it. The build runs it on the configured ratios; a caller
+    that restores state onto a built engine runs it again."""
     for coupling in couplings:
         vessel = coupling.vessel
 

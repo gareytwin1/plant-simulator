@@ -1449,23 +1449,29 @@ monotonicity and Newton-Raphson convergence are exactly what they were. The
 
 ### D.6 Refusals
 
-- A vessel with `feed_gas_ratio` above zero and no vapor attachment is refused
-  when the engine is built: the gas would have nowhere to go and would leave
+A vessel **cannot release feed gas** (`feed_gas_problem` in
+`app/engine/coupling.py`) in two cases:
+
+- **No vapor attachment.** The gas would have nowhere to go and would leave
   the balance without a trace.
-- A ratio raised after the build is refused on exactly the vessels the build
-  would refuse it configured (`feed_gas_problem` in `app/engine/coupling.py`):
-  a scenario malfunction when the run is armed (`ScenarioRunner`), and a
-  restored state, whatever its source, by `restore_state` before it writes
-  anything. A plant built with no feed gas may declare its liquid nodes
-  however Amendment 2 allows; it is the raised ratio that is refused.
-- A vessel whose gas phase is not active integrates no gas, feed gas included.
-- A vessel with a ratio above zero is refused at the same point when one of
-  its liquid nodes is declared in one direction only and a branch runs the
-  other way there. Such a node writes its *net* exchange (Amendment 2, B.3):
-  a drain at an inlet-only node would net off the feed, and a feed at an
+- **A liquid node declared in one direction only with a branch running the
+  other way there.** Such a node writes its *net* exchange (Amendment 2,
+  B.3): a drain at an inlet-only node would net off the feed, and a feed at an
   outlet-only node would never reach `inlet_flow`. Declaring both directions
   on that node gives the gross arrivals the release needs.
-- A negative ratio is refused by the setter, at load and at malfunction `add`.
+
+A ratio above zero on such a vessel is refused wherever it can arise:
+
+- **configured**, when the engine is built;
+- **raised by a scenario malfunction**, when the run is armed
+  (`ScenarioRunner`);
+- **restored**, whatever wrote it, by `restore_state` before it writes
+  anything.
+
+A plant built with no feed gas may declare its liquid nodes however
+Amendment 2 allows; it is the ratio that is refused, not the plant. A vessel
+whose gas phase is not active integrates no gas, feed gas included. A negative
+ratio is refused by the setter, at load, at malfunction `add` and on restore.
 
 ### D.7 Limits, stated so they are not rediscovered
 

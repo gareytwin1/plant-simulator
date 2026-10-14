@@ -193,8 +193,10 @@ Amendment 4, T20-5). The feed is solved as liquid; a vessel's
 `feed_gas_ratio` (SCFM/GPM, a malfunction-writable design value) releases
 `ratio * max(0, inlet_flow)` into its gas balance as `feed_gas_flow`, so one
 valve and one flow loop move both phases. The release is the vessel's own
-arithmetic after the solve, so no curve moves, and a vessel releasing gas with
-no vapor attachment is refused at Engine construction.
+arithmetic after the solve, so no curve moves. A ratio is refused on a vessel
+with no vapor attachment, or with a one-direction liquid node a branch runs
+the other way through, whether it is configured, raised by a malfunction or
+restored (Amendment 4, D.6).
 
 `purpose` and `control` are read nowhere in any of this (Amendment 1 A.3).
 

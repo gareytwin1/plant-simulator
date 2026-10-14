@@ -48,18 +48,19 @@ gate ("loops reject an injected disturbance") on the separator plant.
 
 ## The next task
 
-**Startable in M20:** T20-21 and T20-18 (both Sonnet) - the
-`startable` field of [BUILD_PLAN_STATUS.json](../../docs/BUILD_PLAN_STATUS.json).
-Neither needs the spine lock. **T20-21 first by leverage**: it gates T20-16
-(run history) and its shape is fixed in the build plan - the outcome becomes
-a ninth score criterion weighted 101, so every succeeded run outscores
-every failed one, and `trip_count` counts interlock latches recorded by `PlantRuntime`,
-not TRIP-severity alarms (T20-15's score lets a failed run reach 100 and
-charges pump_trip's premise as a trip). T20-18 (separator scenarios) has a
-gap to settle first: two of its four faults are a lost valve signal, and no
-C8 malfunction can drop one (`WRITABLE[ControlValve]` is only `capacity` and
+**Startable in M20:** T20-21 and T20-18 (both Sonnet) - the `startable` field
+of [BUILD_PLAN_STATUS.json](../../docs/BUILD_PLAN_STATUS.json). Neither needs
+the spine lock. **T20-21 first by leverage**: it gates T20-16 (run history)
+and its shape is fixed in the build plan - the outcome becomes a ninth score
+criterion weighted 101, so every succeeded run outscores every failed one, and
+`trip_count` counts interlock latches recorded by `PlantRuntime`, not
+TRIP-severity alarms (T20-15's score lets a failed run reach 100 and charges
+pump_trip's premise as a trip). T20-18 (separator scenarios) has a gap to
+settle first: two of its four faults are a lost valve signal, and no C8
+malfunction can drop one (`WRITABLE[ControlValve]` is only `capacity` and
 `min_position`), so that mechanism is a contract question to escalate, not
-invent. Also startable but deferred: T10-4 and T11-4 (V1.1), T19-1 and T19-2 (V2).
+invent. Also startable but deferred: T10-4 and T11-4 (V1.1), T19-1 and T19-2
+(V2).
 
 **CP-G passed for the current console** (user's browser pass, 9 October 2026). The console is about to be redesigned, so the full pass (all six scenarios, both themes, phone width, a real alarm marker) is an acceptance criterion of that redesign rather than repeated on this console.
 

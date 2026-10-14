@@ -8,7 +8,9 @@ point the operator view publishes, once, when a plant runtime is built.
 **Equipment fields** come from `FIELD_UNITS`, an explicit per-class allowlist
 in the same shape as `app.api.visibility.VISIBLE`: a field missing from it has
 no unit (`''`) until someone lists it. A field listed as `DOMAIN_FLOW` is a
-flow, whose unit is that of the domain the device's branch sits in.
+flow, whose unit is that of the domain the device's branch sits in. A device in
+a branch also gets units for the solved points the engine composes onto its row
+(`SOLVED_POINT_UNITS`) unless its class lists them itself.
 
 **Streams** carry their domain's flow unit. A domain's unit comes from the
 same classification `app.engine.coupling` already applies, and never from a
@@ -31,12 +33,13 @@ from __future__ import annotations
 from collections.abc import Callable, Iterable, Mapping
 from typing import TYPE_CHECKING
 
-from app.engine.coupling import UNIT_NEUTRAL, VesselCoupling, flow_unit
+from app.engine.coupling import GPM, SCFM, UNIT_NEUTRAL, VesselCoupling, flow_unit
 from app.equipment.base import Equipment
 from app.equipment.compressor import GasCompressor
 from app.equipment.exchanger import HeatExchanger
 from app.equipment.furnace import Furnace
 from app.equipment.pump import CentrifugalPump
+from app.equipment.relief import ReliefValve
 from app.equipment.valve import ControlValve
 from app.equipment.vessel import Vessel
 from app.historian.points import trend_values
@@ -73,18 +76,32 @@ FIELD_UNITS: dict[type[Equipment], dict[str, str]] = {
         "inlet_pressure": PSIA,
         "outlet_pressure": PSIA,
     },
-    ControlValve: {
-        "position": FRACTION,
-        "position_target": FRACTION,
-        # Solved points the engine composes onto the row (T9-5): the operator
-        # view hides them, but a loop may measure them (T20-4).
-        "flow": DOMAIN_FLOW,
-        "inlet_pressure": PSIA,
-        "outlet_pressure": PSIA,
+    ControlValve: {"position": FRACTION, "position_target": FRACTION},
+    # The fields below the first line of each entry are process measurements
+    # the operator view hides but a loop may measure (T20-4).
+    Vessel: {
+        "level": FRACTION,
+        "pressure": PSIA,
+        "inlet_flow": GPM,
+        "outlet_flow": GPM,
+        "gas_inlet_flow": SCFM,
+        "gas_outlet_flow": SCFM,
     },
-    Vessel: {"level": FRACTION, "pressure": PSIA},
-    HeatExchanger: {"inlet_temperature": DEG_F},
+    HeatExchanger: {
+        "inlet_temperature": DEG_F,
+        "cold_temperature": DEG_F,
+        "metal_temperature": DEG_F,
+    },
     Furnace: {"firing_rate": BTU_PER_HOUR, "duty_setpoint": BTU_PER_HOUR},
+    ReliefValve: {"inlet_pressure": PSIA},
+}
+
+# The solved points the engine composes onto the row of a device in one branch
+# (T9-5), for a class that does not list them itself.
+SOLVED_POINT_UNITS: dict[str, str] = {
+    "flow": DOMAIN_FLOW,
+    "inlet_pressure": PSIA,
+    "outlet_pressure": PSIA,
 }
 
 NODE_UNITS: dict[str, str] = {"pressure": PSIA, "temperature": DEG_F}
@@ -148,7 +165,14 @@ def unit_lookup(
     def unit(section: str, row_id: str, field: str) -> str:
         if section == "equipment":
             device = equipment.get(row_id)
-            found = FIELD_UNITS.get(type(device), {}).get(field, NO_UNIT) if device is not None else NO_UNIT
+            listed = FIELD_UNITS.get(type(device), {}) if device is not None else {}
+
+            if field in listed:
+                found = listed[field]
+            elif row_id in flow_units["equipment"]:
+                found = SOLVED_POINT_UNITS.get(field, NO_UNIT)
+            else:
+                found = NO_UNIT
         elif section == "nodes":
             found = NODE_UNITS.get(field, NO_UNIT)
         elif section == "streams":

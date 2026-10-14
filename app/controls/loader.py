@@ -27,10 +27,11 @@ C3 already has, with no new key:
     it fools the operator.
 
   - **A loop's measurement carries its point's unit** (`pv_unit`, from
-    `app.plant.units`, T20-1), and its setpoint is checked against it, at
-    load and on every `set_setpoint`: within [0, 1] for a fraction, above
-    absolute zero for a temperature, and never negative for anything else -
-    see `setpoint_problem`.
+    `app.plant.units`, T20-1), and a point with none is refused. Its
+    setpoint is checked against that unit, at load and on every
+    `set_setpoint`: within [0, 1] for a fraction, above absolute zero for a
+    temperature, and never negative for anything else - see
+    `setpoint_problem`.
 
   - **`out` resolves to a device with a settable normalized command.** Only
     `ControlValve.set_position_target` qualifies today (`OUTPUTS`,
@@ -184,6 +185,9 @@ def resolve_pv(text: str, published: Published) -> tuple[str, str, str]:
     row_id, dot, field = text.rpartition(".")
 
     if not dot:
+        if text in published["nodes"]:
+            return ("nodes", text, NODE_PV_FIELD)
+
         for section in ("equipment", "streams"):
             if text in published[section]:
                 raise ValueError(
@@ -191,10 +195,7 @@ def resolve_pv(text: str, published: Published) -> tuple[str, str, str]:
                     f"<id>.<field>, from {sorted(published[section][text])}",
                 )
 
-        if text not in published["nodes"]:
-            raise ValueError(f"unknown node {text!r}, only {sorted(published['nodes'])}")
-
-        return ("nodes", text, NODE_PV_FIELD)
+        raise ValueError(f"unknown node {text!r}, only {sorted(published['nodes'])}")
 
     sections = [section for section in PV_SECTIONS if row_id in published[section]]
 
@@ -259,7 +260,15 @@ def load_loops(
             unit = unit_of(*point)
             problem = setpoint_problem(entry["sp"], unit)
 
-            if problem is not None:
+            if not unit:
+                # A setpoint is checked against its unit and shown in it, so
+                # a point app.plant.units names no unit for cannot be one.
+                errors.append(
+                    f"{path}.pv: {entry['pv']!r} has no unit in app/plant/units.py, "
+                    f"so a loop cannot measure it",
+                )
+                point = None
+            elif problem is not None:
                 errors.append(f"{path}.sp: {problem}, got {entry['sp']!r}")
                 point = None
 

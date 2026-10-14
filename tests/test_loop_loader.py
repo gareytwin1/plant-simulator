@@ -2,7 +2,7 @@ import copy
 
 import pytest
 
-from app.controls.loader import LoopBinding, LoopConfigError, load_loops
+from app.controls.loader import LoopBinding, LoopConfigError, load_loops, resolve_pv
 from app.controls.modes import Mode
 from app.controls.pid import Action
 from app.engine.coupling import build_couplings
@@ -418,3 +418,19 @@ def test_a_bare_device_or_stream_id_says_to_name_a_field(pv):
 
     assert len(errors) == 1
     assert errors[0].startswith(f"$.controllers[0].pv: {pv!r} is not a node; a point names one of its fields")
+
+
+def test_a_bare_id_that_is_a_node_is_its_pressure_even_if_a_device_shares_it():
+    published = {"nodes": {"X-1": {"pressure": 50.0}}, "equipment": {"X-1": {"level": 0.5}}, "streams": {}}
+
+    assert resolve_pv("X-1", published) == ("nodes", "X-1", "pressure")
+
+
+def test_a_point_with_no_unit_is_a_load_error():
+    config = vessel_config()
+    config["controllers"][0]["pv"] = "FV-301.effective_capacity"
+
+    assert rejected(config) == [
+        "$.controllers[0].pv: 'FV-301.effective_capacity' has no unit in app/plant/units.py, "
+        "so a loop cannot measure it",
+    ]

@@ -391,7 +391,7 @@ def _check_feed_gas(engine: Engine, value: JSONValue) -> None:
 
     for coupling in engine.couplings:
         tag = coupling.vessel.tag
-        ratio = _mapping(rows[tag], f"equipment.{tag}").get("_feed_gas_ratio", 0.0)
+        ratio = _mapping(rows[tag], f"equipment.{tag}")["_feed_gas_ratio"]
 
         if ratio == 0.0:
             continue

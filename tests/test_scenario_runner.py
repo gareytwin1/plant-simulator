@@ -13,14 +13,18 @@ import copy
 import json
 import threading
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
+import yaml
 
 from app.alarms.acknowledge import Acknowledged
 from app.api.action import apply_action
 from app.engine.engine import Engine
 from app.engine.persistence import capture_state, restore_state
 from app.engine.scheduler import Scheduler
+from app.envelope.evaluator import Severity, isa_band
+from app.envelope.tracker import ExcursionTracker
 from app.plant.loader import load_plant_file
 from app.scenarios.runner import (
     Outcome,
@@ -32,6 +36,10 @@ from app.scenarios.runner import (
     ScenarioStateError,
     apply_overrides,
 )
+from app.scenarios.replay import Recording, replay
+from app.scoring.metrics import compute_metrics
+from app.scoring.score import load_scoring_config, score_run
+from app.scoring.throughput import ThroughputTracker
 from app.training.runtime import PlantRuntime
 
 
@@ -732,3 +740,180 @@ def test_abort_rebuilds_the_runtime_so_interlocks_and_alarms_start_clean():
     assert not runner._run.runtime.trips.interlocks["LSHH-101"].tripped
     assert runner.alarm_entries() == fresh.alarm_entries()
     assert len(runner.actions) == taken
+
+
+# ---- scoring a finished run (T20-15) ----
+
+
+_BANDS = {
+    isa_band(severity, side): severity
+    for severity in (Severity.WARNING, Severity.ALARM, Severity.TRIP)
+    for side in ("lo", "hi")
+}
+
+
+def scored(recovered, config=None):
+    """A run taken to completion, with every snapshot it published: the armed
+    one, then each step's."""
+    runner = ScenarioRunner()
+    runner.load_config(config or scenario())
+    published = [runner.snapshot()]
+    runner.start()
+
+    if recovered:
+        recover(runner)
+
+    while runner.phase is Phase.RUNNING:
+        published.append(runner.step(DT))
+
+    return runner, published
+
+
+def tracked_by_hand(published, plant):
+    """The scoring trackers for `plant`, fed from `published` outside the run."""
+    scoring = load_scoring_config().plant(plant)
+    limits = armed_engine().limits
+    excursions = {
+        label: ExcursionTracker(limits[tuple(label.split("."))].limits) for label in scoring.excursions
+    }
+    throughput = {label: ThroughputTracker(target) for label, target in scoring.throughput.items()}
+    last = published[0].sim_time
+
+    for snapshot in published:
+        dt, last = snapshot.sim_time - last, snapshot.sim_time
+
+        for label, tracker in excursions.items():
+            tag, variable = label.split(".")
+            band = snapshot.envelope.get(label)
+            severity = Severity.NORMAL if band is None else _BANDS[band["band"]]
+            tracker.update(snapshot.equipment[tag][variable], severity, dt)
+
+        for label, tracker in throughput.items():
+            tag, variable = label.split(".")
+            tracker.update(snapshot.equipment[tag][variable], dt)
+
+    return excursions, throughput
+
+
+@pytest.mark.parametrize("recovered", [False, True], ids=["ignored", "recovered"])
+def test_a_completed_run_is_scored_from_its_own_log_history_and_trackers(recovered):
+    runner, published = scored(recovered)
+    excursions, throughput = tracked_by_hand(published, "olefins_lite")
+
+    expected = compute_metrics(
+        runner.actions,
+        SimpleNamespace(entries=runner.alarm_entries),
+        excursions,
+        lambda action: True,
+        throughput,
+    )
+
+    result = runner.result()
+    assert result.phase is Phase.COMPLETE
+    assert result.metrics == expected
+    assert result.score == score_run(expected, load_scoring_config())
+    assert result.metrics.alarm_count > 0
+    assert set(result.metrics.peak_excursions) == {"V-101.level", "K-101.outlet_pressure"}
+    assert result.metrics.production_lost["LV-101.flow"] > 0.0
+
+
+def test_recovering_scores_higher_than_ignoring():
+    ignored, _ = scored(recovered=False)
+    recovered, _ = scored(recovered=True)
+
+    assert recovered.result().score.total > ignored.result().score.total
+
+
+def test_no_score_or_metric_while_the_run_is_live():
+    runner = ScenarioRunner()
+
+    assert runner.load_config(scenario()).score is None
+    assert runner.start().metrics is None
+
+    run_for(runner, 10)
+
+    result = runner.result()
+    assert result.phase is Phase.RUNNING
+    assert result.score is None and result.metrics is None
+    assert result.as_dict()["score"] is None and result.as_dict()["metrics"] is None
+
+
+def test_an_aborted_run_has_no_score():
+    runner = started()
+    run_for(runner, 30)
+
+    result = runner.abort()
+
+    assert result.phase is Phase.ABORTED
+    assert result.score is None and result.metrics is None
+
+
+def test_a_completed_score_is_final():
+    runner, _ = scored(recovered=True)
+    score = runner.result().score
+
+    runner.step(DT)
+    runner.acknowledge(runner.alarm_entries()[0].id)
+
+    assert runner.result().score == score
+
+
+def test_replaying_a_run_gives_the_same_score():
+    runner, _ = scored(recovered=True)
+
+    replayed = replay(Recording.of(runner)).result()
+
+    assert replayed.score == runner.result().score
+    assert replayed.metrics == runner.result().metrics
+
+
+def test_the_score_is_in_the_json_result():
+    runner, _ = scored(recovered=True)
+
+    body = json.loads(json.dumps(runner.result().as_dict()))
+
+    assert body["score"]["total"] == runner.result().score.total
+    assert set(body["score"]["penalties"]) == set(load_scoring_config().weights)
+    assert body["metrics"]["production_lost"]["LV-101.flow"] > 0.0
+
+
+def scoring_library(tmp_path, plants):
+    document = yaml.safe_load((CONFIG / "scoring.yaml").read_text())
+    document["plants"] = plants
+    for entry in plants.values():
+        document["production_lost_scales"].update(dict.fromkeys(entry.get("throughput", {}), 1.0))
+    (tmp_path / "scoring.yaml").write_text(yaml.safe_dump(document))
+
+    return ScenarioLibrary(scoring=tmp_path / "scoring.yaml")
+
+
+def test_a_plant_with_no_scoring_entry_scores_on_its_log_and_history_alone(tmp_path):
+    runner = ScenarioRunner(scoring_library(tmp_path, {}))
+    runner.load_config(scenario())
+    runner.start()
+    run_out(runner)
+
+    metrics = runner.result().metrics
+    assert metrics.alarm_count > 0
+    assert dict(metrics.peak_excursions) == {}
+    assert dict(metrics.production_lost) == {}
+    assert metrics.time_outside_envelope_s == 0.0
+
+
+@pytest.mark.parametrize(
+    "plants, mention",
+    [
+        ({"olefins_lite": {"excursions": ["V-101.pressure"]}}, "no configured limit"),
+        ({"olefins_lite": {"excursions": ["X-999.level"]}}, "no configured limit"),
+        ({"olefins_lite": {"throughput": {"LV-101.nope": 1.0}}}, "no number"),
+        ({"olefins_lite": {"throughput": {"X-999.flow": 1.0}}}, "no number"),
+    ],
+    ids=["unlimited point", "unknown limit tag", "unpublished field", "unknown throughput tag"],
+)
+def test_a_scoring_point_the_plant_lacks_refuses_the_load(tmp_path, plants, mention):
+    runner = ScenarioRunner(scoring_library(tmp_path, plants))
+
+    with pytest.raises(ValueError, match=mention):
+        runner.load_config(scenario())
+
+    assert runner.phase is Phase.IDLE

@@ -44,6 +44,18 @@ interlock's demands on the next step.
 snapshot included. Recording lives here, never in `Engine`, and changes no
 plant state. A rebuilt runtime (a scenario abort) starts a fresh history.
 
+**Scoring trackers are fed here too (T20-15).** Given a `PlantScoring`, the
+runtime keeps one `ExcursionTracker` per configured excursion and one
+`ThroughputTracker` per throughput point, and `_observe` feeds each from the
+snapshot it publishes - the construction snapshot included, with no elapsed
+time - by the sim time since the last one. An excursion's severity is the
+snapshot's envelope band, as the alarm pipeline reads it, and its value and a
+throughput's are the snapshot's equipment row. A label that names no limit of
+this plant, or no number on an equipment row, is refused at construction.
+`metrics` reads the action log, the alarm history and the trackers as they
+stand. Like recording, feeding changes no plant state and never runs in
+`Engine`.
+
 **One lock covers step, act, acknowledge and the history read**, so an
 acknowledge can never land between a step's events and their record.
 
@@ -54,7 +66,7 @@ key), and filling the snapshot's `alarms` field, which is a C4 change.
 from __future__ import annotations
 
 import threading
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import fields, replace
 
 from app import config
@@ -66,13 +78,17 @@ from app.api.plant import describe
 from app.api.visibility import descriptor, operator_view
 from app.engine.engine import Engine
 from app.engine.snapshot import Snapshot, interlock_section
-from app.envelope.evaluator import Severity, Side, isa_band
+from app.envelope.evaluator import Evaluator, Severity, Side, isa_band
+from app.envelope.tracker import ExcursionTracker
 from app.historian.buffer import Historian, Sample
 from app.historian.points import trend_values
 from app.plant.loader import Plant
 from app.plant.units import point_units
 from app.safety.actions import TripSystem
-from app.scoring.actionlog import ActionLog
+from app.scoring.actionlog import ActionEvent, ActionLog
+from app.scoring.metrics import RunMetrics, compute_metrics
+from app.scoring.score import PlantScoring
+from app.scoring.throughput import ThroughputTracker
 from app.statetypes import JSONValue
 
 RESET = "reset"
@@ -93,6 +109,17 @@ def _band_of(label: object, point: str) -> tuple[Severity, Side]:
     return band
 
 
+def _reading(snapshot: Snapshot, label: str) -> float:
+    """The number `label` (`<tag>.<field>`) names on an equipment row."""
+    tag, _, name = label.partition(".")
+    value = snapshot.equipment.get(tag, {}).get(name)
+
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"scoring point {label} names no number on an equipment row of this plant")
+
+    return float(value)
+
+
 class PlantRuntime:
     def __init__(
         self,
@@ -100,6 +127,7 @@ class PlantRuntime:
         plant: Plant,
         alarm_history_capacity: int = config.ALARM_HISTORY_CAPACITY,
         alarms: AlarmManager | None = None,
+        scoring: PlantScoring | None = None,
     ) -> None:
         self.engine = engine
         self.trips = TripSystem.from_plant(plant, engine.equipment, engine.arbiter, engine.snapshot())
@@ -126,7 +154,16 @@ class PlantRuntime:
         self._lock = threading.RLock()
         self._published: Snapshot | None = None
 
-        self._observe(engine.snapshot())
+        scoring = PlantScoring() if scoring is None else scoring
+        self._excursions = {label: ExcursionTracker(self._limit(label).limits) for label in scoring.excursions}
+        self._throughput = {label: ThroughputTracker(target) for label, target in scoring.throughput.items()}
+        self._tracked_at: float | None = None
+        first = engine.snapshot()
+
+        for label in (*self._excursions, *self._throughput):
+            _reading(first, label)
+
+        self._observe(first)
 
     @classmethod
     def from_plant(cls, plant: Plant) -> PlantRuntime:
@@ -184,6 +221,12 @@ class PlantRuntime:
                 )
 
             self._published = None
+
+    def metrics(self, is_relevant: Callable[[ActionEvent], bool]) -> RunMetrics:
+        """`compute_metrics` over this runtime's action log, alarm history
+        and scoring trackers as they stand now, labelled as configured."""
+        with self._lock:
+            return compute_metrics(self.actions, self.history, self._excursions, is_relevant, self._throughput)
 
     def acknowledge(self, alarm_id: str) -> Acknowledged:
         with self._lock:
@@ -252,6 +295,27 @@ class PlantRuntime:
         with self._lock:
             return {point: self.trends.history(point) for point in points}
 
+    def _limit(self, label: str) -> Evaluator:
+        tag, _, variable = label.partition(".")
+        evaluator = self.engine.limits.get((tag, variable))
+
+        if evaluator is None:
+            raise ValueError(f"scoring excursion {label} names no configured limit of this plant")
+
+        return evaluator
+
+    def _track(self, snapshot: Snapshot) -> None:
+        dt = 0.0 if self._tracked_at is None else snapshot.sim_time - self._tracked_at
+        self._tracked_at = snapshot.sim_time
+
+        for label, excursion in self._excursions.items():
+            row = snapshot.envelope.get(label)
+            severity = Severity.NORMAL if row is None else _band_of(row.get("band"), label)[0]
+            excursion.update(_reading(snapshot, label), severity, dt)
+
+        for label, throughput in self._throughput.items():
+            throughput.update(_reading(snapshot, label), dt)
+
     def _trend_values(self, snapshot: Snapshot) -> dict[str, float]:
         return trend_values(operator_view(snapshot, self.engine.equipment))
 
@@ -276,3 +340,5 @@ class PlantRuntime:
         raised = self.alarms.evaluate(events, snapshot.sim_time)
         self.history.record_events(raised)
         self.history.record_clears(self.alarms.last_cleared(), snapshot.sim_time)
+
+        self._track(snapshot)

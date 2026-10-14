@@ -82,10 +82,22 @@ steps in a row - same dt, clock state and action count, none raising - are
 one tick with a `repeat` count, so a clock left paused under a `Scheduler`,
 which never reaches the time limit, grows the journal by nothing.
 
+**A completed run is scored (T20-15), and only a completed one.** Loading
+reads `config/scoring.yaml` (`ScenarioLibrary.scoring`, read once and part of
+the run's fingerprint like the plant file): its weights, and what
+a run on the scenario's plant tracks, which the run's `PlantRuntime` feeds
+from every snapshot it publishes. When the last objective ends (or the time
+limit runs out) the run computes its `RunMetrics` from its own action log,
+alarm history and trackers, and its `Score` with `score_run`, once; the
+result carries both from then on. An aborted run is an attempt, not a
+result, and has neither. No scenario says which actions were relevant, so
+every action counts as relevant: `unnecessary_actions` is 0 and
+`time_to_recognise_s` runs to the first action of any kind.
+
 Not here: `seed` is carried into the result and drives nothing - the plant
 has no random source yet. Objective and trigger results are as
-`ObjectiveEvaluator` and `TriggerEvaluator` report them; scoring and the
-debrief text are M15.
+`ObjectiveEvaluator` and `TriggerEvaluator` report them. Storing a score is
+T20-16's.
 """
 
 from __future__ import annotations
@@ -121,7 +133,9 @@ from app.plant.loader import CONFIG_SUFFIXES, Plant, load_plant, read_plant_conf
 from app.plant.validate import validate
 from app.scenarios.objectives import ObjectiveEvaluator, ObjectiveResult, ObjectiveStatus
 from app.scenarios.triggers import TriggerEvaluator
-from app.scoring.actionlog import ActionLog
+from app.scoring.actionlog import ActionEvent, ActionLog
+from app.scoring.metrics import RunMetrics
+from app.scoring.score import PlantScoring, Score, ScoringConfig, score_run, scoring_config_from_yaml
 from app.statetypes import JSONValue
 from app.training.runtime import PlantRuntime
 
@@ -177,6 +191,7 @@ class ScenarioLibrary:
     scenarios: Path = CONFIG / "scenarios"
     plants: Path = CONFIG / "plants"
     conditions: Path = CONFIG / "initial_conditions"
+    scoring: Path = CONFIG / "scoring.yaml"
 
     def scenario(self, name: str) -> Any:
         # Any: decoded YAML or JSON of a shape only the scenario schema knows.
@@ -398,6 +413,9 @@ class ScenarioResult:
 
     Every time is scenario time: seconds since the run began, not the plant
     clock the initial condition was saved at.
+
+    `metrics` and `score` are set once the run is COMPLETE, never before and
+    never for an aborted run.
     """
 
     scenario_id: str
@@ -410,6 +428,8 @@ class ScenarioResult:
     objectives: tuple[ObjectiveResult, ...]
     triggers_fired: Mapping[str, float]
     actions: tuple[Mapping[str, Any], ...]
+    metrics: RunMetrics | None = None
+    score: Score | None = None
 
     def as_dict(self) -> dict[str, Any]:
         # Any: a JSON document for the API, whose values are all JSON-safe.
@@ -427,6 +447,8 @@ class ScenarioResult:
             ],
             "triggers_fired": dict(self.triggers_fired),
             "actions": [dict(action) for action in self.actions],
+            "score": self.score.as_dict() if self.score is not None else None,
+            "metrics": self.metrics.as_dict() if self.metrics is not None else None,
         }
 
 
@@ -493,8 +515,10 @@ class RunInputs:
 
     `fingerprint` digests what the document names but does not contain -
     the name the document gives the plant file and the initial condition,
-    and each file's content as read at load - so a replay can tell when
-    either has changed under it, or been swapped for another.
+    and each file's content as read at load, with the scoring file whose
+    weights and tracked points the result's score comes from - so a replay
+    can tell when any of them has changed under it, or been swapped for
+    another.
 
     `end_state` digests where those inputs led: the plant's captured state
     and the run's result. It is what a replay has to reach, so a change in
@@ -522,6 +546,7 @@ class _Run:
     time_limit_s: float
     build: Callable[[], Plant]
     armed_state: dict[str, JSONValue]
+    scoring: ScoringConfig
     runtime: PlantRuntime
     origin: float
     malfunctions: MalfunctionRegistry
@@ -534,6 +559,8 @@ class _Run:
     results: tuple[ObjectiveResult, ...] = ()
     fired: dict[str, float] = field(default_factory=dict)
     journal: list[Tick] = field(default_factory=list)
+    metrics: RunMetrics | None = None
+    score: Score | None = None
 
     @property
     def engine(self) -> Engine:
@@ -738,7 +765,7 @@ class ScenarioRunner:
                 # The rebuilt runtime starts with clean interlocks and alarms,
                 # but the log stays the run's one record of what was done.
                 actions = run.runtime.actions
-                run.runtime = self._restored(run.build, run.armed_state)
+                run.runtime = self._restored(run.build, run.armed_state, run.scoring.plant(run.config["plant"]))
                 run.runtime.actions = actions
                 run.phase = Phase.ABORTED
                 run.outcome = Outcome.ABORTED
@@ -807,15 +834,24 @@ class ScenarioRunner:
         # files as they were at load, whatever happens to them afterwards.
         plant_bytes = plant_path.read_bytes()
         condition_bytes = condition_path.read_bytes()
+        try:
+            scoring_bytes = self._library.scoring.read_bytes()
+        except FileNotFoundError as error:
+            missing = f"no scoring file {self._library.scoring}"
+            if expected is None:
+                raise ScenarioConfigError(missing) from error
+
+            raise ScenarioChanged(f"{missing}, so the run cannot match the expected fingerprint") from error
         fingerprint = _fingerprint(
             (config["plant"], plant_bytes),
             (condition["condition"], condition_bytes),
+            (self._library.scoring.name, scoring_bytes),
         )
 
         if expected is not None and fingerprint != expected:
             raise ScenarioChanged(
-                f"plant {config['plant']!r} or initial condition {condition['condition']!r} "
-                f"has changed since the run was armed",
+                f"plant {config['plant']!r}, initial condition {condition['condition']!r} "
+                f"or scoring file {self._library.scoring.name!r} has changed since the run was armed",
             )
 
         plant_config = read_plant_config(plant_path, plant_bytes)
@@ -824,7 +860,8 @@ class ScenarioRunner:
         def build() -> Plant:
             return load_plant(copy.deepcopy(plant_config))
 
-        runtime = self._restored(build, state)
+        scoring = scoring_config_from_yaml(scoring_bytes)
+        runtime = self._restored(build, state, scoring.plant(config["plant"]))
         engine = runtime.engine
         armed = engine.snapshot()
 
@@ -855,6 +892,7 @@ class ScenarioRunner:
             time_limit_s=time_limit,
             build=build,
             armed_state=state,
+            scoring=scoring,
             runtime=runtime,
             origin=armed.sim_time,
             malfunctions=malfunctions,
@@ -869,13 +907,13 @@ class ScenarioRunner:
         return hashlib.sha256(json.dumps(where, sort_keys=True).encode()).hexdigest()
 
     @staticmethod
-    def _restored(build: Callable[[], Plant], state: dict[str, JSONValue]) -> PlantRuntime:
+    def _restored(build: Callable[[], Plant], state: dict[str, JSONValue], scoring: PlantScoring) -> PlantRuntime:
         plant = build()
         engine = Engine.from_plant(plant)
         restore_state(engine, state)
 
         # After the restore, so the trips start from the restored snapshot.
-        return PlantRuntime(engine, plant)
+        return PlantRuntime(engine, plant, scoring=scoring)
 
     @staticmethod
     def _observe(run: _Run, snapshot: Snapshot) -> None:
@@ -901,6 +939,8 @@ class ScenarioRunner:
         run.phase = Phase.COMPLETE
         run.ended_at = view.sim_time
         run.outcome = _outcome(run.results)
+        run.metrics = run.runtime.metrics(_every_action_relevant)
+        run.score = score_run(run.metrics, run.scoring)
 
     @staticmethod
     def _result(run: _Run) -> ScenarioResult:
@@ -920,6 +960,8 @@ class ScenarioRunner:
             objectives=run.results,
             triggers_fired=dict(run.fired),
             actions=_actions(run),
+            metrics=run.metrics,
+            score=run.score,
         )
 
 
@@ -946,6 +988,11 @@ def _actions(run: _Run) -> tuple[Mapping[str, Any], ...]:
         }
         for event in run.actions
     )
+
+
+def _every_action_relevant(action: ActionEvent) -> bool:
+    """No scenario names which actions bear on its fault, so every one does."""
+    return True
 
 
 def _outcome(results: tuple[ObjectiveResult, ...]) -> Outcome:

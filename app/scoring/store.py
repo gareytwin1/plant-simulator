@@ -3,8 +3,8 @@ Score persistence (T15-4) - results and personal bests in SQLite.
 
 A `StoredResult` is one scored run: the `Score` (T15-3) and the `RunMetrics`
 (T15-2) it was computed from, filed under a caller-chosen `operator` and
-`scenario`. Standard-library `sqlite3` only; no live caller exists yet, since
-nothing in a run produces a score or stores one automatically.
+`scenario`. Standard-library `sqlite3` only; no live caller exists yet: a
+completed run carries its score (T20-15), but nothing stores one.
 
 **Row shape.** One row per result. `operator`, `scenario`, `total` and
 `recorded_at` are real indexed columns because they are all a personal-best
@@ -124,8 +124,8 @@ class ScoreStore:
                 scenario,
                 score.total,
                 recorded_at,
-                json.dumps(_score_to_json(score)),
-                json.dumps(_metrics_to_json(metrics)),
+                json.dumps(score.as_dict()),
+                json.dumps(metrics.as_dict()),
                 str(self.config_version),
                 self.config_version.major,
             ),
@@ -221,32 +221,6 @@ def _statements(script: str) -> list[str]:
         statements.append(pending.strip().removesuffix(";"))
 
     return [statement for statement in statements if statement.strip(" ;\n\t")]
-
-
-def _score_to_json(score: Score) -> dict[str, Any]:
-    return {"total": score.total, "penalties": dict(score.penalties)}
-
-
-def _metrics_to_json(metrics: RunMetrics) -> dict[str, Any]:
-    return {
-        "alarm_count": metrics.alarm_count,
-        "trip_count": metrics.trip_count,
-        "time_to_recognise_s": metrics.time_to_recognise_s,
-        "time_to_stabilise_s": metrics.time_to_stabilise_s,
-        "peak_excursions": {
-            label: None
-            if excursion is None
-            else {
-                "severity": excursion.severity.name,
-                "magnitude": excursion.magnitude,
-                "timestamp": excursion.timestamp,
-            }
-            for label, excursion in metrics.peak_excursions.items()
-        },
-        "time_outside_envelope_s": metrics.time_outside_envelope_s,
-        "production_lost": dict(metrics.production_lost),
-        "unnecessary_actions": metrics.unnecessary_actions,
-    }
 
 
 def _row_to_result(row: tuple[Any, ...]) -> StoredResult:

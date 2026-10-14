@@ -531,11 +531,13 @@ UNMATCHABLE = "cannot match the expected fingerprint"
 def copied_library(tmp_path):
     for name in ("plants", "initial_conditions"):
         shutil.copytree(CONFIG / name, tmp_path / name)
+    shutil.copy(CONFIG / "scoring.yaml", tmp_path / "scoring.yaml")
 
     return ScenarioLibrary(
         scenarios=tmp_path / "scenarios",
         plants=tmp_path / "plants",
         conditions=tmp_path / "initial_conditions",
+        scoring=tmp_path / "scoring.yaml",
     )
 
 
@@ -558,6 +560,22 @@ def test_a_replay_against_a_changed_initial_condition_is_refused(tmp_path):
     edit_condition(tmp_path, lambda row: row.update(_level=row["_level"] + 0.01))
 
     with pytest.raises(ReplayDivergence, match="has changed since the run was armed"):
+        replay(recording, library)
+
+
+def test_a_replay_against_a_changed_scoring_file_is_refused(tmp_path):
+    library = copied_library(tmp_path)
+    live = ScenarioRunner(library)
+    live.load_config(scenario())
+    live.start()
+    steps(live, 5)
+    recording = Recording.of(live)
+    assert_identical(live, replay(recording, library))
+
+    scoring = tmp_path / "scoring.yaml"
+    scoring.write_text(scoring.read_text().replace("trip_count: 40", "trip_count: 41"))
+
+    with pytest.raises(ReplayDivergence, match="scoring file 'scoring.yaml' has changed since the run was armed"):
         replay(recording, library)
 
 
@@ -598,6 +616,21 @@ def test_a_replay_whose_plant_file_is_gone_is_a_divergence(tmp_path):
 
     with pytest.raises(ReplayDivergence, match=f"no plant named 'olefins_lite'.*{UNMATCHABLE}"):
         replay(recording, library)
+
+
+def test_a_replay_whose_scoring_file_is_gone_is_a_divergence(tmp_path):
+    library = copied_library(tmp_path)
+    live = ScenarioRunner(library)
+    live.load_config(scenario())
+    recording = Recording.of(live)
+
+    (tmp_path / "scoring.yaml").unlink()
+
+    with pytest.raises(ReplayDivergence, match=f"no scoring file .*{UNMATCHABLE}"):
+        replay(recording, library)
+
+    with pytest.raises(ScenarioConfigError, match="no scoring file"):
+        replay(dataclasses.replace(recording, fingerprint=None), library)
 
 
 def test_a_missing_file_without_a_fingerprint_to_compare_fails_as_itself(tmp_path):

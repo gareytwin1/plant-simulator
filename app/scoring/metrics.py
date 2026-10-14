@@ -18,10 +18,12 @@ weighs or grades.
                            demanded the operator's attention again.
                            Acknowledgements are not alarms.
     trip_count             AlarmHistory: `Event`s whose data severity is
-                           TRIP. Trips are not live in a session (nothing
-                           calls `TripSystem.update`), so a trip here means
-                           a TRIP-severity envelope band was entered, which
-                           is the only trip record the contracts hold.
+                           TRIP, so a trip here means a TRIP-severity
+                           envelope band (a `trip: true` limit's outer
+                           bound) was entered. Trips are live in a run
+                           (`PlantRuntime` runs `TripSystem`), but an
+                           interlock acting leaves no record in the alarm
+                           history, so the band is the trip this counts.
     time_to_stabilise_s    AlarmHistory: first alarm to the last `ClearRecord`,
                            once every point that alarmed has returned to
                            NORMAL and stayed there. None if there was no
@@ -45,10 +47,10 @@ weighs or grades.
                            a device's direction of effect, which none of the
                            three inputs carry, so the scenario supplies it.
 
-**Not wired yet.** Nothing in the step loop calls `AlarmHistory.record_clears`
-or feeds a `ThroughputTracker`, and no scenario config names a throughput
-variable or its target; until a later task does, a live run reports no
-stabilisation time and no production lost.
+**In a live run (T20-15)** `PlantRuntime` records the alarm history, clears
+included, and feeds the trackers that `config/scoring.yaml` names for the
+plant from each snapshot it publishes; `ScenarioRunner` computes the metrics
+once, when the run completes.
 
 **Eviction.** `AlarmHistory` is bounded, so a run longer than its capacity
 undercounts alarms and trips and may lose the first alarm. Size the history
@@ -60,6 +62,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from types import MappingProxyType
+from typing import Any
 
 from app.alarms.history import AlarmHistory, ClearRecord
 from app.alarms.manager import Event
@@ -83,6 +86,29 @@ class RunMetrics:
     time_outside_envelope_s: float
     production_lost: Mapping[str, float]
     unnecessary_actions: int
+
+    def as_dict(self) -> dict[str, Any]:
+        """JSON-safe: a peak as its severity name, magnitude and timestamp.
+        Any: values of several shapes, all of them JSON."""
+        return {
+            "alarm_count": self.alarm_count,
+            "trip_count": self.trip_count,
+            "time_to_recognise_s": self.time_to_recognise_s,
+            "time_to_stabilise_s": self.time_to_stabilise_s,
+            "peak_excursions": {
+                label: None
+                if excursion is None
+                else {
+                    "severity": excursion.severity.name,
+                    "magnitude": excursion.magnitude,
+                    "timestamp": excursion.timestamp,
+                }
+                for label, excursion in self.peak_excursions.items()
+            },
+            "time_outside_envelope_s": self.time_outside_envelope_s,
+            "production_lost": dict(self.production_lost),
+            "unnecessary_actions": self.unnecessary_actions,
+        }
 
 
 def compute_metrics(

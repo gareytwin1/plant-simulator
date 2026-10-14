@@ -407,3 +407,14 @@ def test_a_temperature_setpoint_at_or_below_absolute_zero_is_a_load_error():
     assert rejected(config) == [
         "$.controllers[0].sp: must be above -459.67 °F, got -459.67",
     ]
+
+
+@pytest.mark.parametrize("pv", ["V-301", "B-FV-301"], ids=["device", "stream"])
+def test_a_bare_device_or_stream_id_says_to_name_a_field(pv):
+    config = vessel_config()
+    config["controllers"][0]["pv"] = pv
+
+    errors = rejected(config)
+
+    assert len(errors) == 1
+    assert errors[0].startswith(f"$.controllers[0].pv: {pv!r} is not a node; a point names one of its fields")

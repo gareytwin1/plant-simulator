@@ -184,6 +184,13 @@ def resolve_pv(text: str, published: Published) -> tuple[str, str, str]:
     row_id, dot, field = text.rpartition(".")
 
     if not dot:
+        for section in ("equipment", "streams"):
+            if text in published[section]:
+                raise ValueError(
+                    f"{text!r} is not a node; a point names one of its fields, "
+                    f"<id>.<field>, from {sorted(published[section][text])}",
+                )
+
         if text not in published["nodes"]:
             raise ValueError(f"unknown node {text!r}, only {sorted(published['nodes'])}")
 

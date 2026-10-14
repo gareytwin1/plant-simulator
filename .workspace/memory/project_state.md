@@ -40,10 +40,10 @@ Complete: **M0-M9, M12-M18, MR**. Open:
 |---|---|---|
 | **M10** Alarms | 5/6 | T10-1, T10-2, T10-3, T10-5, T10-6; T10-4 startable (V1.1-deferred) |
 | **M11** Interlocks and Trips | 3/4 | T11-1, T11-2, T11-3; T11-4 startable (V1.1-deferred) |
-| **M20** Console Redesign | 16/20 | T20-1, T20-2, T20-3, T20-4, T20-5, T20-6, T20-7, T20-8, T20-9, T20-10, T20-11, T20-12, T20-13, T20-14, T20-17, T20-20; startable T20-15, T20-18 |
+| **M20** Console Redesign | 16/21 | T20-1, T20-2, T20-3, T20-4, T20-5, T20-6, T20-7, T20-8, T20-9, T20-10, T20-11, T20-12, T20-13, T20-14, T20-17, T20-20; startable T20-15, T20-18; T20-21 after T20-15 |
 | M19 | 0 | - |
 
-**144 of 153 tasks Complete.** Checkpoints A-D reached: T20-17 met D's last
+**144 of 154 tasks Complete.** Checkpoints A-D reached: T20-17 met D's last
 gate ("loops reject an injected disturbance") on the separator plant.
 
 ## The next task
@@ -53,7 +53,11 @@ gate ("loops reject an injected disturbance") on the separator plant.
 Neither needs the spine lock. T20-18 (separator scenarios) has a gap to settle
 first: two of its four faults are a lost valve signal, and no C8 malfunction
 can drop one (`WRITABLE[ControlValve]` is only `capacity` and `min_position`),
-so that mechanism is a contract question to escalate, not invent. Also startable but deferred: T10-4 and T11-4 (V1.1), T19-1 and T19-2 (V2).
+so that mechanism is a contract question to escalate, not invent.
+**T20-21** (Sonnet, added 14 October 2026 after the last regeneration) follows
+T20-15 and gates T20-16: it puts the outcome in the score and counts only
+interlock trips, because T20-15's score lets a failed run reach 100 and
+charges pump_trip's premise as a trip. Also startable but deferred: T10-4 and T11-4 (V1.1), T19-1 and T19-2 (V2).
 
 **CP-G passed for the current console** (user's browser pass, 9 October 2026). The console is about to be redesigned, so the full pass (all six scenarios, both themes, phone width, a real alarm marker) is an acceptance criterion of that redesign rather than repeated on this console.
 

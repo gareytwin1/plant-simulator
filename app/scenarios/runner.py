@@ -83,7 +83,8 @@ one tick with a `repeat` count, so a clock left paused under a `Scheduler`,
 which never reaches the time limit, grows the journal by nothing.
 
 **A completed run is scored (T20-15), and only a completed one.** Loading
-reads `config/scoring.yaml` (`ScenarioLibrary.scoring`): its weights, and what
+reads `config/scoring.yaml` (`ScenarioLibrary.scoring`, read once and part of
+the run's fingerprint like the plant file): its weights, and what
 a run on the scenario's plant tracks, which the run's `PlantRuntime` feeds
 from every snapshot it publishes. When the last objective ends (or the time
 limit runs out) the run computes its `RunMetrics` from its own action log,
@@ -134,7 +135,7 @@ from app.scenarios.objectives import ObjectiveEvaluator, ObjectiveResult, Object
 from app.scenarios.triggers import TriggerEvaluator
 from app.scoring.actionlog import ActionEvent, ActionLog
 from app.scoring.metrics import RunMetrics
-from app.scoring.score import PlantScoring, Score, ScoringConfig, load_scoring_config, score_run
+from app.scoring.score import PlantScoring, Score, ScoringConfig, score_run, scoring_config_from_yaml
 from app.statetypes import JSONValue
 from app.training.runtime import PlantRuntime
 
@@ -514,8 +515,10 @@ class RunInputs:
 
     `fingerprint` digests what the document names but does not contain -
     the name the document gives the plant file and the initial condition,
-    and each file's content as read at load - so a replay can tell when
-    either has changed under it, or been swapped for another.
+    and each file's content as read at load, with the scoring file whose
+    weights and tracked points the result's score comes from - so a replay
+    can tell when any of them has changed under it, or been swapped for
+    another.
 
     `end_state` digests where those inputs led: the plant's captured state
     and the run's result. It is what a replay has to reach, so a change in
@@ -831,15 +834,17 @@ class ScenarioRunner:
         # files as they were at load, whatever happens to them afterwards.
         plant_bytes = plant_path.read_bytes()
         condition_bytes = condition_path.read_bytes()
+        scoring_bytes = self._library.scoring.read_bytes()
         fingerprint = _fingerprint(
             (config["plant"], plant_bytes),
             (condition["condition"], condition_bytes),
+            (self._library.scoring.name, scoring_bytes),
         )
 
         if expected is not None and fingerprint != expected:
             raise ScenarioChanged(
-                f"plant {config['plant']!r} or initial condition {condition['condition']!r} "
-                f"has changed since the run was armed",
+                f"plant {config['plant']!r}, initial condition {condition['condition']!r} "
+                f"or scoring file {self._library.scoring.name!r} has changed since the run was armed",
             )
 
         plant_config = read_plant_config(plant_path, plant_bytes)
@@ -848,7 +853,7 @@ class ScenarioRunner:
         def build() -> Plant:
             return load_plant(copy.deepcopy(plant_config))
 
-        scoring = load_scoring_config(self._library.scoring)
+        scoring = scoring_config_from_yaml(scoring_bytes)
         runtime = self._restored(build, state, scoring.plant(config["plant"]))
         engine = runtime.engine
         armed = engine.snapshot()

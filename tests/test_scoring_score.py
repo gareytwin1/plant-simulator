@@ -2,15 +2,26 @@ import dataclasses
 import json
 
 import pytest
+import yaml
 
 from app.alarms.history import AlarmHistory
 from app.alarms.manager import AlarmManager, EnvelopeEvent
+from app.engine.engine import Engine
 from app.envelope.evaluator import Limits, Severity
 from app.envelope.tracker import ExcursionTracker
+from app.plant.loader import load_plant_file
 from app.scoring.actionlog import ActionLog
 from app.scoring.metrics import RunMetrics, compute_metrics
-from app.scoring.score import PlantScoring, ScoringConfig, load_scoring_config, score_run
+from app.scoring.score import (
+    DEFAULT_CONFIG_PATH,
+    PlantScoring,
+    ScoringConfig,
+    load_scoring_config,
+    score_run,
+    scoring_config_from_yaml,
+)
 from app.scoring.throughput import ThroughputTracker
+from app.training.runtime import PlantRuntime
 
 LIMITS = Limits(warning_hi=10.0, alarm_hi=20.0, trip_hi=30.0)
 
@@ -267,3 +278,34 @@ def test_a_score_and_its_metrics_are_json_ready():
     assert json.loads(json.dumps(score.as_dict())) == {"total": score.total, "penalties": dict(score.penalties)}
     peak = json.loads(json.dumps(metrics.as_dict()))["peak_excursions"]["discharge pressure"]
     assert peak == {"severity": "TRIP", "magnitude": 5.0, "timestamp": 12.0}
+
+
+@pytest.mark.parametrize(
+    "entry, mention",
+    [
+        ("[V-101.level]", "must be a mapping"),
+        ("{excursions: V-101.level}", "excursions must be a list"),
+        ("{throughput: [LV-101.flow]}", "throughput must be a mapping"),
+        ("{excursion: [V-101.level]}", "unknown keys"),
+    ],
+)
+def test_a_plants_entry_of_the_wrong_shape_is_a_value_error(entry, mention):
+    with pytest.raises(ValueError, match=mention):
+        scoring_config_from_yaml(_with_entry("odd", yaml.safe_load(entry)))
+
+
+def test_an_empty_plants_entry_tracks_nothing():
+    assert scoring_config_from_yaml(_with_entry("empty", None)).plant("empty") == PlantScoring()
+
+
+def _with_entry(plant_id, entry):
+    document = yaml.safe_load(DEFAULT_CONFIG_PATH.read_text())
+    document["plants"][plant_id] = entry
+    return yaml.safe_dump(document)
+
+
+@pytest.mark.parametrize("plant_id", sorted(load_scoring_config().plants))
+def test_every_shipped_plants_entry_names_points_its_plant_has(plant_id):
+    plant = load_plant_file(DEFAULT_CONFIG_PATH.parent / "plants" / f"{plant_id}.yaml")
+
+    PlantRuntime(Engine.from_plant(plant), plant, scoring=load_scoring_config().plant(plant_id))

@@ -149,8 +149,13 @@ class Score:
 
 
 def load_scoring_config(path: Path | str = DEFAULT_CONFIG_PATH) -> ScoringConfig:
-    with open(path, encoding="utf-8") as handle:
-        raw = yaml.safe_load(handle)
+    return scoring_config_from_yaml(Path(path).read_bytes())
+
+
+def scoring_config_from_yaml(data: bytes | str) -> ScoringConfig:
+    """A `ScoringConfig` from the text of a scoring file. A plants entry of
+    the wrong shape is a `ValueError`, like any other bad value."""
+    raw = yaml.safe_load(data)
 
     return ScoringConfig(
         weights=MappingProxyType({k: float(v) for k, v in raw["weights"].items()}),
@@ -162,16 +167,31 @@ def load_scoring_config(path: Path | str = DEFAULT_CONFIG_PATH) -> ScoringConfig
             {k: float(v) for k, v in (raw.get("production_lost_scales") or {}).items()}
         ),
         plants=MappingProxyType(
-            {
-                plant_id: PlantScoring(
-                    excursions=tuple(entry.get("excursions") or ()),
-                    throughput=MappingProxyType(
-                        {k: float(v) for k, v in (entry.get("throughput") or {}).items()}
-                    ),
-                )
-                for plant_id, entry in (raw.get("plants") or {}).items()
-            }
+            {plant_id: _plant_from_yaml(plant_id, entry) for plant_id, entry in (raw.get("plants") or {}).items()}
         ),
+    )
+
+
+def _plant_from_yaml(plant_id: str, entry: object) -> PlantScoring:
+    entry = {} if entry is None else entry
+    if not isinstance(entry, dict):
+        raise ValueError(f"scoring plants.{plant_id} must be a mapping")
+
+    excursions = entry.get("excursions") or []
+    if not isinstance(excursions, list):
+        raise ValueError(f"scoring plants.{plant_id}.excursions must be a list")
+
+    throughput = entry.get("throughput") or {}
+    if not isinstance(throughput, dict):
+        raise ValueError(f"scoring plants.{plant_id}.throughput must be a mapping")
+
+    unknown = sorted(set(entry) - {"excursions", "throughput"})
+    if unknown:
+        raise ValueError(f"scoring plants.{plant_id} has unknown keys {unknown}")
+
+    return PlantScoring(
+        excursions=tuple(excursions),
+        throughput=MappingProxyType({k: float(v) for k, v in throughput.items()}),
     )
 
 

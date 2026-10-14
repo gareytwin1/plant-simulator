@@ -8,10 +8,10 @@ regrowth rule is in [.claude/rules/docs.md](../../.claude/rules/docs.md).
 
 ## Right now
 
-**Last state refresh:** 14 October 2026, at `c1e2713` (Merge T20-5, PR #173: two-phase feed as a liquid line carrying gas at a ratio) - **this is a snapshot,
-not a live pointer.** Run `git log c1e2713..HEAD --oneline` to see what has
+**Last state refresh:** 14 October 2026, at `8e1e697` (Merge T20-17, PR #174: separator plant with three loops in AUTO, limits and interlocks) - **this is a snapshot,
+not a live pointer.** Run `git log 8e1e697..HEAD --oneline` to see what has
 merged since.
-**Full suite as of this refresh:** **4063 passed** · `python -m mypy` clean over 88 source files · no golden trace movement
+**Full suite as of this refresh:** **4098 passed** · `python -m mypy` clean over 88 source files · no golden trace movement
 **In flight:** nothing. The spine lock and the `app/main.py` lock are free.
 No task is Blocked. CI runs on every PR, and `main` requires its
 `test` check before a merge.
@@ -21,12 +21,12 @@ No task is Blocked. CI runs on every PR, and `main` requires its
 
 | Task | SHA | What landed |
 |---|---|---|
+| **T20-17** | `8e1e697` | Separator plant (`config/plants/separator.yaml`, beside an untouched olefins_lite): FV-301 a liquid feed carrying 0.2 SCFM/GPM into V-301, and FIC-301, LIC-301 and PIC-301 in AUTO (LIC and PIC retuned from the prototype's gains, which swing and hunt on this drum). LSHH-301 and PSHH-301 close FV-301, LSLL-301 closes LV-301; a lost valve signal defeats the trip on that valve (no separate shutdown valve). `separator_normal.json` saves the design point (new recipe in `scripts/initial_conditions.py`); `separator.svg` in the accepted style. Meets Checkpoint D's last gate. Config 2.4.0; no golden moved. Free play stays on olefins_lite until the user decides (asked, unanswered). Built on Opus (PR #174). Phone width unchecked |
 | **T20-5** | `c1e2713` | Two-phase feed (ADR 0002 Amendment 4, decided with the user): one valve and one line, the feed solved as liquid, and `Vessel.feed_gas_ratio` (SCFM/GPM, malfunction-writable) releasing `ratio * max(0, inlet_flow)` into the gas balance as `feed_gas_flow`. A ratio above zero is refused on a vessel that cannot release it (no vapor attachment, or a one-direction liquid node a branch runs the other way through) at build, at scenario arming and in `restore_state`. Initial conditions gained `_feed_gas_ratio: 0.0`; config 2.3.0; no golden moved. Decided and built on Opus (PR #173) |
 | **T20-4** | `5e45ae6` | Loops measure any published point: a `controllers.pv` is a bare node id (its pressure, as before) or `<id>.<field>` on an equipment row, node or stream, resolved in `load_loops` against the engine's indicated view (`Engine.from_plant` now binds loops after building the engine). An unknown, ambiguous, unpublished, non-numeric or unitless point is a load error naming the entry. `pv_unit` comes from `app.plant.units.unit_lookup`; setpoints are checked against it at load and on `set_setpoint` (fraction [0, 1], °F above absolute zero, otherwise non-negative). The faceplate shows a fraction loop in percent. Config 2.2.0. Decided and built on Opus (PR #172). Phone width unchecked |
 | **T20-13** | `339d106` | Equipment actions on the faceplate: a device panel offers exactly the actions `/api/plant` lists - Start and Stop (disabled while running / stopped, read from the run flag) and a percent target posted as a fraction, with actual and target on one bar; a loop-driven device offers only its loop. A device an interlock holds gets a Reset for each tripped, manual-reset interlock (`canvas.js` passes `/api/plant`'s `interlocks`). Feedback reads pending, then accepted or the server's words. `PlantRuntime.act` now refuses a reset that would do nothing (not tripped, auto-reset, condition still holds) with a `ValueError` and does not log it. `olefins_lite.svg` valves carry a state badge, shown only as `✖ TRIP` while an interlock holds them. The browser-script guard exempts the run verbs `start` and `stop`. Built on Sonnet (PR #171). Seen in headless Firefox on desktop, both themes; phone width unchecked (desktop first) |
 | **T20-3** | `d96b4d1` | Interlock state in C4 (additive): `Snapshot.interlocks`, `{tag: {state, reset, devices}}` (state `normal`/`pending`/`tripped`, reset `auto`/`manual`, devices the tags its actions name; never the condition). `Engine` builds it empty; `PlantRuntime` fills it from `TripSystem.status()` after each step and on `snapshot()`, and `ScenarioRunner` reads its snapshots through the runtime. The operator view passes it unchanged. `graphic.js` draws a device a tripped interlock holds as `✖ TRIP` (a pending one holds nothing; an unpublished device stays unknown); the faceplate badge and `olefins_lite.svg` style it from `--equip-tripped-*`. Decided and built on Opus (PR #170). Seen in headless Firefox on desktop; phone width unchecked (desktop first) |
 | **T20-12** | `98ad205` | Alarm overlay: the ribbon's alarm summary (a button on the console, a link to it elsewhere) opens a modal dialog over the workspace, which is inert behind it, replacing the alarm banner and the Alarms section. Filters by priority (with per-priority counts), acknowledgement, equipment and text; per-row Acknowledge, Show trend (only for an alarm with a point) and Locate; Acknowledge all shown acknowledges exactly the unacknowledged rows on screen. Closes by button, Escape (clears a filled search first), click outside or the ribbon button; focus moves in and back to the ribbon button, Tab wraps. The history is fetched on open and polled only while open. C6 `data` gains `point` (`<tag>.<variable>`, additive, set in `PlantRuntime`); `canvas.js` gains `locate` and `showTrend`, and a Show trend or Locate that finds nothing reopens the overlay saying so. Raised shows plant sim time, not run-relative. Built on Sonnet (PR #169). Seen in headless Firefox on desktop, both themes; phone width unchecked (desktop first) |
-| **T20-20** | `53401af` | Flow-unit agreement at load: `load_plant` refuses a domain whose flow-unit sources name two units, as a `PlantConfigError` naming each config path. Sources are a machine's `FLOW_UNITS` entry (by registry class, via the new `coupling.class_flow_unit`; unit-neutral devices confirm nothing) and any typed port's declared phase on any device (wider than the coupling's vessel-only attachments, on purpose). Runs in the reference pass beside the boundary checks. `domain_units` and the coupling's per-node refusals remain as backstops a loaded plant never reaches. The shared test fixtures that chained a pump into a compressor in one domain now use a control valve. `config/VERSION` unmoved. Decided by Opus, built on Opus (PR #168) |
 
 **ADRs on `main`:** [0001](../../docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md)
 (+ Amendment 1) and [0002](../../docs/ADR_0002_TYPED_PORTS.md) (+ Amendments
@@ -40,22 +40,24 @@ Complete: **M0-M9, M12-M18, MR**. Open:
 |---|---|---|
 | **M10** Alarms | 5/6 | T10-1, T10-2, T10-3, T10-5, T10-6; T10-4 startable (V1.1-deferred) |
 | **M11** Interlocks and Trips | 3/4 | T11-1, T11-2, T11-3; T11-4 startable (V1.1-deferred) |
-| **M20** Console Redesign | 15/20 | T20-1, T20-2, T20-3, T20-4, T20-5, T20-6, T20-7, T20-8, T20-9, T20-10, T20-11, T20-12, T20-13, T20-14, T20-20; startable T20-15, T20-17 |
+| **M20** Console Redesign | 16/20 | T20-1, T20-2, T20-3, T20-4, T20-5, T20-6, T20-7, T20-8, T20-9, T20-10, T20-11, T20-12, T20-13, T20-14, T20-17, T20-20; startable T20-15, T20-18 |
 | M19 | 0 | - |
 
-**143 of 153 tasks Complete.** Checkpoints A-C reached. Checkpoint **D** (M8)
-needs only its "loops reject an injected disturbance" gate, which T20-17 meets
-on the separator plant.
+**144 of 153 tasks Complete.** Checkpoints A-D reached: T20-17 met D's last
+gate ("loops reject an injected disturbance") on the separator plant.
 
 ## The next task
 
-**Startable in M20:** T20-15 and T20-17 - the
+**Startable in M20:** T20-15 (Opus) and T20-18 (Sonnet) - the
 `startable` field of [BUILD_PLAN_STATUS.json](../../docs/BUILD_PLAN_STATUS.json).
-Both are Opus and need no spine lock. T20-17 (the separator plant) writes the config ADR 0002 Amendment 4 D.8 sets out, and unblocks T20-18. Also startable but deferred: T10-4 and T11-4 (V1.1), T19-1 and T19-2 (V2).
+Neither needs the spine lock. T20-18 (separator scenarios) has a gap to settle
+first: two of its four faults are a lost valve signal, and no C8 malfunction
+can drop one (`WRITABLE[ControlValve]` is only `capacity` and `min_position`),
+so that mechanism is a contract question to escalate, not invent. Also startable but deferred: T10-4 and T11-4 (V1.1), T19-1 and T19-2 (V2).
 
 **CP-G passed for the current console** (user's browser pass, 9 October 2026). The console is about to be redesigned, so the full pass (all six scenarios, both themes, phone width, a real alarm marker) is an acceptance criterion of that redesign rather than repeated on this console.
 
-**Next by leverage:** **M20 Console Redesign** (added 9 October 2026, see [BUILD_PLAN.html](../../docs/BUILD_PLAN.html)). The accepted design is frozen in [prototype/console-redesign/](../../prototype/console-redesign/index.html): every M20 task ports from it, and it is never edited to follow production. **User priority (10 October 2026): the new design replaces the old pages first.** T20-6, T20-7 (schematic), T20-8 (ribbon and console shell), T20-9 (landing page), T20-10 (faceplates on the canvas), T20-11 (floating trend windows), T20-12 (alarm overlay), T20-13 (equipment actions), T20-14 (pause and resume) and T20-20 (units agree at load) are merged, so the old pages are replaced. The user is working desktop first: phone-width checks are deferred. T20-1 (units per point), T20-2 (plant description and a graphic per plant), T20-3 (interlock state in C4), T20-4 (loops on any point) and T20-6 (alarm palette and limit names) are merged. T20-5 (two-phase feed) is merged too, so every contract task is done. Checkpoint D's remaining gate is now met on the separator plant (T20-17), with PIC-101 left in MANUAL because olefins_lite stays untouched. `app/main.py` and `app/config.py` are free.
+**Next by leverage:** **M20 Console Redesign** (added 9 October 2026, see [BUILD_PLAN.html](../../docs/BUILD_PLAN.html)). The accepted design is frozen in [prototype/console-redesign/](../../prototype/console-redesign/index.html): every M20 task ports from it, and it is never edited to follow production. **User priority (10 October 2026): the new design replaces the old pages first.** T20-6, T20-7 (schematic), T20-8 (ribbon and console shell), T20-9 (landing page), T20-10 (faceplates on the canvas), T20-11 (floating trend windows), T20-12 (alarm overlay), T20-13 (equipment actions), T20-14 (pause and resume) and T20-20 (units agree at load) are merged, so the old pages are replaced. The user is working desktop first: phone-width checks are deferred. T20-1 (units per point), T20-2 (plant description and a graphic per plant), T20-3 (interlock state in C4), T20-4 (loops on any point) and T20-6 (alarm palette and limit names) are merged. T20-5 (two-phase feed) is merged too, so every contract task is done. T20-17 (separator plant) is merged and met Checkpoint D's last gate, with PIC-101 left in MANUAL because olefins_lite stays untouched. `app/main.py` and `app/config.py` are free.
 
 **Scheduling notes.** The spine lock is one global lock
 ([DEVELOPMENT.md](../../DEVELOPMENT.md#file-ownership)); it is free. **The container runs
@@ -158,13 +160,14 @@ scope, and item 1 in particular reads like a bug and is not.
 3. **Every scenario runs on one schematic** (user, 9 October 2026). All six
    scenarios load `olefins_lite`. Since T20-2 the console follows the shown
    plant's graphic (`static/graphics/<plant id>.svg`, named by `GET /api/plant`),
-   but only `olefins_lite.svg` exists; the second schematic is T20-17 (the
-   separator), which is also the first real swap.
+   and `separator.svg` exists since T20-17, but no scenario loads the
+   separator until T20-18, which is also the first real swap.
 4. **The plant has one controller** (user, 9 October 2026). `olefins_lite`
    configures only PIC-101; a real operator adjusts several loops: level,
    pressure, feed flow, compressor speed. The redesign's interaction work
    covers adjusting many loops; since T20-4 a level or flow loop is only a
-   plant-config change. Owned by T20-17 (three loops on the separator).
+   plant-config change. The separator (T20-17) now runs three loops in AUTO;
+   olefins_lite still has only PIC-101.
 
 ## Traps for the next tasks
 

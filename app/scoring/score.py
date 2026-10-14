@@ -195,9 +195,14 @@ def _mapping(where: str, value: object) -> dict[str, object]:
 def _numbers(where: str, value: object) -> dict[str, float]:
     numbers: dict[str, float] = {}
     for key, number in _mapping(where, value).items():
-        if isinstance(number, bool) or not isinstance(number, (int, float)) or not math.isfinite(number):
+        if isinstance(number, bool) or not isinstance(number, (int, float)):
             raise ValueError(f"scoring {where}.{key} must be a finite number")
-        numbers[key] = float(number)
+        try:
+            numbers[key] = float(number)
+        except OverflowError as error:
+            raise ValueError(f"scoring {where}.{key} must be a finite number") from error
+        if not math.isfinite(numbers[key]):
+            raise ValueError(f"scoring {where}.{key} must be a finite number")
     return numbers
 
 

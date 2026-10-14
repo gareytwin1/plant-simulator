@@ -339,6 +339,7 @@ def test_unparseable_scoring_text_is_a_value_error():
         ("weights", {"trip_count": None}, "weights.trip_count must be a finite number"),
         ("scales", {"alarm_count": float("nan")}, "scales.alarm_count must be a finite number"),
         ("production_lost_scales", {"LV-101.flow": float("inf")}, "must be a finite number"),
+        ("scales", {"alarm_count": 10**400}, "scales.alarm_count must be a finite number"),
         ("peak_severity_penalty", {"FATAL": 1.0}, "unknown keys"),
     ],
 )

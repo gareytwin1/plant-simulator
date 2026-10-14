@@ -156,6 +156,12 @@ def scoring_config_from_yaml(data: bytes | str) -> ScoringConfig:
     """A `ScoringConfig` from the text of a scoring file. A plants entry of
     the wrong shape is a `ValueError`, like any other bad value."""
     raw = yaml.safe_load(data)
+    if not isinstance(raw, dict):
+        raise ValueError("a scoring file must be a mapping")
+
+    plants = raw.get("plants") or {}
+    if not isinstance(plants, dict):
+        raise ValueError("scoring plants must be a mapping")
 
     return ScoringConfig(
         weights=MappingProxyType({k: float(v) for k, v in raw["weights"].items()}),
@@ -167,7 +173,7 @@ def scoring_config_from_yaml(data: bytes | str) -> ScoringConfig:
             {k: float(v) for k, v in (raw.get("production_lost_scales") or {}).items()}
         ),
         plants=MappingProxyType(
-            {plant_id: _plant_from_yaml(plant_id, entry) for plant_id, entry in (raw.get("plants") or {}).items()}
+            {plant_id: _plant_from_yaml(plant_id, entry) for plant_id, entry in plants.items()}
         ),
     )
 
@@ -189,10 +195,13 @@ def _plant_from_yaml(plant_id: str, entry: object) -> PlantScoring:
     if unknown:
         raise ValueError(f"scoring plants.{plant_id} has unknown keys {unknown}")
 
-    return PlantScoring(
-        excursions=tuple(excursions),
-        throughput=MappingProxyType({k: float(v) for k, v in throughput.items()}),
-    )
+    targets: dict[str, float] = {}
+    for label, target in throughput.items():
+        if isinstance(target, bool) or not isinstance(target, (int, float)):
+            raise ValueError(f"scoring plants.{plant_id}.throughput.{label} must be a number")
+        targets[label] = float(target)
+
+    return PlantScoring(excursions=tuple(excursions), throughput=MappingProxyType(targets))
 
 
 def score_run(metrics: RunMetrics, config: ScoringConfig) -> Score:

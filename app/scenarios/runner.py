@@ -834,7 +834,14 @@ class ScenarioRunner:
         # files as they were at load, whatever happens to them afterwards.
         plant_bytes = plant_path.read_bytes()
         condition_bytes = condition_path.read_bytes()
-        scoring_bytes = self._library.scoring.read_bytes()
+        try:
+            scoring_bytes = self._library.scoring.read_bytes()
+        except FileNotFoundError as error:
+            missing = f"no scoring file {self._library.scoring}"
+            if expected is None:
+                raise ScenarioConfigError(missing) from error
+
+            raise ScenarioChanged(f"{missing}, so the run cannot match the expected fingerprint") from error
         fingerprint = _fingerprint(
             (config["plant"], plant_bytes),
             (condition["condition"], condition_bytes),

@@ -287,6 +287,8 @@ def test_a_score_and_its_metrics_are_json_ready():
         ("{excursions: V-101.level}", "excursions must be a list"),
         ("{throughput: [LV-101.flow]}", "throughput must be a mapping"),
         ("{excursion: [V-101.level]}", "unknown keys"),
+        ("{throughput: {LV-101.flow: null}}", "must be a number"),
+        ("{throughput: {LV-101.flow: fast}}", "must be a number"),
     ],
 )
 def test_a_plants_entry_of_the_wrong_shape_is_a_value_error(entry, mention):
@@ -309,3 +311,16 @@ def test_every_shipped_plants_entry_names_points_its_plant_has(plant_id):
     plant = load_plant_file(DEFAULT_CONFIG_PATH.parent / "plants" / f"{plant_id}.yaml")
 
     PlantRuntime(Engine.from_plant(plant), plant, scoring=load_scoring_config().plant(plant_id))
+
+
+def test_an_empty_scoring_file_is_a_value_error():
+    with pytest.raises(ValueError, match="must be a mapping"):
+        scoring_config_from_yaml("")
+
+
+def test_plants_that_is_not_a_mapping_is_a_value_error():
+    document = yaml.safe_load(DEFAULT_CONFIG_PATH.read_text())
+    document["plants"] = ["olefins_lite"]
+
+    with pytest.raises(ValueError, match="plants must be a mapping"):
+        scoring_config_from_yaml(yaml.safe_dump(document))

@@ -618,6 +618,21 @@ def test_a_replay_whose_plant_file_is_gone_is_a_divergence(tmp_path):
         replay(recording, library)
 
 
+def test_a_replay_whose_scoring_file_is_gone_is_a_divergence(tmp_path):
+    library = copied_library(tmp_path)
+    live = ScenarioRunner(library)
+    live.load_config(scenario())
+    recording = Recording.of(live)
+
+    (tmp_path / "scoring.yaml").unlink()
+
+    with pytest.raises(ReplayDivergence, match=f"no scoring file .*{UNMATCHABLE}"):
+        replay(recording, library)
+
+    with pytest.raises(ScenarioConfigError, match="no scoring file"):
+        replay(dataclasses.replace(recording, fingerprint=None), library)
+
+
 def test_a_missing_file_without_a_fingerprint_to_compare_fails_as_itself(tmp_path):
     library = copied_library(tmp_path)
     live = ScenarioRunner(library)

@@ -2,7 +2,8 @@
 Named initial conditions library - T12-2.
 
 `config/initial_conditions/*.json` are saves of the reference plant
-(`scripts/initial_conditions.py` says how each was made). The build-plan tests
+(`scripts/initial_conditions.py` says how each was made), apart from
+`separator_normal.json`, which tests/test_separator_plant.py covers. The build-plan tests
 come first: at least four conditions exist, each loads and holds steady, and
 none starts in alarm unless intended. The rest pin what each condition is for.
 

@@ -1,0 +1,110 @@
+# The separator (T20-17): a two-phase feed into a drum, with flow control on
+# the feed, level control on the drain and pressure control on the overhead,
+# all three in AUTO. It sits beside olefins_lite and shares nothing with it.
+#
+# The feed is one valve and one line (ADR 0002 Amendment 4): FV-301 is a
+# liquid valve, and the gas it carries enters V-301's gas space at
+# feed_gas_ratio SCFM per GPM of liquid. V-301 declares its feed inlet and its
+# drain outlet both on the liquid node N-302, which is what lets the build
+# accept the ratio, and its vapour outlet on N-312.
+#
+# Design point, closed form (linear valves: q = capacity * position * sqrt(dp)),
+# the prototype's numbers (prototype/console-redesign/separator.yaml) with its
+# vapour inlet FV-302 replaced by the ratio:
+#
+#   liquid node N-302 = 50.0 + head_at_full 20.0 * level 0.5 = 60.0 psia
+#   feed   FV-301: 20.0 * 0.5 * sqrt(85.0 - 60.0)   = 50.0 GPM
+#   drain  LV-301: 14.0 * 5/7 * sqrt(60.0 - 35.0)   = 50.0 GPM
+#   feed gas:      0.2 * 50.0                       = 10.0 SCFM
+#   vent   PV-301:  1.4 * 5/7 * sqrt(200.0 - 100.0) = 10.0 SCFM
+#
+# so a freshly loaded drum sits at level 0.5 and 200 psia with nothing moving,
+# and every loop starts bumpless at that point. The drain and vent run about
+# 71% open, so a feed valve failing wide open outruns them. FV-301 and LV-301
+# fail open on a lost signal; PV-301 fails closed (the class default).
+nodes:
+  - {id: N-301, boundary: true, pressure: 85.0, domain: liquid}
+  - {id: N-302, boundary: true, pressure: 50.0, domain: liquid}
+  - {id: N-303, boundary: true, pressure: 35.0, domain: liquid}
+  - {id: N-312, boundary: true, pressure: 200.0, domain: gas}
+  - {id: N-313, boundary: true, pressure: 100.0, domain: gas}
+equipment:
+  - tag: FV-301
+    type: control_valve
+    service: Feed valve
+    node_in: N-301
+    node_out: N-302
+    design: {capacity: 20.0, flow_characteristic: linear, fail_action: open, position: 0.5, position_target: 0.5}
+  - tag: LV-301
+    type: control_valve
+    service: Drum liquid valve
+    node_in: N-302
+    node_out: N-303
+    design: {capacity: 14.0, flow_characteristic: linear, fail_action: open, position: 0.7142857142857143, position_target: 0.7142857142857143}
+  - tag: PV-301
+    type: control_valve
+    service: Drum vapour valve
+    node_in: N-312
+    node_out: N-313
+    design: {capacity: 1.4, flow_characteristic: linear, position: 0.7142857142857143, position_target: 0.7142857142857143}
+  - tag: V-301
+    type: vessel
+    service: Separator drum
+    ports:
+      feed:      {node: N-302, phase: liquid, purpose: process, direction: inlet,  control: flow}
+      drain:     {node: N-302, phase: liquid, purpose: drain,   direction: outlet, control: level}
+      vapor_out: {node: N-312, phase: vapor,  purpose: process, direction: outlet, control: pressure}
+    paths: []
+    design:
+      capacity: 200.0
+      head_at_full: 20.0
+      level: 0.5
+      gas_volume: 10.0
+      initial_pressure: 200.0
+      feed_gas_ratio: 0.2
+# Limits are the prototype's. `trip: true` sends lo_lo and hi_hi to TRIP
+# severity, as on olefins_lite.
+limits:
+  - {tag: V-301, variable: level, lo_lo: 0.1, lo: 0.2, hi: 0.8, hi_hi: 0.9, trip: true, deadband: 0.02}
+  - {tag: V-301, variable: pressure, hi: 220.0, hi_hi: 240.0, trip: true}
+# Interlocks, one per trip-rated bound, olefins_lite's delays and manual
+# reset. A high level or a high pressure shuts in the inlet, and a low level
+# shuts in the liquid outlet - the separator protection API RP 14C sets out.
+# The feed is both the liquid that fills the drum and the gas that
+# pressurises it, so closing FV-301 removes the cause of either: the drain and
+# the vent then bring the drum back down. Opening PV-301 on PSHH would not -
+# a restricted vent already runs fully open under PIC-301. The plant has no
+# separate shutdown valve, so a trip moves the control valve itself, to its
+# minimum travel; a valve that has lost its signal sits at its fail position
+# whatever a trip demands (app/equipment/valve.py), so a lost FV-301 signal
+# defeats LSHH-301 and PSHH-301, and a lost LV-301 signal defeats LSLL-301.
+interlocks:
+  - tag: LSHH-301
+    condition: "V-301.level >= 0.9"
+    delay_s: 5.0
+    actions: ["FV-301.close"]
+    reset: manual
+  - tag: LSLL-301
+    condition: "V-301.level <= 0.1"
+    delay_s: 5.0
+    actions: ["LV-301.close"]
+    reset: manual
+  - tag: PSHH-301
+    condition: "V-301.pressure >= 240.0"
+    delay_s: 2.0
+    actions: ["FV-301.close"]
+    reset: manual
+# Loops, all AUTO by the rule that every loop runs in AUTO unless a scenario
+# says otherwise. Each is bound to its valve's design position, so it starts
+# bumpless. FIC-301 measures FV-301's solved liquid flow (the gas follows at
+# the ratio) with record_sample.py's gains. LIC-301 and PIC-301 are DIRECT:
+# opening the drain lowers level, opening the vent lowers pressure.
+# record_sample.py's LIC gains (kp 1.0, ki 0.02) leave level swinging for
+# twenty minutes after a feed step, and olefins_lite's PIC gains (kp 0.01,
+# ki 0.005) hunt on this drum, whose 10 ft^3 of gas is a fortieth of V-101's.
+# Both are retuned for a damped answer: a 10 GPM feed step moves level by
+# about 0.03 and pressure by under 2 psi, and both settle back.
+controllers:
+  - {tag: FIC-301, service: Feed flow controller, pv: FV-301.flow, sp: 50.0, out: FV-301, mode: AUTO, kp: 0.005, ki: 0.002, kd: 0.0, tunable: true}
+  - {tag: LIC-301, service: Drum level controller, pv: V-301.level, sp: 0.5, out: LV-301, mode: AUTO, action: DIRECT, kp: 3.0, ki: 0.02, kd: 0.0, tunable: true}
+  - {tag: PIC-301, service: Drum pressure controller, pv: V-301.pressure, sp: 200.0, out: PV-301, mode: AUTO, action: DIRECT, kp: 0.05, ki: 0.001, kd: 0.0, tunable: true}

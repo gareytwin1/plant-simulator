@@ -1,0 +1,256 @@
+{
+ "version": 1,
+ "clock": {
+  "sim_time": 500.0,
+  "speed": 1.0,
+  "paused": false
+ },
+ "equipment": {
+  "FV-301": {
+   "position": 0.49999999974482967,
+   "position_target": 0.49999999974482967,
+   "signal_ok": true,
+   "stuck": false,
+   "action_reversed": false,
+   "_capacity": 20.0,
+   "_rangeability": 50.0,
+   "_min_position": 0.1,
+   "_flow_characteristic": "linear",
+   "_fail_action": "open",
+   "_stroke_rate": 0.05
+  },
+  "LV-301": {
+   "position": 0.7142857142857143,
+   "position_target": 0.7142857142857143,
+   "signal_ok": true,
+   "stuck": false,
+   "action_reversed": false,
+   "_capacity": 14.0,
+   "_rangeability": 50.0,
+   "_min_position": 0.1,
+   "_flow_characteristic": "linear",
+   "_fail_action": "open",
+   "_stroke_rate": 0.05
+  },
+  "PV-301": {
+   "position": 0.7142857144729224,
+   "position_target": 0.7142857144729224,
+   "signal_ok": true,
+   "stuck": false,
+   "action_reversed": false,
+   "_capacity": 1.4,
+   "_rangeability": 50.0,
+   "_min_position": 0.1,
+   "_flow_characteristic": "linear",
+   "_fail_action": "closed",
+   "_stroke_rate": 0.05
+  },
+  "V-301": {
+   "_capacity": 200.0,
+   "_head_at_full": 20.0,
+   "_carryover_level": 0.9,
+   "_level": 0.5,
+   "inlet_flow": 50.00000000025567,
+   "outlet_flow": 50.00000000025567,
+   "_gas_volume": 10.0,
+   "_initial_pressure": 200.0,
+   "_pressure": 200.00000000062528,
+   "gas_inlet_flow": 0.0,
+   "gas_outlet_flow": 10.0,
+   "_feed_gas_ratio": 0.2,
+   "_gas_active": true
+  }
+ },
+ "instruments": {},
+ "domains": {
+  "liquid": {
+   "nodes": {
+    "N-301": 85.0,
+    "N-302": 60.0,
+    "N-303": 35.0
+   },
+   "streams": {
+    "B-FV-301": {
+     "flow": 50.00000000025567,
+     "pressure": 85.0,
+     "temperature": 60.0,
+     "composition": {}
+    },
+    "B-LV-301": {
+     "flow": 50.00000000025567,
+     "pressure": 50.0,
+     "temperature": 60.0,
+     "composition": {}
+    }
+   },
+   "temperatures": {
+    "N-301": 60.0,
+    "N-302": 60.0,
+    "N-303": 60.0
+   },
+   "settled": true,
+   "failure": null,
+   "solver": {
+    "converged": true,
+    "iterations": 0,
+    "residual": 0.2577269242465263,
+    "pressure_residual": 2.5772692424652632e-08,
+    "flow_residual": 0.0,
+    "failure": null
+   }
+  },
+  "gas": {
+   "nodes": {
+    "N-312": 200.00000000062528,
+    "N-313": 100.0
+   },
+   "streams": {
+    "B-PV-301": {
+     "flow": 10.0,
+     "pressure": 200.0,
+     "temperature": 60.0,
+     "composition": {}
+    }
+   },
+   "temperatures": {
+    "N-312": 60.0,
+    "N-313": 60.0
+   },
+   "settled": true,
+   "failure": null,
+   "solver": {
+    "converged": true,
+    "iterations": 0,
+    "residual": 0.5304356420765544,
+    "pressure_residual": 5.3043564207655436e-08,
+    "flow_residual": 0.0,
+    "failure": null
+   }
+  }
+ },
+ "loops": {
+  "FIC-301": {
+   "primed": true,
+   "mode": "auto",
+   "output": 0.49999999974482967,
+   "manual_output": 0.5,
+   "entering": false,
+   "pid": {
+    "kp": 0.005,
+    "ki": 0.002,
+    "kd": 0.0,
+    "output_min": 0.0,
+    "output_max": 1.0,
+    "setpoint": 50.0,
+    "action": "reverse",
+    "integral": 249.99999987305398,
+    "prev_measurement": 50.00000000025567
+   }
+  },
+  "LIC-301": {
+   "primed": true,
+   "mode": "auto",
+   "output": 0.7142857142857143,
+   "manual_output": 0.7142857142857143,
+   "entering": false,
+   "pid": {
+    "kp": 3.0,
+    "ki": 0.02,
+    "kd": 0.0,
+    "output_min": 0.0,
+    "output_max": 1.0,
+    "setpoint": 0.5,
+    "action": "direct",
+    "integral": 35.714285714285715,
+    "prev_measurement": 0.5
+   }
+  },
+  "PIC-301": {
+   "primed": true,
+   "mode": "auto",
+   "output": 0.7142857144729224,
+   "manual_output": 0.7142857142857143,
+   "entering": false,
+   "pid": {
+    "kp": 0.05,
+    "ki": 0.001,
+    "kd": 0.0,
+    "output_min": 0.0,
+    "output_max": 1.0,
+    "setpoint": 200.0,
+    "action": "direct",
+    "integral": 714.2857144417211,
+    "prev_measurement": 200.00000000062403
+   }
+  }
+ },
+ "arbiter": {
+  "FV-301": {
+   "interlock": {},
+   "operator": {},
+   "controller": {
+    "FIC-301": 0.49999999974482967
+   }
+  },
+  "LV-301": {
+   "interlock": {},
+   "operator": {},
+   "controller": {
+    "LIC-301": 0.7142857142857143
+   }
+  },
+  "PV-301": {
+   "interlock": {},
+   "operator": {},
+   "controller": {
+    "PIC-301": 0.7142857144729224
+   }
+  }
+ },
+ "envelope": {
+  "V-301": {
+   "level": {
+    "evaluator": {
+     "band": null,
+     "pending": null,
+     "pending_elapsed": 0.0
+    },
+    "tracker": {
+     "elapsed": 500.0,
+     "time_in_band": {
+      "WARNING": 0.0,
+      "ALARM": 0.0,
+      "TRIP": 0.0
+     },
+     "peak": null
+    },
+    "band": {
+     "severity": "NORMAL",
+     "side": null
+    },
+    "since": 0.0
+   },
+   "pressure": {
+    "evaluator": {
+     "band": null,
+     "pending": null,
+     "pending_elapsed": 0.0
+    },
+    "tracker": {
+     "elapsed": 500.0,
+     "time_in_band": {
+      "WARNING": 0.0,
+      "ALARM": 0.0,
+      "TRIP": 0.0
+     },
+     "peak": null
+    },
+    "band": {
+     "severity": "NORMAL",
+     "side": null
+    },
+    "since": 0.0
+   }
+  }
+ }
+}

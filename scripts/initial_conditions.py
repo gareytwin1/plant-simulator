@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Regenerate config/initial_conditions/*.json (T12-2).
 
-Each file is `capture_state` of the reference plant
-(config/plants/olefins_lite.yaml, built the way a session builds it, with no
-instruments) after a recipe below has driven it somewhere worth starting from.
-`restore_state` puts one back onto a freshly built engine of that plant. A file
-fits that plant only: `restore_state` refuses any other by its tags, nodes,
-branches and loops.
+Each file is `capture_state` of a plant (the reference plant
+config/plants/olefins_lite.yaml, or the separator for a `separator_*` file,
+built the way a session builds it, with no instruments) after a recipe below
+has driven it somewhere worth starting from. `restore_state` puts one back onto
+a freshly built engine of that plant. A file fits that plant only:
+`restore_state` refuses any other by its tags, nodes, branches and loops.
 
 Run from the repository root after a change to the plant or to a device that
 moves what a recipe settles to:
@@ -42,6 +42,7 @@ from app.plant.loader import load_plant_file
 
 ROOT = Path(__file__).resolve().parent.parent
 PLANT = ROOT / "config" / "plants" / "olefins_lite.yaml"
+SEPARATOR = ROOT / "config" / "plants" / "separator.yaml"
 OUTPUT = ROOT / "config" / "initial_conditions"
 
 DT = 1.0
@@ -54,8 +55,8 @@ SETTLE_LIMIT = 60_000
 TRIP_HORIZON = 270
 
 
-def build() -> Engine:
-    return Engine.from_plant(load_plant_file(PLANT))
+def build(plant: Path = PLANT) -> Engine:
+    return Engine.from_plant(load_plant_file(plant))
 
 
 def _design_point(engine: Engine) -> None:
@@ -74,10 +75,10 @@ def _design_point(engine: Engine) -> None:
     vessel.pressure = 200.0
 
 
-def _settle(engine: Engine) -> None:
+def _settle(engine: Engine, vessel_tag: str = "V-101") -> None:
     """Step until level and headspace pressure both move less than the
     tolerance over a window. Every recipe that must hold steady ends here."""
-    vessel = engine.equipment["V-101"]
+    vessel = engine.equipment[vessel_tag]
 
     for _ in range(SETTLE_LIMIT // SETTLE_WINDOW):
         level, pressure = vessel.level, vessel.pressure
@@ -157,11 +158,24 @@ def feed_pump_trip() -> Engine:
     return engine
 
 
+def separator_normal() -> Engine:
+    """The separator at its design point with its three loops in AUTO: 50 GPM
+    of feed carrying 10 SCFM of gas, V-301 at level 0.5 and 200 psia.
+    `separator.yaml` derives that this is where the plant loads, so settling
+    only primes the loops."""
+    engine = build(SEPARATOR)
+
+    _settle(engine, "V-301")
+
+    return engine
+
+
 CONDITIONS: dict[str, Callable[[], Engine]] = {
     "cold_shutdown": cold_shutdown,
     "hot_standby": hot_standby,
     "normal_operation": normal_operation,
     "feed_pump_trip": feed_pump_trip,
+    "separator_normal": separator_normal,
 }
 
 

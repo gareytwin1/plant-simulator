@@ -1361,7 +1361,7 @@ T5-5 then runs against the corrected specification, also on Sonnet.
 
 | | |
 |---|---|
-| **Status** | Accepted 14 October 2026. **Implemented by T20-5** on branch `docs/two-phase-feed`, alongside this text (`app/equipment/vessel.py`, `app/engine/coupling.py`, `app/disturbances/malfunction.py`, `app/plant/units.py`). |
+| **Status** | Accepted 14 October 2026. **Implemented by T20-5**, alongside this text (`app/equipment/vessel.py`, `app/engine/coupling.py`, `app/disturbances/malfunction.py`, `app/plant/units.py`). |
 | **Raised by** | The separator plant (T20-17): the feed the user proposed is two-phase, through one valve and one line, under one flow controller, and the gas it carries must be something a scenario can change. Deferred-mechanics item 7 of the console redesign. |
 | **Verified against** | `main` at `80251f0`, 4041 tests passing, `mypy` clean |
 | **Amends** | Nothing earlier is overturned. It adds one design value to `Vessel`, one term to its gas balance, one entry to the C8 allowlist and two fields to a gas-active vessel's C4 row. |
@@ -1419,7 +1419,7 @@ the gas balance beside the piped gas. Section 7.1's identity becomes
 
 ```text
 Δ gas_inventory = Σ (gas_inlet_flow + feed_gas_flow - gas_outlet_flow)_n · dt / 60
-Σ feed_gas_flow_n · dt / 60 = feed_gas_ratio · Σ inlet_flow_n · dt / 60   (inlet_flow ≥ 0)
+Σ feed_gas_flow_n · dt / 60 = Σ feed_gas_ratio_n · max(0, inlet_flow_n) · dt / 60
 ```
 
 `tests/test_mass_balance.py` closes both ledgers through a surge on the one feed

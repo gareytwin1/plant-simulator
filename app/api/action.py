@@ -37,7 +37,7 @@ from flask import Blueprint, jsonify
 from flask.typing import ResponseReturnValue
 
 from app.api import validate
-from app.controls.loader import LoopBinding
+from app.controls.loader import LoopBinding, setpoint_problem
 from app.controls.modes import Mode
 from app.engine.engine import Engine
 from app.equipment.base import Equipment
@@ -160,12 +160,12 @@ def _apply_loop(binding: LoopBinding, action: str, value: float | None) -> None:
         raise ValueError(f"{tag}.{action} requires a value")
 
     if action == "set_setpoint":
-        # A loop's pv is an absolute pressure (binding.pv_unit), which cannot
-        # be negative; no configuration carries a tighter setpoint range yet.
-        if value < 0.0:
-            raise ValueError(
-                f"{tag}.set_setpoint value must be non-negative {binding.pv_unit}, got {value!r}",
-            )
+        # The rule the loader applied to the configured setpoint, against the
+        # unit of the point the loop measures.
+        problem = setpoint_problem(value, binding.pv_unit)
+
+        if problem is not None:
+            raise ValueError(f"{tag}.set_setpoint value {problem}, got {value!r}")
 
         pid.setpoint = value
     elif action == "set_output":

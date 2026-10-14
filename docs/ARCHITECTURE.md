@@ -105,7 +105,10 @@ T4-4 - still integrates and nothing more; its snapshot reports the trivial
 converged placeholder and empty `nodes` and `streams`. The snapshot's
 `controllers` section carries one row per loop the engine executes (T8-4),
 with the gains, output range, tunable flag and pv unit a faceplate reads
-(T16-14), so it is empty for a plant with no `controllers` key; `envelope` carries one
+(T16-14). A loop's `pv` is a bare node id (that node's pressure) or a point,
+`<id>.<field>`, on an equipment row, a node or a stream, resolved at load
+against what the engine publishes, and its pv unit is that point's unit
+(T20-4). The section is empty for a plant with no `controllers` key; `envelope` carries one
 row per `(tag, variable)` currently outside its configured limits (T9-4), so
 it is empty for a plant with no `limits` key **or** whose configured points
 all read NORMAL - and empty too for a `limits` entry naming a `variable`
@@ -483,7 +486,7 @@ and they have repeatedly been conflated:
 | **Models that exist** | `CentrifugalPump`, `GasCompressor`, `ControlValve`, `Vessel`, `HeatExchanger`, `Furnace` and `ReliefValve` are all implemented and registered in the loader's `DEVICE_TYPES`. |
 | **Wired into the browser pages** | None: the single-machine pages are retired (T16-10) and the console (T16-9) has not landed. Every session runs `olefins_lite` (free play) or a scenario. |
 | **Present in a reference config** | `liquid_transfer.yaml` and `gas_compression.yaml` (single-domain, T3-4), `liquid_valve_train.yaml` (T7-1), and `olefins_lite.yaml` (T5-5) - the two-domain train coupled through V-101 inventory. It is not yet the full seven-device V1 train: `E-101` is absent, and PV-101/LV-101 are manual. |
-| **Controllers** | The PID block, modes, loop config, loop execution and controller action (T8-1 to T8-4, T8-6) all exist. PIC-101 is configured direct-acting and executes every step, and holds its setpoint in AUTO, but the fixture configures it MANUAL (see its `controllers` comment). LIC-101 is not configured at all - a `controllers.pv` can only name a node's pressure until instruments are in C3. |
+| **Controllers** | The PID block, modes, loop config, loop execution and controller action (T8-1 to T8-4, T8-6) all exist. PIC-101 is configured direct-acting and executes every step, and holds its setpoint in AUTO, but the fixture configures it MANUAL (see its `controllers` comment). LIC-101 is not configured: a `controllers.pv` can name `V-101.level` since T20-4, and configuring the loop on the reference plant is its own decision. |
 | **Envelopes** | The evaluator, limit config and excursion tracker (T9-1 to T9-3) all exist, and Engine classifies every configured limit each step (T9-4). `V-101.level` is a device field; `K-101.outlet_pressure` and `P-101.flow` are solved points the engine publishes on each machine's row (T9-5). A limit naming no published number is refused when the plant is built. |
 | **Not built at all** | Nothing on the diagram's device list - every V1 device has a model. |
 

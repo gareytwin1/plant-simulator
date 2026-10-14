@@ -74,9 +74,10 @@ in this order and no other:
   1. advance the clock;
   2. **control** - every loop reads its measurement from the indicated view
      of the plant as it stands at the start of the step, which is what the
-     previous snapshot published, computes its output over the elapsed time,
-     and posts it to the command arbiter as a controller demand; the arbiter
-     then writes every bound output;
+     previous snapshot published - a node pressure, a stream flow or a field
+     of an equipment row, whichever point its `pv` names (T20-4) - computes
+     its output over the elapsed time, and posts it to the command arbiter
+     as a controller demand; the arbiter then writes every bound output;
   3. integrate every device, so a valve strokes toward the target control
      just wrote;
   4. couple and solve, as above;
@@ -137,6 +138,9 @@ one of the names keeps its own value.
 
 That is what a `limits` entry, an interlock condition or a permissive
 resolves against: a field of the equipment row the snapshot publishes. A
+loop's `pv` resolves the same way, and may also name a node or a stream
+(T20-4); `Engine.from_plant` resolves it against this engine's indicated view
+once the engine is built, so a loop is the last thing a plant engine gains. A
 `limits` entry naming anything else is refused at construction - evaluating
 nothing in its place would leave a configured trip silently dead.
 
@@ -261,15 +265,21 @@ class Engine:
         boundary_temperatures: Mapping[str, float] | None = None,
         instruments: Iterable[Instrument] = (),
     ) -> "Engine":
-        return cls(
+        engine = cls(
             plant.devices.values(),
             topologies=plant.topologies,
             couplings=build_couplings(plant.devices.values(), plant.topologies),
             boundary_temperatures=boundary_temperatures,
             instruments=instruments,
-            loops=load_loops(plant).values(),
             limits=load_limits({"limits": plant.passthrough("limits")}),
         )
+
+        # Loops last, as the constructor adds them: a loop's pv resolves
+        # against what the engine publishes, which only a built engine has.
+        for binding in load_loops(plant, engine._indicated(), engine.couplings).values():
+            engine.add_loop(binding)
+
+        return engine
 
     @property
     def topology(self) -> Topology | None:

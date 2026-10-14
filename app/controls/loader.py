@@ -8,18 +8,30 @@ one for the output, no separate "variable" field on either. That shape is
 this module's whole design constraint, and it resolves cleanly against what
 C3 already has, with no new key:
 
-  - **`pv` resolves to a node id.** A node carries exactly one measured
-    quantity, its pressure, so a bare tag string is unambiguous — the same
-    reason a `limits` entry needs a `variable` field alongside its `tag` but
-    this schema does not. **Instruments are not in C3** (an `Engine` only
-    gains one via `Engine(instruments=...)`, never from a config key — see
-    the "Known technical debt" entry in `.workspace/memory/project_state.md`),
-    so a `pv` cannot yet name a transmitter tag; it names the node whose
-    pressure the loop reads, boundary or internal. `N-201` in
-    `config/plants/olefins_lite.yaml` already carries a real, physical
-    pressure this way — `VesselCoupling` writes it from V-101's inventory
-    every step, so binding to it is not a stand-in for a missing transmitter,
-    it is the same number a transmitter there would read.
+  - **`pv` names a published point (T20-4).** A string with no dot is a
+    node id and means that node's pressure, which is all a `pv` could name
+    before T20-4, so every earlier config loads unchanged. `N-201` in
+    `config/plants/olefins_lite.yaml` carries a real, physical pressure this
+    way - `VesselCoupling` writes it from V-101's inventory every step. A
+    string with a dot is a point, `<id>.<field>`, resolved by the rule a
+    `limits` entry has used since T9-5: a field of the row the plant
+    publishes for a device (its solved points included), a node or a stream.
+    So a level loop names `V-301.level` and a flow loop `B-FV-301.flow`. The
+    point must be published, numeric, and its id in exactly one of those
+    sections, all checked here against the plant as the engine first
+    publishes it (`published`), so the error can name the entry. **Instruments
+    are not in C3** (an `Engine` only gains one via `Engine(instruments=...)`,
+    never from a config key), so a `pv` cannot name a transmitter tag; it
+    names the point a transmitter would read, and the engine reads it from
+    the indicated view - a biased transmitter on that point fools the loop as
+    it fools the operator.
+
+  - **A loop's measurement carries its point's unit** (`pv_unit`, from
+    `app.plant.units`, T20-1), and a point with none is refused. Its
+    setpoint is checked against that unit, at load and on every
+    `set_setpoint`: within [0, 1] for a fraction, above absolute zero for a
+    temperature, and never negative for anything else - see
+    `setpoint_problem`.
 
   - **`out` resolves to a device with a settable normalized command.** Only
     `ControlValve.set_position_target` qualifies today (`OUTPUTS`,
@@ -47,28 +59,32 @@ C3 already has, with no new key:
     stay within it.
 
 This loader only loads and binds — it resolves every `pv` and `out` tag once,
-at load time, into the real `Node` and the real setter they name, and
+at load time, into the point and the real setter they name, and
 constructs the `Loop` (T8-1/T8-2) each entry describes. It does not read a
 measurement, call `Loop.compute()`, or write an output: execution order
 against the engine step belongs to `app/engine/engine.py` (T8-4). A `Plant` already
 schema-validates its `controllers` entries (T3-1) before this module ever
 sees them, so the only failures here are semantic — a tag that does not
-resolve, or resolves to the wrong kind of thing — named clearly enough to
+resolve, resolves to the wrong kind of thing, or a setpoint its unit
+refuses — named clearly enough to
 fix from the message alone, exactly as `app.plant.loader.PlantConfigError`
 does for the plant it wraps.
 """
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 
 from app.controls.modes import Loop, Mode
 from app.controls.pid import PID, Action
+from app.engine.coupling import VesselCoupling
+from app.engine.transport import ABSOLUTE_ZERO
 from app.equipment.base import Equipment
 from app.equipment.valve import ControlValve
 from app.plant.loader import Plant
-from app.plant.topology import Node
+from app.plant.units import DEG_F, FRACTION, unit_lookup
+from app.statetypes import JSONValue
 
 
 MODES: dict[str, Mode] = {
@@ -88,9 +104,20 @@ ACTIONS: dict[str, Action] = {
 OUTPUT_MIN = 0.0
 OUTPUT_MAX = 1.0
 
-# A loop's pv is always a node pressure (see the module docstring), and every
-# pressure is psia (docs/UNITS_CONVENTION.md).
-PV_UNIT = "psia"
+# What a bare node id measures (see the module docstring).
+NODE_PV_FIELD = "pressure"
+
+# The sections a point's id may name, as for a limit.
+PV_SECTIONS = ("equipment", "nodes", "streams")
+
+# Units a setpoint may go below zero in, each with the value it must stay
+# above. Every other unit a loop measures is an absolute pressure, a flow, a
+# fraction or a rate, where a negative setpoint asks for nothing a plant can
+# hold.
+SETPOINT_FLOORS: dict[str, float] = {DEG_F: ABSOLUTE_ZERO}
+
+# A plant as the engine publishes it: section -> row id -> field -> value.
+Published = Mapping[str, Mapping[str, Mapping[str, JSONValue]]]
 
 
 @dataclass(frozen=True)
@@ -121,32 +148,88 @@ class LoopConfigError(ValueError):
 
 @dataclass(frozen=True)
 class LoopBinding:
-    """One `controllers` entry, resolved: `pv` against the `Node` it names,
+    """One `controllers` entry, resolved: `pv` against the point it names,
     `out` against the device's own setter for its normalized command input.
     """
 
     tag: str
     loop: Loop
-    pv_tag: str
-    pv_node: Node
+    # Where the loop reads its measurement in a snapshot: section, row,
+    # field - the same shape as an `Instrument.point`.
+    pv_point: tuple[str, str, str]
+    pv_unit: str
     out_tag: str
     output_setter: Callable[[float], None]
     tunable: bool = False
 
-    @property
-    def pv_point(self) -> tuple[str, str, str]:
-        """Where the loop reads its measurement in a snapshot: section, row,
-        field - the same shape as an `Instrument.point`. A node's one
-        measured quantity is its pressure (see the module docstring)."""
-        return ("nodes", self.pv_tag, "pressure")
 
-    @property
-    def pv_unit(self) -> str:
-        return PV_UNIT
+def setpoint_problem(value: float, unit: str) -> str | None:
+    """Why a loop measuring in `unit` cannot take setpoint `value`, or None."""
+    if unit == FRACTION and not 0.0 <= value <= 1.0:
+        return "must be a fraction within [0, 1]"
+
+    floor = SETPOINT_FLOORS.get(unit)
+
+    if floor is not None:
+        if value <= floor:
+            return f"must be above {floor} {unit}"
+    elif value < 0.0:
+        return f"must be non-negative {unit}".rstrip()
+
+    return None
 
 
-def load_loops(plant: Plant) -> dict[str, LoopBinding]:
+def resolve_pv(text: str, published: Published) -> tuple[str, str, str]:
+    """The point a `pv` names in `published`, or ValueError saying why it
+    names none."""
+    row_id, dot, field = text.rpartition(".")
+
+    if not dot:
+        if text in published["nodes"]:
+            return ("nodes", text, NODE_PV_FIELD)
+
+        for section in ("equipment", "streams"):
+            if text in published[section]:
+                raise ValueError(
+                    f"{text!r} is not a node; a point names one of its fields, "
+                    f"<id>.<field>, from {sorted(published[section][text])}",
+                )
+
+        raise ValueError(f"unknown node {text!r}, only {sorted(published['nodes'])}")
+
+    sections = [section for section in PV_SECTIONS if row_id in published[section]]
+
+    if not sections:
+        raise ValueError(f"unknown point {text!r}: {row_id!r} is no device, node or stream")
+
+    if len(sections) > 1:
+        raise ValueError(f"point {text!r} is ambiguous: {row_id!r} names a row in each of {sections}")
+
+    section = sections[0]
+    row = published[section][row_id]
+
+    if field not in row:
+        raise ValueError(f"{row_id!r} publishes no {field!r}, only {sorted(row)}")
+
+    value = row[field]
+
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"{text!r} is {value!r}, not a number")
+
+    return (section, row_id, field)
+
+
+def load_loops(
+    plant: Plant,
+    published: Published,
+    couplings: Iterable[VesselCoupling],
+) -> dict[str, LoopBinding]:
+    """Every `controllers` entry of `plant`, bound. `published` is the plant
+    as its engine publishes it before any loop is added - the indicated
+    view - which is what a `pv` is resolved against; `couplings` are that
+    engine's, which classify the flow unit of each domain."""
     entries = plant.passthrough("controllers")
+    unit_of = unit_lookup(plant.devices, plant.topologies, couplings)
 
     errors: list[str] = []
     tag_paths: dict[str, str] = {}
@@ -166,16 +249,31 @@ def load_loops(plant: Plant) -> dict[str, LoopBinding]:
 
         tag_paths[tag] = path
 
-        node = plant.nodes.get(entry["pv"])
+        point: tuple[str, str, str] | None = None
+        unit = ""
 
-        if node is None:
-            errors.append(
-                f"{path}.pv: unknown node {entry['pv']!r}, "
-                f"only {sorted(plant.nodes)}",
-            )
+        try:
+            point = resolve_pv(entry["pv"], published)
+        except ValueError as error:
+            errors.append(f"{path}.pv: {error}")
+        else:
+            unit = unit_of(*point)
+            problem = setpoint_problem(entry["sp"], unit)
+
+            if not unit:
+                # A setpoint is checked against its unit and shown in it, so
+                # a point app.plant.units names no unit for cannot be one.
+                errors.append(
+                    f"{path}.pv: {entry['pv']!r} has no unit in app/plant/units.py, "
+                    f"so a loop cannot measure it",
+                )
+                point = None
+            elif problem is not None:
+                errors.append(f"{path}.sp: {problem}, got {entry['sp']!r}")
+                point = None
 
         device = plant.devices.get(entry["out"])
-        resolvable = node is not None and device is not None
+        resolvable = point is not None and device is not None
 
         if device is None:
             errors.append(
@@ -201,7 +299,7 @@ def load_loops(plant: Plant) -> dict[str, LoopBinding]:
                 f"command from two loops",
             )
             resolvable = False
-        elif node is not None:
+        elif point is not None:
             # Registered only once this entry is otherwise resolvable: an
             # entry with a bad pv never produces a binding, so it must not
             # be able to "claim" an out tag and block a later, valid one
@@ -212,7 +310,7 @@ def load_loops(plant: Plant) -> dict[str, LoopBinding]:
         if not resolvable:
             continue
 
-        assert node is not None
+        assert point is not None
         assert device is not None
 
         try:
@@ -236,8 +334,8 @@ def load_loops(plant: Plant) -> dict[str, LoopBinding]:
         bindings[tag] = LoopBinding(
             tag=tag,
             loop=loop,
-            pv_tag=entry["pv"],
-            pv_node=node,
+            pv_point=point,
+            pv_unit=unit,
             out_tag=entry["out"],
             output_setter=getattr(device, output.setter),
             tunable=entry.get("tunable", False),

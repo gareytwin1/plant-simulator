@@ -28,9 +28,9 @@ the two things `Loop` does not know:
   `engage()` resumes the cascade without a step.
 
 Not wired into the plant: the loader, C3 and `Engine` cannot create a cascade,
-and a `controllers.pv` names only a node, never a device field such as a
-level. A `Cascade` in an `Engine` would also need T12-5's save/restore to
-cover its loops.
+though since T20-4 a `controllers.pv` can name the level or flow an outer or
+inner loop would measure. A `Cascade` in an `Engine` would also need T12-5's
+save/restore to cover its loops.
 """
 
 from __future__ import annotations

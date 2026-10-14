@@ -85,7 +85,7 @@
         "additionalProperties": false,
         "properties": {
           "tag": {"type": "string", "minLength": 1},
-          "pv": {"type": "string", "minLength": 1},
+          "pv": {"type": "string", "minLength": 1, "description": "What the loop measures. A string with no dot is a node id and means that node's pressure. A string with a dot is a point, <id>.<field> split at its last dot, resolved as a limit is (T20-4): a field of the row the plant publishes for a device (its solved points included), a node or a stream - so V-301.level for a level loop, B-FV-301.flow for a flow loop. Resolution, and the check that the point is published and numeric, are in app/controls/loader.py, against the plant as the engine publishes it."},
           "sp": {"type": "number"},
           "out": {"type": "string", "minLength": 1},
           "mode": {"type": "string", "enum": ["AUTO", "MANUAL"]},

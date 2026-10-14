@@ -8,10 +8,12 @@ import pytest
 
 from app.api.visibility import VISIBLE
 from app.engine.engine import Engine
+from app.equipment.exchanger import HeatExchanger
 from app.plant.loader import load_plant, load_plant_file
-from app.plant.units import FIELD_UNITS, FRACTION, domain_units
+from app.plant.units import FIELD_UNITS, FRACTION, domain_units, unit_lookup
 from app.training.runtime import PlantRuntime
 from app.training.session import TrainingSession
+from tests.test_loop_execution import vessel_config
 
 
 def runtime_of(config):
@@ -158,3 +160,31 @@ def test_a_loaded_scenario_serves_its_own_plants_units():
         assert session.trend_units()["P-101.flow"] == "GPM"
     finally:
         session.end()
+
+
+@pytest.mark.parametrize("field", ["inlet_temperature", "cold_temperature", "metal_temperature"])
+def test_every_exchanger_temperature_a_loop_may_measure_is_in_degrees_f(field):
+    unit = unit_lookup({"E-1": HeatExchanger()}, {}, [])
+
+    assert unit("equipment", "E-1", field) == "°F"
+
+
+def test_a_device_in_a_branch_takes_units_for_its_solved_points():
+    unit = unit_lookup(*plant_parts(vessel_config()))
+
+    assert unit("equipment", "FV-301", "flow") == "GPM"
+    assert unit("equipment", "FV-301", "inlet_pressure") == "psia"
+    assert unit("equipment", "FV-301", "outlet_pressure") == "psia"
+    assert unit("equipment", "FV-301", "effective_capacity") == ""
+
+
+def test_a_device_in_no_branch_has_no_solved_point_units():
+    unit = unit_lookup({"E-1": HeatExchanger()}, {}, [])
+
+    assert unit("equipment", "E-1", "flow") == ""
+
+
+def plant_parts(config):
+    engine = Engine.from_plant(load_plant(config))
+
+    return engine.equipment, engine.topologies, engine.couplings

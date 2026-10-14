@@ -2,10 +2,13 @@ import copy
 
 import pytest
 
-from app.controls.loader import LoopBinding, LoopConfigError, load_loops
+from app.controls.loader import LoopBinding, LoopConfigError, load_loops, resolve_pv
 from app.controls.modes import Mode
 from app.controls.pid import Action
+from app.engine.coupling import build_couplings
+from app.engine.engine import Engine
 from app.plant.loader import PlantConfigError, load_plant
+from tests.test_loop_execution import vessel_config
 
 
 def valid_config():
@@ -46,11 +49,24 @@ def valid_config():
     }
 
 
+def bind(plant):
+    """Bind `plant`'s loops against the plant as an engine with no loops
+    publishes it."""
+    devices = plant.devices.values()
+    engine = Engine(devices, topologies=plant.topologies, couplings=build_couplings(devices, plant.topologies))
+
+    return load_loops(plant, engine.snapshot().as_dict(), engine.couplings)
+
+
+def loaded(config):
+    return bind(load_plant(config))
+
+
 def rejected(config):
     plant = load_plant(config)
 
     with pytest.raises(LoopConfigError) as raised:
-        load_loops(plant)
+        bind(plant)
 
     return raised.value.errors
 
@@ -58,14 +74,12 @@ def rejected(config):
 def test_loads_and_binds_a_loop_from_the_controllers_key():
     plant = load_plant(valid_config())
 
-    bindings = load_loops(plant)
+    bindings = bind(plant)
 
     assert set(bindings) == {"PIC-101"}
 
     binding = bindings["PIC-101"]
     assert isinstance(binding, LoopBinding)
-    assert binding.pv_tag == "N-02"
-    assert binding.pv_node is plant.nodes["N-02"]
     assert binding.out_tag == "FV-101"
     assert binding.loop.mode is Mode.MANUAL
     assert binding.loop.pid.kp == 0.01
@@ -77,7 +91,7 @@ def test_loads_and_binds_a_loop_from_the_controllers_key():
 
 def test_output_setter_is_bound_to_the_real_device():
     plant = load_plant(valid_config())
-    binding = load_loops(plant)["PIC-101"]
+    binding = bind(plant)["PIC-101"]
 
     binding.output_setter(0.7)
 
@@ -90,14 +104,14 @@ def test_a_loop_starts_at_the_command_its_output_already_holds(mode):
     config["controllers"][0]["mode"] = mode
     config["equipment"][1]["design"] = {"position": 0.4, "position_target": 0.4}
 
-    loop = load_loops(load_plant(config))["PIC-101"].loop
+    loop = loaded(config)["PIC-101"].loop
 
     assert loop.output == pytest.approx(0.4)
     assert loop.manual_output == pytest.approx(0.4)
 
 
 def test_the_pv_point_is_the_pv_node_pressure():
-    binding = load_loops(load_plant(valid_config()))["PIC-101"]
+    binding = loaded(valid_config())["PIC-101"]
 
     assert binding.pv_point == ("nodes", "N-02", "pressure")
 
@@ -108,20 +122,20 @@ def test_no_controllers_key_binds_nothing():
 
     plant = load_plant(config)
 
-    assert load_loops(plant) == {}
+    assert bind(plant) == {}
 
 
 def test_auto_mode_loads_as_auto():
     config = valid_config()
     config["controllers"][0]["mode"] = "AUTO"
 
-    binding = load_loops(load_plant(config))["PIC-101"]
+    binding = loaded(config)["PIC-101"]
 
     assert binding.loop.mode is Mode.AUTO
 
 
 def test_an_entry_with_no_action_loads_reverse_acting():
-    binding = load_loops(load_plant(valid_config()))["PIC-101"]
+    binding = loaded(valid_config())["PIC-101"]
 
     assert binding.loop.pid.action is Action.REVERSE
 
@@ -131,7 +145,7 @@ def test_an_entry_loads_the_action_it_names(action, expected):
     config = valid_config()
     config["controllers"][0]["action"] = action
 
-    binding = load_loops(load_plant(config))["PIC-101"]
+    binding = loaded(config)["PIC-101"]
 
     assert binding.loop.pid.action is expected
 
@@ -268,7 +282,7 @@ def test_every_bad_entry_is_reported_together():
 
 
 def test_a_loop_is_not_tunable_unless_its_entry_says_so():
-    binding = load_loops(load_plant(valid_config()))["PIC-101"]
+    binding = loaded(valid_config())["PIC-101"]
 
     assert binding.tunable is False
 
@@ -277,7 +291,7 @@ def test_an_entry_marked_tunable_loads_tunable():
     config = valid_config()
     config["controllers"][0]["tunable"] = True
 
-    binding = load_loops(load_plant(config))["PIC-101"]
+    binding = loaded(config)["PIC-101"]
 
     assert binding.tunable is True
 
@@ -291,6 +305,132 @@ def test_tunable_must_be_a_boolean():
 
 
 def test_the_pv_unit_is_psia():
-    binding = load_loops(load_plant(valid_config()))["PIC-101"]
+    binding = loaded(valid_config())["PIC-101"]
 
     assert binding.pv_unit == "psia"
+
+
+# ---- A pv may name any published point (T20-4) ----
+
+
+@pytest.mark.parametrize(
+    "pv, point, unit",
+    [
+        ("V-301.level", ("equipment", "V-301", "level"), "fraction"),
+        ("B-FV-301.flow", ("streams", "B-FV-301", "flow"), "GPM"),
+        ("FV-301.flow", ("equipment", "FV-301", "flow"), "GPM"),
+        ("N-302.pressure", ("nodes", "N-302", "pressure"), "psia"),
+        ("N-302", ("nodes", "N-302", "pressure"), "psia"),
+        ("N-302.temperature", ("nodes", "N-302", "temperature"), "°F"),
+        ("B-FV-301.temperature", ("streams", "B-FV-301", "temperature"), "°F"),
+        ("B-FV-301.pressure", ("streams", "B-FV-301", "pressure"), "psia"),
+    ],
+    ids=[
+        "equipment-field", "stream", "solved-point", "node-point", "bare-node",
+        "node-temperature", "stream-temperature", "stream-pressure",
+    ],
+)
+def test_a_pv_resolves_to_the_point_it_names_and_takes_its_unit(pv, point, unit):
+    config = vessel_config()
+    config["controllers"][0]["pv"] = pv
+    config["controllers"][0]["sp"] = 0.5
+
+    binding = loaded(config)["FIC-301"]
+
+    assert binding.pv_point == point
+    assert binding.pv_unit == unit
+
+
+@pytest.mark.parametrize(
+    "config, pv, words",
+    [
+        (vessel_config, "X-999.level", ["'X-999'", "no device, node or stream"]),
+        (vessel_config, "V-301.colour", ["'colour'", "'level'"]),
+        (vessel_config, "V-301.", ["publishes no ''"]),
+        (valid_config, "P-101.running", ["'P-101.running'", "not a number"]),
+    ],
+    ids=["unknown-id", "unpublished-field", "empty-field", "not-a-number"],
+)
+def test_a_pv_that_names_no_number_the_plant_publishes_is_a_load_error(config, pv, words):
+    config = config()
+    config["controllers"][0]["pv"] = pv
+
+    errors = rejected(config)
+
+    assert len(errors) == 1
+    assert errors[0].startswith("$.controllers[0].pv: ")
+    assert all(word in errors[0] for word in words)
+
+
+def test_a_bad_pv_is_refused_when_the_engine_is_built_from_the_plant():
+    config = vessel_config()
+    config["controllers"][1]["pv"] = "V-301.colour"
+
+    with pytest.raises(LoopConfigError, match=r"\$\.controllers\[1\]\.pv"):
+        Engine.from_plant(load_plant(config))
+
+
+@pytest.mark.parametrize("sp", [1.01, -0.01], ids=["above-1", "below-0"])
+def test_a_fraction_setpoint_outside_0_to_1_is_a_load_error(sp):
+    config = vessel_config()
+    config["controllers"][1]["sp"] = sp
+
+    errors = rejected(config)
+
+    assert errors == [f"$.controllers[1].sp: must be a fraction within [0, 1], got {sp!r}"]
+
+
+def test_a_negative_setpoint_is_a_load_error():
+    config = valid_config()
+    config["controllers"][0]["sp"] = -1.0
+
+    assert rejected(config) == ["$.controllers[0].sp: must be non-negative psia, got -1.0"]
+
+
+def test_a_temperature_loop_takes_a_setpoint_below_zero():
+    """A °F point is signed: a chilled or cryogenic stream sits below zero."""
+    config = vessel_config()
+    config["controllers"][0]["pv"] = "B-FV-301.temperature"
+    config["controllers"][0]["sp"] = -40.0
+
+    binding = loaded(config)["FIC-301"]
+
+    assert binding.pv_unit == "°F"
+    assert binding.loop.pid.setpoint == -40.0
+
+
+def test_a_temperature_setpoint_at_or_below_absolute_zero_is_a_load_error():
+    config = vessel_config()
+    config["controllers"][0]["pv"] = "B-FV-301.temperature"
+    config["controllers"][0]["sp"] = -459.67
+
+    assert rejected(config) == [
+        "$.controllers[0].sp: must be above -459.67 °F, got -459.67",
+    ]
+
+
+@pytest.mark.parametrize("pv", ["V-301", "B-FV-301"], ids=["device", "stream"])
+def test_a_bare_device_or_stream_id_says_to_name_a_field(pv):
+    config = vessel_config()
+    config["controllers"][0]["pv"] = pv
+
+    errors = rejected(config)
+
+    assert len(errors) == 1
+    assert errors[0].startswith(f"$.controllers[0].pv: {pv!r} is not a node; a point names one of its fields")
+
+
+def test_a_bare_id_that_is_a_node_is_its_pressure_even_if_a_device_shares_it():
+    published = {"nodes": {"X-1": {"pressure": 50.0}}, "equipment": {"X-1": {"level": 0.5}}, "streams": {}}
+
+    assert resolve_pv("X-1", published) == ("nodes", "X-1", "pressure")
+
+
+def test_a_point_with_no_unit_is_a_load_error():
+    config = vessel_config()
+    config["controllers"][0]["pv"] = "FV-301.effective_capacity"
+
+    assert rejected(config) == [
+        "$.controllers[0].pv: 'FV-301.effective_capacity' has no unit in app/plant/units.py, "
+        "so a loop cannot measure it",
+    ]

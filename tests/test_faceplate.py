@@ -200,6 +200,37 @@ def test_a_negative_setpoint_is_refused(session):
     assert parse("sp", "195", row) == {"action": "set_setpoint", "value": 195}
 
 
+# ---- A loop measuring a fraction reads and takes percent (T20-4) ----
+
+LEVEL_ROW = {"pv": 0.5, "sp": 0.55, "out": 0.4, "mode": "AUTO", "out_min": 0.0, "out_max": 1.0, "pv_unit": "fraction"}
+
+
+@needs_node
+def test_a_fraction_pv_and_sp_show_as_a_percent():
+    shown = model(LEVEL_ROW)
+
+    assert (shown["pv"], shown["sp"], shown["unit"]) == ("50.0 %", "55.0 %", "%")
+
+
+@needs_node
+@pytest.mark.parametrize("text, value", [("40", 0.4), ("0", 0.0), ("100", 1)])
+def test_a_fraction_setpoint_is_entered_in_percent_and_posted_as_the_fraction(text, value):
+    assert parse("sp", text, LEVEL_ROW) == {"action": "set_setpoint", "value": pytest.approx(value)}
+
+
+@needs_node
+@pytest.mark.parametrize("text", ["-1", "100.5"])
+def test_a_fraction_setpoint_outside_0_to_100_percent_is_refused_before_posting(text):
+    assert parse("sp", text, LEVEL_ROW) == {"error": "Setpoint must be between 0 and 100 %."}
+
+
+@needs_node
+def test_a_fraction_setpoint_is_described_in_percent():
+    words = run_js("return F.describeCommand('LIC-301', 'set_setpoint', 0.4, data.row);", row=LEVEL_ROW)
+
+    assert words == "setpoint 40.0 % for LIC-301"
+
+
 # ---- There is no tuning on the console ----
 
 
@@ -561,6 +592,32 @@ def test_output_entry_is_disabled_outside_manual_and_says_why(session, plant):
     # The note the input is described by exists, so the reason is announced with the control.
     assert result["auto"]["described"].startswith("fp-PIC-101-out-note")
     assert result["auto"]["spDisabled"] is False
+
+
+@needs_node
+def test_a_fraction_loops_setpoint_entry_is_in_percent_and_posts_the_fraction(session, plant):
+    snapshot = json.loads(json.dumps(view(session)))
+    snapshot["controllers"]["PIC-101"].update(pv=0.5, sp=0.55, pv_unit="fraction")
+    result = run_panels(
+        """
+        const panel = loop();
+        panel.update(data.snapshot);
+        const entry = form(panel, 'sp');
+        const shown = { label: entry.querySelector('label').textContent,
+                        unit: entry.querySelector('.visually-hidden').textContent,
+                        placeholder: input(panel, 'sp').placeholder };
+        input(panel, 'sp').value = '40';
+        entry.fire('submit');
+        await settle();
+        return { shown, posted };
+        """,
+        plant, snapshot=snapshot,
+    )
+
+    assert result["shown"] == {"label": "Setpoint (%)", "unit": "percent", "placeholder": "55.0"}
+    assert result["posted"] == [
+        {"url": "/api/action", "body": {"target": "PIC-101", "action": "set_setpoint", "value": 0.4}},
+    ]
 
 
 @needs_node

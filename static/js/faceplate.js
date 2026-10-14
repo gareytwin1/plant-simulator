@@ -34,7 +34,10 @@
  * server worded it.
  *
  * Output is entered and shown in percent of the loop's output range, the way an
- * operator reads a valve; the action carries the loop's own units. A device
+ * operator reads a valve; the action carries the loop's own units. A loop whose
+ * measurement is a fraction (its row's pv_unit, T20-4) - a level - shows its PV
+ * and SP in percent too, and a setpoint entered in percent is posted as the
+ * fraction; the unit comes from the row, never from a field name. A device
  * target is entered in percent and posted as the fraction the device takes. A command
  * reads "accepted" once the server takes it and never "done": the values on a
  * faceplate are the snapshot's, so a change appears when the next snapshot
@@ -110,18 +113,16 @@
     var unit = typeof r.pv_unit === "string" ? r.pv_unit : "";
     var fraction = outputFraction(r);
     var mode = typeof r.mode === "string" ? r.mode : null;
-
-    function withUnit(text) {
-      return text === MISSING || !unit ? text : text + " " + unit;
-    }
+    var percent = unit === "fraction";
 
     return {
       tag: tag,
       mode: mode,
       modeLabel: mode === null ? MISSING : MODE_LABEL[mode] || mode,
-      unit: unit,
-      pv: withUnit(fixed(r.pv, 1)),
-      sp: withUnit(fixed(r.sp, 1)),
+      unit: percent ? "%" : unit,
+      percent: percent,
+      pv: readingText(r.pv, unit),
+      sp: readingText(r.sp, unit),
       out: fraction === null ? MISSING : fixed(fraction * 100, 1) + " %",
       outPercent: fraction === null ? null : Math.min(100, Math.max(0, fraction * 100)),
       manual: mode === "MANUAL",
@@ -144,6 +145,10 @@
     if (value === null) return { error: "Enter a number." };
 
     if (kind === "sp") {
+      if (r.pv_unit === "fraction") {
+        if (value < 0 || value > 100) return { error: "Setpoint must be between 0 and 100 %." };
+        return { action: ENTRY_ACTION.sp, value: value === 100 ? 1 : value / 100 };
+      }
       if (value < 0) return { error: "Setpoint cannot be negative." };
       return { action: ENTRY_ACTION.sp, value: value };
     }
@@ -182,6 +187,7 @@
     if (action === "manual") return "switch " + tag + " to MAN";
     if (action === "auto") return "switch " + tag + " to AUTO";
     if (action === "set_setpoint") {
+      if (m.percent) return "setpoint " + fixed(value * 100, 1) + " % for " + tag;
       return "setpoint " + (m.unit ? value + " " + m.unit : String(value)) + " for " + tag;
     }
     if (action === "set_output") {
@@ -810,6 +816,9 @@
       buttons.manual.setAttribute("aria-pressed", String(m.mode === "MANUAL"));
       buttons.auto.setAttribute("aria-pressed", String(m.mode === "AUTO"));
 
+      // The setpoint is entered in the unit it is shown in.
+      forms.sp.querySelector("label").textContent = m.percent ? "Setpoint (%)" : "Setpoint";
+      forms.sp.querySelector(".visually-hidden").textContent = m.percent ? "percent" : m.unit;
       forms.sp.querySelector("input").placeholder = m.sp === MISSING ? "" : m.sp.split(" ")[0];
       var outInput = forms.out.querySelector("input");
       outInput.placeholder = m.out === MISSING ? "" : m.out.split(" ")[0];

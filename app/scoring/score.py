@@ -23,12 +23,19 @@ is not comparable across variables; the worst `Excursion.severity` reached is.
 
 **Production lost** is per-label in that variable's own unit, so each label is
 normalised by its own scale from the config and the penalties are averaged.
+
+**What a run tracks (T20-15).** `plants` maps a plant id to the points a run
+on it feeds its trackers from: the configured limits whose excursions count,
+and each throughput point's target. A plant with no entry tracks nothing and
+scores on its action log and alarm history alone. Whether a point exists on
+the plant is checked when a run loads (`app.training.runtime`), not here.
 """
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from types import MappingProxyType
 
@@ -60,11 +67,22 @@ _SCALE_KEYS = (
 
 
 @dataclass(frozen=True)
+class PlantScoring:
+    """What a run on one plant tracks. Each label is `<tag>.<field>` on an
+    equipment row: an excursion names a configured limit, and a throughput
+    label maps to its target in that field's own unit."""
+
+    excursions: tuple[str, ...] = ()
+    throughput: Mapping[str, float] = field(default_factory=lambda: MappingProxyType({}))
+
+
+@dataclass(frozen=True)
 class ScoringConfig:
     weights: Mapping[str, float]
     scales: Mapping[str, float]
     peak_severity_penalty: Mapping[Severity, float]
     production_lost_scales: Mapping[str, float]
+    plants: Mapping[str, PlantScoring] = field(default_factory=lambda: MappingProxyType({}))
 
     def __post_init__(self) -> None:
         for name, keys, table in (
@@ -91,12 +109,43 @@ class ScoringConfig:
         for severity in graded:
             if not 0.0 <= self.peak_severity_penalty.get(severity, -1.0) <= 1.0:
                 raise ValueError(f"peak_severity_penalty[{severity.name}] must be in [0, 1]")
+        for plant_id, plant in self.plants.items():
+            _check_plant(plant_id, plant, self.production_lost_scales)
+
+    def plant(self, plant_id: str) -> PlantScoring:
+        """What a run on `plant_id` tracks: nothing, if it has no entry."""
+        return self.plants.get(plant_id, PlantScoring())
+
+
+def _check_plant(plant_id: str, plant: PlantScoring, scales: Mapping[str, float]) -> None:
+    labels = (*plant.excursions, *plant.throughput)
+    malformed = [label for label in labels if not _is_point(label)]
+    if malformed:
+        raise ValueError(f"scoring plants.{plant_id} labels {malformed} are not '<tag>.<field>'")
+    if len(set(plant.excursions)) != len(plant.excursions):
+        raise ValueError(f"scoring plants.{plant_id} excursions repeat a label")
+    for label, target in plant.throughput.items():
+        if not math.isfinite(target) or target < 0.0:
+            raise ValueError(f"scoring plants.{plant_id} throughput {label} target must be finite and non-negative")
+    unscaled = [label for label in plant.throughput if label not in scales]
+    if unscaled:
+        raise ValueError(f"scoring plants.{plant_id} throughput {unscaled} has no production_lost_scales entry")
+
+
+def _is_point(label: object) -> bool:
+    if not isinstance(label, str):
+        return False
+    tag, dot, name = label.partition(".")
+    return bool(tag and dot and name) and "." not in name
 
 
 @dataclass(frozen=True)
 class Score:
     total: float
     penalties: Mapping[str, float]
+
+    def as_dict(self) -> dict[str, float | dict[str, float]]:
+        return {"total": self.total, "penalties": dict(self.penalties)}
 
 
 def load_scoring_config(path: Path | str = DEFAULT_CONFIG_PATH) -> ScoringConfig:
@@ -111,6 +160,17 @@ def load_scoring_config(path: Path | str = DEFAULT_CONFIG_PATH) -> ScoringConfig
         ),
         production_lost_scales=MappingProxyType(
             {k: float(v) for k, v in (raw.get("production_lost_scales") or {}).items()}
+        ),
+        plants=MappingProxyType(
+            {
+                plant_id: PlantScoring(
+                    excursions=tuple(entry.get("excursions") or ()),
+                    throughput=MappingProxyType(
+                        {k: float(v) for k, v in (entry.get("throughput") or {}).items()}
+                    ),
+                )
+                for plant_id, entry in (raw.get("plants") or {}).items()
+            }
         ),
     )
 

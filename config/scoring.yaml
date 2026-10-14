@@ -32,4 +32,25 @@ peak_severity_penalty:
 # Shortfall (variable unit x seconds) that costs the full production_lost
 # penalty, per label as given to compute_metrics. A label with no entry here
 # is an error, not silently free.
-production_lost_scales: {}
+production_lost_scales:
+  LV-101.flow: 30000   # GPM-seconds: ten minutes with no liquid product
+  LV-301.flow: 30000
+
+# What a run on each plant tracks (T20-15), read when a scenario loads. Every
+# label is <tag>.<field> on an equipment row. A plant with no entry scores on
+# its action log and alarm history alone.
+#   excursions  limits from the plant's own `limits` whose time out of band
+#               and peak severity count
+#   throughput  label -> target, in that field's unit; the shortfall below
+#               the target is production lost (needs a scale above)
+plants:
+  olefins_lite:
+    # Not P-101.flow: its lo_lo guards backflow through a stopped pump, which
+    # every pump-trip scenario starts in, and has no interlock (no check valve).
+    excursions: [V-101.level, K-101.outlet_pressure]
+    throughput:
+      LV-101.flow: 50.0   # design liquid product, GPM
+  separator:
+    excursions: [V-301.level, V-301.pressure]
+    throughput:
+      LV-301.flow: 50.0

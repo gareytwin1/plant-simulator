@@ -25,6 +25,9 @@ is rendered: while loaded or running it carries the key, title, phase, times,
 objectives as status only and the operator's own actions; once complete or
 aborted it carries all of `ScenarioResult.as_dict` plus the title and the
 scenario's description as the `debrief`. Inside the server nothing changes.
+A score and its metrics (T20-15) are part of the debrief: `score` (the total
+and each penalty) and `metrics` are in the body only once the run is over,
+and are null for an aborted run, which is not scored.
 
 A refusal is one of three, so a client can tell them apart:
 

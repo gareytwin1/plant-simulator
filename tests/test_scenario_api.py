@@ -222,3 +222,47 @@ def test_a_training_session_serves_the_scenario_and_action_routes(tmp_path):
         assert client.post("/api/scenario/start").status_code == 409
     finally:
         session.end()
+
+
+# ---- the score is part of the debrief (T20-15) ----
+
+
+def test_no_live_response_carries_a_score_or_a_metric(api):
+    client, runner = api
+
+    live = [client.post("/api/scenario/load", json={"scenario": KEY}).get_json()]
+    live.append(client.get("/api/scenario/result").get_json())
+    live.append(client.post("/api/scenario/start").get_json())
+    runner.step(1.0)
+    live.append(client.get("/api/scenario/result").get_json())
+
+    assert [body["phase"] for body in live] == ["loaded", "loaded", "running", "running"]
+    for body in live:
+        assert "score" not in body and "metrics" not in body
+
+
+def test_a_completed_run_answers_with_its_score_beside_the_debrief(api):
+    client, runner = api
+    client.post("/api/scenario/load", json={"scenario": KEY})
+    client.post("/api/scenario/start")
+
+    while runner.phase is Phase.RUNNING:
+        runner.step(1.0)
+
+    body = client.get("/api/scenario/result").get_json()
+    assert body["phase"] == "complete"
+    assert body["score"]["total"] == pytest.approx(runner.result().score.total)
+    assert set(body["score"]["penalties"]) == set(runner.result().score.penalties)
+    assert body["metrics"]["alarm_count"] == runner.result().metrics.alarm_count
+    assert "debrief" in body
+
+
+def test_an_aborted_run_answers_with_no_score(api):
+    client, _ = api
+    client.post("/api/scenario/load", json={"scenario": KEY})
+    client.post("/api/scenario/start")
+
+    body = client.post("/api/scenario/abort").get_json()
+
+    assert body["phase"] == "aborted"
+    assert body["score"] is None and body["metrics"] is None

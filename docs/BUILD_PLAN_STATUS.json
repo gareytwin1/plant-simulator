@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
-  "refreshed": "2026-10-13",
-  "main_sha": "5e45ae6",
-  "tests_passing_on_main": 4041,
+  "refreshed": "2026-10-14",
+  "main_sha": "c1e2713",
+  "tests_passing_on_main": 4063,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -118,13 +118,13 @@
     },
     "M20": {
       "name": "Console Redesign",
-      "complete": 14,
+      "complete": 15,
       "total": 20
     }
   },
   "totals": {
     "tasks": 153,
-    "complete": 142,
+    "complete": 143,
     "startable_now": 6
   },
   "tasks": [
@@ -2746,12 +2746,28 @@
       "depends_on": [],
       "files": [
         "docs/ADR_0002_TYPED_PORTS.md",
-        "docs/ARCHITECTURE.md"
+        "docs/ARCHITECTURE.md",
+        "docs/UNITS_CONVENTION.md",
+        "app/equipment/vessel.py",
+        "app/engine/coupling.py",
+        "app/engine/persistence.py",
+        "app/disturbances/malfunction.py",
+        "app/scenarios/runner.py",
+        "app/plant/units.py",
+        "config/initial_conditions/cold_shutdown.json",
+        "config/initial_conditions/hot_standby.json",
+        "config/initial_conditions/normal_operation.json",
+        "config/initial_conditions/feed_pump_trip.json",
+        "config/VERSION",
+        "tests/fixtures/config_version.json",
+        "tests/fixtures/two_phase_feed.yaml",
+        "tests/test_feed_gas.py",
+        "tests/test_mass_balance.py",
+        "tests/test_gas_inventory.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true,
-      "note": ""
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged to main as c1e2713 (PR #173); 4063 passed, mypy clean, roborev clean, no golden moved. ADR 0002 Amendment 4: feed solved as liquid, Vessel.feed_gas_ratio (SCFM/GPM, malfunction-writable) releases gas; refused at build, arming and restore on a vessel that cannot release it. Config 2.3.0. Phone not checked."
     },
     {
       "id": "T20-6",
@@ -3049,10 +3065,7 @@
       ],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "T20-5"
-      ],
+      "startable": true,
       "note": ""
     },
     {

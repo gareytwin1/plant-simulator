@@ -28,8 +28,9 @@ C3 already has, with no new key:
 
   - **A loop's measurement carries its point's unit** (`pv_unit`, from
     `app.plant.units`, T20-1), and its setpoint is checked against it, at
-    load and on every `set_setpoint`: never negative, and within [0, 1] for
-    a fraction (`setpoint_problem`).
+    load and on every `set_setpoint`: within [0, 1] for a fraction, and
+    never negative unless the unit is a signed one (`SIGNED_UNITS`: a
+    temperature may be below zero) - see `setpoint_problem`.
 
   - **`out` resolves to a device with a settable normalized command.** Only
     `ControlValve.set_position_target` qualifies today (`OUTPUTS`,
@@ -71,16 +72,16 @@ does for the plant it wraps.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 
 from app.controls.modes import Loop, Mode
 from app.controls.pid import PID, Action
-from app.engine.coupling import build_couplings
+from app.engine.coupling import VesselCoupling
 from app.equipment.base import Equipment
 from app.equipment.valve import ControlValve
 from app.plant.loader import Plant
-from app.plant.units import FRACTION, unit_lookup
+from app.plant.units import DEG_F, FRACTION, unit_lookup
 from app.statetypes import JSONValue
 
 
@@ -106,6 +107,11 @@ NODE_PV_FIELD = "pressure"
 
 # The sections a point's id may name, as for a limit.
 PV_SECTIONS = ("equipment", "nodes", "streams")
+
+# Units whose values may be negative. Every other unit a loop measures is an
+# absolute pressure, a flow, a fraction or a rate, where a negative setpoint
+# asks for nothing a plant can hold.
+SIGNED_UNITS = frozenset({DEG_F})
 
 # A plant as the engine publishes it: section -> row id -> field -> value.
 Published = Mapping[str, Mapping[str, Mapping[str, JSONValue]]]
@@ -159,7 +165,7 @@ def setpoint_problem(value: float, unit: str) -> str | None:
     if unit == FRACTION and not 0.0 <= value <= 1.0:
         return "must be a fraction within [0, 1]"
 
-    if value < 0.0:
+    if value < 0.0 and unit not in SIGNED_UNITS:
         return f"must be non-negative {unit}".rstrip()
 
     return None
@@ -198,16 +204,17 @@ def resolve_pv(text: str, published: Published) -> tuple[str, str, str]:
     return (section, row_id, field)
 
 
-def load_loops(plant: Plant, published: Published) -> dict[str, LoopBinding]:
+def load_loops(
+    plant: Plant,
+    published: Published,
+    couplings: Iterable[VesselCoupling],
+) -> dict[str, LoopBinding]:
     """Every `controllers` entry of `plant`, bound. `published` is the plant
     as its engine publishes it before any loop is added - the indicated
-    view - which is what a `pv` is resolved against."""
+    view - which is what a `pv` is resolved against; `couplings` are that
+    engine's, which classify the flow unit of each domain."""
     entries = plant.passthrough("controllers")
-    unit_of = unit_lookup(
-        plant.devices,
-        plant.topologies,
-        build_couplings(plant.devices.values(), plant.topologies),
-    )
+    unit_of = unit_lookup(plant.devices, plant.topologies, couplings)
 
     errors: list[str] = []
     tag_paths: dict[str, str] = {}

@@ -276,7 +276,7 @@ class Engine:
 
         # Loops last, as the constructor adds them: a loop's pv resolves
         # against what the engine publishes, which only a built engine has.
-        for binding in load_loops(plant, engine._indicated()).values():
+        for binding in load_loops(plant, engine._indicated(), engine.couplings).values():
             engine.add_loop(binding)
 
         return engine

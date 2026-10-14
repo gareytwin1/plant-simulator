@@ -231,6 +231,13 @@ def test_a_fraction_setpoint_is_described_in_percent():
     assert words == "setpoint 40.0 % for LIC-301"
 
 
+@needs_node
+def test_a_temperature_setpoint_may_be_below_zero():
+    row = dict(LEVEL_ROW, pv=-35.0, sp=-40.0, pv_unit="°F")
+
+    assert parse("sp", "-45", row) == {"action": "set_setpoint", "value": -45}
+
+
 # ---- There is no tuning on the console ----
 
 

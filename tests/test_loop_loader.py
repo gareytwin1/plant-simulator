@@ -49,26 +49,24 @@ def valid_config():
     }
 
 
-def published(plant):
-    """The plant as an engine with no loops publishes it - what a pv resolves
-    against."""
+def bind(plant):
+    """Bind `plant`'s loops against the plant as an engine with no loops
+    publishes it."""
     devices = plant.devices.values()
     engine = Engine(devices, topologies=plant.topologies, couplings=build_couplings(devices, plant.topologies))
 
-    return engine.snapshot().as_dict()
+    return load_loops(plant, engine.snapshot().as_dict(), engine.couplings)
 
 
 def loaded(config):
-    plant = load_plant(config)
-
-    return load_loops(plant, published(plant))
+    return bind(load_plant(config))
 
 
 def rejected(config):
     plant = load_plant(config)
 
     with pytest.raises(LoopConfigError) as raised:
-        load_loops(plant, published(plant))
+        bind(plant)
 
     return raised.value.errors
 
@@ -76,7 +74,7 @@ def rejected(config):
 def test_loads_and_binds_a_loop_from_the_controllers_key():
     plant = load_plant(valid_config())
 
-    bindings = load_loops(plant, published(plant))
+    bindings = bind(plant)
 
     assert set(bindings) == {"PIC-101"}
 
@@ -93,7 +91,7 @@ def test_loads_and_binds_a_loop_from_the_controllers_key():
 
 def test_output_setter_is_bound_to_the_real_device():
     plant = load_plant(valid_config())
-    binding = load_loops(plant, published(plant))["PIC-101"]
+    binding = bind(plant)["PIC-101"]
 
     binding.output_setter(0.7)
 
@@ -124,7 +122,7 @@ def test_no_controllers_key_binds_nothing():
 
     plant = load_plant(config)
 
-    assert load_loops(plant, published(plant)) == {}
+    assert bind(plant) == {}
 
 
 def test_auto_mode_loads_as_auto():
@@ -381,3 +379,15 @@ def test_a_negative_setpoint_is_a_load_error():
     config["controllers"][0]["sp"] = -1.0
 
     assert rejected(config) == ["$.controllers[0].sp: must be non-negative psia, got -1.0"]
+
+
+def test_a_temperature_loop_takes_a_setpoint_below_zero():
+    """A °F point is signed: a chilled or cryogenic stream sits below zero."""
+    config = vessel_config()
+    config["controllers"][0]["pv"] = "B-FV-301.temperature"
+    config["controllers"][0]["sp"] = -40.0
+
+    binding = loaded(config)["FIC-301"]
+
+    assert binding.pv_unit == "°F"
+    assert binding.loop.pid.setpoint == -40.0

@@ -59,6 +59,10 @@
 
   var MODE_LABEL = { MANUAL: "MAN", AUTO: "AUTO", CASCADE: "CAS" };
 
+  // Units a setpoint may be negative in, as app/controls/loader.py's
+  // SIGNED_UNITS: a temperature can be below zero, a pressure or a flow not.
+  var SIGNED_UNITS = ["°F"];
+
   // Which action each entry posts.
   var ENTRY_ACTION = { sp: "set_setpoint", out: "set_output" };
 
@@ -149,7 +153,7 @@
         if (value < 0 || value > 100) return { error: "Setpoint must be between 0 and 100 %." };
         return { action: ENTRY_ACTION.sp, value: value === 100 ? 1 : value / 100 };
       }
-      if (value < 0) return { error: "Setpoint cannot be negative." };
+      if (value < 0 && SIGNED_UNITS.indexOf(r.pv_unit) === -1) return { error: "Setpoint cannot be negative." };
       return { action: ENTRY_ACTION.sp, value: value };
     }
 

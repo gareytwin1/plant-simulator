@@ -321,8 +321,14 @@ def test_the_pv_unit_is_psia():
         ("FV-301.flow", ("equipment", "FV-301", "flow"), "GPM"),
         ("N-302.pressure", ("nodes", "N-302", "pressure"), "psia"),
         ("N-302", ("nodes", "N-302", "pressure"), "psia"),
+        ("N-302.temperature", ("nodes", "N-302", "temperature"), "°F"),
+        ("B-FV-301.temperature", ("streams", "B-FV-301", "temperature"), "°F"),
+        ("B-FV-301.pressure", ("streams", "B-FV-301", "pressure"), "psia"),
     ],
-    ids=["equipment-field", "stream", "solved-point", "node-point", "bare-node"],
+    ids=[
+        "equipment-field", "stream", "solved-point", "node-point", "bare-node",
+        "node-temperature", "stream-temperature", "stream-pressure",
+    ],
 )
 def test_a_pv_resolves_to_the_point_it_names_and_takes_its_unit(pv, point, unit):
     config = vessel_config()
@@ -391,3 +397,13 @@ def test_a_temperature_loop_takes_a_setpoint_below_zero():
 
     assert binding.pv_unit == "°F"
     assert binding.loop.pid.setpoint == -40.0
+
+
+def test_a_temperature_setpoint_at_or_below_absolute_zero_is_a_load_error():
+    config = vessel_config()
+    config["controllers"][0]["pv"] = "B-FV-301.temperature"
+    config["controllers"][0]["sp"] = -459.67
+
+    assert rejected(config) == [
+        "$.controllers[0].sp: must be above absolute zero (-459.67 °F), got -459.67",
+    ]

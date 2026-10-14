@@ -236,6 +236,7 @@ def test_a_temperature_setpoint_may_be_below_zero():
     row = dict(LEVEL_ROW, pv=-35.0, sp=-40.0, pv_unit="°F")
 
     assert parse("sp", "-45", row) == {"action": "set_setpoint", "value": -45}
+    assert parse("sp", "-459.67", row) == {"error": "Setpoint must be above absolute zero."}
 
 
 # ---- There is no tuning on the console ----
@@ -625,6 +626,22 @@ def test_a_fraction_loops_setpoint_entry_is_in_percent_and_posts_the_fraction(se
     assert result["posted"] == [
         {"url": "/api/action", "body": {"target": "PIC-101", "action": "set_setpoint", "value": 0.4}},
     ]
+
+
+@needs_node
+def test_a_loop_in_engineering_units_keeps_its_setpoint_entry_in_that_unit(session, plant):
+    result = run_panels(
+        """
+        const panel = loop();
+        panel.update(data.snapshot);
+        const entry = form(panel, 'sp');
+        return { label: entry.querySelector('label').textContent,
+                 unit: entry.querySelector('.visually-hidden').textContent };
+        """,
+        plant, snapshot=view(session),
+    )
+
+    assert result == {"label": "Setpoint", "unit": "psia"}
 
 
 @needs_node

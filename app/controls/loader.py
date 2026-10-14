@@ -28,9 +28,9 @@ C3 already has, with no new key:
 
   - **A loop's measurement carries its point's unit** (`pv_unit`, from
     `app.plant.units`, T20-1), and its setpoint is checked against it, at
-    load and on every `set_setpoint`: within [0, 1] for a fraction, and
-    never negative unless the unit is a signed one (`SIGNED_UNITS`: a
-    temperature may be below zero) - see `setpoint_problem`.
+    load and on every `set_setpoint`: within [0, 1] for a fraction, above
+    absolute zero for a temperature, and never negative for anything else -
+    see `setpoint_problem`.
 
   - **`out` resolves to a device with a settable normalized command.** Only
     `ControlValve.set_position_target` qualifies today (`OUTPUTS`,
@@ -78,6 +78,7 @@ from dataclasses import dataclass
 from app.controls.modes import Loop, Mode
 from app.controls.pid import PID, Action
 from app.engine.coupling import VesselCoupling
+from app.engine.transport import ABSOLUTE_ZERO
 from app.equipment.base import Equipment
 from app.equipment.valve import ControlValve
 from app.plant.loader import Plant
@@ -108,10 +109,11 @@ NODE_PV_FIELD = "pressure"
 # The sections a point's id may name, as for a limit.
 PV_SECTIONS = ("equipment", "nodes", "streams")
 
-# Units whose values may be negative. Every other unit a loop measures is an
-# absolute pressure, a flow, a fraction or a rate, where a negative setpoint
-# asks for nothing a plant can hold.
-SIGNED_UNITS = frozenset({DEG_F})
+# Units a setpoint may go below zero in, each with the value it must stay
+# above. Every other unit a loop measures is an absolute pressure, a flow, a
+# fraction or a rate, where a negative setpoint asks for nothing a plant can
+# hold.
+SETPOINT_FLOORS: dict[str, float] = {DEG_F: ABSOLUTE_ZERO}
 
 # A plant as the engine publishes it: section -> row id -> field -> value.
 Published = Mapping[str, Mapping[str, Mapping[str, JSONValue]]]
@@ -165,7 +167,12 @@ def setpoint_problem(value: float, unit: str) -> str | None:
     if unit == FRACTION and not 0.0 <= value <= 1.0:
         return "must be a fraction within [0, 1]"
 
-    if value < 0.0 and unit not in SIGNED_UNITS:
+    floor = SETPOINT_FLOORS.get(unit)
+
+    if floor is not None:
+        if value <= floor:
+            return f"must be above absolute zero ({floor} {unit})"
+    elif value < 0.0:
         return f"must be non-negative {unit}".rstrip()
 
     return None

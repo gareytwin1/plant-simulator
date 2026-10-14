@@ -111,6 +111,7 @@ from app.alarms.acknowledge import Acknowledged
 from app.alarms.history import HistoryEntry
 from app.disturbances.malfunction import Malfunction, MalfunctionRegistry
 from app.disturbances.profiles import profile_from_config, start_condition_from_config
+from app.engine.coupling import feed_gas_problem
 from app.engine.engine import Engine
 from app.engine.persistence import capture_state, restore_state
 from app.engine.snapshot import Snapshot
@@ -341,6 +342,27 @@ def _number(value: Any, what: str) -> float:
         raise ScenarioConfigError(f"{what} must be a finite number of 0 or more, got {value!r}")
 
     return float(value)
+
+
+def _check_feed_gas_malfunction(engine: Engine, malfunction: Malfunction) -> None:
+    """A malfunction raising a vessel's feed gas ratio is refused where the
+    build would refuse the same ratio configured (ADR 0002, Amendment 4):
+    on a vessel with no gas phase, or one whose liquid inflow is not the
+    feed alone, the gas would not follow the feed."""
+    if malfunction.parameter != "feed_gas_ratio" or malfunction.value == 0.0:
+        return
+
+    for coupling in engine.couplings:
+        if coupling.vessel.tag != malfunction.target_tag:
+            continue
+
+        problem = feed_gas_problem(coupling)
+
+        if problem is not None:
+            raise ValueError(
+                f"malfunction {malfunction.target_tag}.feed_gas_ratio cannot "
+                f"raise the ratio: {problem} (ADR 0002, Amendment 4)",
+            )
 
 
 def malfunction_from_config(config: Mapping[str, Any]) -> Malfunction:
@@ -812,7 +834,9 @@ class ScenarioRunner:
 
         malfunctions = MalfunctionRegistry(registry, engine.instruments.values())
         for entry in config.get("malfunctions", []):
-            malfunctions.add(malfunction_from_config(entry))
+            malfunction = malfunction_from_config(entry)
+            malfunctions.add(malfunction)
+            _check_feed_gas_malfunction(engine, malfunction)
 
         time_limit = float(config["time_limit_s"])
         triggers = TriggerEvaluator.from_config(config.get("triggers", []))

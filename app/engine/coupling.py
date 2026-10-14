@@ -512,52 +512,63 @@ def _reject_shared_nodes(couplings: Iterable[VesselCoupling]) -> None:
 
 
 def _check_feed_gas(couplings: Iterable[VesselCoupling]) -> None:
-    """Feed gas needs a gas phase to enter, and a liquid inflow that is the
-    feed alone (ADR 0002, Amendment 4).
-
-    A vessel releasing gas from its liquid feed with no vapor attachment
-    would integrate no pressure, and the gas would leave the balance without
-    a trace. A liquid node declared in one direction only writes its *net*
-    exchange, so a branch running the other way there folds into the same
-    aggregate: a drain at an inlet-only node nets off the feed, and a feed at
-    an outlet-only node never reaches `inlet_flow`. Either way the gas would
-    not follow the feed.
-    """
+    """Refuse a configured feed gas ratio on a vessel that cannot release it."""
     for coupling in couplings:
         vessel = coupling.vessel
 
         if vessel.feed_gas_ratio == 0.0:
             continue
 
-        if not any(exchange.unit == SCFM for exchange in coupling.exchanges):
+        problem = feed_gas_problem(coupling)
+
+        if problem is not None:
             raise ValueError(
                 f"{vessel.tag}.feed_gas_ratio is {vessel.feed_gas_ratio!r}, but "
-                f"{vessel.tag} declares no vapor port for the feed gas to enter "
-                f"(ADR 0002, Amendment 4)",
+                f"{problem} (ADR 0002, Amendment 4)",
             )
 
-        for exchange in coupling.exchanges:
-            if exchange.unit != GPM or exchange.directions == BOTH_DIRECTIONS:
-                continue
 
-            declared = INLET if INLET in exchange.directions else OUTLET
-            missing = OUTLET if declared == INLET else INLET
-            folded = (
-                exchange.topology.branches_from(exchange.node.id)
-                if declared == INLET
-                else exchange.topology.branches_to(exchange.node.id)
-            )
+def feed_gas_problem(coupling: VesselCoupling) -> str | None:
+    """Why this vessel cannot release feed gas, or None where it can (ADR
+    0002, Amendment 4). Independent of the ratio it holds now, so a caller
+    about to raise the ratio - a malfunction - asks the same question the
+    build does.
 
-            if not folded:
-                continue
+    Feed gas needs a gas phase to enter: with no vapor attachment it would
+    leave the balance without a trace. And it needs a liquid inflow that is
+    the feed alone. A liquid node declared in one direction only writes its
+    *net* exchange, so a branch running the other way there folds into the
+    same aggregate: a drain at an inlet-only node nets off the feed, and a
+    feed at an outlet-only node never reaches `inlet_flow`. Either way the
+    gas would not follow the feed.
+    """
+    vessel = coupling.vessel
 
-            raise ValueError(
-                f"{vessel.tag}.feed_gas_ratio is {vessel.feed_gas_ratio!r}, but "
-                f"node {exchange.node.id!r} is declared {declared}-only and "
-                f"{folded[0].id} runs the other way, so its net exchange is "
-                f"not the feed. Declare the {missing} on that node too "
-                f"(ADR 0002, Amendment 4)",
-            )
+    if not any(exchange.unit == SCFM for exchange in coupling.exchanges):
+        return f"{vessel.tag} declares no vapor port for the feed gas to enter"
+
+    for exchange in coupling.exchanges:
+        if exchange.unit != GPM or exchange.directions == BOTH_DIRECTIONS:
+            continue
+
+        declared = INLET if INLET in exchange.directions else OUTLET
+        missing = OUTLET if declared == INLET else INLET
+        folded = (
+            exchange.topology.branches_from(exchange.node.id)
+            if declared == INLET
+            else exchange.topology.branches_to(exchange.node.id)
+        )
+
+        if not folded:
+            continue
+
+        return (
+            f"node {exchange.node.id!r} is declared {declared}-only and "
+            f"{folded[0].id} runs the other way, so its net exchange is not "
+            f"the feed. Declare the {missing} on that node too"
+        )
+
+    return None
 
 
 def _attachment(

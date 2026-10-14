@@ -1452,10 +1452,12 @@ monotonicity and Newton-Raphson convergence are exactly what they were. The
 - A vessel with `feed_gas_ratio` above zero and no vapor attachment is refused
   when the engine is built: the gas would have nowhere to go and would leave
   the balance without a trace.
+- A scenario malfunction raising the ratio is refused when the run is armed,
+  on exactly the vessels the build would refuse the same ratio configured
+  (`feed_gas_problem` in `app/engine/coupling.py`, called by
+  `ScenarioRunner`). A plant built with no feed gas may declare its liquid
+  nodes however Amendment 2 allows; it is the breakthrough that is refused.
 - A vessel whose gas phase is not active integrates no gas, feed gas included.
-  A malfunction raising the ratio on a liquid-only vessel therefore changes
-  nothing, exactly as fouling an exchanger with no flow through it changes
-  nothing; there is no gas ledger for it to break.
 - A vessel with a ratio above zero is refused at the same point when one of
   its liquid nodes is declared in one direction only and a branch runs the
   other way there. Such a node writes its *net* exchange (Amendment 2, B.3):

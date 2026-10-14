@@ -24,6 +24,7 @@ from app.equipment.registry import EquipmentRegistry
 from app.equipment.vessel import Vessel
 from app.plant.loader import load_plant
 from app.plant.units import unit_lookup
+from app.scenarios.runner import _check_feed_gas_malfunction
 
 FIXTURE = Path(__file__).resolve().parent / "fixtures" / "two_phase_feed.yaml"
 
@@ -258,3 +259,49 @@ def test_a_gas_breakthrough_raises_pressure_and_leaves_level_alone():
     assert row["pressure"] > vessel_row(twin_snapshot)["pressure"] + 5.0
     assert row["level"] == vessel_row(twin_snapshot)["level"]
     assert row["inlet_flow"] == vessel_row(twin_snapshot)["inlet_flow"]
+
+
+def without(cfg, *ports):
+    vessel = next(item for item in cfg["equipment"] if item["tag"] == "V-301")
+    vessel["design"]["feed_gas_ratio"] = 0.0
+
+    for port in ports:
+        del vessel["ports"][port]
+
+    return cfg
+
+
+def liquid_only(cfg):
+    cfg = without(cfg, "vapor_out")
+    cfg["nodes"] = [node for node in cfg["nodes"] if node["id"] not in {"N-312", "N-313"}]
+    cfg["equipment"] = [item for item in cfg["equipment"] if item["tag"] != "PV-301"]
+
+    return cfg
+
+
+@pytest.mark.parametrize(
+    ("build", "problem"),
+    [
+        (lambda cfg: without(cfg, "drain"), "inlet-only"),
+        (lambda cfg: without(cfg, "feed"), "outlet-only"),
+        (liquid_only, "no vapor port"),
+    ],
+    ids=["drain undeclared", "feed undeclared", "liquid only"],
+)
+def test_a_breakthrough_is_refused_where_the_build_would_refuse_the_ratio(build, problem):
+    """A plant built with no feed gas loads whatever its liquid nodes
+    declare. A scenario raising the ratio on it is refused at arming, by the
+    same check the build applies to a configured ratio, rather than letting
+    the gas track something other than the feed."""
+    engine = Engine.from_plant(load_plant(build(separator_config())))
+
+    with pytest.raises(ValueError, match=problem):
+        _check_feed_gas_malfunction(engine, Malfunction("V-301", "feed_gas_ratio", RATIO))
+
+
+def test_a_breakthrough_on_a_vessel_that_can_release_gas_is_accepted():
+    engine = Engine.from_plant(load_plant(without(separator_config())))
+
+    _check_feed_gas_malfunction(engine, Malfunction("V-301", "feed_gas_ratio", RATIO))
+    _check_feed_gas_malfunction(engine, Malfunction("V-301", "feed_gas_ratio", 0.0))
+

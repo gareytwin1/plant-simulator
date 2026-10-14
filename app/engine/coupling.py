@@ -437,7 +437,7 @@ def build_couplings(
     ]
 
     _reject_shared_nodes(couplings)
-    check_feed_gas(couplings)
+    _check_feed_gas(couplings)
 
     return couplings
 
@@ -511,10 +511,8 @@ def _reject_shared_nodes(couplings: Iterable[VesselCoupling]) -> None:
             )
 
 
-def check_feed_gas(couplings: Iterable[VesselCoupling]) -> None:
-    """Refuse a feed gas ratio, as the vessels hold it now, on a vessel that
-    cannot release it. The build runs it on the configured ratios; a caller
-    that restores state onto a built engine runs it again."""
+def _check_feed_gas(couplings: Iterable[VesselCoupling]) -> None:
+    """Refuse a configured feed gas ratio on a vessel that cannot release it."""
     for coupling in couplings:
         vessel = coupling.vessel
 
@@ -533,8 +531,8 @@ def check_feed_gas(couplings: Iterable[VesselCoupling]) -> None:
 def feed_gas_problem(coupling: VesselCoupling) -> str | None:
     """Why this vessel cannot release feed gas, or None where it can (ADR
     0002, Amendment 4). Independent of the ratio it holds now, so a caller
-    about to raise the ratio - a malfunction - asks the same question the
-    build does.
+    about to raise the ratio - a malfunction, a restored state - asks the
+    same question the build does.
 
     Feed gas needs a gas phase to enter: with no vapor attachment it would
     leave the balance without a trace. And it needs a liquid inflow that is

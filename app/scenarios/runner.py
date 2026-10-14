@@ -111,7 +111,7 @@ from app.alarms.acknowledge import Acknowledged
 from app.alarms.history import HistoryEntry
 from app.disturbances.malfunction import Malfunction, MalfunctionRegistry
 from app.disturbances.profiles import profile_from_config, start_condition_from_config
-from app.engine.coupling import check_feed_gas, feed_gas_problem
+from app.engine.coupling import feed_gas_problem
 from app.engine.engine import Engine
 from app.engine.persistence import capture_state, restore_state
 from app.engine.snapshot import Snapshot
@@ -826,9 +826,6 @@ class ScenarioRunner:
 
         runtime = self._restored(build, state)
         engine = runtime.engine
-        # An override may set a vessel's feed gas ratio the plant config did
-        # not, so the build's check runs again on the restored values.
-        check_feed_gas(engine.couplings)
         armed = engine.snapshot()
 
         registry = EquipmentRegistry()

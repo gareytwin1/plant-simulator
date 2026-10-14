@@ -67,6 +67,7 @@ from typing import Protocol, TypeGuard
 from app.controls.arbitration import PRECEDENCE, ArbiterCheckpoint, Source
 from app.controls.modes import LoopCheckpoint, Mode
 from app.controls.pid import Action, PIDCheckpoint
+from app.engine.coupling import feed_gas_problem
 from app.engine.engine import Engine, EngineCheckpoint
 from app.engine.network import SolverResult
 from app.envelope.evaluator import Band, EvaluatorCheckpoint, Severity, Side
@@ -157,6 +158,7 @@ def restore_state(engine: Engine, state: Mapping[str, JSONValue]) -> None:
 
     _decode_clock(engine, fields["clock"], steps)
     _decode_equipment(engine, fields["equipment"], steps)
+    _check_feed_gas(engine, fields["equipment"])
     _decode_instruments(engine, fields["instruments"], steps)
     _decode_domains(engine, fields["domains"], steps)
     primed = _decode_loops(engine, fields["loops"], steps)
@@ -377,6 +379,30 @@ def _decode_equipment(engine: Engine, value: JSONValue, steps: list[Step]) -> No
 
         _check_setters(device, restored, path)
         steps.append(partial(device.__dict__.update, restored))
+
+
+def _check_feed_gas(engine: Engine, value: JSONValue) -> None:
+    """A saved row may hold a feed gas ratio the plant config did not - an
+    initial-condition override, or a malfunction in force when the state was
+    captured. Refuse it on a vessel that cannot release the gas, as the build
+    refuses a configured one (ADR 0002, Amendment 4). Runs after
+    `_decode_equipment`, so the rows are already known to be well formed."""
+    rows = _mapping(value, "equipment")
+
+    for coupling in engine.couplings:
+        tag = coupling.vessel.tag
+        ratio = _mapping(rows[tag], f"equipment.{tag}").get("_feed_gas_ratio", 0.0)
+
+        if ratio == 0.0:
+            continue
+
+        problem = feed_gas_problem(coupling)
+
+        if problem is not None:
+            raise StateError(
+                f"equipment.{tag}._feed_gas_ratio",
+                f"{ratio!r} cannot be restored: {problem} (ADR 0002, Amendment 4)",
+            )
 
 
 def _check_setters(device: Equipment, row: Mapping[str, JSONValue], path: str) -> None:

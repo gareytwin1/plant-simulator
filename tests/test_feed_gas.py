@@ -21,12 +21,13 @@ import yaml
 from app import config
 from app.disturbances.malfunction import Malfunction, MalfunctionRegistry
 from app.engine.engine import Engine
-from app.engine.persistence import capture_state
+from app.engine.persistence import capture_state, restore_state
 from app.equipment.registry import EquipmentRegistry
 from app.equipment.vessel import Vessel
 from app.plant.loader import load_plant
 from app.plant.units import unit_lookup
 from app.scenarios.runner import ScenarioLibrary, ScenarioRunner, _check_feed_gas_malfunction
+from app.statetypes import StateError
 from app.training.runtime import PlantRuntime
 
 FIXTURE = Path(__file__).resolve().parent / "fixtures" / "two_phase_feed.yaml"
@@ -346,5 +347,29 @@ def test_arming_a_scenario_refuses_feed_gas_the_plant_cannot_release(tmp_path):
     del scenario["malfunctions"]
     scenario["initial_condition"]["overrides"] = {"V-301._feed_gas_ratio": RATIO}
 
-    with pytest.raises(ValueError, match="feed_gas_ratio is 0.2.*inlet-only"):
+    with pytest.raises(ValueError, match="_feed_gas_ratio.*inlet-only"):
         ScenarioRunner(library).load_config(scenario)
+
+
+def test_a_restored_ratio_the_vessel_cannot_release_is_refused_and_changes_nothing():
+    """Whatever wrote it - an override, or a breakthrough in force when the
+    state was saved - a saved ratio is checked as a configured one is."""
+    engine = Engine.from_plant(load_plant(without(separator_config(), "drain")))
+    state = capture_state(engine)
+    state["equipment"]["V-301"]["_feed_gas_ratio"] = RATIO
+    before = capture_state(engine)
+
+    with pytest.raises(StateError, match="V-301._feed_gas_ratio.*inlet-only"):
+        restore_state(engine, state)
+
+    assert capture_state(engine) == before
+
+
+def test_a_restored_ratio_the_vessel_can_release_is_restored():
+    engine = Engine.from_plant(load_plant(without(separator_config())))
+    state = capture_state(engine)
+    state["equipment"]["V-301"]["_feed_gas_ratio"] = RATIO
+
+    restore_state(engine, state)
+
+    assert engine.equipment["V-301"].feed_gas_ratio == pytest.approx(RATIO)

@@ -13,6 +13,7 @@ from app.plant.loader import load_plant, load_plant_file
 from app.plant.units import FIELD_UNITS, FRACTION, domain_units, unit_lookup
 from app.training.runtime import PlantRuntime
 from app.training.session import TrainingSession
+from tests.test_loop_execution import vessel_config
 
 
 def runtime_of(config):
@@ -169,11 +170,18 @@ def test_every_exchanger_temperature_a_loop_may_measure_is_in_degrees_f(field):
 
 
 def test_a_device_in_a_branch_takes_units_for_its_solved_points():
-    unit = unit_lookup(*plant_parts(VALVE_ONLY))
+    unit = unit_lookup(*plant_parts(vessel_config()))
 
-    assert unit("equipment", "XV-1", "inlet_pressure") == "psia"
-    assert unit("equipment", "XV-1", "outlet_pressure") == "psia"
-    assert unit("equipment", "XV-1", "effective_capacity") == ""
+    assert unit("equipment", "FV-301", "flow") == "GPM"
+    assert unit("equipment", "FV-301", "inlet_pressure") == "psia"
+    assert unit("equipment", "FV-301", "outlet_pressure") == "psia"
+    assert unit("equipment", "FV-301", "effective_capacity") == ""
+
+
+def test_a_device_in_no_branch_has_no_solved_point_units():
+    unit = unit_lookup({"E-1": HeatExchanger()}, {}, [])
+
+    assert unit("equipment", "E-1", "flow") == ""
 
 
 def plant_parts(config):

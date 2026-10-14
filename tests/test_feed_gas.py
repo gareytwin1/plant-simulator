@@ -82,7 +82,7 @@ def test_liquid_running_backwards_carries_no_gas():
     vessel = gas_vessel()
     vessel.inlet_flow = -FEED
 
-    assert vessel.feed_gas_flow == 0.0
+    assert vessel.feed_gas_flow == pytest.approx(0.0)
 
 
 def test_feed_gas_enters_the_gas_balance():
@@ -137,7 +137,7 @@ def test_the_ratio_and_the_release_are_published_in_their_units():
     unit = unit_lookup(engine.equipment, engine.topologies, engine.couplings)
     row = vessel_row(engine.snapshot())
 
-    assert row["feed_gas_ratio"] == RATIO
+    assert row["feed_gas_ratio"] == pytest.approx(RATIO)
     assert row["feed_gas_flow"] == pytest.approx(FEED_GAS)
     assert unit("equipment", "V-301", "feed_gas_ratio") == "SCFM/GPM"
     assert unit("equipment", "V-301", "feed_gas_flow") == "SCFM"
@@ -159,6 +159,18 @@ def test_a_liquid_only_vessel_with_a_ratio_is_refused_at_build():
         Engine.from_plant(load_plant(cfg))
 
 
+def test_a_feed_node_declared_inlet_only_with_a_branch_leaving_is_refused():
+    """An inlet-only liquid node writes its net exchange, so the drain
+    leaving it would net off the feed and the gas would follow the level's
+    rate of change instead of the feed."""
+    cfg = separator_config()
+    vessel = next(item for item in cfg["equipment"] if item["tag"] == "V-301")
+    del vessel["ports"]["drain"]
+
+    with pytest.raises(ValueError, match="N-302.*inlet-only.*LV-301"):
+        Engine.from_plant(load_plant(cfg))
+
+
 def test_a_freshly_loaded_drum_sits_at_its_design_point():
     _, engine = running(separator_config())
 
@@ -169,7 +181,7 @@ def test_a_freshly_loaded_drum_sits_at_its_design_point():
     assert row["inlet_flow"] == pytest.approx(FEED, abs=1e-6)
     assert row["feed_gas_flow"] == pytest.approx(FEED_GAS, abs=1e-6)
     assert row["gas_outlet_flow"] == pytest.approx(FEED_GAS, abs=1e-6)
-    assert row["gas_inlet_flow"] == 0.0
+    assert row["gas_inlet_flow"] == pytest.approx(0.0)
 
 
 def test_a_feed_surge_raises_level_and_pressure_together():
@@ -215,7 +227,7 @@ def test_a_gas_breakthrough_raises_pressure_and_leaves_level_alone():
     """A malfunction may move the ratio (C8). More gas per gallon raises the
     drum pressure against a fixed vent, and the liquid side - whose boundary
     is the configured pressure plus the head, never the gas pressure - is
-    exactly the unfaulted twin's."""
+    exactly the unfaulted twin's, so those two compare bit for bit."""
     plant, engine = running(separator_config())
     _, twin = running(separator_config())
 
@@ -236,7 +248,7 @@ def test_a_gas_breakthrough_raises_pressure_and_leaves_level_alone():
 
     row = vessel_row(snapshot)
 
-    assert row["feed_gas_ratio"] == 2 * RATIO
+    assert row["feed_gas_ratio"] == pytest.approx(2 * RATIO)
     assert row["pressure"] > vessel_row(twin_snapshot)["pressure"] + 5.0
     assert row["level"] == vessel_row(twin_snapshot)["level"]
     assert row["inlet_flow"] == vessel_row(twin_snapshot)["inlet_flow"]

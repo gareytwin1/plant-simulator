@@ -105,8 +105,9 @@ all converged still updates.
 **Feed gas (T20-5).** A vessel may release gas from its liquid feed at a
 configured ratio (`Vessel.feed_gas_ratio`). That release is the vessel's own
 arithmetic on the liquid inlet aggregate written here, and nothing in this
-module moves for it; the one thing checked here is that a vessel releasing
-gas has a vapor attachment for the gas to enter (ADR 0002, Amendment 4).
+module moves for it. What is checked here is that a vessel releasing gas has
+a vapor attachment for the gas to enter, and that its liquid inflow is not a
+net exchange with a departure folded in (ADR 0002, Amendment 4).
 
 **Where the attachment must be.** A coupled node has to be a boundary node of
 its domain. That is what ADR 0001 A7 says every coupling attachment will be,
@@ -418,7 +419,7 @@ def build_couplings(
     declaration or machine establishes, a declaration the machines
     contradict, two phases on one node, an attachment on an internal node,
     one node claimed by two inventory devices, or feed gas on a vessel with
-    no vapor attachment. All of them are modelling
+    no vapor attachment or with a liquid inflow that nets off a departure. All of them are modelling
     errors, and the Engine is built once per plant, so this is the cheapest
     place to find them.
     """
@@ -436,7 +437,7 @@ def build_couplings(
     ]
 
     _reject_shared_nodes(couplings)
-    _reject_homeless_feed_gas(couplings)
+    _check_feed_gas(couplings)
 
     return couplings
 
@@ -510,12 +511,15 @@ def _reject_shared_nodes(couplings: Iterable[VesselCoupling]) -> None:
             )
 
 
-def _reject_homeless_feed_gas(couplings: Iterable[VesselCoupling]) -> None:
-    """Feed gas needs a gas phase to enter (ADR 0002, Amendment 4).
+def _check_feed_gas(couplings: Iterable[VesselCoupling]) -> None:
+    """Feed gas needs a gas phase to enter, and a liquid inflow that is the
+    feed alone (ADR 0002, Amendment 4).
 
     A vessel releasing gas from its liquid feed with no vapor attachment
     would integrate no pressure, and the gas would leave the balance without
-    a trace.
+    a trace. A liquid node declared inlet-only writes its *net* exchange, so
+    a branch leaving that node would net off the feed it carries and the gas
+    would follow the level's rate of change rather than the feed.
     """
     for coupling in couplings:
         vessel = coupling.vessel
@@ -523,14 +527,29 @@ def _reject_homeless_feed_gas(couplings: Iterable[VesselCoupling]) -> None:
         if vessel.feed_gas_ratio == 0.0:
             continue
 
-        if any(exchange.unit == SCFM for exchange in coupling.exchanges):
-            continue
+        if not any(exchange.unit == SCFM for exchange in coupling.exchanges):
+            raise ValueError(
+                f"{vessel.tag}.feed_gas_ratio is {vessel.feed_gas_ratio!r}, but "
+                f"{vessel.tag} declares no vapor port for the feed gas to enter "
+                f"(ADR 0002, Amendment 4)",
+            )
 
-        raise ValueError(
-            f"{vessel.tag}.feed_gas_ratio is {vessel.feed_gas_ratio!r}, but "
-            f"{vessel.tag} declares no vapor port for the feed gas to enter "
-            f"(ADR 0002, Amendment 4)",
-        )
+        for exchange in coupling.exchanges:
+            if exchange.unit != GPM or exchange.directions != {INLET}:
+                continue
+
+            leaving = exchange.topology.branches_from(exchange.node.id)
+
+            if not leaving:
+                continue
+
+            raise ValueError(
+                f"{vessel.tag}.feed_gas_ratio is {vessel.feed_gas_ratio!r}, but "
+                f"node {exchange.node.id!r} is declared inlet-only and "
+                f"{leaving[0].id} leaves it, so its net exchange is not the "
+                f"feed. Declare the outlet on that node too "
+                f"(ADR 0002, Amendment 4)",
+            )
 
 
 def _attachment(

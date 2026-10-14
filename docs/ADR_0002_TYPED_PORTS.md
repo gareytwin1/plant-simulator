@@ -1456,6 +1456,12 @@ monotonicity and Newton-Raphson convergence are exactly what they were. The
   A malfunction raising the ratio on a liquid-only vessel therefore changes
   nothing, exactly as fouling an exchanger with no flow through it changes
   nothing; there is no gas ledger for it to break.
+- A vessel with a ratio above zero whose liquid inlet node is declared
+  inlet-only while a branch leaves that node is refused at the same point.
+  Such a node writes its *net* exchange (Amendment 2, B.3), so the departure
+  would net off the feed and the gas would follow the level's rate of change
+  rather than the feed. Declaring the outlet on that node too gives the gross
+  arrivals the release needs.
 - A negative ratio is refused by the setter, at load and at malfunction `add`.
 
 ### D.7 Limits, stated so they are not rediscovered

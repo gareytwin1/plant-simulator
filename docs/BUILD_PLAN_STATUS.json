@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "2026-10-14",
-  "main_sha": "8e1e697",
-  "tests_passing_on_main": 4098,
+  "main_sha": "8f123e4",
+  "tests_passing_on_main": 4148,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -118,13 +118,13 @@
     },
     "M20": {
       "name": "Console Redesign",
-      "complete": 16,
-      "total": 20
+      "complete": 17,
+      "total": 21
     }
   },
   "totals": {
-    "tasks": 153,
-    "complete": 144,
+    "tasks": 154,
+    "complete": 145,
     "startable_now": 6
   },
   "tasks": [
@@ -2995,6 +2995,8 @@
         "app/scenarios/runner.py",
         "app/training/runtime.py",
         "app/scoring/metrics.py",
+        "app/scoring/score.py",
+        "app/scoring/store.py",
         "app/api/scenario.py",
         "config/scoring.yaml",
         "config/VERSION",
@@ -3003,10 +3005,9 @@
         "tests/test_scenario_api.py",
         "tests/test_scoring_score.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true,
-      "note": ""
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged to main as 8f123e4 (PR #175); 4148 passed, mypy clean, roborev clean, no golden moved. Completed runs carry RunMetrics and Score; per-plant trackers in config/scoring.yaml fed by PlantRuntime; scoring file in the run fingerprint; aborted and live runs unscored. Config 2.5.0. Backend only. Follow-up T20-21 (outcome in the score, interlock trips only) gates T20-16."
     },
     {
       "id": "T20-16",
@@ -3016,6 +3017,7 @@
       "branch": "feature/run-history",
       "depends_on": [
         "T20-15",
+        "T20-21",
         "T20-9",
         "T18-5"
       ],
@@ -3037,7 +3039,7 @@
       "status_key": "todo",
       "startable": false,
       "blocked_by": [
-        "T20-15"
+        "T20-21"
       ],
       "note": ""
     },
@@ -3134,6 +3136,35 @@
       "status": "Complete",
       "status_key": "done",
       "note": "Merged as 53401af (PR #168); 3916 passed on main, mypy clean, no golden moved. load_plant refuses a domain whose machines or typed ports name two flow units, naming each config path. Shared test fixtures changed (pump into compressor in one domain is the refused case); config/VERSION unmoved. roborev-refine: two fix rounds, then Pass."
+    },
+    {
+      "id": "T20-21",
+      "milestone": "M20",
+      "name": "Score the outcome and only the run's own trips",
+      "category": "dep",
+      "branch": "feature/score-outcome-and-trips",
+      "depends_on": [
+        "T20-15"
+      ],
+      "files": [
+        "app/scoring/metrics.py",
+        "app/scoring/score.py",
+        "app/scoring/store.py",
+        "app/training/runtime.py",
+        "app/scenarios/runner.py",
+        "config/scoring.yaml",
+        "config/VERSION",
+        "tests/fixtures/config_version.json",
+        "tests/test_scoring_metrics.py",
+        "tests/test_scoring_score.py",
+        "tests/test_scoring_store.py",
+        "tests/test_training_runtime.py",
+        "tests/test_scenario_runner.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": true,
+      "note": ""
     }
   ]
 }

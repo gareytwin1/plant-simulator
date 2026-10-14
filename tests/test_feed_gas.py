@@ -12,6 +12,7 @@ design point: 50 GPM of liquid carrying 10 SCFM of gas into a drum at level
 0.5 and 200 psia, drained and vented at exactly those rates.
 """
 
+import json
 from pathlib import Path
 
 import pytest
@@ -20,11 +21,13 @@ import yaml
 from app import config
 from app.disturbances.malfunction import Malfunction, MalfunctionRegistry
 from app.engine.engine import Engine
+from app.engine.persistence import capture_state
 from app.equipment.registry import EquipmentRegistry
 from app.equipment.vessel import Vessel
 from app.plant.loader import load_plant
 from app.plant.units import unit_lookup
-from app.scenarios.runner import _check_feed_gas_malfunction
+from app.scenarios.runner import ScenarioLibrary, ScenarioRunner, _check_feed_gas_malfunction
+from app.training.runtime import PlantRuntime
 
 FIXTURE = Path(__file__).resolve().parent / "fixtures" / "two_phase_feed.yaml"
 
@@ -304,4 +307,38 @@ def test_a_breakthrough_on_a_vessel_that_can_release_gas_is_accepted():
 
     _check_feed_gas_malfunction(engine, Malfunction("V-301", "feed_gas_ratio", RATIO))
     _check_feed_gas_malfunction(engine, Malfunction("V-301", "feed_gas_ratio", 0.0))
+
+
+def test_arming_a_scenario_refuses_a_breakthrough_the_plant_cannot_release(tmp_path):
+    """The refusal is wired where a run is armed, not only callable."""
+    cfg = without(separator_config(), "drain")
+    library = ScenarioLibrary(
+        scenarios=tmp_path / "scenarios",
+        plants=tmp_path / "plants",
+        conditions=tmp_path / "conditions",
+    )
+
+    for folder in (library.scenarios, library.plants, library.conditions):
+        folder.mkdir()
+
+    (library.plants / "feed.yaml").write_text(yaml.safe_dump(cfg))
+    plant = load_plant(cfg)
+    engine = PlantRuntime(Engine.from_plant(plant), plant).engine
+    (library.conditions / "fresh.json").write_text(json.dumps(capture_state(engine)))
+
+    scenario = {
+        "id": "breakthrough",
+        "plant": "feed",
+        "initial_condition": {"condition": "fresh"},
+        "malfunctions": [{"target_tag": "V-301", "parameter": "feed_gas_ratio", "value": RATIO}],
+        "time_limit_s": 60,
+        "difficulty": "easy",
+        "seed": 1,
+    }
+
+    with pytest.raises(ValueError, match="cannot raise the ratio.*inlet-only"):
+        ScenarioRunner(library).load_config(scenario)
+
+    scenario["malfunctions"][0]["value"] = 0.0
+    ScenarioRunner(library).load_config(scenario)
 

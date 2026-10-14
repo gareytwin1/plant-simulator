@@ -324,3 +324,25 @@ def test_plants_that_is_not_a_mapping_is_a_value_error():
 
     with pytest.raises(ValueError, match="plants must be a mapping"):
         scoring_config_from_yaml(yaml.safe_dump(document))
+
+
+def test_unparseable_scoring_text_is_a_value_error():
+    with pytest.raises(ValueError, match="not valid YAML"):
+        scoring_config_from_yaml("weights: [")
+
+
+@pytest.mark.parametrize(
+    "section, value, mention",
+    [
+        ("weights", [1, 2], "weights must be a mapping"),
+        ("scales", None, "missing"),
+        ("weights", {"trip_count": None}, "weights.trip_count must be a number"),
+        ("peak_severity_penalty", {"FATAL": 1.0}, "unknown keys"),
+    ],
+)
+def test_a_top_level_section_of_the_wrong_shape_is_a_value_error(section, value, mention):
+    document = yaml.safe_load(DEFAULT_CONFIG_PATH.read_text())
+    document[section] = value
+
+    with pytest.raises(ValueError, match=mention):
+        scoring_config_from_yaml(yaml.safe_dump(document))

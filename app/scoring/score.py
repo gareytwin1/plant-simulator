@@ -153,24 +153,29 @@ def load_scoring_config(path: Path | str = DEFAULT_CONFIG_PATH) -> ScoringConfig
 
 
 def scoring_config_from_yaml(data: bytes | str) -> ScoringConfig:
-    """A `ScoringConfig` from the text of a scoring file. A plants entry of
-    the wrong shape is a `ValueError`, like any other bad value."""
-    raw = yaml.safe_load(data)
+    """A `ScoringConfig` from the text of a scoring file. Unparseable text, a
+    section of the wrong shape or a value that is not a number is a
+    `ValueError`, like any other bad value."""
+    try:
+        raw = yaml.safe_load(data)
+    except yaml.YAMLError as error:
+        raise ValueError(f"scoring file is not valid YAML: {error}") from error
+
     if not isinstance(raw, dict):
         raise ValueError("a scoring file must be a mapping")
 
-    plants = raw.get("plants") or {}
-    if not isinstance(plants, dict):
-        raise ValueError("scoring plants must be a mapping")
+    plants = _mapping("plants", raw.get("plants"))
+    penalties = _numbers("peak_severity_penalty", raw.get("peak_severity_penalty"))
+    unknown = [name for name in penalties if name not in Severity.__members__]
+    if unknown:
+        raise ValueError(f"scoring peak_severity_penalty has unknown keys {unknown}")
 
     return ScoringConfig(
-        weights=MappingProxyType({k: float(v) for k, v in raw["weights"].items()}),
-        scales=MappingProxyType({k: float(v) for k, v in raw["scales"].items()}),
-        peak_severity_penalty=MappingProxyType(
-            {Severity[k]: float(v) for k, v in raw["peak_severity_penalty"].items()}
-        ),
+        weights=MappingProxyType(_numbers("weights", raw.get("weights"))),
+        scales=MappingProxyType(_numbers("scales", raw.get("scales"))),
+        peak_severity_penalty=MappingProxyType({Severity[k]: v for k, v in penalties.items()}),
         production_lost_scales=MappingProxyType(
-            {k: float(v) for k, v in (raw.get("production_lost_scales") or {}).items()}
+            _numbers("production_lost_scales", raw.get("production_lost_scales"))
         ),
         plants=MappingProxyType(
             {plant_id: _plant_from_yaml(plant_id, entry) for plant_id, entry in plants.items()}
@@ -178,30 +183,40 @@ def scoring_config_from_yaml(data: bytes | str) -> ScoringConfig:
     )
 
 
+def _mapping(where: str, value: object) -> dict[str, object]:
+    """`value` as a mapping, an absent or empty section being an empty one."""
+    if value is None:
+        return {}
+    if not isinstance(value, dict):
+        raise ValueError(f"scoring {where} must be a mapping")
+    return value
+
+
+def _numbers(where: str, value: object) -> dict[str, float]:
+    numbers: dict[str, float] = {}
+    for key, number in _mapping(where, value).items():
+        if isinstance(number, bool) or not isinstance(number, (int, float)):
+            raise ValueError(f"scoring {where}.{key} must be a number")
+        numbers[key] = float(number)
+    return numbers
+
+
 def _plant_from_yaml(plant_id: str, entry: object) -> PlantScoring:
-    entry = {} if entry is None else entry
-    if not isinstance(entry, dict):
-        raise ValueError(f"scoring plants.{plant_id} must be a mapping")
+    where = f"plants.{plant_id}"
+    fields = _mapping(where, entry)
 
-    excursions = entry.get("excursions") or []
-    if not isinstance(excursions, list):
-        raise ValueError(f"scoring plants.{plant_id}.excursions must be a list")
-
-    throughput = entry.get("throughput") or {}
-    if not isinstance(throughput, dict):
-        raise ValueError(f"scoring plants.{plant_id}.throughput must be a mapping")
-
-    unknown = sorted(set(entry) - {"excursions", "throughput"})
+    unknown = sorted(set(fields) - {"excursions", "throughput"})
     if unknown:
-        raise ValueError(f"scoring plants.{plant_id} has unknown keys {unknown}")
+        raise ValueError(f"scoring {where} has unknown keys {unknown}")
 
-    targets: dict[str, float] = {}
-    for label, target in throughput.items():
-        if isinstance(target, bool) or not isinstance(target, (int, float)):
-            raise ValueError(f"scoring plants.{plant_id}.throughput.{label} must be a number")
-        targets[label] = float(target)
+    excursions = fields.get("excursions") or []
+    if not isinstance(excursions, list):
+        raise ValueError(f"scoring {where}.excursions must be a list")
 
-    return PlantScoring(excursions=tuple(excursions), throughput=MappingProxyType(targets))
+    return PlantScoring(
+        excursions=tuple(excursions),
+        throughput=MappingProxyType(_numbers(f"{where}.throughput", fields.get("throughput"))),
+    )
 
 
 def score_run(metrics: RunMetrics, config: ScoringConfig) -> Score:

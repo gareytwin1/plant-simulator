@@ -159,15 +159,21 @@ def test_a_liquid_only_vessel_with_a_ratio_is_refused_at_build():
         Engine.from_plant(load_plant(cfg))
 
 
-def test_a_feed_node_declared_inlet_only_with_a_branch_leaving_is_refused():
-    """An inlet-only liquid node writes its net exchange, so the drain
-    leaving it would net off the feed and the gas would follow the level's
-    rate of change instead of the feed."""
+@pytest.mark.parametrize(
+    ("dropped", "declared", "folded"),
+    [("drain", "inlet", "LV-301"), ("feed", "outlet", "FV-301")],
+)
+def test_a_liquid_node_declared_one_way_with_a_branch_the_other_way_is_refused(
+    dropped, declared, folded,
+):
+    """A one-direction liquid node writes its net exchange. With the drain
+    undeclared it would net off the feed; with the feed undeclared the feed
+    would never reach inlet_flow. Either way the gas would not follow it."""
     cfg = separator_config()
     vessel = next(item for item in cfg["equipment"] if item["tag"] == "V-301")
-    del vessel["ports"]["drain"]
+    del vessel["ports"][dropped]
 
-    with pytest.raises(ValueError, match="N-302.*inlet-only.*LV-301"):
+    with pytest.raises(ValueError, match=f"N-302.*{declared}-only.*{folded}"):
         Engine.from_plant(load_plant(cfg))
 
 

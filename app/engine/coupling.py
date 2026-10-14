@@ -419,9 +419,9 @@ def build_couplings(
     declaration or machine establishes, a declaration the machines
     contradict, two phases on one node, an attachment on an internal node,
     one node claimed by two inventory devices, or feed gas on a vessel with
-    no vapor attachment or with a liquid inflow that nets off a departure. All of them are modelling
-    errors, and the Engine is built once per plant, so this is the cheapest
-    place to find them.
+    no vapor attachment or with a liquid inflow that nets off a departure.
+    All of them are modelling errors, and the Engine is built once per plant,
+    so this is the cheapest place to find them.
     """
     couplings = [
         VesselCoupling(
@@ -517,9 +517,11 @@ def _check_feed_gas(couplings: Iterable[VesselCoupling]) -> None:
 
     A vessel releasing gas from its liquid feed with no vapor attachment
     would integrate no pressure, and the gas would leave the balance without
-    a trace. A liquid node declared inlet-only writes its *net* exchange, so
-    a branch leaving that node would net off the feed it carries and the gas
-    would follow the level's rate of change rather than the feed.
+    a trace. A liquid node declared in one direction only writes its *net*
+    exchange, so a branch running the other way there folds into the same
+    aggregate: a drain at an inlet-only node nets off the feed, and a feed at
+    an outlet-only node never reaches `inlet_flow`. Either way the gas would
+    not follow the feed.
     """
     for coupling in couplings:
         vessel = coupling.vessel
@@ -535,19 +537,25 @@ def _check_feed_gas(couplings: Iterable[VesselCoupling]) -> None:
             )
 
         for exchange in coupling.exchanges:
-            if exchange.unit != GPM or exchange.directions != {INLET}:
+            if exchange.unit != GPM or exchange.directions == BOTH_DIRECTIONS:
                 continue
 
-            leaving = exchange.topology.branches_from(exchange.node.id)
+            declared = INLET if INLET in exchange.directions else OUTLET
+            missing = OUTLET if declared == INLET else INLET
+            folded = (
+                exchange.topology.branches_from(exchange.node.id)
+                if declared == INLET
+                else exchange.topology.branches_to(exchange.node.id)
+            )
 
-            if not leaving:
+            if not folded:
                 continue
 
             raise ValueError(
                 f"{vessel.tag}.feed_gas_ratio is {vessel.feed_gas_ratio!r}, but "
-                f"node {exchange.node.id!r} is declared inlet-only and "
-                f"{leaving[0].id} leaves it, so its net exchange is not the "
-                f"feed. Declare the outlet on that node too "
+                f"node {exchange.node.id!r} is declared {declared}-only and "
+                f"{folded[0].id} runs the other way, so its net exchange is "
+                f"not the feed. Declare the {missing} on that node too "
                 f"(ADR 0002, Amendment 4)",
             )
 

@@ -98,9 +98,12 @@ WRITABLE: dict[type[Target], frozenset[str]] = {
         "blowdown",
         "capacity",
     }),
-    # Everything a vessel carries is geometry or inventory. Listed empty so the
-    # absence is a decision rather than an oversight.
-    Vessel: frozenset(),
+    # The rest of a vessel is geometry or inventory. The feed gas ratio is
+    # what its feed carries, so a gas breakthrough moves it (ADR 0002,
+    # Amendment 4).
+    Vessel: frozenset({
+        "feed_gas_ratio",
+    }),
     Instrument: frozenset({
         "bias",
     }),

@@ -292,6 +292,8 @@ def test_the_gas_state_is_json_safe_and_in_the_stated_units():
         "gas_inventory",
         "gas_inlet_flow",
         "gas_outlet_flow",
+        "feed_gas_ratio",
+        "feed_gas_flow",
     }
     assert json.loads(json.dumps(state)) == state
 

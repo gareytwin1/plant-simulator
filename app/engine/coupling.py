@@ -102,6 +102,12 @@ if any node contributing to it belongs to a failed domain, that attribute
 keeps its previous value entirely, while an aggregate whose own contributors
 all converged still updates.
 
+**Feed gas (T20-5).** A vessel may release gas from its liquid feed at a
+configured ratio (`Vessel.feed_gas_ratio`). That release is the vessel's own
+arithmetic on the liquid inlet aggregate written here, and nothing in this
+module moves for it; the one thing checked here is that a vessel releasing
+gas has a vapor attachment for the gas to enter (ADR 0002, Amendment 4).
+
 **Where the attachment must be.** A coupled node has to be a boundary node of
 its domain. That is what ADR 0001 A7 says every coupling attachment will be,
 and it is deferred to this task to enforce; the net-flow argument above also
@@ -411,7 +417,8 @@ def build_couplings(
     Raises where an attachment cannot be coupled safely — a phase that no
     declaration or machine establishes, a declaration the machines
     contradict, two phases on one node, an attachment on an internal node,
-    or one node claimed by two inventory devices. All of them are modelling
+    one node claimed by two inventory devices, or feed gas on a vessel with
+    no vapor attachment. All of them are modelling
     errors, and the Engine is built once per plant, so this is the cheapest
     place to find them.
     """
@@ -429,6 +436,7 @@ def build_couplings(
     ]
 
     _reject_shared_nodes(couplings)
+    _reject_homeless_feed_gas(couplings)
 
     return couplings
 
@@ -500,6 +508,29 @@ def _reject_shared_nodes(couplings: Iterable[VesselCoupling]) -> None:
                 f"read the whole node exchange as its own, and there is no "
                 f"split to guess (ADR 0002, Amendment 2)",
             )
+
+
+def _reject_homeless_feed_gas(couplings: Iterable[VesselCoupling]) -> None:
+    """Feed gas needs a gas phase to enter (ADR 0002, Amendment 4).
+
+    A vessel releasing gas from its liquid feed with no vapor attachment
+    would integrate no pressure, and the gas would leave the balance without
+    a trace.
+    """
+    for coupling in couplings:
+        vessel = coupling.vessel
+
+        if vessel.feed_gas_ratio == 0.0:
+            continue
+
+        if any(exchange.unit == SCFM for exchange in coupling.exchanges):
+            continue
+
+        raise ValueError(
+            f"{vessel.tag}.feed_gas_ratio is {vessel.feed_gas_ratio!r}, but "
+            f"{vessel.tag} declares no vapor port for the feed gas to enter "
+            f"(ADR 0002, Amendment 4)",
+        )
 
 
 def _attachment(

@@ -83,6 +83,7 @@
    "_pressure": 295.2380986848972,
    "gas_inlet_flow": 0.0,
    "gas_outlet_flow": 2.6288501562277133e-06,
+   "_feed_gas_ratio": 0.0,
    "_gas_active": true
   }
  },

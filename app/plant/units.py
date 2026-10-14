@@ -56,6 +56,7 @@ PSIA = "psia"
 DEG_F = "°F"
 BTU_PER_HOUR = "BTU/hr"
 FRACTION = "fraction"
+SCFM_PER_GPM = "SCFM/GPM"
 NO_UNIT = ""
 
 # Not a unit: the field is a flow, in its device's domain unit.
@@ -86,6 +87,8 @@ FIELD_UNITS: dict[type[Equipment], dict[str, str]] = {
         "outlet_flow": GPM,
         "gas_inlet_flow": SCFM,
         "gas_outlet_flow": SCFM,
+        "feed_gas_flow": SCFM,
+        "feed_gas_ratio": SCFM_PER_GPM,
     },
     HeatExchanger: {
         "inlet_temperature": DEG_F,

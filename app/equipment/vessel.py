@@ -49,6 +49,22 @@ attachment, and the as-built configured pressure is untouched. Nothing is
 clamped. Pressure must stay strictly positive, and a step that would take it
 to zero or below raises rather than being floored.
 
+**Feed gas (T20-5).** A two-phase feed enters through one liquid line and one
+valve, and the gas it carries is a fixed ratio of the liquid, not a flash:
+
+    feed_gas_flow = feed_gas_ratio * max(0, inlet_flow)    [SCFM, SCFM/GPM, GPM]
+
+It joins the gas balance beside `gas_inlet_flow`, so a feed surge raises level
+and pressure together. The release keys on `inlet_flow`, the liquid inlet
+aggregate the coupling already writes from the declared phase and direction,
+so no port descriptor beyond those two decides it, and a held liquid domain
+holds the release with it. Liquid running backwards out of the vessel carries
+no gas. `feed_gas_ratio` is a design value a malfunction may move (a gas
+breakthrough), never integrated state. A ratio above zero needs a gas phase
+for the gas to go to, so the coupling refuses one on a vessel with no vapor
+attachment; a vessel whose gas phase is not active integrates no gas at all,
+feed gas included. See docs/ADR_0002_TYPED_PORTS.md, Amendment 4.
+
 Range guards sit on the attributes rather than in `__init__` because design
 values arrive by `setattr` from the C3 loader: a capacity of zero set from
 config would otherwise surface much later as a division by zero, a long way
@@ -103,6 +119,8 @@ class Vessel(Equipment):
 
         self.gas_inlet_flow = 0.0              # SCFM, written by the caller
         self.gas_outlet_flow = 0.0             # SCFM, written by the caller
+
+        self.feed_gas_ratio = 0.0              # SCFM per GPM of liquid inflow
 
         self._gas_active = False
 
@@ -178,6 +196,18 @@ class Vessel(Equipment):
         self._pressure = _checked(self.tag, "pressure", value, 0.0, above=True)
 
     @property
+    def feed_gas_ratio(self) -> float:
+        return self._feed_gas_ratio
+
+    @feed_gas_ratio.setter
+    def feed_gas_ratio(self, value: float) -> None:
+        self._feed_gas_ratio = _checked(self.tag, "feed_gas_ratio", value, 0.0)
+
+    @property
+    def feed_gas_flow(self) -> float:
+        return self.feed_gas_ratio * max(0.0, self.inlet_flow)  # SCFM
+
+    @property
     def gas_active(self) -> bool:
         return self._gas_active
 
@@ -220,7 +250,9 @@ class Vessel(Equipment):
         )
 
         if self.gas_active:
-            net_gas_flow = self.gas_inlet_flow - self.gas_outlet_flow   # SCFM
+            net_gas_flow = (
+                self.gas_inlet_flow + self.feed_gas_flow - self.gas_outlet_flow
+            )   # SCFM
 
             self.pressure = (
                 self.pressure
@@ -249,6 +281,8 @@ class Vessel(Equipment):
                     "gas_inventory": self.gas_inventory,        # scf
                     "gas_inlet_flow": self.gas_inlet_flow,      # SCFM
                     "gas_outlet_flow": self.gas_outlet_flow,    # SCFM
+                    "feed_gas_ratio": self.feed_gas_ratio,      # SCFM/GPM
+                    "feed_gas_flow": self.feed_gas_flow,        # SCFM
                 },
             )
 

@@ -1,0 +1,47 @@
+# A two-phase feed into a drum through one valve and one line (ADR 0002,
+# Amendment 4): FV-301 is a liquid valve, and the gas the feed carries enters
+# V-301's gas space at feed_gas_ratio SCFM per GPM of liquid. The numbers are
+# the prototype's (prototype/console-redesign/separator.yaml), with its vapour
+# inlet FV-302 replaced by the ratio:
+#   liquid node N-302 = 50.0 + head_at_full 20.0 * level 0.5 = 60.0 psia
+#   feed   FV-301: 20.0 * 0.5 * sqrt(85.0 - 60.0)   = 50.0 GPM
+#   drain  LV-301: 14.0 * 5/7 * sqrt(60.0 - 35.0)   = 50.0 GPM
+#   feed gas:      0.2 * 50.0                       = 10.0 SCFM
+#   vent   PV-301:  1.4 * 5/7 * sqrt(200.0 - 100.0) = 10.0 SCFM
+# so a freshly loaded drum sits at level 0.5 and 200 psia with nothing moving.
+nodes:
+  - {id: N-301, boundary: true, pressure: 85.0, domain: liquid}
+  - {id: N-302, boundary: true, pressure: 50.0, domain: liquid}
+  - {id: N-303, boundary: true, pressure: 35.0, domain: liquid}
+  - {id: N-312, boundary: true, pressure: 200.0, domain: gas}
+  - {id: N-313, boundary: true, pressure: 100.0, domain: gas}
+equipment:
+  - tag: FV-301
+    type: control_valve
+    node_in: N-301
+    node_out: N-302
+    design: {capacity: 20.0, flow_characteristic: linear, position: 0.5, position_target: 0.5}
+  - tag: LV-301
+    type: control_valve
+    node_in: N-302
+    node_out: N-303
+    design: {capacity: 14.0, flow_characteristic: linear, position: 0.7142857142857143, position_target: 0.7142857142857143}
+  - tag: PV-301
+    type: control_valve
+    node_in: N-312
+    node_out: N-313
+    design: {capacity: 1.4, flow_characteristic: linear, position: 0.7142857142857143, position_target: 0.7142857142857143}
+  - tag: V-301
+    type: vessel
+    ports:
+      feed:      {node: N-302, phase: liquid, purpose: process, direction: inlet}
+      drain:     {node: N-302, phase: liquid, purpose: drain,   direction: outlet}
+      vapor_out: {node: N-312, phase: vapor,  purpose: process, direction: outlet}
+    paths: []
+    design:
+      capacity: 200.0
+      head_at_full: 20.0
+      level: 0.5
+      gas_volume: 10.0
+      initial_pressure: 200.0
+      feed_gas_ratio: 0.2

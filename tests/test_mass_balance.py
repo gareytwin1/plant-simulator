@@ -44,6 +44,7 @@ from app.engine.engine import Engine
 from app.plant.loader import load_plant_file
 
 PLANT_FILE = Path(__file__).resolve().parent.parent / "config" / "plants" / "olefins_lite.yaml"
+TWO_PHASE_FEED_FILE = Path(__file__).resolve().parent / "fixtures" / "two_phase_feed.yaml"
 
 STEP = 1.0
 
@@ -67,7 +68,7 @@ def net_liquid(vessel):
 
 
 def net_gas(vessel):
-    return vessel.gas_inlet_flow - vessel.gas_outlet_flow  # SCFM
+    return vessel.gas_inlet_flow + vessel.feed_gas_flow - vessel.gas_outlet_flow  # SCFM
 
 
 def ledgers(engine, vessel, steps, dt=STEP):
@@ -253,3 +254,48 @@ def test_the_identity_holds_at_every_step_through_the_transient():
             q_gas * STEP / 60.0,
             abs=1e-9,
         )
+
+
+# --------------------------------------------------------------------------
+# 4. A two-phase feed closes by construction (ADR 0002, Amendment 4)
+# --------------------------------------------------------------------------
+
+
+def test_the_ledgers_close_through_a_two_phase_feed_surge():
+    """The feed gas has no branch of its own: it is the ratio times the
+    liquid inflow, and it enters the gas balance beside the piped gas. Both
+    ledgers still close through a surge on the one feed valve, and the gas
+    the feed brought is exactly the ratio times the liquid it brought."""
+    plant = load_plant_file(TWO_PHASE_FEED_FILE)
+    engine = Engine.from_plant(plant)
+    engine.start()
+    vessel = plant.devices["V-301"]
+    feed_valve = plant.devices["FV-301"]
+
+    start_volume = vessel.volume
+    start_gas_inventory = vessel.gas_inventory
+    liquid_fed = 0.0
+    gas_fed = 0.0
+    correct_liquid = 0.0
+    correct_gas = 0.0
+    peak_pressure = vessel.pressure
+
+    for step in range(600):
+        if step == 10:
+            feed_valve.set_position_target(0.7)
+
+        if step == 70:
+            feed_valve.set_position_target(0.5)
+
+        liquid_fed += vessel.inlet_flow * STEP / 60.0
+        gas_fed += vessel.feed_gas_flow * STEP / 60.0
+        correct_liquid += net_liquid(vessel) * STEP / 60.0
+        correct_gas += net_gas(vessel) * STEP / 60.0
+
+        engine.step(STEP)
+        peak_pressure = max(peak_pressure, vessel.pressure)
+
+    assert peak_pressure > 200.0 + 1.0
+    assert vessel.volume - start_volume == pytest.approx(correct_liquid, abs=1e-6)
+    assert vessel.gas_inventory - start_gas_inventory == pytest.approx(correct_gas, abs=1e-6)
+    assert gas_fed == pytest.approx(vessel.feed_gas_ratio * liquid_fed, rel=1e-12)

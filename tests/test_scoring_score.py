@@ -287,8 +287,8 @@ def test_a_score_and_its_metrics_are_json_ready():
         ("{excursions: V-101.level}", "excursions must be a list"),
         ("{throughput: [LV-101.flow]}", "throughput must be a mapping"),
         ("{excursion: [V-101.level]}", "unknown keys"),
-        ("{throughput: {LV-101.flow: null}}", "must be a number"),
-        ("{throughput: {LV-101.flow: fast}}", "must be a number"),
+        ("{throughput: {LV-101.flow: null}}", "must be a finite number"),
+        ("{throughput: {LV-101.flow: fast}}", "must be a finite number"),
     ],
 )
 def test_a_plants_entry_of_the_wrong_shape_is_a_value_error(entry, mention):
@@ -336,7 +336,9 @@ def test_unparseable_scoring_text_is_a_value_error():
     [
         ("weights", [1, 2], "weights must be a mapping"),
         ("scales", None, "missing"),
-        ("weights", {"trip_count": None}, "weights.trip_count must be a number"),
+        ("weights", {"trip_count": None}, "weights.trip_count must be a finite number"),
+        ("scales", {"alarm_count": float("nan")}, "scales.alarm_count must be a finite number"),
+        ("production_lost_scales", {"LV-101.flow": float("inf")}, "must be a finite number"),
         ("peak_severity_penalty", {"FATAL": 1.0}, "unknown keys"),
     ],
 )

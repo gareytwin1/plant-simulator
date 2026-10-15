@@ -514,6 +514,7 @@ def test_overfilling_the_separator_raises_alarms_then_trips_the_feed_pump():
             break
 
     assert runtime.trips.tripped == ("LSHH-101",)
+    assert [record.tag for record in runtime.trip_records()] == ["LSHH-101"]
     assert runtime.snapshot().equipment["V-101"]["level"] >= 0.9
     assert not runtime.engine.equipment["P-101"].running
 

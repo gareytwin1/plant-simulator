@@ -18,6 +18,11 @@ never responded or the plant never settled. `alarm_count` tells them apart:
 no alarms means nothing to recognise or stabilise (penalty 0); alarms with a
 `None` time means it never happened (full penalty).
 
+**Outcome.** A run that did not succeed pays `outcome_penalty`. Its weight is
+one more than the other criteria's sum, so a succeeded run always scores
+strictly above a failed or timed-out one, whatever else happened: a personal
+best can never be a failed run.
+
 **Peak severity.** `Excursion.magnitude` is in each variable's own unit, so it
 is not comparable across variables; the worst `Excursion.severity` reached is.
 
@@ -55,7 +60,9 @@ _WEIGHT_KEYS = (
     "alarm_count",
     "time_to_recognise",
     "production_lost",
+    "outcome",
 )
+_OUTCOMES = ("succeeded", "failed", "timed_out")
 _SCALE_KEYS = (
     "trip_count",
     "unnecessary_actions",
@@ -82,6 +89,7 @@ class ScoringConfig:
     scales: Mapping[str, float]
     peak_severity_penalty: Mapping[Severity, float]
     production_lost_scales: Mapping[str, float]
+    outcome_penalty: Mapping[str, float]
     plants: Mapping[str, PlantScoring] = field(default_factory=lambda: MappingProxyType({}))
 
     def __post_init__(self) -> None:
@@ -109,6 +117,11 @@ class ScoringConfig:
         for severity in graded:
             if not 0.0 <= self.peak_severity_penalty.get(severity, -1.0) <= 1.0:
                 raise ValueError(f"peak_severity_penalty[{severity.name}] must be in [0, 1]")
+        if set(self.outcome_penalty) != set(_OUTCOMES):
+            raise ValueError(f"scoring outcome_penalty must have exactly the keys {list(_OUTCOMES)}")
+        for outcome, penalty in self.outcome_penalty.items():
+            if not 0.0 <= penalty <= 1.0:
+                raise ValueError(f"outcome_penalty[{outcome}] must be in [0, 1]")
         for plant_id, plant in self.plants.items():
             _check_plant(plant_id, plant, self.production_lost_scales)
 
@@ -177,6 +190,7 @@ def scoring_config_from_yaml(data: bytes | str) -> ScoringConfig:
         production_lost_scales=MappingProxyType(
             _numbers("production_lost_scales", raw.get("production_lost_scales"))
         ),
+        outcome_penalty=MappingProxyType(_numbers("outcome_penalty", raw.get("outcome_penalty"))),
         plants=MappingProxyType(
             {plant_id: _plant_from_yaml(plant_id, entry) for plant_id, entry in plants.items()}
         ),
@@ -243,6 +257,7 @@ def score_run(metrics: RunMetrics, config: ScoringConfig) -> Score:
             metrics.time_to_recognise_s, alarmed, scales["time_to_recognise_s"]
         ),
         "production_lost": _production_lost(metrics, config),
+        "outcome": _outcome(metrics, config),
     }
 
     total_weight = sum(config.weights.values())
@@ -252,6 +267,12 @@ def score_run(metrics: RunMetrics, config: ScoringConfig) -> Score:
         total=100.0 * (1.0 - weighted / total_weight),
         penalties=MappingProxyType(penalties),
     )
+
+
+def _outcome(metrics: RunMetrics, config: ScoringConfig) -> float:
+    if metrics.outcome not in config.outcome_penalty:
+        raise ValueError(f"no outcome_penalty entry for {metrics.outcome!r}")
+    return config.outcome_penalty[metrics.outcome]
 
 
 def _saturate(value: float, scale: float) -> float:

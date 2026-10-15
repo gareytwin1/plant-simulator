@@ -10,7 +10,9 @@ completed run carries its score (T20-15), but nothing stores one.
 `recorded_at` are real indexed columns because they are all a personal-best
 query needs; the full `Score` and `RunMetrics` ride alongside as JSON text, so
 adding a metric never touches the schema. `None` times round-trip as `None`,
-label mappings keep their keys, and floats round-trip exactly.
+label mappings keep their keys, and floats round-trip exactly. A row written
+before `RunMetrics.outcome` existed reads back with outcome `"unknown"`, which
+`score_run` refuses: it is for display, never for re-scoring.
 
 **Personal best.** The highest `Score.total` for one `(operator, scenario)`.
 Ties go to the earliest `recorded_at`, then the earliest stored. `operator` and
@@ -70,6 +72,8 @@ MIGRATIONS: tuple[str, ...] = (
     CREATE INDEX results_best ON results (operator, scenario, config_major, total DESC, recorded_at, id);
     """,
 )
+
+UNKNOWN_OUTCOME = "unknown"
 
 _COLUMNS = "id, operator, scenario, recorded_at, score_json, metrics_json, config_version"
 
@@ -243,6 +247,7 @@ def _row_to_result(row: tuple[Any, ...]) -> StoredResult:
             time_outside_envelope_s=metrics["time_outside_envelope_s"],
             production_lost=MappingProxyType(metrics["production_lost"]),
             unnecessary_actions=metrics["unnecessary_actions"],
+            outcome=metrics.get("outcome", UNKNOWN_OUTCOME),
         ),
         config_version=None if config_version is None else ConfigVersion.parse(config_version),
     )

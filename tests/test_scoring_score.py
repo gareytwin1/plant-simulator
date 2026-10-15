@@ -11,7 +11,7 @@ from app.envelope.evaluator import Limits, Severity
 from app.envelope.tracker import ExcursionTracker
 from app.plant.loader import load_plant_file
 from app.scoring.actionlog import ActionLog
-from app.scoring.metrics import RunMetrics, compute_metrics
+from app.scoring.metrics import RunMetrics, TripRecord, compute_metrics
 from app.scoring.score import (
     DEFAULT_CONFIG_PATH,
     PlantScoring,
@@ -41,6 +41,10 @@ def _history(*steps):
     return history
 
 
+def _compute(log, history, trackers, relevant, throughput=None, trips=(), outcome="succeeded"):
+    return compute_metrics(log, history, trackers, relevant, throughput, trips=trips, outcome=outcome)
+
+
 def _tracker(*steps):
     tracker = ExcursionTracker(LIMITS)
     for value, severity, dt in steps:
@@ -54,7 +58,7 @@ def _slow_and_stable():
     log = ActionLog()
     log.record("V-101", "set_position", 0.4, sim_time=100.0)
     tracker = _tracker((12.0, Severity.WARNING, 390.0))
-    return compute_metrics(log, history, {"discharge pressure": tracker}, _relevant)
+    return _compute(log, history, {"discharge pressure": tracker}, _relevant)
 
 
 def _fast_and_trippy():
@@ -65,11 +69,13 @@ def _fast_and_trippy():
     tracker = _tracker(
         (12.0, Severity.WARNING, 4.0), (23.0, Severity.ALARM, 6.0), (35.0, Severity.TRIP, 2.0)
     )
-    return compute_metrics(log, history, {"discharge pressure": tracker}, _relevant)
+    return _compute(
+        log, history, {"discharge pressure": tracker}, _relevant, trips=[TripRecord(20.0, "XS-101")]
+    )
 
 
 def _clean():
-    return compute_metrics(ActionLog(), AlarmHistory(capacity=10), {}, _relevant)
+    return _compute(ActionLog(), AlarmHistory(capacity=10), {}, _relevant)
 
 
 def test_slow_and_stable_outscores_fast_and_trippy():
@@ -93,6 +99,7 @@ def test_worst_possible_run_scores_zero():
         time_outside_envelope_s=1e9,
         production_lost={},
         unnecessary_actions=1000,
+        outcome="timed_out",
     )
     # production_lost has no entries, so its weight is free: score is not 0 by that share.
     free = config.weights["production_lost"] / sum(config.weights.values())
@@ -139,7 +146,7 @@ def test_production_lost_is_normalised_per_label():
     )
     tracker_flow = ThroughputTracker(target=10.0)
     tracker_flow.update(5.0, 10.0)  # lost 50
-    metrics = compute_metrics(
+    metrics = _compute(
         ActionLog(), AlarmHistory(capacity=10), {}, _relevant, throughput={"flow": tracker_flow}
     )
 
@@ -149,7 +156,7 @@ def test_production_lost_is_normalised_per_label():
 def test_unscaled_production_label_is_an_error():
     tracker = ThroughputTracker(target=10.0)
     tracker.update(5.0, 10.0)
-    metrics = compute_metrics(
+    metrics = _compute(
         ActionLog(), AlarmHistory(capacity=10), {}, _relevant, throughput={"flow": tracker}
     )
 
@@ -161,25 +168,25 @@ def test_config_rejects_missing_or_bad_values():
     config = load_scoring_config()
 
     with pytest.raises(ValueError, match="missing"):
-        ScoringConfig({}, config.scales, config.peak_severity_penalty, {})
+        ScoringConfig({}, config.scales, config.peak_severity_penalty, {}, config.outcome_penalty)
     with pytest.raises(ValueError, match="non-negative"):
-        ScoringConfig({**config.weights, "trip_count": -1.0}, config.scales, config.peak_severity_penalty, {})
+        ScoringConfig({**config.weights, "trip_count": -1.0}, config.scales, config.peak_severity_penalty, {}, config.outcome_penalty)
     with pytest.raises(ValueError, match="positive"):
-        ScoringConfig(config.weights, {**config.scales, "alarm_count": 0.0}, config.peak_severity_penalty, {})
+        ScoringConfig(config.weights, {**config.scales, "alarm_count": 0.0}, config.peak_severity_penalty, {}, config.outcome_penalty)
 
 
 def test_config_rejects_unknown_weight_keys():
     config = load_scoring_config()
 
     with pytest.raises(ValueError, match="unknown"):
-        ScoringConfig({**config.weights, "bogus": 1.0}, config.scales, config.peak_severity_penalty, {})
+        ScoringConfig({**config.weights, "bogus": 1.0}, config.scales, config.peak_severity_penalty, {}, config.outcome_penalty)
 
 
 def test_config_rejects_unknown_scale_keys():
     config = load_scoring_config()
 
     with pytest.raises(ValueError, match="unknown"):
-        ScoringConfig(config.weights, {**config.scales, "bogus": 1.0}, config.peak_severity_penalty, {})
+        ScoringConfig(config.weights, {**config.scales, "bogus": 1.0}, config.peak_severity_penalty, {}, config.outcome_penalty)
 
 
 def test_production_lost_averages_across_labels():
@@ -190,7 +197,7 @@ def test_production_lost_averages_across_labels():
     flow.update(5.0, 10.0)  # lost 50 of 100 -> 0.5
     level = ThroughputTracker(target=10.0)
     level.update(0.0, 1.0)  # lost 10 of 10 -> 1.0
-    metrics = compute_metrics(
+    metrics = _compute(
         ActionLog(), AlarmHistory(capacity=10), {}, _relevant, throughput={"flow": flow, "level": level}
     )
 
@@ -204,7 +211,7 @@ def test_peak_severity_takes_the_worst_point():
         "b": _tracker((35.0, Severity.TRIP, 1.0)),
         "c": _tracker((5.0, Severity.NORMAL, 1.0)),
     }
-    metrics = compute_metrics(ActionLog(), AlarmHistory(capacity=10), trackers, _relevant)
+    metrics = _compute(ActionLog(), AlarmHistory(capacity=10), trackers, _relevant)
 
     assert score_run(metrics, config).penalties["peak_severity"] == pytest.approx(
         config.peak_severity_penalty[Severity.TRIP]
@@ -216,7 +223,7 @@ def test_config_rejects_bad_peak_severity_penalty():
     penalties = dict(config.peak_severity_penalty)
 
     def build(table):
-        return ScoringConfig(config.weights, config.scales, table, {})
+        return ScoringConfig(config.weights, config.scales, table, {}, config.outcome_penalty)
 
     with pytest.raises(ValueError, match="TRIP"):
         build({k: v for k, v in penalties.items() if k is not Severity.TRIP})
@@ -226,13 +233,85 @@ def test_config_rejects_bad_peak_severity_penalty():
         build({**penalties, Severity.NORMAL: 0.0})
 
 
+# ---- the outcome criterion (T20-21) ----
+
+
+def _config_with_outcome(table):
+    config = load_scoring_config()
+    return ScoringConfig(
+        config.weights, config.scales, config.peak_severity_penalty, {}, table, plants={}
+    )
+
+
+def test_outcome_weight_exceeds_every_other_weight_together():
+    weights = dict(load_scoring_config().weights)
+    outcome = weights.pop("outcome")
+
+    assert outcome > sum(weights.values())
+
+
+@pytest.mark.parametrize("bad", ["failed", "timed_out"])
+def test_the_best_unsuccessful_run_scores_below_the_worst_succeeded_run(bad):
+    config = load_scoring_config()
+    worst = dataclasses.replace(_succeeded_worst(), outcome="succeeded")
+    best = dataclasses.replace(_clean(), outcome=bad)
+
+    assert score_run(worst, config).total > score_run(best, config).total
+
+
+def _succeeded_worst():
+    return RunMetrics(
+        alarm_count=1000,
+        trip_count=1000,
+        time_to_recognise_s=None,
+        time_to_stabilise_s=None,
+        peak_excursions={"x": _tracker((99.0, Severity.TRIP, 1.0)).peak},
+        time_outside_envelope_s=1e9,
+        production_lost={},
+        unnecessary_actions=1000,
+        outcome="succeeded",
+    )
+
+
+def test_an_unknown_outcome_is_an_error():
+    with pytest.raises(ValueError, match="outcome"):
+        score_run(dataclasses.replace(_clean(), outcome="aborted"), load_scoring_config())
+
+
+@pytest.mark.parametrize(
+    "table",
+    [
+        {"succeeded": 0.0, "failed": 1.0},
+        {"succeeded": 0.0, "failed": 1.0, "timed_out": 1.0, "aborted": 1.0},
+        {"succeeded": 0.0, "failed": 1.5, "timed_out": 1.0},
+        {"succeeded": -0.1, "failed": 1.0, "timed_out": 1.0},
+    ],
+)
+def test_config_rejects_a_bad_outcome_penalty_table(table):
+    with pytest.raises(ValueError, match="outcome_penalty"):
+        _config_with_outcome(table)
+
+
+def test_the_yaml_outcome_penalty_must_be_complete():
+    document = yaml.safe_load(DEFAULT_CONFIG_PATH.read_text())
+    del document["outcome_penalty"]["timed_out"]
+
+    with pytest.raises(ValueError, match="outcome_penalty"):
+        scoring_config_from_yaml(yaml.safe_dump(document))
+
+
 # ---- what a run tracks, per plant (T20-15) ----
 
 
 def _with_plants(plants, scales=None):
     config = load_scoring_config()
     return ScoringConfig(
-        config.weights, config.scales, config.peak_severity_penalty, scales or {}, plants=plants
+        config.weights,
+        config.scales,
+        config.peak_severity_penalty,
+        scales or {},
+        config.outcome_penalty,
+        plants=plants,
     )
 
 

@@ -806,6 +806,8 @@ def test_a_completed_run_is_scored_from_its_own_log_history_and_trackers(recover
         excursions,
         lambda action: True,
         throughput,
+        trips=runner._run.runtime.trip_records(),
+        outcome=runner.result().outcome.value,
     )
 
     result = runner.result()
@@ -875,6 +877,54 @@ def test_the_score_is_in_the_json_result():
     assert body["score"]["total"] == runner.result().score.total
     assert set(body["score"]["penalties"]) == set(load_scoring_config().weights)
     assert body["metrics"]["production_lost"]["LV-101.flow"] > 0.0
+
+
+# ---- the outcome and the run's own trips (T20-21) ----
+
+
+def run_shipped(scenario_id, recover_at=None):
+    runner = ScenarioRunner()
+    runner.load(scenario_id)
+    runner.start()
+
+    if recover_at is not None:
+        run_for(runner, recover_at)
+        recover(runner)
+
+    run_out(runner)
+
+    return runner
+
+
+@pytest.mark.parametrize(
+    "scenario_id", ["compressor_trip", "restricted_discharge", "loss_of_feed", "blocked_drain"]
+)
+def test_an_ignored_failing_scenario_scores_at_most_fifty(scenario_id):
+    result = run_shipped(scenario_id).result()
+
+    assert result.outcome is not Outcome.SUCCEEDED
+    assert result.metrics.outcome == result.outcome.value
+    assert result.score.total <= 50.0
+
+
+def test_a_prompt_recovery_of_the_pump_trip_scores_above_ninety():
+    runner = run_shipped("pump_trip", recover_at=10)
+    result = runner.result()
+
+    assert result.outcome is Outcome.SUCCEEDED
+    assert result.metrics.trip_count == 0
+    assert result.metrics.alarm_count > 0
+    assert result.score.total > 90.0
+
+
+def test_a_latched_interlock_counts_one_trip_however_long_it_stays_latched():
+    runner = brimming_run()
+
+    run_for(runner, 120)
+
+    runtime = runner._run.runtime
+    assert runtime.trips.interlocks["LSHH-101"].tripped
+    assert [record.tag for record in runtime.trip_records()] == ["LSHH-101"]
 
 
 def scoring_library(tmp_path, plants):

@@ -5,7 +5,11 @@
 # the value at which that criterion costs its full weight).
 #
 # A trip costs far more than a slow recovery: that is the point of the weights.
+# outcome is one more than the other eight added up (100), so a succeeded run
+# scores strictly above every failed or timed-out one and no failed run can tie
+# one for a personal best. Keep it above their sum if you change any weight.
 weights:
+  outcome: 101
   trip_count: 40
   peak_severity: 15
   unnecessary_actions: 10
@@ -28,6 +32,12 @@ peak_severity_penalty:
   WARNING: 0.25
   ALARM: 0.6
   TRIP: 1.0
+
+# Penalty for how the run ended.
+outcome_penalty:
+  succeeded: 0.0
+  failed: 1.0
+  timed_out: 1.0
 
 # Shortfall (variable unit x seconds) that costs the full production_lost
 # penalty, per label as given to compute_metrics. A label with no entry here

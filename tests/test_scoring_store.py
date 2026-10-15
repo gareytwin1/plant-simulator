@@ -39,6 +39,7 @@ def _metrics(**overrides):
         "time_outside_envelope_s": 33.3,
         "production_lost": MappingProxyType({"flow": 1234.5, "level": 0.1}),
         "unnecessary_actions": 2,
+        "outcome": "failed",
     }
     fields.update(overrides)
     return RunMetrics(**fields)
@@ -294,4 +295,6 @@ def test_upgrading_a_pre_versioning_database_keeps_rows_with_no_version(tmp_path
         assert upgraded.schema_version == len(MIGRATIONS)
         (legacy,) = upgraded.history("op-1", "s1")
         assert legacy.config_version is None
+        assert legacy.metrics.outcome == "unknown"
+        assert upgraded.get(legacy.id) == legacy
         assert upgraded.personal_best("op-1", "s1") is None

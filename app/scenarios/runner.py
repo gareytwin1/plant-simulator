@@ -939,7 +939,7 @@ class ScenarioRunner:
         run.phase = Phase.COMPLETE
         run.ended_at = view.sim_time
         run.outcome = _outcome(run.results)
-        run.metrics = run.runtime.metrics(_every_action_relevant)
+        run.metrics = run.runtime.metrics(_every_action_relevant, run.outcome.value)
         run.score = score_run(run.metrics, run.scoring)
 
     @staticmethod

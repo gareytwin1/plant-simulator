@@ -52,7 +52,8 @@ time - by the sim time since the last one. An excursion's severity is the
 snapshot's envelope band, as the alarm pipeline reads it, and its value and a
 throughput's are the snapshot's equipment row. A label that names no limit of
 this plant, or no number on an equipment row, is refused at construction.
-`metrics` reads the action log, the alarm history and the trackers as they
+`metrics` reads the action log, the alarm history, the trip records (an
+interlock latching, noted around each trip update) and the trackers as they
 stand. Like recording, feeding changes no plant state and never runs in
 `Engine`.
 
@@ -86,7 +87,7 @@ from app.plant.loader import Plant
 from app.plant.units import point_units
 from app.safety.actions import TripSystem
 from app.scoring.actionlog import ActionEvent, ActionLog
-from app.scoring.metrics import RunMetrics, compute_metrics
+from app.scoring.metrics import RunMetrics, TripRecord, compute_metrics
 from app.scoring.score import PlantScoring
 from app.scoring.throughput import ThroughputTracker
 from app.statetypes import JSONValue
@@ -134,6 +135,7 @@ class PlantRuntime:
         self.alarms = AlarmManager() if alarms is None else alarms
         self.history = AlarmHistory(alarm_history_capacity)
         self.actions = ActionLog()
+        self._trip_records: list[TripRecord] = []
         self.trends = Historian(config.TREND_CAPACITY, config.TREND_SAMPLE_PERIOD_SECONDS)
         self._trend_points = tuple(sorted(self._trend_values(engine.snapshot())))
         self._trend_descriptors = {
@@ -172,7 +174,13 @@ class PlantRuntime:
     def step(self, dt: float) -> Snapshot:
         with self._lock:
             before = self._published if self._published is not None else self.engine.snapshot()
+            latched_before = set(self.trips.tripped)
             self.trips.update(before)
+            self._trip_records.extend(
+                TripRecord(before.sim_time, tag)
+                for tag in self.trips.tripped
+                if tag not in latched_before
+            )
 
             snapshot = self._annunciated(self.engine.step(dt))
             self._published = snapshot
@@ -222,11 +230,26 @@ class PlantRuntime:
 
             self._published = None
 
-    def metrics(self, is_relevant: Callable[[ActionEvent], bool]) -> RunMetrics:
-        """`compute_metrics` over this runtime's action log, alarm history
-        and scoring trackers as they stand now, labelled as configured."""
+    def trip_records(self) -> tuple[TripRecord, ...]:
+        """Each interlock latch so far, in order. A tag that is reset and
+        latches again appears twice; one that stays latched appears once."""
         with self._lock:
-            return compute_metrics(self.actions, self.history, self._excursions, is_relevant, self._throughput)
+            return tuple(self._trip_records)
+
+    def metrics(self, is_relevant: Callable[[ActionEvent], bool], outcome: str) -> RunMetrics:
+        """`compute_metrics` over this runtime's action log, alarm history,
+        trip records and scoring trackers as they stand now, labelled as
+        configured. `outcome` is how the run ended, as a plain string."""
+        with self._lock:
+            return compute_metrics(
+                self.actions,
+                self.history,
+                self._excursions,
+                is_relevant,
+                self._throughput,
+                trips=self._trip_records,
+                outcome=outcome,
+            )
 
     def acknowledge(self, alarm_id: str) -> Acknowledged:
         with self._lock:

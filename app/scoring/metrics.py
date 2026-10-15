@@ -50,9 +50,9 @@ weighs or grades.
                            three inputs carry, so the scenario supplies it.
 
 **In a live run (T20-15)** `PlantRuntime` records the alarm history, clears
-included, a `TripRecord` for each interlock that latches, and feeds the trackers that `config/scoring.yaml` names for the
-plant from each snapshot it publishes; `ScenarioRunner` computes the metrics
-once, when the run completes.
+included, and a `TripRecord` for each interlock that latches. It feeds the
+trackers that `config/scoring.yaml` names for the plant from each snapshot it
+publishes; `ScenarioRunner` computes the metrics once, when the run completes.
 
 **Eviction.** `AlarmHistory` is bounded, so a run longer than its capacity
 undercounts alarms and may lose the first alarm. Size the history

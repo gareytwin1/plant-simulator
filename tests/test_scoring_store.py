@@ -283,7 +283,6 @@ def test_upgrading_a_pre_versioning_database_keeps_rows_with_no_version(tmp_path
                 "time_outside_envelope_s": 0.0,
                 "production_lost": {},
                 "unnecessary_actions": 0,
-                "outcome": "succeeded",
             }
         )
         v1._connection.execute(
@@ -296,4 +295,6 @@ def test_upgrading_a_pre_versioning_database_keeps_rows_with_no_version(tmp_path
         assert upgraded.schema_version == len(MIGRATIONS)
         (legacy,) = upgraded.history("op-1", "s1")
         assert legacy.config_version is None
+        assert legacy.metrics.outcome == "unknown"
+        assert upgraded.get(legacy.id) == legacy
         assert upgraded.personal_best("op-1", "s1") is None

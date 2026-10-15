@@ -177,7 +177,9 @@ class PlantRuntime:
             latched_before = set(self.trips.tripped)
             self.trips.update(before)
             self._trip_records.extend(
-                TripRecord(before.sim_time, tag) for tag in self.trips.tripped if tag not in latched_before
+                TripRecord(before.sim_time, tag)
+                for tag in self.trips.tripped
+                if tag not in latched_before
             )
 
             snapshot = self._annunciated(self.engine.step(dt))

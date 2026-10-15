@@ -39,6 +39,7 @@ def _metrics(**overrides):
         "time_outside_envelope_s": 33.3,
         "production_lost": MappingProxyType({"flow": 1234.5, "level": 0.1}),
         "unnecessary_actions": 2,
+        "outcome": "failed",
     }
     fields.update(overrides)
     return RunMetrics(**fields)
@@ -282,6 +283,7 @@ def test_upgrading_a_pre_versioning_database_keeps_rows_with_no_version(tmp_path
                 "time_outside_envelope_s": 0.0,
                 "production_lost": {},
                 "unnecessary_actions": 0,
+                "outcome": "succeeded",
             }
         )
         v1._connection.execute(

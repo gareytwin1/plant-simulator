@@ -17,13 +17,15 @@ weighs or grades.
                            and re-activations each count, because each one
                            demanded the operator's attention again.
                            Acknowledgements are not alarms.
-    trip_count             AlarmHistory: `Event`s whose data severity is
-                           TRIP, so a trip here means a TRIP-severity
-                           envelope band (a `trip: true` limit's outer
-                           bound) was entered. Trips are live in a run
-                           (`PlantRuntime` runs `TripSystem`), but an
-                           interlock acting leaves no record in the alarm
-                           history, so the band is the trip this counts.
+    trip_count             TripRecords: one per interlock latch, recorded by
+                           `PlantRuntime`. A trip-rated band with no
+                           interlock behind it is not a trip: it still
+                           feeds alarm_count, peak_excursions and
+                           time_outside_envelope_s, but never this.
+    outcome                The run's outcome as a plain string
+                           (`succeeded`, `failed` or `timed_out`), passed in
+                           by the caller: app/scoring never imports
+                           app/scenarios.
     time_to_stabilise_s    AlarmHistory: first alarm to the last `ClearRecord`,
                            once every point that alarmed has returned to
                            NORMAL and stayed there. None if there was no
@@ -48,18 +50,18 @@ weighs or grades.
                            three inputs carry, so the scenario supplies it.
 
 **In a live run (T20-15)** `PlantRuntime` records the alarm history, clears
-included, and feeds the trackers that `config/scoring.yaml` names for the
+included, a `TripRecord` for each interlock that latches, and feeds the trackers that `config/scoring.yaml` names for the
 plant from each snapshot it publishes; `ScenarioRunner` computes the metrics
 once, when the run completes.
 
 **Eviction.** `AlarmHistory` is bounded, so a run longer than its capacity
-undercounts alarms and trips and may lose the first alarm. Size the history
+undercounts alarms and may lose the first alarm. Size the history
 for the run.
 """
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Any
@@ -75,6 +77,18 @@ _NON_NORMAL: tuple[Severity, ...] = (Severity.WARNING, Severity.ALARM, Severity.
 
 
 @dataclass(frozen=True)
+class TripRecord:
+    """An interlock latched: the sim time of the snapshot it was evaluated
+    on, and its tag."""
+
+    sim_time: float
+    tag: str
+
+    def as_dict(self) -> dict[str, Any]:
+        return {"sim_time": self.sim_time, "tag": self.tag}
+
+
+@dataclass(frozen=True)
 class RunMetrics:
     """Immutable, comparable by value, not hashable (it holds a mapping)."""
 
@@ -86,6 +100,7 @@ class RunMetrics:
     time_outside_envelope_s: float
     production_lost: Mapping[str, float]
     unnecessary_actions: int
+    outcome: str
 
     def as_dict(self) -> dict[str, Any]:
         """JSON-safe: a peak as its severity name, magnitude and timestamp.
@@ -108,6 +123,7 @@ class RunMetrics:
             "time_outside_envelope_s": self.time_outside_envelope_s,
             "production_lost": dict(self.production_lost),
             "unnecessary_actions": self.unnecessary_actions,
+            "outcome": self.outcome,
         }
 
 
@@ -117,13 +133,16 @@ def compute_metrics(
     trackers: Mapping[str, ExcursionTracker],
     is_relevant: Callable[[ActionEvent], bool],
     throughput: Mapping[str, ThroughputTracker] | None = None,
+    *,
+    trips: Sequence[TripRecord],
+    outcome: str,
 ) -> RunMetrics:
     events = [entry for entry in alarms.entries() if isinstance(entry, Event)]
     first_alarm = min((event.sim_time for event in events), default=None)
 
     return RunMetrics(
         alarm_count=len(events),
-        trip_count=sum(1 for event in events if event.data.get("severity") == Severity.TRIP.name),
+        trip_count=len(trips),
         time_to_recognise_s=_time_to_recognise(actions, first_alarm, is_relevant),
         time_to_stabilise_s=_time_to_stabilise(alarms),
         peak_excursions=MappingProxyType(
@@ -136,6 +155,7 @@ def compute_metrics(
             {label: tracker.lost for label, tracker in (throughput or {}).items()}
         ),
         unnecessary_actions=sum(1 for action in actions if not is_relevant(action)),
+        outcome=outcome,
     )
 
 

@@ -243,6 +243,7 @@ def _row_to_result(row: tuple[Any, ...]) -> StoredResult:
             time_outside_envelope_s=metrics["time_outside_envelope_s"],
             production_lost=MappingProxyType(metrics["production_lost"]),
             unnecessary_actions=metrics["unnecessary_actions"],
+            outcome=metrics["outcome"],
         ),
         config_version=None if config_version is None else ConfigVersion.parse(config_version),
     )

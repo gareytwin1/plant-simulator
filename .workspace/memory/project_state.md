@@ -8,10 +8,10 @@ regrowth rule is in [.claude/rules/docs.md](../../.claude/rules/docs.md).
 
 ## Right now
 
-**Last state refresh:** 14 October 2026, at `8f123e4` (Merge T20-15, PR #175: score a finished run) - **this is a snapshot,
-not a live pointer.** Run `git log 8f123e4..HEAD --oneline` to see what has
+**Last state refresh:** 15 October 2026, at `4f80d36` (Merge T20-21, PR #176: score the outcome and only interlock trips) - **this is a snapshot,
+not a live pointer.** Run `git log 4f80d36..HEAD --oneline` to see what has
 merged since.
-**Full suite as of this refresh:** **4148 passed** · `python -m mypy` clean over 88 source files · no golden trace movement
+**Full suite as of this refresh:** **4165 passed** · `python -m mypy` clean over 88 source files · no golden trace movement
 **In flight:** nothing. The spine lock and the `app/main.py` lock are free.
 No task is Blocked. CI runs on every PR, and `main` requires its
 `test` check before a merge.
@@ -21,12 +21,12 @@ No task is Blocked. CI runs on every PR, and `main` requires its
 
 | Task | SHA | What landed |
 |---|---|---|
+| **T20-21** | `4f80d36` | Outcome and interlock trips in the score: `RunMetrics.outcome` (a plain string, so `app/scoring` never imports `app/scenarios`) and a ninth criterion, `outcome`, weighted 101 (one more than the other eight) with an `outcome_penalty` table, so every succeeded run scores strictly above every failed or timed-out one. `PlantRuntime` records a `TripRecord(sim_time, tag)` per interlock latch and `trip_count` is their number; a trip-rated band with no interlock (pump_trip's P-101 flow LOLO) still feeds alarms, peak severity and time outside the envelope but is no trip. Rows stored before the metric read back with outcome `unknown`. Config 3.0.0. Built on Sonnet (PR #176) |
 | **T20-15** | `8f123e4` | Score a finished run: `config/scoring.yaml` gains per-plant `plants` (excursion limits and throughput targets; olefins_lite and separator track drum level and pressure and liquid product at 50 GPM, not `P-101.flow`), read once at load and part of the run's fingerprint. `PlantRuntime` feeds the trackers from every published snapshot and refuses a point the plant lacks; `ScenarioRunner` computes `RunMetrics` and `Score` once at COMPLETE, and `public_result` shows them only beside the debrief (null when aborted). Every action counts as relevant for now. A malformed scoring file is a 400. Config 2.5.0; no golden moved. Built on Opus (PR #175). Backend only |
 | **T20-17** | `8e1e697` | Separator plant (`config/plants/separator.yaml`, beside an untouched olefins_lite): FV-301 a liquid feed carrying 0.2 SCFM/GPM into V-301, and FIC-301, LIC-301 and PIC-301 in AUTO (LIC and PIC retuned from the prototype's gains, which swing and hunt on this drum). LSHH-301 and PSHH-301 close FV-301, LSLL-301 closes LV-301; a lost valve signal defeats the trip on that valve (no separate shutdown valve). `separator_normal.json` saves the design point (new recipe in `scripts/initial_conditions.py`); `separator.svg` in the accepted style. Meets Checkpoint D's last gate. Config 2.4.0; no golden moved. Free play stays on olefins_lite until the user decides (asked, unanswered). Built on Opus (PR #174). Phone width unchecked |
 | **T20-5** | `c1e2713` | Two-phase feed (ADR 0002 Amendment 4, decided with the user): one valve and one line, the feed solved as liquid, and `Vessel.feed_gas_ratio` (SCFM/GPM, malfunction-writable) releasing `ratio * max(0, inlet_flow)` into the gas balance as `feed_gas_flow`. A ratio above zero is refused on a vessel that cannot release it (no vapor attachment, or a one-direction liquid node a branch runs the other way through) at build, at scenario arming and in `restore_state`. Initial conditions gained `_feed_gas_ratio: 0.0`; config 2.3.0; no golden moved. Decided and built on Opus (PR #173) |
 | **T20-4** | `5e45ae6` | Loops measure any published point: a `controllers.pv` is a bare node id (its pressure, as before) or `<id>.<field>` on an equipment row, node or stream, resolved in `load_loops` against the engine's indicated view (`Engine.from_plant` now binds loops after building the engine). An unknown, ambiguous, unpublished, non-numeric or unitless point is a load error naming the entry. `pv_unit` comes from `app.plant.units.unit_lookup`; setpoints are checked against it at load and on `set_setpoint` (fraction [0, 1], °F above absolute zero, otherwise non-negative). The faceplate shows a fraction loop in percent. Config 2.2.0. Decided and built on Opus (PR #172). Phone width unchecked |
 | **T20-13** | `339d106` | Equipment actions on the faceplate: a device panel offers exactly the actions `/api/plant` lists - Start and Stop (disabled while running / stopped, read from the run flag) and a percent target posted as a fraction, with actual and target on one bar; a loop-driven device offers only its loop. A device an interlock holds gets a Reset for each tripped, manual-reset interlock (`canvas.js` passes `/api/plant`'s `interlocks`). Feedback reads pending, then accepted or the server's words. `PlantRuntime.act` now refuses a reset that would do nothing (not tripped, auto-reset, condition still holds) with a `ValueError` and does not log it. `olefins_lite.svg` valves carry a state badge, shown only as `✖ TRIP` while an interlock holds them. The browser-script guard exempts the run verbs `start` and `stop`. Built on Sonnet (PR #171). Seen in headless Firefox on desktop, both themes; phone width unchecked (desktop first) |
-| **T20-3** | `d96b4d1` | Interlock state in C4 (additive): `Snapshot.interlocks`, `{tag: {state, reset, devices}}` (state `normal`/`pending`/`tripped`, reset `auto`/`manual`, devices the tags its actions name; never the condition). `Engine` builds it empty; `PlantRuntime` fills it from `TripSystem.status()` after each step and on `snapshot()`, and `ScenarioRunner` reads its snapshots through the runtime. The operator view passes it unchanged. `graphic.js` draws a device a tripped interlock holds as `✖ TRIP` (a pending one holds nothing; an unpublished device stays unknown); the faceplate badge and `olefins_lite.svg` style it from `--equip-tripped-*`. Decided and built on Opus (PR #170). Seen in headless Firefox on desktop; phone width unchecked (desktop first) |
 
 **ADRs on `main`:** [0001](../../docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md)
 (+ Amendment 1) and [0002](../../docs/ADR_0002_TYPED_PORTS.md) (+ Amendments
@@ -40,22 +40,20 @@ Complete: **M0-M9, M12-M18, MR**. Open:
 |---|---|---|
 | **M10** Alarms | 5/6 | T10-1, T10-2, T10-3, T10-5, T10-6; T10-4 startable (V1.1-deferred) |
 | **M11** Interlocks and Trips | 3/4 | T11-1, T11-2, T11-3; T11-4 startable (V1.1-deferred) |
-| **M20** Console Redesign | 17/21 | T20-1, T20-2, T20-3, T20-4, T20-5, T20-6, T20-7, T20-8, T20-9, T20-10, T20-11, T20-12, T20-13, T20-14, T20-15, T20-17, T20-20; startable T20-18, T20-21 |
+| **M20** Console Redesign | 18/21 | T20-1, T20-2, T20-3, T20-4, T20-5, T20-6, T20-7, T20-8, T20-9, T20-10, T20-11, T20-12, T20-13, T20-14, T20-15, T20-17, T20-20, T20-21; startable T20-16, T20-18 |
 | M19 | 0 | - |
 
-**145 of 154 tasks Complete.** Checkpoints A-D reached: T20-17 met D's last
+**146 of 154 tasks Complete.** Checkpoints A-D reached: T20-17 met D's last
 gate ("loops reject an injected disturbance") on the separator plant.
 
 ## The next task
 
-**Startable in M20:** T20-21 and T20-18 (both Sonnet) - the `startable` field
-of [BUILD_PLAN_STATUS.json](../../docs/BUILD_PLAN_STATUS.json). Neither needs
-the spine lock. **T20-21 first by leverage**: it gates T20-16 (run history)
-and its shape is fixed in the build plan - the outcome becomes a ninth score
-criterion weighted 101, so every succeeded run outscores every failed one, and
-`trip_count` counts interlock latches recorded by `PlantRuntime`, not
-TRIP-severity alarms (T20-15's score lets a failed run reach 100 and charges
-pump_trip's premise as a trip). T20-18 (separator scenarios) has a gap to
+**Startable in M20:** T20-16 (run history, Sonnet) and T20-18 (separator
+scenarios, Sonnet) - the `startable` field of
+[BUILD_PLAN_STATUS.json](../../docs/BUILD_PLAN_STATUS.json). Neither needs the
+spine lock. **T20-16 first by leverage**: T20-21 has merged, so a stored run
+now carries its outcome and a failed run can no longer rank first. It also
+needs `app/main.py` (free). T20-18 (separator scenarios) has a gap to
 settle first: two of its four faults are a lost valve signal, and no C8
 malfunction can drop one (`WRITABLE[ControlValve]` is only `capacity` and
 `min_position`), so that mechanism is a contract question to escalate, not

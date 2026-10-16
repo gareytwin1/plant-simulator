@@ -834,6 +834,7 @@ def test_one_malformed_entry_never_hides_the_good_ones():
                 3,
                 {**good, "recorded_at": None},
                 {**good, "recorded_at": "soon"},
+                {**good, "recorded_at": 1e13},
                 {**good, "total": None},
                 {**good, "title": None},
                 {k: v for k, v in good.items() if k != "difficulty"},

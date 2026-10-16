@@ -135,7 +135,8 @@
   }
 
   function isRun(run) {
-    return isBest(run) && typeof run.difficulty === "string" && isNumber(run.recorded_at);
+    return isBest(run) && typeof run.difficulty === "string" && isNumber(run.recorded_at) &&
+      isFinite(new Date(run.recorded_at * 1000).getTime());
   }
 
   /* What the Recent scenarios card shows of a GET /api/history body: the

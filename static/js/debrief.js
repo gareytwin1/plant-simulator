@@ -30,6 +30,7 @@
 
   var node = typeof module !== "undefined" && module.exports;
   var Ribbon = node ? require("./ribbon.js") : root.Ribbon;
+  var Scenario = node ? require("./scenario.js") : root.ScenarioBar;
 
   var LOAD_URL = "/api/scenario/load";
   var START_URL = "/api/scenario/start";
@@ -180,7 +181,8 @@
    * it at once, with the words for a start that was then refused (the panel
    * closes on a loaded run, so they are shown elsewhere). `options.onRefusal(
    * text)` gets a refusal when nothing was accepted and the panel is no longer
-   * showing, for the ribbon's notice.
+   * showing, for the ribbon's notice, and `options.onResync()` is called
+   * whenever nothing was accepted, so the ribbon can read the run again.
    * Returns {result, open, close}: feed `result` every
    * (status, body) the ribbon's scenario poll applies. */
   function mount(doc, options) {
@@ -369,29 +371,6 @@
       }
     }
 
-    /* One request, with a deadline, so a request that never settles cannot
-     * leave Try again disabled for good: past it the request is aborted where
-     * the transport allows and counts as a failure (status 0). */
-    async function send(step) {
-      var controller = typeof AbortController === "function" ? new AbortController() : null;
-      var timerId;
-      var deadline = new Promise(function (resolve, reject) {
-        timerId = root.setTimeout(function () {
-          if (controller) controller.abort();
-          reject(new Error("timed out"));
-        }, timeoutMs);
-      });
-      var init = Object.assign({}, step.init);
-      if (controller) init.signal = controller.signal;
-      try {
-        var response = await Promise.race([doFetch(step.url, init), deadline]);
-        var body = response.ok ? await Promise.race([response.json(), deadline]) : null;
-        return { ok: response.ok, status: response.status, body: body };
-      } finally {
-        root.clearTimeout(timerId);
-      }
-    }
-
     async function tryAgain() {
       if (busy || shown === null) return;
       busy = true;
@@ -402,7 +381,7 @@
       try {
         var steps = api.retrySteps(shown.key);
         for (var i = 0; i < steps.length; i += 1) {
-          var response = await send(steps[i]);
+          var response = await Scenario.timedFetch(doFetch, steps[i], timeoutMs);
           if (!response.ok) {
             refusal = api.refusalText(response.status);
             break;
@@ -421,8 +400,11 @@
       // here (a poll took the run away meanwhile) goes to the ribbon's notice.
       if (accepted !== null) {
         if (settings.onRetry) settings.onRetry(accepted.status, accepted.body, refusal);
-      } else if (refusal !== "" && panel.hidden && settings.onRefusal) {
-        settings.onRefusal(refusal);
+      } else if (refusal !== "") {
+        // The load may have been applied before the request failed, so the
+        // ribbon is asked to catch up rather than wait for its next poll.
+        if (panel.hidden && settings.onRefusal) settings.onRefusal(refusal);
+        if (settings.onResync) settings.onResync();
       }
     }
 

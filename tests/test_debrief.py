@@ -751,3 +751,21 @@ def test_a_notice_only_message_leaves_a_send_in_flight_and_focus_alone(client, s
     assert got["during"] == {"notice": "Too many requests. Wait a moment and try again.", "focus": "faceplate-entry"}
     assert got["state"] == f"Scenario {DOT} Running"
     assert got["focus"] == "faceplate-entry"
+
+
+@needs_node
+def test_a_try_again_that_accepted_nothing_asks_the_ribbon_to_read_the_run_again():
+    got = run_js(
+        PAGE
+        + """
+        const { panel } = page('complete');
+        const asked = [];
+        const debrief = D.mount(doc, { timeoutMs: 20, fetch: () => new Promise(() => {}), onResync: () => asked.push('poll') });
+        debrief.result(200, data.done);
+        await button(panel, 'Try again').listeners.click[0]();
+        return asked;
+        """,
+        done=finished("failed"),
+    )
+
+    assert got == ["poll"]

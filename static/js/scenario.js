@@ -113,6 +113,32 @@
     return "Scenario \u00B7 " + api.phaseLabel(labels, phase);
   };
 
+  /* One request with a deadline, so a request that never settles cannot hold
+   * a flag for good: past it the request is aborted where the transport allows
+   * and the promise rejects. Resolves {ok, status, body}, the body being null
+   * unless the response was ok. Shared with static/js/debrief.js. */
+  api.timedFetch = async function (doFetch, request, timeoutMs) {
+    var controller = typeof AbortController === "function" ? new AbortController() : null;
+    var timerId;
+    var deadline = new Promise(function (resolve, reject) {
+      timerId = root.setTimeout(function () {
+        if (controller) controller.abort();
+        reject(new Error("timed out"));
+      }, timeoutMs);
+    });
+    var init = Object.assign({}, request.init || {});
+    if (controller) init.signal = controller.signal;
+
+    try {
+      var response = await Promise.race([doFetch(request.url, init), deadline]);
+      var body = null;
+      if (response.ok) body = await Promise.race([response.json(), deadline]);
+      return { ok: response.ok, status: response.status, body: body };
+    } finally {
+      root.clearTimeout(timerId);
+    }
+  };
+
   /* browser glue */
 
   /* Mount the run controls. `options.fetch` and `options.pollMs` exist so a
@@ -226,28 +252,8 @@
       if (settings.onResult) settings.onResult(status, body);
     }
 
-    /* A request that never settles would hold a flag for good, so each one is
-     * given a deadline and aborted where the transport allows. */
-    async function get(request) {
-      var controller = typeof AbortController === "function" ? new AbortController() : null;
-      var timerId;
-      var deadline = new Promise(function (resolve, reject) {
-        timerId = root.setTimeout(function () {
-          if (controller) controller.abort();
-          reject(new Error("timed out"));
-        }, FETCH_TIMEOUT_MS);
-      });
-      var init = Object.assign({}, request.init || {});
-      if (controller) init.signal = controller.signal;
-
-      try {
-        var response = await Promise.race([doFetch(request.url, init), deadline]);
-        var body = null;
-        if (response.ok) body = await Promise.race([response.json(), deadline]);
-        return { status: response.status, body: body };
-      } finally {
-        root.clearTimeout(timerId);
-      }
+    function get(request) {
+      return api.timedFetch(doFetch, request, FETCH_TIMEOUT_MS);
     }
 
     async function pollOnce() {

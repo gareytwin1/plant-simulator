@@ -40,7 +40,7 @@ Complete: **M0-M9, M12-M18, MR**. Open:
 |---|---|---|
 | **M10** Alarms | 5/6 | T10-1, T10-2, T10-3, T10-5, T10-6; T10-4 startable (V1.1-deferred) |
 | **M11** Interlocks and Trips | 3/4 | T11-1, T11-2, T11-3; T11-4 startable (V1.1-deferred) |
-| **M20** Console Redesign | 21/24 | T20-1, T20-2, T20-3, T20-4, T20-5, T20-6, T20-7, T20-8, T20-9, T20-10, T20-11, T20-12, T20-13, T20-14, T20-15, T20-16, T20-17, T20-18, T20-19, T20-20, T20-21; startable T20-22, T20-23; T20-24 after them |
+| **M20** Console Redesign | 21/24 | T20-1, T20-2, T20-3, T20-4, T20-5, T20-6, T20-7, T20-8, T20-9, T20-10, T20-11, T20-12, T20-13, T20-14, T20-15, T20-16, T20-17, T20-18, T20-19, T20-20, T20-21; startable T20-22; T20-23 and T20-24 after it |
 | M19 | 0 | - |
 
 **149 of 157 tasks Complete.** Checkpoints A-D reached: T20-17 met D's last
@@ -49,10 +49,10 @@ gate ("loops reject an injected disturbance") on the separator plant.
 ## The next task
 
 **Startable in M20:** **T20-22** (result and debrief panel on the console; a
-finished run shows only "Finished" today) is the next task, then **T20-23**
-(run time instead of the plant clock in alarms, trends and the Home strip).
-**T20-24** is the phone-width gameplay pass the user deferred (16 October 2026)
-and waits on both. Also startable but deferred: T10-4 and T11-4 (V1.1), T19-1
+finished run shows only "Finished" today). **T20-23** (run time instead of the
+plant clock in alarms, trends and the Home strip) waits on it, since both edit
+ribbon.js and console.html. **T20-24** is the phone-width gameplay pass the
+user deferred (16 October 2026) and waits on both. Also startable but deferred: T10-4 and T11-4 (V1.1), T19-1
 and T19-2 (V2).
 
 **CP-G passed for the current console** (user's browser pass, 9 October 2026). The console is about to be redesigned, so the full pass (all six scenarios, both themes, phone width, a real alarm marker) is an acceptance criterion of that redesign rather than repeated on this console.

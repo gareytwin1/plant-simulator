@@ -135,14 +135,33 @@ def test_recent_scenarios_starts_with_nothing_shown_until_the_history_is_read(pa
     assert "not kept" not in card
 
 
-def test_the_thumbnail_is_the_plants_graphic_and_is_not_interactive(client, page):
-    url = re.search(r'data-thumbnail="([^"]+)"', page).group(1)
+def test_each_scenario_shows_the_graphic_of_the_plant_it_runs_on(client, page):
+    thumbnails = dict(re.findall(r'data-scenario="([^"]+)"[^>]*data-thumbnail="([^"]*)"', page))
 
-    assert client.get(url).status_code == 200
+    for path in SCENARIOS:
+        url = thumbnails[scenario_key(path.stem)]
+        assert url.endswith(f"/graphics/{document(path)['plant']}.svg"), path.name
+        assert client.get(url).status_code == 200
+    assert len(set(thumbnails.values())) > 1
+
+
+def test_the_thumbnail_is_not_interactive(page):
     figure = re.search(r'<figure class="hero-art".*?</figure>', page, re.S).group(0)
     assert 'aria-hidden="true"' in figure
     assert " inert" in figure
+    # Laid out from the first paint, since every shipped scenario has a graphic.
+    assert " hidden" not in figure
     assert not re.search(r"<(a|button|input)\b", figure)
+
+
+def test_with_no_plant_graphic_at_all_the_hero_art_starts_hidden(client, monkeypatch):
+    monkeypatch.setattr(main, "thumbnail_url", lambda plant: None)
+
+    page = client.get("/").get_data(as_text=True)
+    figure = re.search(r'<figure class="hero-art"[^>]*>', page).group(0)
+
+    assert " hidden" in figure
+    assert 'data-thumbnail=""' in page
 
 
 def test_the_return_strip_shows_only_while_a_scenario_stands(client):
@@ -153,6 +172,14 @@ def test_the_return_strip_shows_only_while_a_scenario_stands(client):
     loaded = client.get("/").get_data(as_text=True)
     assert 'id="standing"' in loaded
     assert 'id="back-to-console"' in loaded
+
+
+def test_the_page_names_an_icon_so_the_browser_never_asks_for_a_missing_one(client, page):
+    icon = re.search(r'<link rel="icon" type="image/svg\+xml" href="([^"]+)">', page).group(1)
+
+    response = client.get(icon)
+    assert response.status_code == 200
+    assert response.mimetype == "image/svg+xml"
 
 
 def test_the_header_links_only_to_pages_that_exist(client, page):
@@ -498,16 +525,90 @@ def test_the_injected_thumbnail_carries_no_ids():
     result = run_page(
         """
         const doc = makePage("idle", ["a"]);
-        doc.ids["launch"].attrs["data-thumbnail"] = "/static/graphics/x.svg";
+        doc.choices[0].attrs["data-thumbnail"] = "/static/graphics/x.svg";
         doc.ids["plant-thumb"] = el();
         const fetchImpl = async url => ({ ok: true, status: 200, text: async () => '<svg id="a"><title id="plant-title">x</title><g class="eq"/></svg>', json: async () => ({}) });
         L.mount(doc, fetchImpl, () => {}, { storage: memory({}), refreshRibbon() {} });
-        await tick(); await tick();
+        await tick(); await tick(); await tick();
         return doc.ids["plant-thumb"].innerHTML;
         """
     )
 
     assert result == '<svg><title>x</title><g class="eq"/></svg>'
+
+
+@needs_node
+def test_choosing_a_scenario_on_another_plant_swaps_the_thumbnail_and_a_late_answer_is_dropped():
+    result = run_page(
+        """
+        const doc = makePage("idle", ["a", "b", "c"]);
+        doc.choices[0].attrs["data-thumbnail"] = "/one.svg";
+        doc.choices[1].attrs["data-thumbnail"] = "/two.svg";
+        doc.choices[2].attrs["data-thumbnail"] = "";
+        doc.ids["plant-thumb"] = el();
+        const release = {}, calls = [];
+        const fetchImpl = url => {
+          if (!url.endsWith(".svg")) return Promise.resolve({ ok: true, status: 200, json: async () => ({}) });
+          calls.push(url);
+          return new Promise(resolve => { release[url] = () => resolve({ ok: true, status: 200, text: async () => "<svg>" + url + "</svg>" }); });
+        };
+        const figure = el();
+        doc.ids["plant-thumb"].closest = () => figure;
+        L.mount(doc, fetchImpl, () => {}, { storage: memory({}), refreshRibbon() {} });
+        doc.choices[1].listeners.click();
+        const waiting = doc.ids["plant-thumb"].innerHTML || "";
+        release["/two.svg"](); for (let i = 0; i < 4; i += 1) await tick();
+        const second = doc.ids["plant-thumb"].innerHTML;
+        release["/one.svg"](); for (let i = 0; i < 4; i += 1) await tick();
+        const afterLate = doc.ids["plant-thumb"].innerHTML;
+        doc.choices[2].listeners.click();
+        const none = { html: doc.ids["plant-thumb"].innerHTML, hidden: figure.hidden };
+        doc.choices[1].listeners.click(); for (let i = 0; i < 4; i += 1) await tick();
+        return { waiting, second, afterLate, none, again: doc.ids["plant-thumb"].innerHTML, shown: !figure.hidden, calls };
+        """
+    )
+
+    assert result["waiting"] == ""
+    assert result["second"] == "<svg>/two.svg</svg>"
+    assert result["afterLate"] == "<svg>/two.svg</svg>"
+    assert result["none"] == {"html": "", "hidden": True}
+    assert result["again"] == "<svg>/two.svg</svg>"
+    assert result["shown"]
+    assert result["calls"] == ["/one.svg", "/two.svg"]
+
+
+@needs_node
+def test_a_graphic_that_failed_is_fetched_again_when_chosen_again():
+    result = run_page(
+        """
+        const doc = makePage("idle", ["a", "b"]);
+        doc.choices[0].attrs["data-thumbnail"] = "/one.svg";
+        doc.choices[1].attrs["data-thumbnail"] = "/one.svg";
+        doc.ids["plant-thumb"] = el();
+        const figure = el();
+        doc.ids["plant-thumb"].closest = () => figure;
+        let fail = true;
+        const calls = [];
+        const fetchImpl = async url => {
+          if (!url.endsWith(".svg")) return { ok: true, status: 200, json: async () => ({}) };
+          calls.push(url);
+          return fail ? { ok: false, status: 500 } : { ok: true, status: 200, text: async () => "<svg/>" };
+        };
+        L.mount(doc, fetchImpl, () => {}, { storage: memory({}), refreshRibbon() {} });
+        for (let i = 0; i < 6; i += 1) await tick();
+        const failed = { html: doc.ids["plant-thumb"].innerHTML, hidden: figure.hidden };
+        fail = false;
+        doc.choices[1].listeners.click();
+        for (let i = 0; i < 6; i += 1) await tick();
+        return { failed, after: { html: doc.ids["plant-thumb"].innerHTML, hidden: figure.hidden }, calls };
+        """
+    )
+
+    assert result == {
+        "failed": {"html": "", "hidden": True},
+        "after": {"html": "<svg/>", "hidden": False},
+        "calls": ["/one.svg", "/one.svg"],
+    }
 
 
 @needs_node

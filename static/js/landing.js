@@ -286,11 +286,14 @@
       return start.getAttribute("data-scenario");
     }
 
+    var thumbnail = thumbnailFrame(doc, doFetch);
+
     function select(key) {
       choices.forEach(function (option) {
         var chosen = option.getAttribute("data-scenario") === key;
         option.setAttribute("aria-pressed", chosen ? "true" : "false");
         if (!chosen) return;
+        thumbnail.show(option.getAttribute("data-thumbnail"));
         var difficulty = option.getAttribute("data-difficulty");
         var chip = doc.getElementById("hero-difficulty");
         doc.getElementById("hero-title").textContent = option.getAttribute("data-title");
@@ -345,7 +348,6 @@
       request(api.freePlaySteps, freePlay);
     });
 
-    mountThumbnail(doc, launch, doFetch);
     mountHistory(doc, doFetch);
   }
 
@@ -410,21 +412,58 @@
     empty.hidden = view.recent.length > 0;
   }
 
-  /* The selected plant's graphic, inert and with its live readouts hidden by
-   * the stylesheet. A graphic that cannot be fetched leaves the frame empty. */
-  async function mountThumbnail(doc, launch, doFetch) {
+  /* The graphic of the plant the selected scenario runs on, inert and with
+   * its live readouts hidden by the stylesheet. Each graphic is fetched once
+   * and only the latest selection is drawn; the old one stays until the new
+   * one arrives, so the hero does not jump. A scenario with no graphic, or
+   * one that cannot be fetched, hides the frame, and choosing it again tries
+   * again. */
+  function thumbnailFrame(doc, doFetch) {
     var frame = doc.getElementById("plant-thumb");
-    var url = launch.getAttribute("data-thumbnail");
-    if (!frame || !url) return;
-    try {
-      var response = await doFetch(url);
-      if (response.ok) {
-        /* Decoration only: ids are dropped so none can collide with the page's. */
-        frame.innerHTML = (await response.text()).replace(/\sid="[^"]*"/g, "");
+    var figure = frame && frame.closest ? frame.closest(".hero-art") : null;
+    var shown = null;
+    var cache = {};
+
+    function fetchGraphic(url) {
+      if (!cache[url]) {
+        cache[url] = Promise.resolve(doFetch(url)).then(function (response) {
+          if (!response.ok) throw new Error("graphic " + response.status);
+          /* Decoration only: ids are dropped so none can collide with the page's. */
+          return response.text().then(function (text) {
+            return text.replace(/\sid="[^"]*"/g, "");
+          });
+        });
+        cache[url].catch(function () {
+          delete cache[url];
+        });
       }
-    } catch (error) {
-      /* Decoration only. */
+      return cache[url];
     }
+
+    function empty() {
+      frame.innerHTML = "";
+      if (figure) figure.hidden = true;
+    }
+
+    return {
+      show: function (url) {
+        if (!frame || url === shown) return;
+        shown = url;
+        if (!url) {
+          empty();
+          return;
+        }
+        fetchGraphic(url).then(function (markup) {
+          if (shown !== url) return;
+          frame.innerHTML = markup;
+          if (figure) figure.hidden = false;
+        }, function () {
+          if (shown !== url) return;
+          shown = null;
+          empty();
+        });
+      },
+    };
   }
 
   api.mount = mount;

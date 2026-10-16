@@ -655,8 +655,15 @@
         });
       }
 
+      var holder = doc.activeElement;
       if (startButton) startButton.disabled = !m.canStart;
       if (stopButton) stopButton.disabled = !m.canStop;
+      // A button disabled under keyboard focus drops it to the page. Focus
+      // stays in the panel but never on the opposite action, so a repeated
+      // key cannot stop the device it just started.
+      if (holder && holder.disabled && (holder === startButton || holder === stopButton)) {
+        top.close.focus();
+      }
 
       m.targets.forEach(function (t) {
         var cells = bars[t.action];

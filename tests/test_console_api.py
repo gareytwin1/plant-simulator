@@ -3,6 +3,7 @@ the caller's training session, and /console is the one page that starts it."""
 
 import itertools
 import json
+import re
 import threading
 import time
 
@@ -85,6 +86,13 @@ def test_the_console_mounts_the_graphic_on_the_connection_stream(client):
     assert body.count("new EventSource") == 0
     assert client.get(client.get("/api/plant").get_json()["graphic"]).status_code == 200
     assert client.get("/static/js/graphic.js").status_code == 200
+
+
+def test_the_console_tells_a_newcomer_what_the_canvas_does(client):
+    body = client.get("/console").get_data(as_text=True)
+    hint = re.search(r'<p class="canvas-hint"[^>]*>([^<]*)</p>', body)
+
+    assert hint.group(1) == "Select equipment to operate it. Select a reading to trend it."
 
 
 def test_the_console_mounts_the_canvas_and_its_faceplates_on_the_same_stream(client):

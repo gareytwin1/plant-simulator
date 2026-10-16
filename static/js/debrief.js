@@ -389,8 +389,13 @@
       }
       notice.textContent = refusal;
       // A load that was accepted is a new run, even when its start was then
-      // refused, so the console shows it.
-      if (accepted !== null && settings.onRetry) settings.onRetry(accepted.status, accepted.body, refusal);
+      // refused, so the console shows it. A refusal with nobody to read it
+      // here (a poll took the run away meanwhile) goes to the ribbon's notice
+      // as a status that carries no run.
+      if (settings.onRetry) {
+        if (accepted !== null) settings.onRetry(accepted.status, accepted.body, refusal);
+        else if (refusal !== "" && panel.hidden) settings.onRetry(0, null, refusal);
+      }
     }
 
     close.addEventListener("click", function () { hide(true); });

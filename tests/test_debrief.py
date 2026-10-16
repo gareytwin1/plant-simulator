@@ -674,3 +674,27 @@ def test_a_run_loaded_elsewhere_while_the_panel_has_focus_hands_focus_to_a_run_c
     )
 
     assert got == {"had": "debrief", "panel": False, "focus": "scenario-start"}
+
+
+@needs_node
+def test_a_refusal_the_panel_can_no_longer_show_goes_to_the_ribbon_as_a_notice():
+    got = run_js(
+        PAGE
+        + """
+        const { panel } = page('complete');
+        const adopted = [];
+        let release = null;
+        const debrief = D.mount(doc, {
+          fetch: () => new Promise(resolve => { release = () => resolve(reply(429, null)); }),
+          onRetry: (...args) => adopted.push(args) });
+        debrief.result(200, data.done);
+        const sending = button(panel, 'Try again').listeners.click[0]();
+        debrief.result(200, Object.assign({}, data.done, { phase: 'loaded' }));
+        release();
+        await sending;
+        return adopted;
+        """,
+        done=finished("failed"),
+    )
+
+    assert got == [[0, None, "Too many requests. Wait a moment and try again."]]

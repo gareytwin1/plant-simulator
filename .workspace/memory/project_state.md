@@ -52,8 +52,8 @@ gate ("loops reject an injected disturbance") on the separator plant.
 finished run shows only "Finished" today). **T20-23** (run time instead of the
 plant clock in alarms, trends and the Home strip) waits on it, since both edit
 ribbon.js and console.html. **T20-24** is the phone-width gameplay pass the
-user deferred (16 October 2026) and waits on both. Also startable but deferred: T10-4 and T11-4 (V1.1), T19-1
-and T19-2 (V2).
+user deferred (16 October 2026) and waits on both. Also startable but
+deferred: T10-4 and T11-4 (V1.1), T19-1 and T19-2 (V2).
 
 **CP-G passed for the current console** (user's browser pass, 9 October 2026). The console is about to be redesigned, so the full pass (all six scenarios, both themes, phone width, a real alarm marker) is an acceptance criterion of that redesign rather than repeated on this console.
 

@@ -10,10 +10,10 @@
  * run's key is never displayed (T16-12); a caller's `onResult` sees the body.
  * static/js/ribbon.js reads the run's times from it, and the console's
  * static/js/debrief.js shows a finished run's result and debrief (T20-22). A
- * title is the scenario's public name, the one the landing page lists. A refusal is shown in this file's own plain words,
- * chosen by status code, never the server's text. The server renders the
- * title with the page; a poll replaces it when another tab loads a different
- * scenario.
+ * title is the scenario's public name, the one the landing page lists. A
+ * refusal is shown in this file's own plain words, chosen by status code,
+ * never the server's text. The server renders the title with the page; a poll
+ * replaces it when another tab loads a different scenario.
  *
  * Abort takes two clicks (arm, then confirm) with no window.confirm, so it
  * runs under Node; Escape disarms it. Aborting reveals the debrief, so it is
@@ -326,8 +326,8 @@
 
     /* A response another control on the page had accepted (T20-22's Try
      * again), applied as if this bar had sent it: a poll or a send already in
-     * flight is stale, `text` is shown as the notice, and focus moves into the bar to the
-     * control the new phase offers. */
+     * flight is stale, `text` is shown as the notice, and focus moves into the
+     * bar to the control the new phase offers. */
     function adopt(status, body, text) {
       epoch += 1;
       notice(text || "");

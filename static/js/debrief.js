@@ -286,6 +286,8 @@
       } else {
         score.textContent = view.unscored;
       }
+      // The server always names the run; without it there is nothing to load.
+      retry.hidden = view.key === "";
       costsHeading.hidden = !view.scored;
       costs.hidden = !view.scored;
       if (!view.costs.length) costs.appendChild(el(doc, "li", "", "Nothing counted against the score."));

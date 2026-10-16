@@ -924,3 +924,18 @@ def test_a_resync_asked_for_while_a_poll_is_in_flight_is_still_read_if_a_send_st
     )
 
     assert got == ["/api/scenario/result", "/api/scenario/start", "/api/scenario/result"]
+
+
+@needs_node
+def test_try_again_is_not_offered_for_a_finished_body_that_names_no_run():
+    got = run_js(
+        PAGE
+        + """
+        const { panel } = page('complete');
+        D.mount(doc, { fetch: async () => reply(500, null) }).result(200, data.done);
+        return button(panel, 'Try again').hidden;
+        """,
+        done={k: v for k, v in finished("failed").items() if k != "key"},
+    )
+
+    assert got is True

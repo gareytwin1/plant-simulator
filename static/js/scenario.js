@@ -7,9 +7,9 @@
  *   GET  /api/scenario/result   (409 = nothing loaded = free play)
  *
  * Only `phase` and `title` are ever read from a response body here, so a live
- * run's key and a finished run's debrief are never displayed (T16-12); a
- * caller's `onResult` sees the body, and static/js/ribbon.js reads only the
- * run's times from it. A title is the scenario's public name, the one the
+ * run's key is never displayed (T16-12); a caller's `onResult` sees the body.
+ * static/js/ribbon.js reads the run's times from it, and the console's
+ * static/js/debrief.js shows a finished run's result and debrief (T20-22). A title is the scenario's public name, the one the
  * landing page lists. A refusal is shown in this file's own plain words,
  * chosen by status code, never the server's text. The server renders the
  * title with the page; a poll replaces it when another tab loads a different
@@ -123,7 +123,7 @@
    * `options.isPaused()` says whether the operator has paused the plant, read
    * at each render; call the returned `render` after it changes. The
    * buttons and the choose link are optional, so a page can show the run
-   * without offering them. Returns {poll, stop, state}. */
+   * without offering them. Returns {poll, adopt, render, stop, state}. */
   function mount(doc, options) {
     var settings = options || {};
     var doFetch = settings.fetch || root.fetch.bind(root);
@@ -319,6 +319,18 @@
       }
     }
 
+    /* A response another control on the page had accepted (T20-22's Try
+     * again), applied as if this bar had sent it: a poll already in flight is
+     * stale, `text` is shown as the notice, and focus moves into the bar to the
+     * control the new phase offers. */
+    function adopt(status, body, text) {
+      epoch += 1;
+      notice(text || "");
+      apply(status, body);
+      render();
+      refocus(true);
+    }
+
     function disarm() {
       state.armed = false;
       render();
@@ -363,6 +375,7 @@
 
     return {
       poll: poll,
+      adopt: adopt,
       render: render,
       state: state,
       stop: function () {

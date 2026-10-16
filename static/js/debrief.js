@@ -182,7 +182,7 @@
    * closes on a loaded run, so they are shown elsewhere). `options.onRefusal(
    * text)` gets a refusal when nothing was accepted and the panel is no longer
    * showing, for the ribbon's notice, and `options.onResync()` is called
-   * whenever nothing was accepted, so the ribbon can read the run again.
+   * when a request did not finish, so the ribbon can read the run again.
    * Returns {result, open, close}: feed `result` every
    * (status, body) the ribbon's scenario poll applies. */
   function mount(doc, options) {
@@ -343,6 +343,8 @@
     /* The panel went away under the keyboard (another tab loaded or started a
      * run), so focus goes to the first run control the ribbon now offers. */
     function focusRunControl() {
+      var active = doc.activeElement;
+      if (usable(active) && !panel.contains(active)) return;
       var offered = ["scenario-start", "scenario-abort", "scenario-choose"].map(function (id) {
         return doc.getElementById(id);
       }).filter(usable)[0];
@@ -355,7 +357,9 @@
       if (view === null) {
         var heldFocus = !panel.hidden && panel.contains(doc.activeElement);
         hide(false);
-        if (heldFocus) focusRunControl();
+        // The ribbon renders the new phase before it calls this, but a later
+        // caller might not, so the handoff waits for the current task to end.
+        if (heldFocus) Promise.resolve().then(focusRunControl);
         shown = null;
         opened = null;
         clear();
@@ -378,6 +382,7 @@
       notice.textContent = "";
       var accepted = null;
       var refusal = "";
+      var ambiguous = false;
       try {
         var steps = api.retrySteps(shown.key);
         for (var i = 0; i < steps.length; i += 1) {
@@ -390,6 +395,7 @@
         }
       } catch (error) {
         refusal = api.refusalText(0);
+        ambiguous = true;
       } finally {
         busy = false;
         retry.disabled = false;
@@ -401,10 +407,10 @@
       if (accepted !== null) {
         if (settings.onRetry) settings.onRetry(accepted.status, accepted.body, refusal);
       } else if (refusal !== "") {
-        // The load may have been applied before the request failed, so the
-        // ribbon is asked to catch up rather than wait for its next poll.
         if (panel.hidden && settings.onRefusal) settings.onRefusal(refusal);
-        if (settings.onResync) settings.onResync();
+        // A request that did not finish may still have been applied, so the
+        // ribbon is asked to read the run again. A refusal is definite.
+        if (ambiguous && settings.onResync) settings.onResync();
       }
     }
 

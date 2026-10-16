@@ -138,7 +138,7 @@
       debrief = Debrief.mount(document, {
         onRetry: function (status, body, refusal) { if (ribbon) ribbon.adopt(status, body, refusal); },
         onRefusal: function (text) { if (ribbon) ribbon.say(text); },
-        onResync: function () { if (ribbon) ribbon.poll(); }
+        onResync: function () { if (ribbon) ribbon.resync(); }
       });
     } catch (error) { console.error(error); }
     // Last, and isolated: a ribbon that cannot mount must not take the console with it.

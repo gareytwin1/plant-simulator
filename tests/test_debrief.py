@@ -668,6 +668,7 @@ def test_a_run_loaded_elsewhere_while_the_panel_has_focus_hands_focus_to_a_run_c
         const had = focusedId();
         button(panel, 'Try again').focus();
         debrief.result(200, Object.assign({}, data.done, { phase: 'loaded' }));
+        await settle();
         return { had, panel: !panel.hidden, focus: focusedId() };
         """,
         done=finished("failed"),
@@ -769,3 +770,56 @@ def test_a_try_again_that_accepted_nothing_asks_the_ribbon_to_read_the_run_again
     )
 
     assert got == ["poll"]
+
+
+@needs_node
+def test_only_a_request_that_did_not_finish_asks_for_a_resync_not_an_accepted_or_refused_one():
+    got = run_js(
+        PAGE
+        + """
+        const { panel } = page('complete');
+        const asked = [];
+        const answers = { accepted: [reply(200, { phase: 'loaded' }), reply(200, { phase: 'running' })], refused: [reply(429, null)] };
+        let mode = 'accepted';
+        const debrief = D.mount(doc, { fetch: async () => answers[mode].shift(), onResync: () => asked.push(mode) });
+        debrief.result(200, data.done);
+        await button(panel, 'Try again').listeners.click[0]();
+        mode = 'refused';
+        await button(panel, 'Try again').listeners.click[0]();
+        return asked;
+        """,
+        done=finished("failed"),
+    )
+
+    assert got == []
+
+
+@needs_node
+def test_a_panel_that_loses_its_run_hands_focus_to_the_control_the_ribbon_offers_for_the_new_phase(client, served):
+    client.post("/api/scenario/load", json={"scenario": KEY})
+    client.post("/api/scenario/start")
+    client.post("/api/scenario/abort")
+
+    got = run_js(
+        PAGE
+        + HTTP
+        + """
+        const { panel } = page('aborted');
+        const debrief = D.mount(doc, { fetch: http });
+        const ribbon = R.mount(doc, { fetch: http, pollMs: 0, onResult: (s, b) => debrief.result(s, b) });
+        await ribbon.ready;
+        button(panel, 'Try again').focus();
+        const held = !panel.hidden && panel.contains(doc.activeElement);
+        // Another tab unloads the run and loads a fresh one.
+        await http('/api/scenario/unload', { method: 'POST' });
+        await http('/api/scenario/load', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ scenario: data.key }) });
+        await ribbon.poll();
+        await settle();
+        return { held, panel: !panel.hidden, focus: focusedId(), state: text(doc.getElementById('scenario-state')) };
+        """,
+        base=served,
+        cookie=cookie_of(client),
+        key=KEY,
+    )
+
+    assert got == {"held": True, "panel": False, "focus": "scenario-start", "state": f"Scenario {DOT} Loaded, not started"}

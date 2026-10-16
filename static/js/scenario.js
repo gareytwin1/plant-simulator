@@ -149,7 +149,7 @@
    * `options.isPaused()` says whether the operator has paused the plant, read
    * at each render; call the returned `render` after it changes. The
    * buttons and the choose link are optional, so a page can show the run
-   * without offering them. Returns {poll, adopt, say, render, stop, state}. */
+   * without offering them. Returns {poll, adopt, say, resync, render, stop, state}. */
   function mount(doc, options) {
     var settings = options || {};
     var doFetch = settings.fetch || root.fetch.bind(root);
@@ -288,6 +288,13 @@
       return readNow();
     }
 
+    /* Read the run again at once, waiting out a poll already in flight (it may
+     * have begun before something changed), as send() does after a refusal. */
+    async function resync() {
+      if (pollPromise) await pollPromise;
+      await readNow();
+    }
+
     async function send(action, request) {
       // Disabling the clicked button can drop focus to the body, so note now.
       var owned = holdsFocus(doc.activeElement);
@@ -394,6 +401,7 @@
       poll: poll,
       adopt: adopt,
       say: say,
+      resync: resync,
       render: render,
       state: state,
       stop: function () {

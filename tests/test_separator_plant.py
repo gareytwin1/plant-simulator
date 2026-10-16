@@ -4,10 +4,11 @@ The separator plant - T20-17.
 `config/plants/separator.yaml` is a two-phase feed into drum V-301 with three
 loops in AUTO: FIC-301 on the feed, LIC-301 on the drain and PIC-301 on the
 overhead, and a shutdown valve XV-301 on the feed (T20-18). Its header
-derives the design point - 50 GPM carrying 10 SCFM into a drum at level 0.5 and 200 psia - and these tests hold the plant to it: it
-loads there and stays there, the loops reject a disturbance they have the
-authority for, a fault beyond that authority reaches a limit inside the eight
-minutes the prototype sized, and every interlock trips and resets.
+derives the design point - 50 GPM carrying 10 SCFM into a drum at level 0.5
+and 200 psia - and these tests hold the plant to it: it loads there and stays
+there, the loops reject a disturbance they have the authority for, a fault
+beyond that authority reaches a limit inside the eight minutes the prototype
+sized, and every interlock trips and resets.
 
 Faults are set on the device the way a scenario sets them: a restriction is
 a malfunction on a writable parameter (C8), a lost signal is the valve's own

@@ -11,7 +11,7 @@ description: >
   Diagnosis path - V-301 level rises with the feed steady at 50 GPM, and
   LV-301 drain flow has dropped to about 25 GPM at an unchanged position;
   LIC-301 then drives LV-301 to 100% and the drain still only reaches about
-  33 GPM. The valve is passing less than its position says and has no
+  35 GPM. The valve is passing less than its position says and has no
   travel left, so the drum cannot be held by the drain: lower FIC-301's
   setpoint to about 30 GPM, below what the restricted drain passes wide
   open, and LIC-301 brings the level back to its setpoint.

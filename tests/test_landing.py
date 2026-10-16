@@ -573,6 +573,8 @@ def test_a_graphic_that_failed_is_fetched_again_when_chosen_again():
         doc.choices[0].attrs["data-thumbnail"] = "/one.svg";
         doc.choices[1].attrs["data-thumbnail"] = "/one.svg";
         doc.ids["plant-thumb"] = el();
+        const figure = el();
+        doc.ids["plant-thumb"].closest = () => figure;
         let fail = true;
         const calls = [];
         const fetchImpl = async url => {
@@ -582,15 +584,19 @@ def test_a_graphic_that_failed_is_fetched_again_when_chosen_again():
         };
         L.mount(doc, fetchImpl, () => {}, { storage: memory({}), refreshRibbon() {} });
         for (let i = 0; i < 6; i += 1) await tick();
-        const failed = doc.ids["plant-thumb"].innerHTML;
+        const failed = { html: doc.ids["plant-thumb"].innerHTML, hidden: figure.hidden };
         fail = false;
         doc.choices[1].listeners.click();
         for (let i = 0; i < 6; i += 1) await tick();
-        return { failed, after: doc.ids["plant-thumb"].innerHTML, calls };
+        return { failed, after: { html: doc.ids["plant-thumb"].innerHTML, hidden: figure.hidden }, calls };
         """
     )
 
-    assert result == {"failed": "", "after": "<svg/>", "calls": ["/one.svg", "/one.svg"]}
+    assert result == {
+        "failed": {"html": "", "hidden": True},
+        "after": {"html": "<svg/>", "hidden": False},
+        "calls": ["/one.svg", "/one.svg"],
+    }
 
 
 @needs_node

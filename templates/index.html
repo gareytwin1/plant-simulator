@@ -47,8 +47,9 @@
       </div>
       {{ abort_confirm() }}
     </div>
-    {# Shown by landing.js once the selected scenario's graphic arrives. #}
-    <figure class="hero-art" aria-hidden="true" inert hidden><div class="plant-thumb plant-graphic" id="plant-thumb"></div></figure>
+    {# Laid out from the first paint when any scenario has a graphic, so the copy
+       does not reflow; landing.js hides it for a scenario without one. #}
+    <figure class="hero-art" aria-hidden="true" inert{% if not thumbnails.values()|select|list %} hidden{% endif %}><div class="plant-thumb plant-graphic" id="plant-thumb"></div></figure>
   </section>
 
   <section class="picker" id="scenario-picker" aria-labelledby="picker-heading" hidden>

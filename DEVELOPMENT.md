@@ -244,7 +244,7 @@ Check this before starting step 5 above.
 | `app/equipment/base.py` | **Spine** - under the spine lock, no satellite edits |
 | `app/engine/` | **Spine**, every module already on `main` - under the spine lock. A new module can be satellite work; see below. |
 | `app/plant/topology.py` | **Spine** - under the spine lock |
-| `app/main.py` | **Highest-conflict file.** Exactly one branch at a time until the C5 single action endpoint lands. Release it immediately after merging. |
+| `app/main.py` | **Highest-conflict file.** Exactly one branch at a time; release it immediately after merging. |
 | `app/config.py` | **Append-only** — add a clearly-headed section, never reorder |
 | `config/schema/plant.schema.json` | Shared — each top-level key has one owner |
 | `config/plants/*.yaml` | Shared — each top-level key has one owner |
@@ -334,10 +334,11 @@ Never merge `main` backwards into the spine.
 
 ## Contracts
 
-The eight interface contracts (C1–C8: Equipment, Topology, Plant config schema,
+The eight interface contracts (C1-C8: Equipment, Topology, Plant config schema,
 State snapshot, HTTP API, Event record, Alarm interface, Malfunction/Scenario)
-are defined in full on the build plan. C1–C4 are implemented in code; C5–C8
-exist as specifications only — see the contract table in [AGENTS.md](AGENTS.md).
+are defined in full on the build plan. Each one's implementation status and
+authoritative definition: the contract table in
+[AGENTS.md](AGENTS.md#interface-contracts).
 
 Contracts are load-bearing: once a satellite branch depends on one, changing it
 means updating every dependent branch. Propose contract changes as their own

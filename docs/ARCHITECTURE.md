@@ -383,7 +383,8 @@ scoring and the golden regression harness all depend on it.
 
 ```text
 app/
-  main.py                 Flask routes (per-equipment today; C5 replaces this)
+  main.py                 Flask app: per-session plant registry and cookies, page
+                          routes + /api/snapshot, blueprint registration
   config.py               Timing constants + TAG_PREFIXES. APPEND-ONLY.
   statetypes.py           JSONValue / StateRow - the get_state() row type
   equipment/

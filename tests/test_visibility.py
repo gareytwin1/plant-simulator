@@ -11,7 +11,7 @@ from app import main
 from app.api import visibility
 from app.api.stream import create_stream_blueprint
 from app.api.visibility import VISIBLE, operator_view
-from app.disturbances.malfunction import WRITABLE
+from app.disturbances.malfunction import FLAGS, WRITABLE
 from app.equipment import (
     compressor,
     exchanger,
@@ -63,6 +63,7 @@ def test_every_equipment_class_has_a_visible_entry():
 def test_no_visible_field_is_malfunction_writable():
     for cls, fields in VISIBLE.items():
         assert not fields & WRITABLE[cls], cls.__name__
+        assert not fields & FLAGS.get(cls, frozenset()), cls.__name__
 
 
 def test_visible_fields_are_published_by_the_class_they_belong_to(session):

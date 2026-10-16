@@ -14,12 +14,14 @@ from dataclasses import dataclass
 import pytest
 
 from app.disturbances.malfunction import (
+    FLAGS,
     WRITABLE,
     AtTime,
     Malfunction,
     MalfunctionRegistry,
     NotWritable,
     Step,
+    flags,
     writable,
 )
 from app.engine.engine import Engine
@@ -291,10 +293,99 @@ def test_an_out_of_range_value_is_refused_before_onset():
     assert malfunctions.pending == ()
 
 
-@pytest.mark.parametrize("value", [math.nan, math.inf, True, "0.5"])
-def test_a_malfunction_value_must_be_a_finite_number(value):
+@pytest.mark.parametrize("value", [math.nan, math.inf, "0.5", None])
+def test_a_malfunction_value_must_be_a_finite_number_or_a_bool(value):
     with pytest.raises(ValueError, match="value must be"):
         Malfunction("E-101", "fouling", value)
+
+
+# ---- flags: a failure mode that is a switch -------------------------------
+
+
+def test_a_lost_signal_mid_run_sends_the_valve_to_its_fail_position():
+    valve = ControlValve("FV-101")
+    valve.fail_action = "open"
+    valve.position = valve.position_target = 0.5
+    malfunctions = devices(valve)
+
+    malfunctions.add(Malfunction("FV-101", "signal_ok", False, start_condition=AtTime(30.0)))
+    malfunctions.update(at(29.0))
+    assert valve.signal_ok is True
+
+    malfunctions.update(at(30.0))
+    for _ in range(20):
+        valve.integrate(1.0)
+
+    assert valve.signal_ok is False
+    assert valve.position == 1.0
+    assert valve.position_target == 0.5
+
+
+@pytest.mark.parametrize("flag, value", [("signal_ok", False), ("stuck", True), ("action_reversed", True)])
+def test_a_flag_reverts_exactly(flag, value):
+    valve = ControlValve("FV-101")
+    original = getattr(valve, flag)
+    malfunctions = devices(valve)
+    malfunction = Malfunction("FV-101", flag, value)
+
+    malfunctions.add(malfunction)
+    malfunctions.update(at(0.0))
+    assert getattr(valve, flag) is value
+
+    malfunctions.revert(malfunction)
+    assert getattr(valve, flag) is original
+
+
+def test_a_flag_takes_only_a_step():
+    with pytest.raises(ValueError, match="only a step"):
+        Malfunction("FV-101", "signal_ok", False, profile=Linear(10.0))
+
+
+@pytest.mark.parametrize(
+    ("parameter", "value"),
+    [
+        ("capacity", True),     # a number written as a switch
+        ("signal_ok", 0.0),     # a switch written as a number
+        ("position", True),     # slow state is no flag either
+    ],
+)
+def test_a_number_and_a_flag_never_cross(parameter, value):
+    valve = ControlValve("FV-101")
+    before = valve.get_state()
+    malfunctions = devices(valve)
+
+    with pytest.raises(NotWritable, match=parameter):
+        malfunctions.add(Malfunction("FV-101", parameter, value))
+
+    assert valve.get_state() == before
+
+
+def test_a_class_with_no_flags_refuses_one():
+    malfunctions = devices(HeatExchanger("E-101"))
+
+    with pytest.raises(NotWritable, match=r"allows only the flags \[\]"):
+        malfunctions.add(Malfunction("E-101", "fouling", True))
+
+
+def test_a_subclass_does_not_inherit_its_parents_flags():
+    class SpecialValve(ControlValve):
+        pass
+
+    malfunctions = devices(SpecialValve("FV-102"))
+
+    with pytest.raises(NotWritable, match="no malfunction allowlist"):
+        malfunctions.add(Malfunction("FV-102", "signal_ok", False))
+
+
+@pytest.mark.parametrize("cls", list(FLAGS), ids=lambda cls: cls.__name__)
+def test_every_flag_is_a_bool_attribute_the_device_publishes(cls):
+    device = sample(cls)
+
+    assert flags(device) == FLAGS[cls]
+
+    for flag in FLAGS[cls]:
+        assert isinstance(getattr(device, flag), bool), f"{cls.__name__}.{flag}"
+        assert flag in device.get_state(), f"{cls.__name__}.{flag}"
 
 
 def test_an_unknown_target_raises():
@@ -439,3 +530,9 @@ def test_step_and_at_time_are_the_defaults():
 
     assert malfunction.profile == Step()
     assert malfunction.start_condition == AtTime(0.0)
+
+
+def test_every_class_with_flags_also_has_a_parameter_allowlist():
+    # flags() refuses a class WRITABLE does not list, so a FLAGS entry for
+    # one would be unreachable.
+    assert set(FLAGS) <= set(WRITABLE)

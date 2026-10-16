@@ -30,10 +30,10 @@ it:
    evaluator and alarms have no legitimate reason to know any of these
    layers exist, and that is what stays guarded.
 2. **Allowlist vs. slow state** - derived structurally rather than
-   hand-listed: for every device class in `WRITABLE`, none of its allowlisted
-   parameters are among the attributes that class's own `integrate()` writes.
+   hand-listed: for every device class in `WRITABLE` or `FLAGS`, none of its
+   allowlisted parameters or flags are among the attributes that class's own `integrate()` writes.
    `integrate` is the only method allowed to move slow state (AGENTS.md); a
-   name it writes and `WRITABLE` also lists would be a malfunction reaching
+   name it writes and either allowlist also lists would be a malfunction reaching
    state through the front door that the allowlist was supposed to keep it
    away from.
 
@@ -48,7 +48,7 @@ from pathlib import Path
 
 import pytest
 
-from app.disturbances.malfunction import WRITABLE
+from app.disturbances.malfunction import FLAGS, WRITABLE
 from app.equipment.base import Equipment
 
 
@@ -341,7 +341,7 @@ def test_the_guard_sees_the_classes_it_is_guarding():
 
 @pytest.mark.parametrize("cls", EQUIPMENT_CLASSES, ids=lambda cls: cls.__name__)
 def test_no_allowlisted_parameter_is_slow_state_integrate_writes(cls):
-    collision = WRITABLE[cls] & integrate_targets(cls)
+    collision = (WRITABLE[cls] | FLAGS.get(cls, frozenset())) & integrate_targets(cls)
 
     assert not collision, (
         f"{cls.__name__} allowlists {sorted(collision)} for a malfunction, but "

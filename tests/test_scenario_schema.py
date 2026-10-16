@@ -105,7 +105,14 @@ def test_malfunction_value_wrong_type_reported_with_path():
 
     errors = validate(scenario, SCHEMA)
 
-    assert errors == ["$.malfunctions[0].value: expected number, got string"]
+    assert errors == ["$.malfunctions[0].value: expected one of ['number', 'boolean'], got string"]
+
+
+def test_malfunction_value_may_be_a_flag():
+    scenario = valid_scenario()
+    scenario["malfunctions"][0]["value"] = False
+
+    assert validate(scenario, SCHEMA) == []
 
 
 def test_malfunction_profile_missing_type_fails():

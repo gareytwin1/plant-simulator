@@ -393,18 +393,15 @@ def malfunction_from_config(config: Mapping[str, Any]) -> Malfunction:
         onset["sim_time"] = _number(onset.get("sim_time", 0), f"{where} sim_time")
 
     try:
-        profile = profile_from_config(config.get("profile", {"type": "step"}), where)
-        start_condition = start_condition_from_config(onset, where)
+        return Malfunction(
+            target_tag=config["target_tag"],
+            parameter=config["parameter"],
+            value=config["value"],
+            profile=profile_from_config(config.get("profile", {"type": "step"}), where),
+            start_condition=start_condition_from_config(onset, where),
+        )
     except ValueError as error:
         raise ScenarioConfigError(str(error)) from None
-
-    return Malfunction(
-        target_tag=config["target_tag"],
-        parameter=config["parameter"],
-        value=config["value"],
-        profile=profile,
-        start_condition=start_condition,
-    )
 
 
 @dataclass(frozen=True)

@@ -27,6 +27,13 @@ device's own range check refuses an impossible value, and `add` runs that
 check against a shallow copy before a malfunction is accepted. A value that
 could only fail at onset, mid-scenario, is refused up front instead.
 
+A failure mode that is a switch rather than a number - a valve's lost
+signal, stuck stem or reversed action (T7-3) - is a flag, and `FLAGS` is its
+allowlist, kept apart from `WRITABLE` so a number never lands on a flag and
+a flag never lands on a number. A flag malfunction's value is a bool and its
+profile is a `Step`: a switch has no halfway, so there is nothing to ramp.
+Like every malfunction it is captured at onset and reverted exactly.
+
 Lookup is by the device's exact class, never `isinstance`: a subclass does
 not inherit its parent's writable surface silently, it has to be listed.
 
@@ -109,6 +116,17 @@ WRITABLE: dict[type[Target], frozenset[str]] = {
     }),
 }
 
+# Failure modes that are switches. Each is a device attribute `integrate`
+# reads and never writes, so flipping one changes how the device moves, never
+# where it is.
+FLAGS: dict[type[Target], frozenset[str]] = {
+    ControlValve: frozenset({
+        "signal_ok",
+        "stuck",
+        "action_reversed",
+    }),
+}
+
 
 class NotWritable(ValueError):
     """A malfunction named a parameter its target's class does not allowlist."""
@@ -152,15 +170,24 @@ class AtTime:
 class Malfunction:
     target_tag: str
     parameter: str
-    value: float
+    value: float | bool
     profile: Profile = field(default_factory=Step)
     start_condition: StartCondition = field(default_factory=AtTime)
 
     def __post_init__(self) -> None:
-        if isinstance(self.value, bool) or not isinstance(self.value, (int, float)):
+        if isinstance(self.value, bool):
+            if type(self.profile) is not Step:
+                raise ValueError(
+                    f"malfunction {self.target_tag}.{self.parameter} sets a flag, "
+                    f"which only a step can do, got {self.profile!r}",
+                )
+
+            return
+
+        if not isinstance(self.value, (int, float)):
             raise ValueError(
                 f"malfunction {self.target_tag}.{self.parameter} value must be "
-                f"a number, got {type(self.value).__name__} {self.value!r}",
+                f"a number or a bool, got {type(self.value).__name__} {self.value!r}",
             )
 
         if not math.isfinite(self.value):
@@ -186,20 +213,32 @@ def writable(device: Target) -> frozenset[str]:
     return WRITABLE[device_type]
 
 
-def check_writable(device: Target, parameter: str) -> None:
-    allowed = writable(device)
+def flags(device: Target) -> frozenset[str]:
+    # A class with no allowlist at all is refused the same way for a flag as
+    # for a number, before asking whether it has any flags.
+    writable(device)
+
+    return FLAGS.get(type(device), frozenset())
+
+
+def check_writable(device: Target, parameter: str, value: float | bool) -> None:
+    if isinstance(value, bool):
+        allowed, kind = flags(device), "flags"
+    else:
+        allowed, kind = writable(device), "parameters"
 
     if parameter not in allowed:
         raise NotWritable(
-            f"{device.tag}.{parameter} is not writable by a malfunction; "
-            f"{type(device).__name__} allows only {sorted(allowed)}",
+            f"{device.tag}.{parameter} is not writable by a malfunction with "
+            f"{value!r}; {type(device).__name__} allows only the {kind} "
+            f"{sorted(allowed)}",
         )
 
 
 @dataclass
 class _Onset:
     time: float
-    original: float
+    original: float | bool
 
 
 class MalfunctionRegistry:
@@ -238,7 +277,7 @@ class MalfunctionRegistry:
 
     def add(self, malfunction: Malfunction) -> None:
         device = self._resolve(malfunction.target_tag)
-        check_writable(device, malfunction.parameter)
+        check_writable(device, malfunction.parameter, malfunction.value)
 
         if malfunction.key in self._malfunctions:
             raise ValueError(
@@ -321,7 +360,7 @@ def _registered(equipment: EquipmentRegistry, tag: str) -> bool:
     return True
 
 
-def _between(original: float, value: float, fraction: float) -> float:
+def _between(original: float | bool, value: float | bool, fraction: float) -> float | bool:
     # The endpoints are written exactly rather than interpolated to, so a
     # finished step lands on `value` and a zero fraction leaves the device alone
     # bit for bit.
@@ -334,6 +373,6 @@ def _between(original: float, value: float, fraction: float) -> float:
     return original + (value - original) * fraction
 
 
-def _write(device: Target, parameter: str, value: float) -> None:
-    check_writable(device, parameter)
+def _write(device: Target, parameter: str, value: float | bool) -> None:
+    check_writable(device, parameter, value)
     setattr(device, parameter, value)

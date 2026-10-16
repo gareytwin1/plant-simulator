@@ -4,9 +4,10 @@ Validator for contract C3 (config/schema/plant.schema.json).
 Walks the schema generically rather than hard-coding plant fields, so a
 schema-only change (new equipment type, new limit field) never requires a
 validator change. Supports the subset of JSON Schema the plant config
-actually uses: type, enum, properties, required, additionalProperties,
-items, minItems, minLength, minimum, minProperties, and
-additionalProperties given as a subschema.
+actually uses: type (one name, or a list of them), enum, properties,
+required, additionalProperties, items, minItems, minLength, minimum,
+minProperties, and additionalProperties given as a subschema. A type name it
+does not know matches nothing, so a typo fails loudly instead of passing.
 
 Both the schema and the config it checks are decoded JSON of a shape
 nothing knows until it is walked — discovering that shape is the whole
@@ -44,6 +45,17 @@ def validate(config: Any, schema: Schema | None = None) -> list[str]:
 
 def _check(value: Any, schema: Schema, path: str, errors: list[str]) -> None:
     expected_type = schema.get("type")
+
+    if isinstance(expected_type, list):
+        # A list of types is any one of them; the one the value matches is
+        # the one whose own checks then apply.
+        matched = [name for name in expected_type if _type_matches(value, name)]
+
+        if not matched:
+            errors.append(f"{path}: expected one of {expected_type}, got {_type_name(value)}")
+            return
+
+        expected_type = matched[0]
 
     if expected_type and not _type_matches(value, expected_type):
         errors.append(f"{path}: expected {expected_type}, got {_type_name(value)}")
@@ -122,7 +134,9 @@ def _type_matches(value: Any, expected: str) -> bool:
         return isinstance(value, (int, float)) and not isinstance(value, bool)
     if expected == "integer":
         return isinstance(value, int) and not isinstance(value, bool)
-    return True
+    if expected == "null":
+        return value is None
+    return False
 
 
 def _type_name(value: Any) -> str:

@@ -58,129 +58,152 @@
   </style>
 
   <!-- The separator (T20-17), laid out as the prototype drew it: the feed
-       under FIC-301 on the left, the vapour line under PIC-301 across the
-       top and the liquid line under LIC-301 across the bottom. Styles and
+       under FIC-301 on the left, behind T20-18's shutdown valve XV-301, the
+       vapour line under PIC-301 across the top and the liquid line under
+       LIC-301 across the bottom. Styles and
        symbols are olefins_lite.svg's. Every flow pipe is drawn in the
        direction of positive branch flow, with its arrow at its midpoint; a
        vessel riser carries no stream of its own and so no arrow. The feed is
        one liquid line (ADR 0002 Amendment 4): the gas it carries is not
        metered, and shows as V-301's pressure and PV-301's flow. -->
 
-  <!-- Feed. FIC-301 measures FV-301's flow upstream of the valve. -->
-  <path class="pipe" data-flow="streams.B-FV-301.flow" d="M 34 280 H 96" />
-  <g class="flow-arrow" data-flow="streams.B-FV-301.flow" transform="translate(65 280) rotate(0)"><path class="arrow-shape" d="M -4.5 -4.5 L 4.5 0 L -4.5 4.5 Z" /></g>
-  <path class="pipe" data-flow="streams.B-FV-301.flow" d="M 124 280 H 215" />
-  <g class="flow-arrow" data-flow="streams.B-FV-301.flow" transform="translate(169.5 280) rotate(0)"><path class="arrow-shape" d="M -4.5 -4.5 L 4.5 0 L -4.5 4.5 Z" /></g>
+  <!-- Feed. It comes down the left edge through XV-301, the shutdown valve,
+       drawn upright with a square actuator to tell it from a control valve's
+       dome; no loop drives it, so its readouts sit beside it. It turns along
+       the bottom of the drum's left side through FV-301, and FIC-301
+       measures FV-301's flow just upstream of the valve. -->
   <g class="node">
-    <rect class="boundary" x="20" y="273" width="14" height="14" />
-    <text x="27" y="258">N-301</text>
-    <text x="27" y="308" data-bind="nodes.N-301.pressure" data-format="fixed:0" data-unit="psia">--</text>
+    <rect class="boundary" x="20" y="40" width="14" height="14" />
+    <text x="27" y="30">N-301</text>
+    <text x="42" y="52" style="text-anchor: start" data-bind="nodes.N-301.pressure" data-format="fixed:0" data-unit="psia">--</text>
+  </g>
+  <path class="pipe" data-flow="streams.B-XV-301.flow" d="M 27 54 V 96" />
+  <g class="flow-arrow" data-flow="streams.B-XV-301.flow" transform="translate(27 75) rotate(90)"><path class="arrow-shape" d="M -4.5 -4.5 L 4.5 0 L -4.5 4.5 Z" /></g>
+  <g class="eq" data-tag="XV-301">
+    <path class="body" d="M 17 96 L 37 124 L 17 124 L 37 96 Z" />
+    <line class="stem" x1="27" y1="110" x2="42" y2="110" />
+    <rect class="actuator" x="42" y="102" width="12" height="16" />
+    <text class="tag" x="62" y="100" style="text-anchor: start">XV-301</text>
+    <text x="62" y="118" style="text-anchor: start" data-bind="equipment.XV-301.position" data-format="percent">--</text>
+    <text x="62" y="136" style="text-anchor: start" data-bind="streams.B-XV-301.flow" data-unit="GPM">--</text>
+    <rect class="badge" x="58" y="142" width="76" height="22" rx="4" />
+    <text x="96" y="158" data-state-of="XV-301"></text>
+  </g>
+  <path class="pipe" data-flow="streams.B-FV-301.flow" d="M 27 124 V 280" />
+  <g class="flow-arrow" data-flow="streams.B-FV-301.flow" transform="translate(27 202) rotate(90)"><path class="arrow-shape" d="M -4.5 -4.5 L 4.5 0 L -4.5 4.5 Z" /></g>
+  <path class="pipe" data-flow="streams.B-FV-301.flow" d="M 27 280 H 112" />
+  <g class="flow-arrow" data-flow="streams.B-FV-301.flow" transform="translate(69.5 280) rotate(0)"><path class="arrow-shape" d="M -4.5 -4.5 L 4.5 0 L -4.5 4.5 Z" /></g>
+  <g class="node">
+    <text x="35" y="228" style="text-anchor: start">N-304</text>
+    <text x="35" y="244" style="text-anchor: start" data-bind="nodes.N-304.pressure" data-format="fixed:0" data-unit="psia">--</text>
   </g>
   <g class="ctl" data-controller="FIC-301">
-    <path class="signal" d="M 52 280 V 200 H 90" />
-    <path class="signal" d="M 110 220 V 256" />
-    <circle class="ctl-balloon" cx="110" cy="200" r="20" />
-    <line class="ctl-divider" x1="90" y1="200" x2="130" y2="200" />
-    <text x="110" y="196">FIC</text>
-    <text x="110" y="215">301</text>
-    <text class="ctl-mode" x="136" y="205" data-controller-mode="FIC-301">--</text>
+    <path class="signal" d="M 96 280 V 200 H 106" />
+    <path class="signal" d="M 126 220 V 256" />
+    <circle class="ctl-balloon" cx="126" cy="200" r="20" />
+    <line class="ctl-divider" x1="106" y1="200" x2="146" y2="200" />
+    <text x="126" y="196">FIC</text>
+    <text x="126" y="215">301</text>
+    <text class="ctl-mode" x="152" y="205" data-controller-mode="FIC-301">--</text>
   </g>
   <g class="eq" data-tag="FV-301">
-    <path class="body" d="M 96 270 L 124 290 L 124 270 L 96 290 Z" />
-    <line class="stem" x1="110" y1="280" x2="110" y2="265" />
-    <path class="actuator" d="M 101 265 A 9 9 0 0 1 119 265 Z" />
-    <text class="tag" x="110" y="308">FV-301</text>
-    <text x="110" y="326" data-bind="equipment.FV-301.position" data-format="percent">--</text>
-    <text x="110" y="344" data-bind="streams.B-FV-301.flow" data-unit="GPM">--</text>
-    <rect class="badge" x="72" y="350" width="76" height="22" rx="4" />
-    <text x="110" y="366" data-state-of="FV-301"></text>
+    <path class="body" d="M 112 270 L 140 290 L 140 270 L 112 290 Z" />
+    <line class="stem" x1="126" y1="280" x2="126" y2="265" />
+    <path class="actuator" d="M 117 265 A 9 9 0 0 1 135 265 Z" />
+    <text class="tag" x="126" y="308">FV-301</text>
+    <text x="126" y="326" data-bind="equipment.FV-301.position" data-format="percent">--</text>
+    <text x="126" y="344" data-bind="streams.B-FV-301.flow" data-unit="GPM">--</text>
+    <rect class="badge" x="88" y="350" width="76" height="22" rx="4" />
+    <text x="126" y="366" data-state-of="FV-301"></text>
   </g>
+  <path class="pipe" data-flow="streams.B-FV-301.flow" d="M 140 280 H 231" />
+  <g class="flow-arrow" data-flow="streams.B-FV-301.flow" transform="translate(185.5 280) rotate(0)"><path class="arrow-shape" d="M -4.5 -4.5 L 4.5 0 L -4.5 4.5 Z" /></g>
   <g class="node">
-    <text x="172" y="252">N-302</text>
-    <text x="172" y="268" data-bind="nodes.N-302.pressure" data-format="fixed:0" data-unit="psia">--</text>
+    <text x="188" y="252">N-302</text>
+    <text x="188" y="268" data-bind="nodes.N-302.pressure" data-format="fixed:0" data-unit="psia">--</text>
   </g>
 
   <!-- Vapour. PIC-301 measures V-301's pressure on the overhead. -->
-  <path class="pipe" d="M 260 124 V 80" />
-  <path class="pipe" data-flow="streams.B-PV-301.flow" d="M 260 80 H 356" />
-  <g class="flow-arrow" data-flow="streams.B-PV-301.flow" transform="translate(308 80) rotate(0)"><path class="arrow-shape" d="M -4.5 -4.5 L 4.5 0 L -4.5 4.5 Z" /></g>
-  <path class="pipe" data-flow="streams.B-PV-301.flow" d="M 384 80 H 446" />
-  <g class="flow-arrow" data-flow="streams.B-PV-301.flow" transform="translate(415 80) rotate(0)"><path class="arrow-shape" d="M -4.5 -4.5 L 4.5 0 L -4.5 4.5 Z" /></g>
+  <path class="pipe" d="M 276 124 V 80" />
+  <path class="pipe" data-flow="streams.B-PV-301.flow" d="M 276 80 H 372" />
+  <g class="flow-arrow" data-flow="streams.B-PV-301.flow" transform="translate(324 80) rotate(0)"><path class="arrow-shape" d="M -4.5 -4.5 L 4.5 0 L -4.5 4.5 Z" /></g>
+  <path class="pipe" data-flow="streams.B-PV-301.flow" d="M 400 80 H 462" />
+  <g class="flow-arrow" data-flow="streams.B-PV-301.flow" transform="translate(431 80) rotate(0)"><path class="arrow-shape" d="M -4.5 -4.5 L 4.5 0 L -4.5 4.5 Z" /></g>
   <g class="node">
-    <text x="250" y="98" style="text-anchor: end">N-312</text>
-    <text x="250" y="114" style="text-anchor: end" data-bind="nodes.N-312.pressure" data-format="fixed:0" data-unit="psia">--</text>
+    <text x="266" y="98" style="text-anchor: end">N-312</text>
+    <text x="266" y="114" style="text-anchor: end" data-bind="nodes.N-312.pressure" data-format="fixed:0" data-unit="psia">--</text>
   </g>
   <g class="ctl" data-controller="PIC-301">
-    <path class="signal" d="M 290 80 V 24 H 350" />
-    <path class="signal" d="M 370 44 V 56" />
-    <circle class="ctl-balloon" cx="370" cy="24" r="20" />
-    <line class="ctl-divider" x1="350" y1="24" x2="390" y2="24" />
-    <text x="370" y="20">PIC</text>
-    <text x="370" y="39">301</text>
-    <text class="ctl-mode" x="396" y="29" data-controller-mode="PIC-301">--</text>
+    <path class="signal" d="M 306 80 V 24 H 366" />
+    <path class="signal" d="M 386 44 V 56" />
+    <circle class="ctl-balloon" cx="386" cy="24" r="20" />
+    <line class="ctl-divider" x1="366" y1="24" x2="406" y2="24" />
+    <text x="386" y="20">PIC</text>
+    <text x="386" y="39">301</text>
+    <text class="ctl-mode" x="412" y="29" data-controller-mode="PIC-301">--</text>
   </g>
   <g class="eq" data-tag="PV-301">
-    <path class="body" d="M 356 70 L 384 90 L 384 70 L 356 90 Z" />
-    <line class="stem" x1="370" y1="80" x2="370" y2="65" />
-    <path class="actuator" d="M 361 65 A 9 9 0 0 1 379 65 Z" />
-    <text class="tag" x="370" y="108">PV-301</text>
-    <text x="370" y="126" data-bind="equipment.PV-301.position" data-format="percent">--</text>
-    <text x="370" y="144" data-bind="streams.B-PV-301.flow" data-unit="SCFM">--</text>
-    <rect class="badge" x="332" y="150" width="76" height="22" rx="4" />
-    <text x="370" y="166" data-state-of="PV-301"></text>
+    <path class="body" d="M 372 70 L 400 90 L 400 70 L 372 90 Z" />
+    <line class="stem" x1="386" y1="80" x2="386" y2="65" />
+    <path class="actuator" d="M 377 65 A 9 9 0 0 1 395 65 Z" />
+    <text class="tag" x="386" y="108">PV-301</text>
+    <text x="386" y="126" data-bind="equipment.PV-301.position" data-format="percent">--</text>
+    <text x="386" y="144" data-bind="streams.B-PV-301.flow" data-unit="SCFM">--</text>
+    <rect class="badge" x="348" y="150" width="76" height="22" rx="4" />
+    <text x="386" y="166" data-state-of="PV-301"></text>
   </g>
   <g class="node">
-    <rect class="boundary" x="446" y="73" width="14" height="14" />
-    <text x="453" y="58">N-313</text>
-    <text x="453" y="108" data-bind="nodes.N-313.pressure" data-format="fixed:0" data-unit="psia">--</text>
+    <rect class="boundary" x="462" y="73" width="14" height="14" />
+    <text x="469" y="58">N-313</text>
+    <text x="469" y="108" data-bind="nodes.N-313.pressure" data-format="fixed:0" data-unit="psia">--</text>
   </g>
 
   <!-- V-301's level is a gauge in the middle of the drum, as on V-101: a
        track with quarter ticks, a bar whose height follows the 0..1 level,
        and the reading under it. -->
   <g class="eq" data-tag="V-301">
-    <rect class="body" x="215" y="124" width="90" height="220" rx="16" />
-    <text class="tag" x="260" y="146">V-301</text>
-    <text x="260" y="164" data-bind="equipment.V-301.pressure" data-format="fixed:0" data-unit="psia">--</text>
-    <text x="260" y="182" data-band-of="V-301"></text>
-    <rect class="gauge" x="252" y="190" width="16" height="120" rx="2" />
-    <line class="gauge-tick" x1="246" y1="221" x2="252" y2="221" />
-    <line class="gauge-tick" x1="244" y1="250" x2="252" y2="250" />
-    <line class="gauge-tick" x1="246" y1="279" x2="252" y2="279" />
-    <rect class="gauge-fill" x="254" y="250" width="12" height="58" data-fill="equipment.V-301.level" data-y0="192" data-h0="116" />
-    <text x="260" y="330" data-bind="equipment.V-301.level" data-format="percent">--</text>
+    <rect class="body" x="231" y="124" width="90" height="220" rx="16" />
+    <text class="tag" x="276" y="146">V-301</text>
+    <text x="276" y="164" data-bind="equipment.V-301.pressure" data-format="fixed:0" data-unit="psia">--</text>
+    <text x="276" y="182" data-band-of="V-301"></text>
+    <rect class="gauge" x="268" y="190" width="16" height="120" rx="2" />
+    <line class="gauge-tick" x1="262" y1="221" x2="268" y2="221" />
+    <line class="gauge-tick" x1="260" y1="250" x2="268" y2="250" />
+    <line class="gauge-tick" x1="262" y1="279" x2="268" y2="279" />
+    <rect class="gauge-fill" x="270" y="250" width="12" height="58" data-fill="equipment.V-301.level" data-y0="192" data-h0="116" />
+    <text x="276" y="330" data-bind="equipment.V-301.level" data-format="percent">--</text>
   </g>
 
   <!-- Liquid. LIC-301 measures V-301's level. -->
-  <path class="pipe" d="M 260 344 V 376" />
-  <path class="pipe" data-flow="streams.B-LV-301.flow" d="M 260 376 H 356" />
-  <g class="flow-arrow" data-flow="streams.B-LV-301.flow" transform="translate(308 376) rotate(0)"><path class="arrow-shape" d="M -4.5 -4.5 L 4.5 0 L -4.5 4.5 Z" /></g>
-  <path class="pipe" data-flow="streams.B-LV-301.flow" d="M 384 376 H 446" />
-  <g class="flow-arrow" data-flow="streams.B-LV-301.flow" transform="translate(415 376) rotate(0)"><path class="arrow-shape" d="M -4.5 -4.5 L 4.5 0 L -4.5 4.5 Z" /></g>
+  <path class="pipe" d="M 276 344 V 376" />
+  <path class="pipe" data-flow="streams.B-LV-301.flow" d="M 276 376 H 372" />
+  <g class="flow-arrow" data-flow="streams.B-LV-301.flow" transform="translate(324 376) rotate(0)"><path class="arrow-shape" d="M -4.5 -4.5 L 4.5 0 L -4.5 4.5 Z" /></g>
+  <path class="pipe" data-flow="streams.B-LV-301.flow" d="M 400 376 H 462" />
+  <g class="flow-arrow" data-flow="streams.B-LV-301.flow" transform="translate(431 376) rotate(0)"><path class="arrow-shape" d="M -4.5 -4.5 L 4.5 0 L -4.5 4.5 Z" /></g>
   <g class="ctl" data-controller="LIC-301">
-    <path class="signal" d="M 305 250 H 350" />
-    <path class="signal" d="M 370 270 V 352" />
-    <circle class="ctl-balloon" cx="370" cy="250" r="20" />
-    <line class="ctl-divider" x1="350" y1="250" x2="390" y2="250" />
-    <text x="370" y="246">LIC</text>
-    <text x="370" y="265">301</text>
-    <text class="ctl-mode" x="396" y="255" data-controller-mode="LIC-301">--</text>
+    <path class="signal" d="M 321 250 H 366" />
+    <path class="signal" d="M 386 270 V 352" />
+    <circle class="ctl-balloon" cx="386" cy="250" r="20" />
+    <line class="ctl-divider" x1="366" y1="250" x2="406" y2="250" />
+    <text x="386" y="246">LIC</text>
+    <text x="386" y="265">301</text>
+    <text class="ctl-mode" x="412" y="255" data-controller-mode="LIC-301">--</text>
   </g>
   <g class="eq" data-tag="LV-301">
-    <path class="body" d="M 356 366 L 384 386 L 384 366 L 356 386 Z" />
-    <line class="stem" x1="370" y1="376" x2="370" y2="361" />
-    <path class="actuator" d="M 361 361 A 9 9 0 0 1 379 361 Z" />
-    <text class="tag" x="370" y="404">LV-301</text>
-    <text x="370" y="422" data-bind="equipment.LV-301.position" data-format="percent">--</text>
-    <text x="370" y="440" data-bind="streams.B-LV-301.flow" data-unit="GPM">--</text>
-    <rect class="badge" x="332" y="446" width="76" height="22" rx="4" />
-    <text x="370" y="462" data-state-of="LV-301"></text>
+    <path class="body" d="M 372 366 L 400 386 L 400 366 L 372 386 Z" />
+    <line class="stem" x1="386" y1="376" x2="386" y2="361" />
+    <path class="actuator" d="M 377 361 A 9 9 0 0 1 395 361 Z" />
+    <text class="tag" x="386" y="404">LV-301</text>
+    <text x="386" y="422" data-bind="equipment.LV-301.position" data-format="percent">--</text>
+    <text x="386" y="440" data-bind="streams.B-LV-301.flow" data-unit="GPM">--</text>
+    <rect class="badge" x="348" y="446" width="76" height="22" rx="4" />
+    <text x="386" y="462" data-state-of="LV-301"></text>
   </g>
   <g class="node">
-    <rect class="boundary" x="446" y="369" width="14" height="14" />
-    <text x="453" y="354">N-303</text>
-    <text x="453" y="404" data-bind="nodes.N-303.pressure" data-format="fixed:0" data-unit="psia">--</text>
+    <rect class="boundary" x="462" y="369" width="14" height="14" />
+    <text x="469" y="354">N-303</text>
+    <text x="469" y="404" data-bind="nodes.N-303.pressure" data-format="fixed:0" data-unit="psia">--</text>
   </g>
 
-  <text class="note" x="120" y="460" data-unplaced=""></text>
+  <text class="note" x="136" y="460" data-unplaced=""></text>
 </svg>

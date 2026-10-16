@@ -1,7 +1,8 @@
 """
-Authored scenario pack - T14-6. The build-plan tests: every scenario in
-`config/scenarios/` loads, runs and completes; is solved by a scripted correct
-response; and is not solved by doing nothing.
+Authored scenario pack - T14-6, and the separator's four (T20-18). The
+build-plan tests: every scenario in `config/scenarios/` loads, runs and
+completes; is solved by a scripted correct response; is not solved by doing
+nothing; and, for the separator's, replays bit-identically.
 
 Each script is what an operator would do once the diagnosis written in the
 scenario's `description` is made: `{scenario time: [(device, action[, value])]}`.
@@ -14,8 +15,9 @@ from pathlib import Path
 import pytest
 import yaml
 
-from app.api.action import apply_action
+from app.engine.persistence import capture_state
 from app.plant.validate import validate
+from app.scenarios.replay import Recording, replay
 from app.scenarios.runner import Outcome, Phase, ScenarioRunner
 
 
@@ -33,9 +35,15 @@ CORRECT_RESPONSES = {
     "blocked_drain": {60: [("LV-101", "set_position_target", 1.0)]},
     "restricted_discharge": {60: [("FV-201", "set_position_target", 1.0)]},
     "stuck_drain_valve": {5: [("LV-101", "set_position_target", 0.0)] + RESTART_PUMP},
+    # The separator's faults land at 30 s; each response comes 30 s later.
+    "separator_drain_restriction": {60: [("FIC-301", "set_setpoint", 30.0)]},
+    "separator_vent_restriction": {60: [("FIC-301", "set_setpoint", 25.0)]},
+    "separator_feed_signal_loss": {60: [("XV-301", "set_position_target", 0.22)]},
+    "separator_drain_signal_loss": {60: [("FIC-301", "set_setpoint", 70.0)]},
 }
 
 IDS = sorted(CORRECT_RESPONSES)
+SEPARATOR_IDS = [scenario_id for scenario_id in IDS if scenario_id.startswith("separator_")]
 
 
 def run(scenario_id, script=None, limit=2000):
@@ -43,17 +51,12 @@ def run(scenario_id, script=None, limit=2000):
     runner.load(scenario_id)
     runner.start()
     script = script or {}
-    engine = runner.engine
-
     for tick in range(limit):
         if runner.phase is not Phase.RUNNING:
             break
 
         for target, action, *value in script.get(tick, ()):
-            apply_action(
-                engine.equipment, runner.actions, engine.clock.sim_time,
-                target, action, value[0] if value else None, loops=engine.loops,
-            )
+            runner.act(target, action, value[0] if value else None)
 
         runner.step(DT)
     else:
@@ -62,11 +65,29 @@ def run(scenario_id, script=None, limit=2000):
     return runner
 
 
-def test_the_pack_is_five_to_eight_scenarios_each_with_a_script():
+def plants():
+    found = {}
+
+    for path in SCENARIOS.glob("*.yaml"):
+        found.setdefault(yaml.safe_load(path.read_text())["plant"], set()).add(path.stem)
+
+    return found
+
+
+def test_each_plants_pack_is_four_to_eight_scenarios_each_with_a_script():
     files = sorted(path.stem for path in SCENARIOS.glob("*.yaml"))
 
-    assert 5 <= len(files) <= 8
     assert files == IDS
+    assert set(plants()["separator"]) == set(SEPARATOR_IDS)
+    for plant, ids in plants().items():
+        assert 4 <= len(ids) <= 8, plant
+
+
+def test_olefins_lite_keeps_its_six():
+    assert plants()["olefins_lite"] == {
+        "blocked_drain", "compressor_trip", "loss_of_feed",
+        "pump_trip", "restricted_discharge", "stuck_drain_valve",
+    }
 
 
 @pytest.mark.parametrize("scenario_id", IDS)
@@ -115,3 +136,34 @@ def test_a_stuck_valve_ignores_the_demand_to_close():
     valve = runner.engine.equipment["LV-101"]
     assert valve.position == pytest.approx(0.5)
     assert valve.position_target < valve.position
+
+
+def test_a_lost_feed_signal_opens_fv_301_against_its_loop_until_xv_301_takes_the_feed():
+    runner = run("separator_feed_signal_loss", CORRECT_RESPONSES["separator_feed_signal_loss"])
+
+    engine = runner.engine
+    assert engine.equipment["FV-301"].signal_ok is False
+    assert engine.equipment["FV-301"].position == pytest.approx(1.0)
+    assert engine.equipment["XV-301"].position == pytest.approx(0.22)
+    assert runner.result().outcome is Outcome.SUCCEEDED
+
+
+def test_a_lost_drain_signal_opens_lv_301_against_its_loop():
+    runner = run("separator_drain_signal_loss", CORRECT_RESPONSES["separator_drain_signal_loss"])
+
+    valve = runner.engine.equipment["LV-301"]
+    assert valve.signal_ok is False
+    assert valve.position == pytest.approx(1.0)
+    assert runner.result().outcome is Outcome.SUCCEEDED
+
+
+@pytest.mark.parametrize("scenario_id", SEPARATOR_IDS)
+def test_each_separator_scenario_replays_bit_identically(scenario_id):
+    live = run(scenario_id, CORRECT_RESPONSES[scenario_id])
+
+    replayed = replay(Recording.of(live))
+
+    assert live.result().outcome is Outcome.SUCCEEDED
+    assert capture_state(replayed.engine) == capture_state(live.engine)
+    assert replayed.snapshot().as_dict() == live.snapshot().as_dict()
+    assert replayed.result().as_dict() == live.result().as_dict()

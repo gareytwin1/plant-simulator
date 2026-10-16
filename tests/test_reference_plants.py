@@ -192,7 +192,7 @@ def test_mixed_domain_variant_is_rejected_naming_the_branch(name):
 # The separator (T20-17): a liquid and a gas domain coupled only through
 # V-301's inventory. The liquid node carries the drum's head, which the
 # engine's coupling writes, so the design point is read from a built engine.
-SEPARATOR_FLOWS = {"B-FV-301": 50.0, "B-LV-301": 50.0, "B-PV-301": 10.0}
+SEPARATOR_FLOWS = {"B-XV-301": 50.0, "B-FV-301": 50.0, "B-LV-301": 50.0, "B-PV-301": 10.0}
 
 
 def test_the_separator_loads_as_a_liquid_and_a_gas_topology_and_solves_to_its_design_point():

@@ -1,6 +1,7 @@
 # The separator (T20-17): a two-phase feed into a drum, with flow control on
 # the feed, level control on the drain and pressure control on the overhead,
 # all three in AUTO. It sits beside olefins_lite and shares nothing with it.
+# XV-301 (T20-18) is the feed's shutdown valve, upstream of FV-301.
 #
 # The feed is one valve and one line (ADR 0002 Amendment 4): FV-301 is a
 # liquid valve, and the gas it carries enters V-301's gas space at
@@ -13,6 +14,7 @@
 # vapour inlet FV-302 replaced by the ratio:
 #
 #   liquid node N-302 = 50.0 + head_at_full 20.0 * level 0.5 = 60.0 psia
+#   shutdown XV-301: 50.0 * 1.0 * sqrt(86.0 - 85.0) = 50.0 GPM
 #   feed   FV-301: 20.0 * 0.5 * sqrt(85.0 - 60.0)   = 50.0 GPM
 #   drain  LV-301: 14.0 * 5/7 * sqrt(60.0 - 35.0)   = 50.0 GPM
 #   feed gas:      0.2 * 50.0                       = 10.0 SCFM
@@ -21,18 +23,30 @@
 # so a freshly loaded drum sits at level 0.5 and 200 psia with nothing moving,
 # and every loop starts bumpless at that point. The drain and vent run about
 # 71% open, so a feed valve failing wide open outruns them. FV-301 and LV-301
-# fail open on a lost signal; PV-301 fails closed (the class default).
+# fail open on a lost signal; PV-301 fails closed (the class default). XV-301
+# runs wide open, so the 1 psi it takes leaves FV-301 the prototype's 85 psia
+# at the inlet node N-304.
 nodes:
-  - {id: N-301, boundary: true, pressure: 85.0, domain: liquid}
+  - {id: N-301, boundary: true, pressure: 86.0, domain: liquid}
+  - {id: N-304, boundary: false, pressure: 85.0, domain: liquid}
   - {id: N-302, boundary: true, pressure: 50.0, domain: liquid}
   - {id: N-303, boundary: true, pressure: 35.0, domain: liquid}
   - {id: N-312, boundary: true, pressure: 200.0, domain: gas}
   - {id: N-313, boundary: true, pressure: 100.0, domain: gas}
 equipment:
+  # A shutdown valve closes tight, so its minimum travel is near zero where
+  # a control valve's is 0.1: shut, it passes about 5 GPM against FV-301 wide
+  # open. It has no loop; only a trip or an operator moves it.
+  - tag: XV-301
+    type: control_valve
+    service: Feed shutdown valve
+    node_in: N-301
+    node_out: N-304
+    design: {capacity: 50.0, flow_characteristic: linear, min_position: 0.02, position: 1.0, position_target: 1.0}
   - tag: FV-301
     type: control_valve
     service: Feed valve
-    node_in: N-301
+    node_in: N-304
     node_out: N-302
     design: {capacity: 20.0, flow_characteristic: linear, fail_action: open, position: 0.5, position_target: 0.5}
   - tag: LV-301
@@ -71,18 +85,20 @@ limits:
 # reset. A high level or a high pressure shuts in the inlet, and a low level
 # shuts in the liquid outlet - the separator protection API RP 14C sets out.
 # The feed is both the liquid that fills the drum and the gas that
-# pressurises it, so closing FV-301 removes the cause of either: the drain and
+# pressurises it, so shutting it in removes the cause of either: the drain and
 # the vent then bring the drum back down. Opening PV-301 on PSHH would not -
-# a restricted vent already runs fully open under PIC-301. The plant has no
-# separate shutdown valve, so a trip moves the control valve itself, to its
-# minimum travel; a valve that has lost its signal sits at its fail position
-# whatever a trip demands (app/equipment/valve.py), so a lost FV-301 signal
-# defeats LSHH-301 and PSHH-301, and a lost LV-301 signal defeats LSLL-301.
+# a restricted vent already runs fully open under PIC-301. The feed is shut in
+# by XV-301, not FV-301: a valve that has lost its signal sits at its fail
+# position whatever a trip demands (app/equipment/valve.py), so a shutdown
+# acting on the control valve would fail with the very fault that fills the
+# drum. LSLL-301 still closes LV-301, which has no shutdown valve of its own,
+# so a lost LV-301 signal defeats it. A trip leaves XV-301 shut after reset
+# until someone reopens it.
 interlocks:
   - tag: LSHH-301
     condition: "V-301.level >= 0.9"
     delay_s: 5.0
-    actions: ["FV-301.close"]
+    actions: ["XV-301.close"]
     reset: manual
   - tag: LSLL-301
     condition: "V-301.level <= 0.1"
@@ -92,7 +108,7 @@ interlocks:
   - tag: PSHH-301
     condition: "V-301.pressure >= 240.0"
     delay_s: 2.0
-    actions: ["FV-301.close"]
+    actions: ["XV-301.close"]
     reset: manual
 # Loops, all AUTO by the rule that every loop runs in AUTO unless a scenario
 # says otherwise. Each is bound to its valve's design position, so it starts

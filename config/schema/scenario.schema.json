@@ -48,7 +48,7 @@
         "properties": {
           "target_tag": {"type": "string", "minLength": 1},
           "parameter": {"type": "string", "minLength": 1},
-          "value": {"type": "number"},
+          "value": {"type": ["number", "boolean"], "description": "A number for a parameter in WRITABLE, a boolean for a flag in FLAGS (app/disturbances/malfunction.py). A flag takes only a step profile."},
           "profile": {
             "type": "object",
             "required": ["type"],

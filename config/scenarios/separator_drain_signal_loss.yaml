@@ -1,0 +1,31 @@
+# Drain signal loss: LV-301 loses its signal and fails open.
+id: separator_drain_signal_loss
+title: Drum emptying
+briefing: >-
+  Thirty seconds into the run V-301 level starts to drop. Hold the drum above its low-low trip.
+description: >
+  At 30 s LV-301 loses its control signal and strokes to its fail position,
+  wide open, whatever LIC-301 asks for. The drain rises to about 69 GPM
+  against 50 GPM of feed, so the level falls towards LSLL-301, and that
+  trip cannot help: it closes LV-301, which no longer answers anything.
+  Diagnosis path - V-301 level falls and LV-301 reads 100% open with its
+  drain near 69 GPM while LIC-301's output keeps falling towards 0%: the
+  valve is not following its demand. The drain cannot be throttled, so
+  match it with the feed: raise FIC-301's setpoint to about 70 GPM, what
+  LV-301 drains wide open at level 0.5, and the level recovers and holds.
+  Raising the feed much further fills the drum to LSHH-301 instead.
+plant: separator
+initial_condition:
+  condition: separator_normal
+malfunctions:
+  - target_tag: LV-301
+    parameter: signal_ok
+    value: false
+    start_condition: {type: at_time, sim_time: 30}
+objectives:
+  - id: hold-drum-level
+    success: {condition: V-301.level >= 0.4, hold_duration_s: 300}
+    failure: {condition: V-301.level <= 0.1}
+time_limit_s: 600
+difficulty: hard
+seed: 110

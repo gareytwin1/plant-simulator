@@ -1,0 +1,32 @@
+# Drain restriction: LV-301 passes half the flow its position says it should.
+id: separator_drain_restriction
+title: Rising drum level
+briefing: >-
+  Thirty seconds into the run V-301 level starts to climb towards its high alarm. Find out why and bring it back to its setpoint.
+description: >
+  At 30 s LV-301's capacity halves, as if its trim were partly plugged. At
+  the position it was holding it now drains about 25 GPM instead of 50, and
+  even wide open it passes only about 35 GPM while FV-301 keeps feeding 50,
+  so LIC-301 runs out of travel and the level climbs towards LSHH-301.
+  Diagnosis path - V-301 level rises with the feed steady at 50 GPM, and
+  LV-301 drain flow has dropped to about 25 GPM at an unchanged position;
+  LIC-301 then drives LV-301 to 100% and the drain still only reaches about
+  33 GPM. The valve is passing less than its position says and has no
+  travel left, so the drum cannot be held by the drain: lower FIC-301's
+  setpoint to about 30 GPM, below what the restricted drain passes wide
+  open, and LIC-301 brings the level back to its setpoint.
+plant: separator
+initial_condition:
+  condition: separator_normal
+malfunctions:
+  - target_tag: LV-301
+    parameter: capacity
+    value: 7.0
+    start_condition: {type: at_time, sim_time: 30}
+objectives:
+  - id: hold-drum-level
+    success: {condition: V-301.level <= 0.55, hold_duration_s: 300}
+    failure: {condition: V-301.level >= 0.9}
+time_limit_s: 900
+difficulty: medium
+seed: 107

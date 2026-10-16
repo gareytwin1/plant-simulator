@@ -1,0 +1,36 @@
+# Feed signal loss: FV-301 loses its signal and fails open.
+id: separator_feed_signal_loss
+title: Feed surge
+briefing: >-
+  Thirty seconds into the run more feed arrives than the drum passes on, and level and pressure both climb. Bring the drum back under control.
+description: >
+  At 30 s FV-301 loses its control signal and strokes to its fail position,
+  wide open, whatever FIC-301 asks for. The feed rises to about 90 GPM,
+  more than LV-301 drains even wide open, and the gas that comes with it
+  outruns PV-301, so level and pressure both climb towards their high
+  alarms. FV-301 no longer answers anything, a trip included, but XV-301,
+  the feed shutdown valve upstream of it, still does.
+  Diagnosis path - feed flow jumps to about 90 GPM and FV-301 reads 100%
+  open while FIC-301's output has fallen to 0%: the valve is not following
+  its demand. LIC-301 and PIC-301 drive their valves to 100% and still
+  lose ground. Take the feed with XV-301 instead: throttle it to about 22%
+  to bring the feed back near 50 GPM, and LIC-301 and PIC-301 recover the
+  drum.
+plant: separator
+initial_condition:
+  condition: separator_normal
+malfunctions:
+  - target_tag: FV-301
+    parameter: signal_ok
+    value: false
+    start_condition: {type: at_time, sim_time: 30}
+# The level fails at the high alarm, not the trip: with FV-301 wide open the
+# drum settles near level 0.88, just short of LSHH-301, so a run left alone
+# would otherwise time out rather than fail.
+objectives:
+  - id: hold-drum-level
+    success: {condition: V-301.level <= 0.55, hold_duration_s: 300}
+    failure: {condition: V-301.level >= 0.8}
+time_limit_s: 900
+difficulty: medium
+seed: 109

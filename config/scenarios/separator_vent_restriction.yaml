@@ -1,0 +1,33 @@
+# Vent restriction: PV-301 passes less than half the gas its position says.
+id: separator_vent_restriction
+title: Climbing drum pressure
+briefing: >-
+  Thirty seconds into the run V-301 pressure starts to rise while the level holds. Keep the drum below its high-high pressure trip.
+description: >
+  At 30 s PV-301's capacity falls from 1.4 to 0.6, as if the overhead line
+  were partly blocked. The vent now passes about 4 SCFM at the position
+  that passed 10, and even wide open only about 6 SCFM at 200 psia, while
+  the feed keeps bringing 10 SCFM of gas in, so pressure climbs towards
+  PSHH-301.
+  Diagnosis path - V-301 pressure rises with the level steady and PV-301
+  vent flow down from 10 SCFM to about 4 at an unchanged position; PIC-301
+  then drives PV-301 to 100% and the vent still passes only about 6 SCFM.
+  The overhead cannot pass the gas the feed brings, and the gas comes in
+  with the liquid at 0.2 SCFM per GPM, so lower FIC-301's setpoint to about
+  25 GPM: 5 SCFM of gas is less than the restricted vent passes, and
+  PIC-301 brings the pressure back to 200 psia.
+plant: separator
+initial_condition:
+  condition: separator_normal
+malfunctions:
+  - target_tag: PV-301
+    parameter: capacity
+    value: 0.6
+    start_condition: {type: at_time, sim_time: 30}
+objectives:
+  - id: hold-drum-pressure
+    success: {condition: V-301.pressure <= 202, hold_duration_s: 240}
+    failure: {condition: V-301.pressure >= 240}
+time_limit_s: 600
+difficulty: easy
+seed: 108

@@ -358,7 +358,8 @@
         var heldFocus = !panel.hidden && panel.contains(doc.activeElement);
         hide(false);
         // The ribbon renders the new phase before it calls this, but a later
-        // caller might not, so the handoff waits for the current task to end.
+        // caller might not, so the handoff runs after the caller's own
+        // synchronous code.
         if (heldFocus) Promise.resolve().then(focusRunControl);
         shown = null;
         opened = null;
@@ -389,6 +390,8 @@
           var response = await Scenario.timedFetch(doFetch, steps[i], timeoutMs);
           if (!response.ok) {
             refusal = api.refusalText(response.status);
+            // A proxy's 5xx does not prove the server refused the request.
+            ambiguous = response.status >= 500;
             break;
           }
           accepted = response;

@@ -868,3 +868,25 @@ def test_a_resync_asked_for_during_a_send_is_read_when_the_send_ends(client, ser
     )
 
     assert got == ["/api/scenario/start", "/api/scenario/result"]
+
+
+@needs_node
+@pytest.mark.parametrize(("status", "order"), [(503, ["retry", "resync"]), (429, ["retry"])])
+def test_only_a_5xx_start_after_an_accepted_load_asks_for_a_resync_after_adopting_the_load(status, order):
+    got = run_js(
+        PAGE
+        + """
+        const { panel } = page('complete');
+        const order = [];
+        const answers = [reply(200, { phase: 'loaded' }), reply(data.status, null)];
+        const debrief = D.mount(doc, { fetch: async () => answers.shift(),
+          onRetry: () => order.push('retry'), onResync: () => order.push('resync') });
+        debrief.result(200, data.done);
+        await button(panel, 'Try again').listeners.click[0]();
+        return order;
+        """,
+        done=finished("failed"),
+        status=status,
+    )
+
+    assert got == order

@@ -294,11 +294,11 @@
     var readOwed = false;
 
     async function resync() {
+      if (pollPromise) await pollPromise;
       if (state.busy) {
         readOwed = true;
         return;
       }
-      if (pollPromise) await pollPromise;
       await readNow();
     }
 

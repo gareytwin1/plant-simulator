@@ -371,9 +371,10 @@ body[data-page="console"] main {
   overflow: hidden;
 }
 
+/* The bottom strip is kept for the hint, so it never sits on a reading. */
 .canvas {
   position: absolute;
-  inset: var(--space-4);
+  inset: var(--space-4) var(--space-4) 44px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -383,6 +384,21 @@ body[data-page="console"] main {
   width: 100%;
   height: 100%;
   max-height: none;
+}
+
+.canvas-hint {
+  position: absolute;
+  left: 50%;
+  bottom: var(--space-3);
+  transform: translateX(-50%);
+  margin: 0;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-raised) 85%, transparent);
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  pointer-events: none;
+  white-space: nowrap;
 }
 
 .workspace .connection-indicator {
@@ -551,6 +567,10 @@ body[data-page="console"] main {
 
   .canvas {
     inset: var(--space-2);
+  }
+
+  .canvas-hint {
+    display: none;
   }
 }
 

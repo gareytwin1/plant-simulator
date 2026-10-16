@@ -9,8 +9,8 @@
  * Only `phase` and `title` are ever read from a response body here, so a live
  * run's key is never displayed (T16-12); a caller's `onResult` sees the body.
  * static/js/ribbon.js reads the run's times from it, and the console's
- * static/js/debrief.js shows a finished run's result and debrief (T20-22). A title is the scenario's public name, the one the
- * landing page lists. A refusal is shown in this file's own plain words,
+ * static/js/debrief.js shows a finished run's result and debrief (T20-22). A
+ * title is the scenario's public name, the one the landing page lists. A refusal is shown in this file's own plain words,
  * chosen by status code, never the server's text. The server renders the
  * title with the page; a poll replaces it when another tab loads a different
  * scenario.
@@ -288,21 +288,26 @@
       state.busy = true;
       state.armed = false;
       epoch += 1;
+      var mine = epoch;
       render();
       var resync = false;
       try {
         var result = await get(request);
-        if (result.status === 200) {
+        // adopt() put another run on the bar while this was in flight; its
+        // answer describes the one before, so it is dropped.
+        if (mine === epoch && result.status === 200) {
           notice("");
           apply(200, result.body);
           resync = api.phaseOf(200, result.body) === null;
-        } else {
+        } else if (mine === epoch) {
           notice(api.refusalText(action, result.status));
           resync = result.status !== 429;
         }
       } catch (error) {
-        notice(api.refusalText(action, 0));
-        resync = true;
+        if (mine === epoch) {
+          notice(api.refusalText(action, 0));
+          resync = true;
+        }
       } finally {
         state.busy = false;
         // Still ours only if focus has not moved somewhere else meanwhile.
@@ -320,8 +325,8 @@
     }
 
     /* A response another control on the page had accepted (T20-22's Try
-     * again), applied as if this bar had sent it: a poll already in flight is
-     * stale, `text` is shown as the notice, and focus moves into the bar to the
+     * again), applied as if this bar had sent it: a poll or a send already in
+     * flight is stale, `text` is shown as the notice, and focus moves into the bar to the
      * control the new phase offers. */
     function adopt(status, body, text) {
       epoch += 1;

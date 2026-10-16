@@ -95,6 +95,7 @@ function page(phase) {
   bar.appendChild(add('button', 'scenario-result'));
   add('p', 'scenario-notice');
   const workspace = add('section', 'workspace');
+  add('p', 'debrief-status');
   const panel = add('section', 'debrief');
   workspace.appendChild(panel);
   return { bar, panel, result: doc.getElementById('scenario-result') };
@@ -345,14 +346,39 @@ def test_the_panel_is_a_dialog_that_takes_focus_and_escape_hands_it_back_to_the_
 
 
 @needs_node
-def test_closing_returns_focus_to_what_had_it_when_the_panel_opened_itself():
+def test_a_panel_that_opens_itself_leaves_focus_in_a_faceplate_and_announces_itself_instead():
     got = run_js(
         PAGE
         + """
         const { panel } = page('running');
         const debrief = D.mount(doc, { fetch: async () => reply(500, null) });
-        const elsewhere = add('button', 'faceplate-close');
+        const elsewhere = add('input', 'faceplate-entry');
         elsewhere.focus();
+        debrief.result(200, data.done);
+        const status = doc.getElementById('debrief-status');
+        const opened = { open: !panel.hidden, focus: focusedId(), status: text(status) };
+        debrief.close();
+        return { opened, closed: { open: !panel.hidden, focus: focusedId(), status: text(status) } };
+        """,
+        done=finished("failed"),
+    )
+
+    assert got["opened"] == {
+        "open": True,
+        "focus": "faceplate-entry",
+        "status": "Run finished: Failed. The result is open above the plant.",
+    }
+    assert got["closed"] == {"open": False, "focus": "faceplate-entry", "status": ""}
+
+
+@needs_node
+def test_a_panel_that_opens_itself_takes_focus_from_the_ribbons_run_controls():
+    got = run_js(
+        PAGE
+        + """
+        const { panel } = page('running');
+        const debrief = D.mount(doc, { fetch: async () => reply(500, null) });
+        doc.getElementById('scenario-abort').focus();
         debrief.result(200, data.done);
         const opened = focusedId();
         panel.fire('keydown', { key: 'Escape' });
@@ -361,7 +387,29 @@ def test_closing_returns_focus_to_what_had_it_when_the_panel_opened_itself():
         done=finished("failed"),
     )
 
-    assert got == {"opened": "debrief", "closed": "faceplate-close"}
+    assert got == {"opened": "debrief", "closed": "scenario-abort"}
+
+
+@needs_node
+def test_escape_in_the_panel_closes_only_the_panel_not_a_faceplate_the_canvas_would_close():
+    got = run_js(
+        PAGE
+        + """
+        const { panel, result } = page('complete');
+        const debrief = D.mount(doc, { fetch: async () => reply(500, null) });
+        const reached = [];
+        doc.addEventListener('keydown', event => reached.push(event.key));
+        debrief.result(200, data.done);
+        result.focus();
+        debrief.close();
+        result.fire('click');
+        panel.fire('keydown', { key: 'Escape' });
+        return { reached, open: !panel.hidden, focus: focusedId() };
+        """,
+        done=finished("failed"),
+    )
+
+    assert got == {"reached": [], "open": False, "focus": "scenario-result"}
 
 
 # ---- try again ------------------------------------------------------------
@@ -577,3 +625,33 @@ def test_a_criterion_too_small_to_move_the_rounded_total_still_says_how_little_i
     )
 
     assert got == {"score": "Score 100 out of 100", "costs": ["Production lost, a little"]}
+
+
+@needs_node
+def test_a_start_still_in_flight_when_a_run_is_adopted_does_not_overwrite_it():
+    got = run_js(
+        PAGE
+        + """
+        page('loaded');
+        let release = null;
+        const fetch = url => url.endsWith('/start')
+          ? new Promise(resolve => { release = () => resolve(reply(200, { phase: 'running', title: 'Old run' })); })
+          : Promise.resolve(reply(200, data.done));
+        const ribbon = R.mount(doc, { fetch, pollMs: 0 });
+        await ribbon.ready;
+        const sending = doc.getElementById('scenario-start').listeners.click[0]();
+        ribbon.adopt(200, { phase: 'loaded', title: 'New run' }, 'Words from the panel');
+        release();
+        await sending;
+        return { state: text(doc.getElementById('scenario-state')), title: text(doc.getElementById('scenario-title')),
+          notice: text(doc.getElementById('scenario-notice')), disabled: doc.getElementById('scenario-start').disabled };
+        """,
+        done=finished("failed", phase="loaded"),
+    )
+
+    assert got == {
+        "state": f"Scenario {DOT} Loaded, not started",
+        "title": "New run",
+        "notice": "Words from the panel",
+        "disabled": False,
+    }

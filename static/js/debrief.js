@@ -184,6 +184,7 @@
     var doFetch = settings.fetch || root.fetch.bind(root);
     var panel = doc.getElementById("debrief");
     var button = doc.getElementById("scenario-result");
+    var status = doc.getElementById("debrief-status");
 
     var head = el(doc, "div", "debrief-head");
     var heading = el(doc, "h2", "", "Run result");
@@ -247,6 +248,7 @@
     var busy = false;
 
     function setOpen(open) {
+      if (!open && status) status.textContent = "";
       panel.hidden = !open;
       if (button) button.setAttribute("aria-expanded", open ? "true" : "false");
     }
@@ -296,13 +298,27 @@
         (target.isConnected === undefined || target.isConnected);
     }
 
+    /* Focus moves into the panel when the operator asked for it or has none
+     * to lose: on the body or in the ribbon's run controls. Someone typing in
+     * a faceplate or working a trend window keeps focus, and the panel is
+     * announced instead. */
+    function takesFocus(active) {
+      var bar = doc.getElementById("scenario-bar");
+      return !active || active === doc.body || !!(bar && bar.contains && bar.contains(active));
+    }
+
     function open(from) {
       if (shown === null) return;
       var active = from || doc.activeElement;
       if (!panel.hidden) return;
-      opener = active && !panel.contains(active) ? active : null;
       setOpen(true);
-      panel.focus();
+      if (from || takesFocus(active)) {
+        opener = active && !panel.contains(active) ? active : null;
+        panel.focus();
+      } else {
+        opener = null;
+        if (status) status.textContent = "Run finished: " + shown.outcomeText + ". The result is open above the plant.";
+      }
     }
 
     /* Focus goes back to what opened the panel, or to the Result button when
@@ -371,6 +387,9 @@
     panel.addEventListener("keydown", function (event) {
       if (event.key !== "Escape") return;
       if (event.preventDefault) event.preventDefault();
+      // Escape closes this panel only: the canvas's own listener would see the
+      // focus handed back to a faceplate control and close that faceplate too.
+      if (event.stopPropagation) event.stopPropagation();
       hide(true);
     });
     if (button) {

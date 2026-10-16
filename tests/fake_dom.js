@@ -55,12 +55,13 @@ class Node {
   dispatch(type, props) {
     const event = Object.assign({ type, target: this, defaultPrevented: false }, props);
     event.preventDefault = () => { event.defaultPrevented = true; };
+    event.stopPropagation = () => { event.stopped = true; };
     // The path is fixed before any listener runs, as in a browser: a listener
     // that detaches the target does not stop the event reaching its ancestors.
     const path = [];
     for (let n = this; n; n = n.parentNode) path.push(n);
-    path.forEach(n => (n.listeners[type] || []).forEach(fn => fn(event)));
-    (doc.listeners[type] || []).forEach(fn => fn(event));
+    path.forEach(n => { if (!event.stopped) (n.listeners[type] || []).forEach(fn => fn(event)); });
+    if (!event.stopped) (doc.listeners[type] || []).forEach(fn => fn(event));
     return event;
   }
   fire(type, props) { return this.dispatch(type, props); }

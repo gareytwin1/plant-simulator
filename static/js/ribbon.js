@@ -174,8 +174,11 @@
 
   /* Mount the ribbon. `options.fetch` and `options.pollMs` exist so a page or
    * test can supply its own transport and timer; `options.onChange` is handed
-   * to the run controls. Returns {update, refresh, poll, stop, ready}:
-   * `update` takes each snapshot the page receives. */
+   * to the run controls, and `options.onResult(status, body)` sees every
+   * result they apply, after the ribbon has (the console's debrief panel,
+   * T20-22). Returns {update, refresh, poll, adopt, say, resync, stop,
+   * ready}: `update` takes each snapshot the page receives, and `adopt`, `say`
+   * and `resync` are the run controls'. */
   function mount(doc, options) {
     var settings = options || {};
     var doFetch = settings.fetch || root.fetch.bind(root);
@@ -292,6 +295,7 @@
         clock.result(phase, api.runTimes(status, body));
         drawClock();
         drawPause();
+        if (settings.onResult) settings.onResult(status, body);
       },
     });
 
@@ -303,6 +307,9 @@
       ready: ready,
       refresh: refresh,
       poll: run.poll,
+      adopt: run.adopt,
+      say: run.say,
+      resync: run.resync,
       update: function (snapshot) {
         if (!snapshot || typeof snapshot.sim_time !== "number") return;
         clock.snapshot(snapshot.sim_time);

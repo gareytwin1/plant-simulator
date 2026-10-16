@@ -5,6 +5,7 @@
 {% block head %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/alarms.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/connection.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/debrief.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/faceplate.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/trends.css') }}">
 {% endblock %}
@@ -20,6 +21,11 @@
     <div id="trend-tray" class="tray" aria-label="Minimised trends" hidden></div>
     {# After the tray: the two share the bottom strip, so the hint gives way while the tray shows. #}
     <p class="canvas-hint" id="canvas-hint">Select equipment to operate it. Select a reading to trend it.</p>
+    {# A finished run's result (T20-22): non-modal, below the faceplates, and
+       inside the workspace so the alarm overlay makes it inert with the rest.
+       static/js/debrief.js fills it. #}
+    <p class="visually-hidden" id="debrief-status" role="status"></p>
+    <section class="debrief" id="debrief" role="dialog" aria-modal="false" aria-labelledby="debrief-title" tabindex="-1" hidden></section>
     <div id="faceplate-layer" class="faceplate-layer"></div>
     <p class="connection-indicator" id="connection-indicator" role="status">CONNECTING</p>
   </section>
@@ -79,6 +85,7 @@
 <script src="{{ url_for('static', filename='js/canvas.js') }}"></script>
 <script src="{{ url_for('static', filename='js/trends.js') }}"></script>
 <script src="{{ url_for('static', filename='js/trendwindows.js') }}"></script>
+<script src="{{ url_for('static', filename='js/debrief.js') }}"></script>
 <script>
   (function () {
     var consoleEl = document.getElementById("console");
@@ -125,8 +132,22 @@
         try { if (ribbon) ribbon.update(snapshot); } catch (error) { console.error(error); }
       }
     });
+    // Fed by the ribbon's scenario poll; Try again hands the new run back to it.
+    var debrief = null;
+    try {
+      debrief = Debrief.mount(document, {
+        onRetry: function (status, body, refusal) { if (ribbon) ribbon.adopt(status, body, refusal); },
+        onRefusal: function (text) { if (ribbon) ribbon.say(text); },
+        onResync: function () { if (ribbon) ribbon.resync(); }
+      });
+    } catch (error) { console.error(error); }
     // Last, and isolated: a ribbon that cannot mount must not take the console with it.
-    try { ribbon = Ribbon.mount(document, { onChange: function () { graphic.refresh(); canvas.refresh(); trends.reset(); } }); } catch (error) { console.error(error); }
+    try {
+      ribbon = Ribbon.mount(document, {
+        onChange: function () { graphic.refresh(); canvas.refresh(); trends.reset(); },
+        onResult: function (status, body) { if (debrief) debrief.result(status, body); }
+      });
+    } catch (error) { console.error(error); }
   })();
 </script>
 {% endblock %}

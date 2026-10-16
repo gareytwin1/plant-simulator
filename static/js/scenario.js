@@ -7,13 +7,13 @@
  *   GET  /api/scenario/result   (409 = nothing loaded = free play)
  *
  * Only `phase` and `title` are ever read from a response body here, so a live
- * run's key and a finished run's debrief are never displayed (T16-12); a
- * caller's `onResult` sees the body, and static/js/ribbon.js reads only the
- * run's times from it. A title is the scenario's public name, the one the
- * landing page lists. A refusal is shown in this file's own plain words,
- * chosen by status code, never the server's text. The server renders the
- * title with the page; a poll replaces it when another tab loads a different
- * scenario.
+ * run's key is never displayed (T16-12); a caller's `onResult` sees the body.
+ * static/js/ribbon.js reads the run's times from it, and the console's
+ * static/js/debrief.js shows a finished run's result and debrief (T20-22). A
+ * title is the scenario's public name, the one the landing page lists. A
+ * refusal is shown in this file's own plain words, chosen by status code,
+ * never the server's text. The server renders the title with the page; a poll
+ * replaces it when another tab loads a different scenario.
  *
  * Abort takes two clicks (arm, then confirm) with no window.confirm, so it
  * runs under Node; Escape disarms it. Aborting reveals the debrief, so it is
@@ -113,6 +113,32 @@
     return "Scenario \u00B7 " + api.phaseLabel(labels, phase);
   };
 
+  /* One request with a deadline, so a request that never settles cannot hold
+   * a flag for good: past it the request is aborted where the transport allows
+   * and the promise rejects. Resolves {ok, status, body}, the body being null
+   * unless the response was ok. Shared with static/js/debrief.js. */
+  api.timedFetch = async function (doFetch, request, timeoutMs) {
+    var controller = typeof AbortController === "function" ? new AbortController() : null;
+    var timerId;
+    var deadline = new Promise(function (resolve, reject) {
+      timerId = root.setTimeout(function () {
+        if (controller) controller.abort();
+        reject(new Error("timed out"));
+      }, timeoutMs);
+    });
+    var init = Object.assign({}, request.init || {});
+    if (controller) init.signal = controller.signal;
+
+    try {
+      var response = await Promise.race([doFetch(request.url, init), deadline]);
+      var body = null;
+      if (response.ok) body = await Promise.race([response.json(), deadline]);
+      return { ok: response.ok, status: response.status, body: body };
+    } finally {
+      root.clearTimeout(timerId);
+    }
+  };
+
   /* browser glue */
 
   /* Mount the run controls. `options.fetch` and `options.pollMs` exist so a
@@ -123,7 +149,7 @@
    * `options.isPaused()` says whether the operator has paused the plant, read
    * at each render; call the returned `render` after it changes. The
    * buttons and the choose link are optional, so a page can show the run
-   * without offering them. Returns {poll, stop, state}. */
+   * without offering them. Returns {poll, adopt, say, resync, render, stop, state}. */
   function mount(doc, options) {
     var settings = options || {};
     var doFetch = settings.fetch || root.fetch.bind(root);
@@ -226,28 +252,8 @@
       if (settings.onResult) settings.onResult(status, body);
     }
 
-    /* A request that never settles would hold a flag for good, so each one is
-     * given a deadline and aborted where the transport allows. */
-    async function get(request) {
-      var controller = typeof AbortController === "function" ? new AbortController() : null;
-      var timerId;
-      var deadline = new Promise(function (resolve, reject) {
-        timerId = root.setTimeout(function () {
-          if (controller) controller.abort();
-          reject(new Error("timed out"));
-        }, FETCH_TIMEOUT_MS);
-      });
-      var init = Object.assign({}, request.init || {});
-      if (controller) init.signal = controller.signal;
-
-      try {
-        var response = await Promise.race([doFetch(request.url, init), deadline]);
-        var body = null;
-        if (response.ok) body = await Promise.race([response.json(), deadline]);
-        return { status: response.status, body: body };
-      } finally {
-        root.clearTimeout(timerId);
-      }
+    function get(request) {
+      return api.timedFetch(doFetch, request, FETCH_TIMEOUT_MS);
     }
 
     async function pollOnce() {
@@ -282,27 +288,46 @@
       return readNow();
     }
 
+    /* Read the run again at once, waiting out a poll already in flight (it may
+     * have begun before something changed), as send() does after a refusal.
+     * While a send is in flight the read is owed to the end of it. */
+    var readOwed = false;
+
+    async function resync() {
+      if (pollPromise) await pollPromise;
+      if (state.busy) {
+        readOwed = true;
+        return;
+      }
+      await readNow();
+    }
+
     async function send(action, request) {
       // Disabling the clicked button can drop focus to the body, so note now.
       var owned = holdsFocus(doc.activeElement);
       state.busy = true;
       state.armed = false;
       epoch += 1;
+      var mine = epoch;
       render();
-      var resync = false;
+      var needsRead = false;
       try {
         var result = await get(request);
-        if (result.status === 200) {
+        // adopt() put another run on the bar while this was in flight; its
+        // answer describes the one before, so it is dropped.
+        if (mine === epoch && result.status === 200) {
           notice("");
           apply(200, result.body);
-          resync = api.phaseOf(200, result.body) === null;
-        } else {
+          needsRead = api.phaseOf(200, result.body) === null;
+        } else if (mine === epoch) {
           notice(api.refusalText(action, result.status));
-          resync = result.status !== 429;
+          needsRead = result.status !== 429;
         }
       } catch (error) {
-        notice(api.refusalText(action, 0));
-        resync = true;
+        if (mine === epoch) {
+          notice(api.refusalText(action, 0));
+          needsRead = true;
+        }
       } finally {
         state.busy = false;
         // Still ours only if focus has not moved somewhere else meanwhile.
@@ -311,12 +336,30 @@
         render();
         refocus(owned);
       }
-      if (resync) {
+      if (needsRead || readOwed) {
         // A poll already in flight began before this refusal; wait it out and
         // ask again, or the bar stays stale for a whole interval.
-        if (pollPromise) await pollPromise;
-        await readNow();
+        readOwed = false;
+        await resync();
       }
+    }
+
+    /* A response another control on the page had accepted (T20-22's Try
+     * again), applied as if this bar had sent it: a poll or a send already in
+     * flight is stale, `text` is shown as the notice, and focus moves into the
+     * bar to the control the new phase offers. */
+    function adopt(status, body, text) {
+      epoch += 1;
+      notice(text || "");
+      apply(status, body);
+      render();
+      refocus(true);
+    }
+
+    /* A message for the notice from another control on the page, with no run
+     * to apply: nothing in flight is made stale and focus stays where it is. */
+    function say(text) {
+      notice(text || "");
     }
 
     function disarm() {
@@ -363,6 +406,9 @@
 
     return {
       poll: poll,
+      adopt: adopt,
+      say: say,
+      resync: resync,
       render: render,
       state: state,
       stop: function () {

@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "2026-10-16",
-  "main_sha": "e952be3",
-  "tests_passing_on_main": 4277,
+  "main_sha": "d6a7ddd",
+  "tests_passing_on_main": 4284,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -118,14 +118,14 @@
     },
     "M20": {
       "name": "Console Redesign",
-      "complete": 20,
-      "total": 21
+      "complete": 21,
+      "total": 24
     }
   },
   "totals": {
-    "tasks": 154,
-    "complete": 148,
-    "startable_now": 5
+    "tasks": 157,
+    "complete": 149,
+    "startable_now": 6
   },
   "tasks": [
     {
@@ -3105,10 +3105,9 @@
         "T20-18"
       ],
       "files": [],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true,
-      "note": ""
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged to main as d6a7ddd (PR #180); 4284 passed, mypy clean over 89 files, roborev clean, no golden moved. Desktop width only (phone moves to T20-24). All ten scenarios played to a pass and to a fail in headless Firefox with real input events (20 runs as designed, no page errors), pump_trip end to end by keyboard only, a real alarm marker on a trend. Fixes: each scenario shows its own plant on the Home page, keyboard focus after Start or Stop, favicon, canvas hint. A finished run shows no result on the console, so outcomes were read from the result API and the Home page's Recent card: T20-22 adds the panel and T20-23 the run clock. Screenshots: https://claude.ai/artifact/GJbhypwPwP1CKBPAhKyV73"
     },
     {
       "id": "T20-20",
@@ -3155,6 +3154,80 @@
       "status": "Complete",
       "status_key": "done",
       "note": "Merged to main as 4f80d36 (PR #176); 4165 passed, mypy clean, roborev clean, no golden moved. Outcome is a ninth score criterion (weight 101, outcome_penalty table); trip_count counts interlock latches (TripRecord, recorded by PlantRuntime), not TRIP-severity alarms; rows stored before the metric read back with outcome 'unknown'. Config 3.0.0. Unblocks T20-16."
+    },
+    {
+      "id": "T20-22",
+      "milestone": "M20",
+      "name": "Show a finished run's result and debrief on the console",
+      "category": "dep",
+      "branch": "feature/console-debrief",
+      "depends_on": [
+        "T20-16",
+        "T20-21"
+      ],
+      "files": [
+        "static/js/debrief.js",
+        "static/css/debrief.css",
+        "templates/console.html",
+        "static/js/ribbon.js",
+        "tests/test_debrief.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": true,
+      "note": ""
+    },
+    {
+      "id": "T20-23",
+      "milestone": "M20",
+      "name": "Show run time, not the plant clock, while a scenario stands",
+      "category": "dep",
+      "branch": "feature/run-clock-everywhere",
+      "depends_on": [
+        "T20-11",
+        "T20-12",
+        "T20-14"
+      ],
+      "files": [
+        "app/api/scenario.py",
+        "static/js/ribbon.js",
+        "static/js/alarms.js",
+        "static/js/trends.js",
+        "static/js/trendwindows.js",
+        "static/js/landing.js",
+        "templates/console.html",
+        "templates/index.html",
+        "tests/test_scenario_api.py",
+        "tests/test_alarm_console.py",
+        "tests/test_trend_display.py",
+        "tests/test_trend_windows.py",
+        "tests/test_landing.py"
+      ],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": true,
+      "note": ""
+    },
+    {
+      "id": "T20-24",
+      "milestone": "M20",
+      "name": "Phone-width gameplay pass",
+      "category": "dep",
+      "branch": "test/phone-gameplay",
+      "depends_on": [
+        "T20-19",
+        "T20-22",
+        "T20-23"
+      ],
+      "files": [],
+      "status": "Not Started",
+      "status_key": "todo",
+      "startable": false,
+      "blocked_by": [
+        "T20-22",
+        "T20-23"
+      ],
+      "note": ""
     }
   ]
 }

@@ -1,0 +1,186 @@
+/* The result and debrief panel (T20-22). Sized and placed like the alarm
+ * overlay's panel (alarms.css), but non-modal: no backdrop, so the final plant
+ * stays readable and operable below it. Above the trend windows and their tray
+ * (trends.css, 30 and 35), below the faceplates (console.css, 40), so a
+ * faceplate opened while it shows is never hidden behind it. Every colour is
+ * a token from tokens.css. The outcome is a word and a glyph, never a colour:
+ * alarm colours are kept for alarms (docs/console-standards.md). */
+
+.debrief {
+  position: absolute;
+  inset: 0 0 auto 0;
+  z-index: 38;
+  display: flex;
+  flex-direction: column;
+  max-height: 100%;
+  background-color: var(--surface-raised);
+  border-bottom: 1px solid var(--border);
+  box-shadow: var(--shadow-3);
+  color: var(--text);
+  animation: debrief-drop-in var(--t-med) var(--ease);
+}
+
+.debrief[hidden] {
+  display: none;
+}
+
+.debrief:focus {
+  outline: none;
+}
+
+@keyframes debrief-drop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-24px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .debrief {
+    animation: none;
+  }
+}
+
+.debrief-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5) var(--space-2);
+}
+
+.debrief-head h2 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.debrief-sub {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.debrief-body {
+  display: grid;
+  grid-template-columns: minmax(16rem, 1fr) minmax(0, 2fr);
+  gap: var(--space-5);
+  min-height: 0;
+  overflow: auto;
+  padding: var(--space-2) var(--space-5) var(--space-3);
+}
+
+.debrief-outcome {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 800;
+}
+
+.debrief-glyph {
+  display: inline-grid;
+  place-items: center;
+  width: 1.6em;
+  height: 1.6em;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+  font-size: 0.8em;
+  line-height: 1;
+}
+
+.debrief-outcome[data-outcome="aborted"] .debrief-glyph,
+.debrief-outcome[data-outcome="unknown"] .debrief-glyph {
+  border-radius: var(--radius-small);
+}
+
+.debrief-time {
+  margin: var(--space-1) 0 0;
+  color: var(--text-muted);
+  font-size: 0.92rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.debrief-score {
+  margin: var(--space-3) 0 0;
+  font-weight: 600;
+}
+
+.debrief-score-value {
+  font-size: 1.6rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+}
+
+.debrief-score-of {
+  color: var(--text-muted);
+  font-size: 0.92rem;
+}
+
+.debrief-label {
+  margin: var(--space-3) 0 var(--space-1);
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.debrief-story .debrief-label {
+  margin-top: 0;
+}
+
+.debrief-costs {
+  margin: 0;
+  padding-left: 1.2em;
+  font-size: 0.92rem;
+}
+
+.debrief-costs li + li {
+  margin-top: 2px;
+}
+
+.debrief-extent {
+  margin-left: var(--space-2);
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.debrief-text p {
+  max-width: 72ch;
+  margin: 0 0 var(--space-2);
+  line-height: 1.5;
+}
+
+.debrief-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-5) var(--space-4);
+  border-top: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
+}
+
+.debrief-head .btn:focus-visible,
+.debrief-foot .btn:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* Kept in the accessibility tree while empty, so a refusal is announced when
+   it arrives; never display: none (the alarm overlay's status line does the
+   same). */
+.debrief-notice:empty {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+.debrief-notice {
+  margin: 0;
+  font-weight: 600;
+}

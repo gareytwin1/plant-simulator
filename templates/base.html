@@ -42,6 +42,7 @@
         <button type="button" class="btn btn-danger" id="scenario-abort-confirm" hidden>Abort run</button>
         <button type="button" class="btn btn-quiet" id="scenario-abort-keep" hidden>Keep running</button>
       </span>
+      <button type="button" class="btn" id="scenario-result" aria-haspopup="dialog" aria-controls="debrief" aria-expanded="false" hidden><span class="btn-glyph" aria-hidden="true">&#9873;</span>Result</button>
       <a class="btn btn-quiet" id="scenario-choose" href="{{ url_for('landing') }}" hidden><span class="label-long" id="scenario-choose-label"></span><span class="label-short" aria-hidden="true">Scenarios</span></a>
       {% endif %}
     </div>

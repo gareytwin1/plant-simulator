@@ -149,6 +149,8 @@ def test_the_thumbnail_is_not_interactive(page):
     figure = re.search(r'<figure class="hero-art".*?</figure>', page, re.S).group(0)
     assert 'aria-hidden="true"' in figure
     assert " inert" in figure
+    # Shown by the script once a graphic arrives, so a plant with none never leaves an empty frame.
+    assert " hidden>" in figure
     assert not re.search(r"<(a|button|input)\b", figure)
 
 

@@ -47,9 +47,8 @@
       </div>
       {{ abort_confirm() }}
     </div>
-    {% if thumbnails.values()|select|list %}
-    <figure class="hero-art" aria-hidden="true" inert><div class="plant-thumb plant-graphic" id="plant-thumb"></div></figure>
-    {% endif %}
+    {# Shown by landing.js once the selected scenario's graphic arrives. #}
+    <figure class="hero-art" aria-hidden="true" inert hidden><div class="plant-thumb plant-graphic" id="plant-thumb"></div></figure>
   </section>
 
   <section class="picker" id="scenario-picker" aria-labelledby="picker-heading" hidden>

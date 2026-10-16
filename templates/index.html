@@ -13,7 +13,7 @@
 {% block title %}Plant Simulator - Start{% endblock %}
 
 {% block content %}
-<div class="launch" id="launch" data-phase-labels='{{ phase_labels|tojson }}' data-phase="{{ standing.phase }}"{% if thumbnail %} data-thumbnail="{{ thumbnail }}"{% endif %}>
+<div class="launch" id="launch" data-phase-labels='{{ phase_labels|tojson }}' data-phase="{{ standing.phase }}">
   <h1 class="visually-hidden">Operator training</h1>
 
   {% if standing.mode == "scenario" %}
@@ -47,7 +47,7 @@
       </div>
       {{ abort_confirm() }}
     </div>
-    {% if thumbnail %}
+    {% if thumbnails.values()|select|list %}
     <figure class="hero-art" aria-hidden="true" inert><div class="plant-thumb plant-graphic" id="plant-thumb"></div></figure>
     {% endif %}
   </section>
@@ -60,7 +60,7 @@
         <button type="button" class="scenario-option" aria-pressed="{{ 'true' if loop.first else 'false' }}"
                 data-scenario="{{ scenario.key }}" data-title="{{ scenario.title }}"
                 data-difficulty="{{ scenario.difficulty }}" data-limit="{{ '%g'|format(scenario.time_limit_s / 60) }}"
-                data-briefing="{{ scenario.briefing }}">
+                data-briefing="{{ scenario.briefing }}" data-thumbnail="{{ thumbnails[scenario.key] or '' }}">
           <span class="option-title">{{ scenario.title }}</span>
           <span class="chip chip-difficulty" data-difficulty="{{ scenario.difficulty }}">{{ scenario.difficulty|capitalize }}</span>
           <span class="option-briefing">{{ scenario.briefing }}</span>

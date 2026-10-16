@@ -286,11 +286,14 @@
       return start.getAttribute("data-scenario");
     }
 
+    var thumbnail = thumbnailFrame(doc, doFetch);
+
     function select(key) {
       choices.forEach(function (option) {
         var chosen = option.getAttribute("data-scenario") === key;
         option.setAttribute("aria-pressed", chosen ? "true" : "false");
         if (!chosen) return;
+        thumbnail.show(option.getAttribute("data-thumbnail"));
         var difficulty = option.getAttribute("data-difficulty");
         var chip = doc.getElementById("hero-difficulty");
         doc.getElementById("hero-title").textContent = option.getAttribute("data-title");
@@ -345,7 +348,6 @@
       request(api.freePlaySteps, freePlay);
     });
 
-    mountThumbnail(doc, launch, doFetch);
     mountHistory(doc, doFetch);
   }
 
@@ -410,21 +412,44 @@
     empty.hidden = view.recent.length > 0;
   }
 
-  /* The selected plant's graphic, inert and with its live readouts hidden by
-   * the stylesheet. A graphic that cannot be fetched leaves the frame empty. */
-  async function mountThumbnail(doc, launch, doFetch) {
+  /* The graphic of the plant the selected scenario runs on, inert and with
+   * its live readouts hidden by the stylesheet. Each graphic is fetched once;
+   * only the latest selection is drawn, and one that cannot be fetched, or a
+   * scenario with no graphic, leaves the frame empty. */
+  function thumbnailFrame(doc, doFetch) {
     var frame = doc.getElementById("plant-thumb");
-    var url = launch.getAttribute("data-thumbnail");
-    if (!frame || !url) return;
-    try {
-      var response = await doFetch(url);
-      if (response.ok) {
-        /* Decoration only: ids are dropped so none can collide with the page's. */
-        frame.innerHTML = (await response.text()).replace(/\sid="[^"]*"/g, "");
+    var shown = null;
+    var cache = {};
+
+    function fetchGraphic(url) {
+      if (!cache[url]) {
+        cache[url] = Promise.resolve(doFetch(url)).then(function (response) {
+          if (!response.ok) throw new Error("graphic " + response.status);
+          /* Decoration only: ids are dropped so none can collide with the page's. */
+          return response.text().then(function (text) {
+            return text.replace(/\sid="[^"]*"/g, "");
+          });
+        });
+        cache[url].catch(function () {
+          delete cache[url];
+        });
       }
-    } catch (error) {
-      /* Decoration only. */
+      return cache[url];
     }
+
+    return {
+      show: function (url) {
+        if (!frame || url === shown) return;
+        shown = url;
+        frame.innerHTML = "";
+        if (!url) return;
+        fetchGraphic(url).then(function (markup) {
+          if (shown === url) frame.innerHTML = markup;
+        }, function () {
+          /* Decoration only. */
+        });
+      },
+    };
   }
 
   api.mount = mount;

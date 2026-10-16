@@ -135,10 +135,17 @@ def test_recent_scenarios_starts_with_nothing_shown_until_the_history_is_read(pa
     assert "not kept" not in card
 
 
-def test_the_thumbnail_is_the_plants_graphic_and_is_not_interactive(client, page):
-    url = re.search(r'data-thumbnail="([^"]+)"', page).group(1)
+def test_each_scenario_shows_the_graphic_of_the_plant_it_runs_on(client, page):
+    thumbnails = dict(re.findall(r'data-scenario="([^"]+)"[^>]*data-thumbnail="([^"]*)"', page))
 
-    assert client.get(url).status_code == 200
+    for path in SCENARIOS:
+        url = thumbnails[scenario_key(path.stem)]
+        assert url.endswith(f"/graphics/{document(path)['plant']}.svg"), path.name
+        assert client.get(url).status_code == 200
+    assert len(set(thumbnails.values())) > 1
+
+
+def test_the_thumbnail_is_not_interactive(page):
     figure = re.search(r'<figure class="hero-art".*?</figure>', page, re.S).group(0)
     assert 'aria-hidden="true"' in figure
     assert " inert" in figure
@@ -498,16 +505,51 @@ def test_the_injected_thumbnail_carries_no_ids():
     result = run_page(
         """
         const doc = makePage("idle", ["a"]);
-        doc.ids["launch"].attrs["data-thumbnail"] = "/static/graphics/x.svg";
+        doc.choices[0].attrs["data-thumbnail"] = "/static/graphics/x.svg";
         doc.ids["plant-thumb"] = el();
         const fetchImpl = async url => ({ ok: true, status: 200, text: async () => '<svg id="a"><title id="plant-title">x</title><g class="eq"/></svg>', json: async () => ({}) });
         L.mount(doc, fetchImpl, () => {}, { storage: memory({}), refreshRibbon() {} });
-        await tick(); await tick();
+        await tick(); await tick(); await tick();
         return doc.ids["plant-thumb"].innerHTML;
         """
     )
 
     assert result == '<svg><title>x</title><g class="eq"/></svg>'
+
+
+@needs_node
+def test_choosing_a_scenario_on_another_plant_swaps_the_thumbnail_and_a_late_answer_is_dropped():
+    result = run_page(
+        """
+        const doc = makePage("idle", ["a", "b", "c"]);
+        doc.choices[0].attrs["data-thumbnail"] = "/one.svg";
+        doc.choices[1].attrs["data-thumbnail"] = "/two.svg";
+        doc.choices[2].attrs["data-thumbnail"] = "";
+        doc.ids["plant-thumb"] = el();
+        const release = {}, calls = [];
+        const fetchImpl = url => {
+          if (!url.endsWith(".svg")) return Promise.resolve({ ok: true, status: 200, json: async () => ({}) });
+          calls.push(url);
+          return new Promise(resolve => { release[url] = () => resolve({ ok: true, status: 200, text: async () => "<svg>" + url + "</svg>" }); });
+        };
+        L.mount(doc, fetchImpl, () => {}, { storage: memory({}), refreshRibbon() {} });
+        doc.choices[1].listeners.click();
+        release["/two.svg"](); for (let i = 0; i < 4; i += 1) await tick();
+        const second = doc.ids["plant-thumb"].innerHTML;
+        release["/one.svg"](); for (let i = 0; i < 4; i += 1) await tick();
+        const afterLate = doc.ids["plant-thumb"].innerHTML;
+        doc.choices[2].listeners.click();
+        const none = doc.ids["plant-thumb"].innerHTML;
+        doc.choices[1].listeners.click(); for (let i = 0; i < 4; i += 1) await tick();
+        return { second, afterLate, none, again: doc.ids["plant-thumb"].innerHTML, calls };
+        """
+    )
+
+    assert result["second"] == "<svg>/two.svg</svg>"
+    assert result["afterLate"] == "<svg>/two.svg</svg>"
+    assert result["none"] == ""
+    assert result["again"] == "<svg>/two.svg</svg>"
+    assert result["calls"] == ["/one.svg", "/two.svg"]
 
 
 @needs_node

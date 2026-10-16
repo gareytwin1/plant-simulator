@@ -224,6 +224,7 @@ class ScenarioLibrary:
                     briefing=document.get("briefing", ""),
                     difficulty=document["difficulty"],
                     time_limit_s=float(document["time_limit_s"]),
+                    plant=str(document["plant"]),
                 ),
             )
 
@@ -264,7 +265,9 @@ class CatalogueEntry:
     Never the file's `description`: it carries the diagnosis path, and the id
     of a scenario can name its cause, so a page that shows entries shows
     `title`, `briefing` and `difficulty`, and posts `key` back to load one.
-    `id` stays server side until the run ends.
+    `id` stays server side until the run ends. `plant` names the plant file
+    the run loads, which says nothing of the fault, so a page may show its
+    graphic.
     """
 
     id: str
@@ -273,6 +276,7 @@ class CatalogueEntry:
     briefing: str
     difficulty: str
     time_limit_s: float
+    plant: str
 
 
 def _decode_condition(path: Path, data: bytes) -> dict[str, JSONValue]:

@@ -12,7 +12,7 @@ regrowth rule is in [.claude/rules/docs.md](../../.claude/rules/docs.md).
 not a live pointer.** Run `git log e952be3..HEAD --oneline` to see what has
 merged since.
 **Full suite as of this refresh:** **4277 passed** · `python -m mypy` clean over 89 source files · no golden trace movement
-**In flight:** nothing. The spine lock and the `app/main.py` lock are free.
+**In flight:** T20-19 (desktop acceptance pass). The spine lock is free; T20-19 touched `app/main.py` for one fix.
 No task is Blocked. CI runs on every PR, and `main` requires its
 `test` check before a merge.
 
@@ -40,7 +40,7 @@ Complete: **M0-M9, M12-M18, MR**. Open:
 |---|---|---|
 | **M10** Alarms | 5/6 | T10-1, T10-2, T10-3, T10-5, T10-6; T10-4 startable (V1.1-deferred) |
 | **M11** Interlocks and Trips | 3/4 | T11-1, T11-2, T11-3; T11-4 startable (V1.1-deferred) |
-| **M20** Console Redesign | 20/21 | T20-1, T20-2, T20-3, T20-4, T20-5, T20-6, T20-7, T20-8, T20-9, T20-10, T20-11, T20-12, T20-13, T20-14, T20-15, T20-16, T20-17, T20-18, T20-20, T20-21; startable T20-19 |
+| **M20** Console Redesign | 20/24 | T20-1, T20-2, T20-3, T20-4, T20-5, T20-6, T20-7, T20-8, T20-9, T20-10, T20-11, T20-12, T20-13, T20-14, T20-15, T20-16, T20-17, T20-18, T20-20, T20-21; in progress T20-19; startable T20-22, T20-23; T20-24 after them |
 | M19 | 0 | - |
 
 **148 of 154 tasks Complete.** Checkpoints A-D reached: T20-17 met D's last
@@ -48,11 +48,14 @@ gate ("loops reject an injected disturbance") on the separator plant.
 
 ## The next task
 
-**Startable in M20:** T20-19 (the redesign acceptance pass, Sonnet drives and the
-user signs off) - the `startable` field of
-[BUILD_PLAN_STATUS.json](../../docs/BUILD_PLAN_STATUS.json). A person plays every
-scenario on both plants in a real browser. Also startable but deferred: T10-4
-and T11-4 (V1.1), T19-1 and T19-2 (V2).
+**In progress:** T20-19, the redesign acceptance pass (worktree
+`plant-simulator-redesign-acceptance`, branch `test/redesign-acceptance`),
+at desktop width only. Its browser pass found that a finished run shows no
+result on the console, so it waits on **T20-22** (result and debrief panel)
+before the user signs off. **T20-23** (run time instead of the plant clock
+in alarms, trends and the Home strip) is startable too. **T20-24** is the
+phone-width gameplay pass the user deferred (16 October 2026). Also
+startable but deferred: T10-4 and T11-4 (V1.1), T19-1 and T19-2 (V2).
 
 **CP-G passed for the current console** (user's browser pass, 9 October 2026). The console is about to be redesigned, so the full pass (all six scenarios, both themes, phone width, a real alarm marker) is an acceptance criterion of that redesign rather than repeated on this console.
 

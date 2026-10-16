@@ -94,17 +94,20 @@ def load_session() -> None:
     session_id = request.cookies.get(SESSION_COOKIE)
     session = sessions.get(session_id) if session_id else None
 
+    cookie = request.cookies.get(history.OPERATOR_COOKIE)
+    g.operator_id = cookie if history.valid_operator_id(cookie) else uuid.uuid4().hex
+
     if session is None:
-        operator_id = request.cookies.get(history.OPERATOR_COOKIE)
-        g.operator_id = operator_id if history.valid_operator_id(operator_id) else uuid.uuid4().hex
         session_id = uuid.uuid4().hex
         session = sessions.create(session_id)
 
     g.session_id = session_id
     g.plant = session
     # A live session's operator wins over the cookie, so the runs it records
-    # and the history this browser reads are always filed under one id.
-    g.operator_id = session.operator_id
+    # and the history this browser reads are always filed under one id. A
+    # session made outside a request has none, and records nothing.
+    if session.operator_id is not None:
+        g.operator_id = session.operator_id
 
 
 app.register_blueprint(create_scenario_blueprint(lambda: g.plant))

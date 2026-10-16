@@ -49,7 +49,7 @@ from __future__ import annotations
 import json
 import sqlite3
 import threading
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from types import MappingProxyType, TracebackType
@@ -123,7 +123,8 @@ class ScoreStore:
 
     @property
     def schema_version(self) -> int:
-        return int(self._connection.execute("PRAGMA user_version").fetchone()[0])
+        with self._lock:
+            return int(self._connection.execute("PRAGMA user_version").fetchone()[0])
 
     def record(
         self,
@@ -162,10 +163,22 @@ class ScoreStore:
     def history(self, operator: str, scenario: str) -> list[StoredResult]:
         return self._select("WHERE operator = ? AND scenario = ? ORDER BY recorded_at, id", (operator, scenario))
 
-    def recent(self, operator: str, limit: int) -> list[StoredResult]:
-        """`operator`'s latest `limit` results across every scenario and
-        config version, newest first."""
-        return self._select("WHERE operator = ? ORDER BY recorded_at DESC, id DESC LIMIT ?", (operator, limit))
+    def recent(self, operator: str, limit: int, scenarios: Collection[str] | None = None) -> list[StoredResult]:
+        """`operator`'s latest `limit` results across every config version,
+        newest first, from any scenario or only those in `scenarios`."""
+        if limit < 0:
+            raise ValueError(f"limit must not be negative, got {limit}")
+
+        if scenarios is None:
+            return self._select("WHERE operator = ? ORDER BY recorded_at DESC, id DESC LIMIT ?", (operator, limit))
+
+        names = tuple(scenarios)
+        marks = ", ".join("?" * len(names))
+
+        return self._select(
+            f"WHERE operator = ? AND scenario IN ({marks}) ORDER BY recorded_at DESC, id DESC LIMIT ?",
+            (operator, *names, limit),
+        )
 
     def personal_best(self, operator: str, scenario: str) -> StoredResult | None:
         rows = self._select(
@@ -230,7 +243,6 @@ class ScoreStore:
         return SchemaVersionError(
             f"database is schema version {self.schema_version}, this code only knows up to {target}"
         )
-
 
     def _select(self, clause: str, parameters: tuple[str | int, ...]) -> list[StoredResult]:
         with self._lock:

@@ -17,8 +17,8 @@ browser's id except by holding its cookie.
 completes a run: one `ScoreStore` row under the operator id, the scenario id
 and the store's config version. `recorded_at` is wall-clock seconds since the
 epoch, read here in `app/api` and never in a model; it orders a history and
-plays no part in a run. A store that fails to write is logged and skipped,
-because a lost history row must never stop the plant the scheduler steps.
+plays no part in a run. A failed write raises to the session, which logs it
+and keeps stepping.
 
 **Reading.** `recent` is the caller's latest `config.HISTORY_RECENT_LIMIT`
 runs, newest first, from any config version. `best` is the caller's highest
@@ -32,7 +32,6 @@ from __future__ import annotations
 
 import logging
 import re
-import sqlite3
 import time
 from collections.abc import Callable, Sequence
 
@@ -69,10 +68,7 @@ def record(
         logger.warning("run of scenario %s completed without a score; not stored", scenario_key(result.scenario_id))
         return
 
-    try:
-        store.record(operator, result.scenario_id, clock(), result.score, result.metrics)
-    except sqlite3.Error:
-        logger.exception("could not store a completed run")
+    store.record(operator, result.scenario_id, clock(), result.score, result.metrics)
 
 
 def create_history_blueprint(
@@ -92,18 +88,17 @@ def create_history_blueprint(
         caller = operator()
 
         recent: list[JSONValue] = []
-        for result in scores.recent(caller, limit):
-            entry = entries.get(result.scenario)
-            if entry is not None:
-                recent.append(
-                    {
-                        "title": entry.title,
-                        "difficulty": entry.difficulty,
-                        "total": result.score.total,
-                        "outcome": result.metrics.outcome,
-                        "recorded_at": result.recorded_at,
-                    },
-                )
+        for result in scores.recent(caller, limit, scenarios=entries):
+            shown = entries[result.scenario]
+            recent.append(
+                {
+                    "title": shown.title,
+                    "difficulty": shown.difficulty,
+                    "total": result.score.total,
+                    "outcome": result.metrics.outcome,
+                    "recorded_at": result.recorded_at,
+                },
+            )
 
         best: dict[str, JSONValue] = {}
         for scenario, result in scores.personal_bests(caller).items():

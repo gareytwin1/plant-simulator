@@ -386,3 +386,19 @@ def test_one_store_records_and_reads_from_many_threads(tmp_path):
     assert errors == []
     assert len(store.recent("op-3", 100)) == 20
     store.close()
+
+
+def test_recent_from_named_scenarios_applies_the_limit_after_the_filter():
+    with ScoreStore() as store:
+        kept = [store.record("op-1", "s1", float(n), _score(10.0), _metrics()) for n in range(3)]
+        store.record("op-1", "retired", 10.0, _score(10.0), _metrics())
+        store.record("op-1", "retired", 11.0, _score(10.0), _metrics())
+
+        assert store.recent("op-1", 2, scenarios={"s1", "s2"}) == [kept[2], kept[1]]
+        assert store.recent("op-1", 2, scenarios=()) == []
+
+
+def test_recent_refuses_a_negative_limit():
+    with ScoreStore() as store:
+        with pytest.raises(ValueError):
+            store.recent("op-1", -1)

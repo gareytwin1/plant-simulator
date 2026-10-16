@@ -268,8 +268,12 @@ RESTART = textwrap.dedent(
         client.post("/api/scenario/load", json={"scenario": scenario_key("stuck_drain_valve")})
         client.post("/api/scenario/start")
         session = main.sessions.peek(client.get_cookie(main.SESSION_COOKIE).value)
-        while session.runner.phase is not Phase.COMPLETE:
+        for _ in range(2000):
+            if session.runner.phase is Phase.COMPLETE:
+                break
             session.training_scheduler.step_once()
+        else:
+            sys.exit("stuck_drain_valve did not complete")
     print(json.dumps(client.get("/api/history").get_json()))
     """
 )
@@ -287,6 +291,7 @@ def test_results_survive_an_app_restart_at_the_configured_path(tmp_path):
             capture_output=True,
             text=True,
             check=True,
+            timeout=120,
         )
         return json.loads(done.stdout.strip().splitlines()[-1])
 
@@ -297,3 +302,16 @@ def test_results_survive_an_app_restart_at_the_configured_path(tmp_path):
     assert after_restart == first
     assert (tmp_path / "nested" / "scores.sqlite3").is_file()
 
+
+
+def test_a_session_made_outside_a_request_still_gets_an_operator_id(empty_score_store):
+    main.sessions.create("made-outside")
+    browser = main.app.test_client()
+    browser.set_cookie(main.SESSION_COOKIE, "made-outside")
+
+    response = browser.get("/api/history")
+
+    assert response.get_json() == {"recent": [], "best": {}}
+    assert session_of(browser).operator_id is None
+    assert history.valid_operator_id(operator_of(browser))
+    main.sessions.end("made-outside")

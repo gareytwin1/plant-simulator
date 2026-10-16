@@ -36,7 +36,9 @@ moves a run from RUNNING to COMPLETE hands its result to `record`, under
 `step_lock` on whichever thread stepped; nothing else completes a run, so it
 happens once per run, and reading or replaying a result records nothing. An
 aborted run is never recorded. The callable is the caller's, and it is where
-a wall clock may be read: this module never reads one.
+a wall clock may be read: this module never reads one. A recorder that raises
+is logged and the step carries on: a lost history row must never stop the
+plant the scheduler steps.
 
 `end()` closes the scheduler and is idempotent. A closed scheduler refuses
 `start` and a manual step, so a request still holding a reclaimed session
@@ -45,6 +47,7 @@ cannot start a worker the registry no longer counts.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
@@ -61,6 +64,8 @@ from app.plant.loader import load_plant, read_plant_config
 from app.scenarios.runner import Phase, ScenarioLibrary, ScenarioResult, ScenarioRunner
 from app.statetypes import JSONValue
 from app.training.runtime import PlantRuntime
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -111,7 +116,10 @@ class TrainingSession:
         snapshot = self._plant().step(dt)
 
         if running and self.runner.phase is Phase.COMPLETE and self._record is not None and self.operator_id is not None:
-            self._record(self.operator_id, self.runner.result())
+            try:
+                self._record(self.operator_id, self.runner.result())
+            except Exception:
+                logger.exception("could not record a completed run")
 
         return snapshot
 

@@ -162,6 +162,14 @@ def test_the_return_strip_shows_only_while_a_scenario_stands(client):
     assert 'id="back-to-console"' in loaded
 
 
+def test_the_page_names_an_icon_so_the_browser_never_asks_for_a_missing_one(client, page):
+    icon = re.search(r'<link rel="icon" type="image/svg\+xml" href="([^"]+)">', page).group(1)
+
+    response = client.get(icon)
+    assert response.status_code == 200
+    assert response.mimetype == "image/svg+xml"
+
+
 def test_the_header_links_only_to_pages_that_exist(client, page):
     links = Links()
     links.feed(page)

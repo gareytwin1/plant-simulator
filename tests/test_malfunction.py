@@ -317,8 +317,8 @@ def test_a_lost_signal_mid_run_sends_the_valve_to_its_fail_position():
         valve.integrate(1.0)
 
     assert valve.signal_ok is False
-    assert valve.position == 1.0
-    assert valve.position_target == 0.5
+    assert valve.position == pytest.approx(1.0)
+    assert valve.position_target == pytest.approx(0.5)
 
 
 @pytest.mark.parametrize("flag, value", [("signal_ok", False), ("stuck", True), ("action_reversed", True)])

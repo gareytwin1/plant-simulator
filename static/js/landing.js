@@ -1,5 +1,7 @@
 /* Landing page (T16-11, T20-9): one selected scenario with a START that loads
- * and starts it, free play, and a way back to a run in progress.
+ * and starts it, free play, and a way back to a run in progress. The Recent
+ * scenarios card lists this browser's finished runs and best scores from
+ * GET /api/history (T20-16), which names a scenario only by title and key.
  *
  * Talks to the scenario API (app/api/scenario.py). A refusal is shown in this
  * file's own plain words, chosen by status code, and never the server's text:
@@ -16,7 +18,10 @@
   var ABORT_URL = "/api/scenario/abort";
   var UNLOAD_URL = "/api/scenario/unload";
   var CONSOLE_URL = "/console";
+  var HISTORY_URL = "/api/history";
   var STORAGE_KEY = "landing.scenario";
+  var MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  var OUTCOMES = { succeeded: "Succeeded", failed: "Failed", timed_out: "Timed out" };
 
   var api = {};
 
@@ -99,6 +104,67 @@
       /* The choice just is not remembered. */
     }
   };
+
+  /* A run's outcome as a word; a run stored before outcomes were kept has none. */
+  api.outcomeLabel = function (outcome) {
+    return Object.prototype.hasOwnProperty.call(OUTCOMES, outcome) ? OUTCOMES[outcome] : "Outcome not recorded";
+  };
+
+  api.formatScore = function (total) {
+    return String(Math.round(total));
+  };
+
+  /* `recordedAt` is seconds since the epoch, shown in the browser's own time zone. */
+  api.formatWhen = function (recordedAt) {
+    var when = new Date(recordedAt * 1000);
+    var pad = function (n) { return (n < 10 ? "0" : "") + n; };
+    return when.getDate() + " " + MONTHS[when.getMonth()] + " " + when.getFullYear() + ", " +
+      pad(when.getHours()) + ":" + pad(when.getMinutes());
+  };
+
+  function isObject(value) {
+    return value !== null && typeof value === "object";
+  }
+
+  function isNumber(value) {
+    return typeof value === "number" && isFinite(value);
+  }
+
+  function isBest(best) {
+    return isObject(best) && typeof best.title === "string" && isNumber(best.total);
+  }
+
+  function isRun(run) {
+    return isBest(run) && typeof run.difficulty === "string" && isNumber(run.recorded_at) &&
+      isFinite(new Date(run.recorded_at * 1000).getTime());
+  }
+
+  /* What the Recent scenarios card shows of a GET /api/history body: the
+   * recent runs as the server ordered them (newest first) and the bests by
+   * title. Anything not shaped like a history, as a whole or one entry at a
+   * time, shows as no history, so one bad row never hides the good ones. */
+  api.historyView = function (body) {
+    var recent = isObject(body) && Array.isArray(body.recent) ? body.recent : [];
+    var best = isObject(body) && isObject(body.best) ? body.best : {};
+    return {
+      recent: recent.filter(isRun).map(function (run) {
+        return {
+          title: run.title,
+          difficulty: run.difficulty,
+          outcome: api.outcomeLabel(run.outcome),
+          outcomeKey: Object.prototype.hasOwnProperty.call(OUTCOMES, run.outcome) ? run.outcome : "unknown",
+          score: api.formatScore(run.total),
+          when: api.formatWhen(run.recorded_at),
+          iso: new Date(run.recorded_at * 1000).toISOString(),
+        };
+      }),
+      best: Object.keys(best).filter(function (key) { return isBest(best[key]); }).map(function (key) {
+        return { title: best[key].title, score: api.formatScore(best[key].total) };
+      }).sort(function (a, b) { return a.title < b.title ? -1 : a.title > b.title ? 1 : 0; }),
+    };
+  };
+
+  api.HISTORY_URL = HISTORY_URL;
 
   /* browser glue */
 
@@ -280,6 +346,68 @@
     });
 
     mountThumbnail(doc, launch, doFetch);
+    mountHistory(doc, doFetch);
+  }
+
+  function span(doc, className, text) {
+    var node = doc.createElement("span");
+    node.setAttribute("class", className);
+    node.textContent = text;
+    return node;
+  }
+
+  /* Rows are built as nodes with textContent, never markup, so a title is
+   * only ever text. */
+  function runRow(doc, run) {
+    var row = doc.createElement("li");
+    row.setAttribute("class", "run-row");
+    row.appendChild(span(doc, "run-title", run.title));
+    row.appendChild(span(doc, "run-score", "Score " + run.score));
+    var meta = span(doc, "run-meta", "");
+    var outcome = span(doc, "run-outcome", run.outcome);
+    outcome.setAttribute("data-outcome", run.outcomeKey);
+    meta.appendChild(outcome);
+    meta.appendChild(span(doc, "run-difficulty", run.difficulty.charAt(0).toUpperCase() + run.difficulty.slice(1)));
+    row.appendChild(meta);
+    var when = doc.createElement("time");
+    when.setAttribute("class", "run-when");
+    when.setAttribute("datetime", run.iso);
+    when.textContent = run.when;
+    row.appendChild(when);
+    return row;
+  }
+
+  function bestRow(doc, best) {
+    var row = doc.createElement("li");
+    row.setAttribute("class", "best-row");
+    row.appendChild(span(doc, "best-title", best.title));
+    row.appendChild(span(doc, "run-score", best.score));
+    return row;
+  }
+
+  /* The card starts with nothing shown: the runs, or the empty state, once
+   * the history is read; a history that cannot be read says so. */
+  async function mountHistory(doc, doFetch) {
+    var runs = doc.getElementById("recent-runs");
+    var bests = doc.getElementById("best-runs");
+    var empty = doc.getElementById("recent-empty");
+    var bestSection = doc.getElementById("best-section");
+    if (!runs || !bests || !empty || !bestSection) return;
+    var view;
+    try {
+      var response = await doFetch(HISTORY_URL);
+      if (!response.ok) throw new Error("history " + response.status);
+      view = api.historyView(await response.json());
+    } catch (error) {
+      empty.textContent = "Your run history could not be read. Reload the page to try again.";
+      empty.hidden = false;
+      return;
+    }
+    view.recent.forEach(function (run) { runs.appendChild(runRow(doc, run)); });
+    view.best.forEach(function (best) { bests.appendChild(bestRow(doc, best)); });
+    runs.hidden = view.recent.length === 0;
+    bestSection.hidden = view.best.length === 0;
+    empty.hidden = view.recent.length > 0;
   }
 
   /* The selected plant's graphic, inert and with its live readouts hidden by

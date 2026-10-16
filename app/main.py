@@ -1,4 +1,3 @@
-import functools
 import uuid
 from pathlib import Path
 
@@ -7,7 +6,7 @@ from flask.typing import ResponseReturnValue
 
 from app import config
 from app import logging as plant_logging
-from app.api import validate
+from app.api import history, validate
 from app.api.action import create_action_blueprint
 from app.api.alarms import create_alarm_blueprint
 from app.api.health import create_health_blueprint
@@ -18,7 +17,8 @@ from app.api.stream import create_stream_blueprint
 from app.api.trend import create_trend_blueprint
 from app.engine.scheduler import Scheduler
 from app.engine.sessions import SessionRegistry
-from app.scenarios.runner import ScenarioLibrary
+from app.scenarios.runner import ScenarioLibrary, ScenarioResult
+from app.scoring.store import ScoreStore
 from app.training.session import TrainingSession
 
 
@@ -32,7 +32,24 @@ SESSION_COOKIE = "plant_session_id"
 
 library = ScenarioLibrary()
 
-sessions = SessionRegistry(factory=functools.partial(TrainingSession, library))
+# Opened once per process (T20-16); the single worker keeps SQLite single-writer.
+Path(config.SCORE_DB_PATH).parent.mkdir(parents=True, exist_ok=True)
+store = ScoreStore(config.SCORE_DB_PATH)
+
+
+def _record(operator: str, result: ScenarioResult) -> None:
+    history.record(store, operator, result)
+
+
+def _new_session() -> TrainingSession:
+    # load_session sets g.operator_id before it creates a session. One made
+    # outside a request (a test, a script) has no operator and records nothing.
+    operator_id: str | None = g.get("operator_id") if has_app_context() else None
+
+    return TrainingSession(library, operator_id, _record)
+
+
+sessions = SessionRegistry(factory=_new_session)
 
 rate_limiter = validate.RateLimiter(config.API_RATE_PER_SECOND, config.API_RATE_BURST)
 
@@ -77,12 +94,20 @@ def load_session() -> None:
     session_id = request.cookies.get(SESSION_COOKIE)
     session = sessions.get(session_id) if session_id else None
 
+    cookie = request.cookies.get(history.OPERATOR_COOKIE)
+    g.operator_id = cookie if history.valid_operator_id(cookie) else uuid.uuid4().hex
+
     if session is None:
         session_id = uuid.uuid4().hex
         session = sessions.create(session_id)
 
     g.session_id = session_id
     g.plant = session
+    # A live session's operator wins over the cookie, so the runs it records
+    # and the history this browser reads are always filed under one id. A
+    # session made outside a request has none, and records nothing.
+    if session.operator_id is not None:
+        g.operator_id = session.operator_id
 
 
 app.register_blueprint(create_scenario_blueprint(lambda: g.plant))
@@ -123,6 +148,8 @@ app.register_blueprint(
 CATALOGUE = library.catalogue()
 TITLES = {entry.id: entry.title for entry in CATALOGUE}
 
+app.register_blueprint(history.create_history_blueprint(lambda: g.operator_id, lambda: store, CATALOGUE))
+
 PHASE_LABELS = {
     "idle": "",
     "loaded": "Loaded, not started",
@@ -137,6 +164,17 @@ def persist_session_cookie(response: Response) -> Response:
     # A request refused before load_session ran (rate limit) has no session.
     if "session_id" in g:
         response.set_cookie(SESSION_COOKIE, g.session_id, httponly=True)
+
+    # Re-sent on every page load as well, so a browser in use never ages out.
+    page = request.endpoint in ("landing", "console")
+    if "operator_id" in g and (page or request.cookies.get(history.OPERATOR_COOKIE) != g.operator_id):
+        response.set_cookie(
+            history.OPERATOR_COOKIE,
+            g.operator_id,
+            max_age=config.OPERATOR_COOKIE_SECONDS,
+            httponly=True,
+            samesite="Lax",
+        )
 
     return response
 

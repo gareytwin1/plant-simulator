@@ -1,6 +1,7 @@
 import pytest
 
 from app.api import validate
+from app.scoring.store import ScoreStore
 
 
 def unlimited():
@@ -15,3 +16,16 @@ def unlimited_live_app(monkeypatch):
     from app import main
 
     monkeypatch.setattr(main, "rate_limiter", unlimited())
+
+
+@pytest.fixture(autouse=True)
+def empty_score_store(monkeypatch):
+    """Every test starts with no run history, whatever an earlier test stored."""
+    from app import main
+
+    store = ScoreStore()
+    monkeypatch.setattr(main, "store", store)
+
+    yield store
+
+    store.close()

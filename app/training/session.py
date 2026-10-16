@@ -30,6 +30,16 @@ the same command. The runner's own lock nests inside `step_lock`, the order
 which pins which plant answers: a load or unload cannot land between choosing
 the plant and reading it.
 
+**A completed run is recorded once (T20-16).** A session is created for one
+browser's anonymous `operator_id` and given a `record` callable. The step that
+moves a run from RUNNING to COMPLETE hands its result to `record`, under
+`step_lock` on whichever thread stepped; nothing else completes a run, so it
+happens once per run, and reading or replaying a result records nothing. An
+aborted run is never recorded. The callable is the caller's, and it is where
+a wall clock may be read: this module never reads one. A recorder that raises
+is logged and the step carries on: a lost history row must never stop the
+plant the scheduler steps.
+
 `end()` closes the scheduler and is idempotent. A closed scheduler refuses
 `start` and a manual step, so a request still holding a reclaimed session
 cannot start a worker the registry no longer counts.
@@ -37,6 +47,7 @@ cannot start a worker the registry no longer counts.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
@@ -54,6 +65,8 @@ from app.scenarios.runner import Phase, ScenarioLibrary, ScenarioResult, Scenari
 from app.statetypes import JSONValue
 from app.training.runtime import PlantRuntime
 
+logger = logging.getLogger(__name__)
+
 
 @dataclass(frozen=True)
 class Standing:
@@ -67,9 +80,20 @@ class Standing:
     scenario_id: str | None
 
 
+Recorder = Callable[[str, ScenarioResult], None]
+
+
 class TrainingSession:
-    def __init__(self, library: ScenarioLibrary | None = None) -> None:
+    def __init__(
+        self,
+        library: ScenarioLibrary | None = None,
+        operator_id: str | None = None,
+        record: Recorder | None = None,
+    ) -> None:
         library = library if library is not None else ScenarioLibrary()
+
+        self.operator_id = operator_id
+        self._record = record
 
         self.free = _free_play(library)
         self.runner = ScenarioRunner(library)
@@ -88,7 +112,16 @@ class TrainingSession:
     # and by the scheduler's first read, so the phase it reads is stable.
 
     def step(self, dt: float) -> Snapshot:
-        return self._plant().step(dt)
+        running = self.runner.phase is Phase.RUNNING
+        snapshot = self._plant().step(dt)
+
+        if running and self.runner.phase is Phase.COMPLETE and self._record is not None and self.operator_id is not None:
+            try:
+                self._record(self.operator_id, self.runner.result())
+            except Exception:
+                logger.exception("could not record a completed run")
+
+        return snapshot
 
     def snapshot(self) -> Snapshot:
         return self._plant().snapshot()

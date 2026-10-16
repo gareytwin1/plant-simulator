@@ -3,8 +3,9 @@ Score persistence (T15-4) - results and personal bests in SQLite.
 
 A `StoredResult` is one scored run: the `Score` (T15-3) and the `RunMetrics`
 (T15-2) it was computed from, filed under a caller-chosen `operator` and
-`scenario`. Standard-library `sqlite3` only; no live caller exists yet: a
-completed run carries its score (T20-15), but nothing stores one.
+`scenario`. Standard-library `sqlite3` only. The live caller is run history
+(T20-16, `app/api/history.py`), which records each completed run under the
+browser's anonymous operator id and reads back `recent` and `personal_bests`.
 
 **Row shape.** One row per result. `operator`, `scenario`, `total` and
 `recorded_at` are real indexed columns because they are all a personal-best
@@ -17,6 +18,13 @@ before `RunMetrics.outcome` existed reads back with outcome `"unknown"`, which
 **Personal best.** The highest `Score.total` for one `(operator, scenario)`.
 Ties go to the earliest `recorded_at`, then the earliest stored. `operator` and
 `scenario` are plain strings the caller passes in; there are no accounts.
+`personal_bests` is the same rule for every scenario of one operator at once.
+`recent` is one operator's results across scenarios, newest first.
+
+**Threads.** One store is shared by a process: scheduler workers record and
+request threads read. The connection is opened with `check_same_thread=False`
+and every use of it holds the store's lock, so no two threads share the
+connection at once.
 
 **No clock.** `recorded_at` is supplied by the caller (sim time or an injected
 timestamp); this module never reads a wall clock.
@@ -40,7 +48,8 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from collections.abc import Mapping, Sequence
+import threading
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from types import MappingProxyType, TracebackType
@@ -70,6 +79,9 @@ MIGRATIONS: tuple[str, ...] = (
     ALTER TABLE results ADD COLUMN config_major INTEGER;
     DROP INDEX results_best;
     CREATE INDEX results_best ON results (operator, scenario, config_major, total DESC, recorded_at, id);
+    """,
+    """
+    CREATE INDEX results_recent ON results (operator, recorded_at DESC, id DESC);
     """,
 )
 
@@ -101,7 +113,8 @@ class ScoreStore:
         config_version: ConfigVersion | None = None,
     ) -> None:
         self.config_version = config_version if config_version is not None else read_config_version()
-        self._connection = sqlite3.connect(str(path), isolation_level=None)
+        self._lock = threading.Lock()
+        self._connection = sqlite3.connect(str(path), isolation_level=None, check_same_thread=False)
         try:
             self._migrate(migrations)
         except BaseException:
@@ -110,7 +123,8 @@ class ScoreStore:
 
     @property
     def schema_version(self) -> int:
-        return int(self._connection.execute("PRAGMA user_version").fetchone()[0])
+        with self._lock:
+            return int(self._connection.execute("PRAGMA user_version").fetchone()[0])
 
     def record(
         self,
@@ -120,20 +134,21 @@ class ScoreStore:
         score: Score,
         metrics: RunMetrics,
     ) -> StoredResult:
-        cursor = self._connection.execute(
-            "INSERT INTO results (operator, scenario, total, recorded_at, score_json, metrics_json,"
-            " config_version, config_major) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            (
-                operator,
-                scenario,
-                score.total,
-                recorded_at,
-                json.dumps(score.as_dict()),
-                json.dumps(metrics.as_dict()),
-                str(self.config_version),
-                self.config_version.major,
-            ),
-        )
+        with self._lock:
+            cursor = self._connection.execute(
+                "INSERT INTO results (operator, scenario, total, recorded_at, score_json, metrics_json,"
+                " config_version, config_major) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    operator,
+                    scenario,
+                    score.total,
+                    recorded_at,
+                    json.dumps(score.as_dict()),
+                    json.dumps(metrics.as_dict()),
+                    str(self.config_version),
+                    self.config_version.major,
+                ),
+            )
         assert cursor.lastrowid is not None
 
         return StoredResult(
@@ -141,35 +156,54 @@ class ScoreStore:
         )
 
     def get(self, result_id: int) -> StoredResult | None:
-        row = self._connection.execute(
-            f"SELECT {_COLUMNS}"
-            " FROM results WHERE id = ?",
-            (result_id,),
-        ).fetchone()
+        rows = self._select("WHERE id = ?", (result_id,))
 
-        return _row_to_result(row) if row else None
+        return rows[0] if rows else None
 
     def history(self, operator: str, scenario: str) -> list[StoredResult]:
-        rows = self._connection.execute(
-            f"SELECT {_COLUMNS}"
-            " FROM results WHERE operator = ? AND scenario = ? ORDER BY recorded_at, id",
-            (operator, scenario),
-        ).fetchall()
+        return self._select("WHERE operator = ? AND scenario = ? ORDER BY recorded_at, id", (operator, scenario))
 
-        return [_row_to_result(row) for row in rows]
+    def recent(self, operator: str, limit: int, scenarios: Collection[str] | None = None) -> list[StoredResult]:
+        """`operator`'s latest `limit` results across every config version,
+        newest first, from any scenario or only those in `scenarios`."""
+        if limit < 0:
+            raise ValueError(f"limit must not be negative, got {limit}")
+
+        if scenarios is None:
+            return self._select("WHERE operator = ? ORDER BY recorded_at DESC, id DESC LIMIT ?", (operator, limit))
+
+        names = tuple(scenarios)
+        marks = ", ".join("?" * len(names))
+
+        return self._select(
+            f"WHERE operator = ? AND scenario IN ({marks}) ORDER BY recorded_at DESC, id DESC LIMIT ?",
+            (operator, *names, limit),
+        )
 
     def personal_best(self, operator: str, scenario: str) -> StoredResult | None:
-        row = self._connection.execute(
-            f"SELECT {_COLUMNS}"
-            " FROM results WHERE operator = ? AND scenario = ? AND config_major = ?"
-            " ORDER BY total DESC, recorded_at, id LIMIT 1",
+        rows = self._select(
+            "WHERE operator = ? AND scenario = ? AND config_major = ? ORDER BY total DESC, recorded_at, id LIMIT 1",
             (operator, scenario, self.config_version.major),
-        ).fetchone()
+        )
 
-        return _row_to_result(row) if row else None
+        return rows[0] if rows else None
+
+    def personal_bests(self, operator: str) -> dict[str, StoredResult]:
+        """`personal_best` for every scenario `operator` has a comparable
+        result on, keyed by scenario."""
+        rows = self._select(
+            "WHERE id IN (SELECT id FROM (SELECT id, ROW_NUMBER() OVER ("
+            "PARTITION BY scenario ORDER BY total DESC, recorded_at, id) AS rank"
+            " FROM results WHERE operator = ? AND config_major = ?) WHERE rank = 1)"
+            " ORDER BY scenario",
+            (operator, self.config_version.major),
+        )
+
+        return {result.scenario: result for result in rows}
 
     def close(self) -> None:
-        self._connection.close()
+        with self._lock:
+            self._connection.close()
 
     def __enter__(self) -> ScoreStore:
         return self
@@ -209,6 +243,12 @@ class ScoreStore:
         return SchemaVersionError(
             f"database is schema version {self.schema_version}, this code only knows up to {target}"
         )
+
+    def _select(self, clause: str, parameters: tuple[str | int, ...]) -> list[StoredResult]:
+        with self._lock:
+            rows = self._connection.execute(f"SELECT {_COLUMNS} FROM results {clause}", parameters).fetchall()
+
+        return [_row_to_result(row) for row in rows]
 
 
 def _statements(script: str) -> list[str]:

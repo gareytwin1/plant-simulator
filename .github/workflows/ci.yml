@@ -40,6 +40,8 @@ jobs:
             sleep 1
           done
           curl -fsS http://localhost:8000/api/snapshot
+          # The run-history store opens in the image's data directory as the serving user.
+          curl -fsS http://localhost:8000/api/history
           # One gunicorn master plus exactly one worker process.
           test "$(docker top plant -eo pid,args | grep -c 'gunicorn')" -eq 2
 

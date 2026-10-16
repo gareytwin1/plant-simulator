@@ -50,3 +50,6 @@ npm-debug.log*
 *.swp
 # roborev snapshots
 /.roborev/
+
+# Run history (T20-16), the default config.SCORE_DB_PATH
+/data/

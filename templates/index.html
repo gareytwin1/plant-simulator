@@ -81,7 +81,12 @@
     </section>
     <section class="card recent-card" aria-labelledby="recent-heading">
       <h2 id="recent-heading" class="section-title">Recent scenarios</h2>
-      <p class="empty-state">No finished runs to show yet. Run history is not kept in this version, so nothing is listed here.</p>
+      <p class="empty-state" id="recent-empty" hidden>No finished runs yet. Finish a scenario in this browser and it is listed here with its score.</p>
+      <ol class="run-list" id="recent-runs" aria-label="Latest finished runs, newest first" hidden></ol>
+      <div class="best-section" id="best-section" hidden>
+        <h3 class="best-heading" id="best-heading">Personal bests</h3>
+        <ul class="best-list" id="best-runs" aria-labelledby="best-heading"></ul>
+      </div>
     </section>
   </div>
 </div>

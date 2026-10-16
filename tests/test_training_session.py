@@ -356,3 +356,87 @@ def test_a_running_session_steps_free_play_on_its_own_scheduler(session):
 
     assert published(session).sim_time > left
     assert session.training_scheduler.error is None
+
+
+SHORT = (
+    "id: short-run\n"
+    "plant: olefins_lite\n"
+    "initial_condition: {condition: normal_operation}\n"
+    "time_limit_s: 3\n"
+    "difficulty: easy\n"
+    "seed: 1\n"
+)
+
+
+@pytest.fixture
+def recording(tmp_path):
+    (tmp_path / "short-run.yaml").write_text(SHORT)
+    (tmp_path / "pump-trip.yaml").write_text(SCENARIO)
+    records = []
+    made = TrainingSession(
+        ScenarioLibrary(scenarios=tmp_path),
+        operator_id="op-1",
+        record=lambda operator, result: records.append((operator, result)),
+    )
+
+    yield made, records
+
+    made.end()
+
+
+def test_the_step_that_completes_a_run_records_it_once_under_the_sessions_operator(recording):
+    session, records = recording
+    session.load("short-run")
+    session.start()
+
+    for _ in range(10):
+        session.training_scheduler.step_once()
+
+    assert session.runner.phase is Phase.COMPLETE
+    ((operator, result),) = records
+    assert operator == "op-1"
+    assert result.scenario_id == "short-run"
+    assert result.phase is Phase.COMPLETE
+    assert result.score is not None
+
+    session.result()
+    session.standing()
+    assert len(records) == 1
+
+
+def test_each_completed_run_is_recorded_and_an_aborted_one_is_not(recording):
+    session, records = recording
+    session.load("pump-trip")
+    session.start()
+    session.training_scheduler.step_once()
+    session.abort()
+
+    assert records == []
+
+    for _ in range(2):
+        session.load("short-run")
+        session.start()
+        for _ in range(5):
+            session.training_scheduler.step_once()
+
+    assert [result.scenario_id for _, result in records] == ["short-run", "short-run"]
+
+
+def test_a_recorder_that_raises_never_stops_the_plant(tmp_path):
+    (tmp_path / "short-run.yaml").write_text(SHORT)
+
+    def broken(operator, result):
+        raise TypeError("store is broken")
+
+    session = TrainingSession(ScenarioLibrary(scenarios=tmp_path), operator_id="op-1", record=broken)
+    try:
+        session.load("short-run")
+        session.start()
+
+        snapshots = [session.training_scheduler.step_once() for _ in range(5)]
+
+        assert session.runner.phase is Phase.COMPLETE
+        assert all(snapshot is not None for snapshot in snapshots)
+        assert session.training_scheduler.error is None
+    finally:
+        session.end()

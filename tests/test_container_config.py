@@ -30,3 +30,18 @@ def test_compose_runs_one_runtime_service_without_replicas():
     assert service["build"]["target"] == "runtime"
     assert "replicas" not in service.get("deploy", {})
     assert "scale" not in service
+
+
+def test_the_container_keeps_the_score_database_on_a_volume():
+    runtime = (ROOT / "Dockerfile").read_text().split("AS runtime", 1)[1]
+    env = [line for line in runtime.splitlines() if "PLANT_SCORE_DB=" in line]
+    assert len(env) == 1
+    path = Path(env[0].split("PLANT_SCORE_DB=", 1)[1].split()[0])
+
+    compose = yaml.safe_load((ROOT / "docker-compose.yml").read_text())
+    (service,) = compose["services"].values()
+    mounts = [volume.split(":") for volume in service["volumes"]]
+
+    assert [str(path.parent)] == [target for _, target in mounts]
+    (name,) = [source for source, _ in mounts]
+    assert name in compose["volumes"]

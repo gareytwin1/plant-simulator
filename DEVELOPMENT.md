@@ -334,10 +334,11 @@ Never merge `main` backwards into the spine.
 
 ## Contracts
 
-The eight interface contracts (C1–C8: Equipment, Topology, Plant config schema,
+The eight interface contracts (C1-C8: Equipment, Topology, Plant config schema,
 State snapshot, HTTP API, Event record, Alarm interface, Malfunction/Scenario)
-are defined in full on the build plan. C1–C4 are implemented in code; C5–C8
-exist as specifications only — see the contract table in [AGENTS.md](AGENTS.md).
+are defined in full on the build plan. Each one's implementation status and
+authoritative definition: the contract table in
+[AGENTS.md](AGENTS.md#interface-contracts).
 
 Contracts are load-bearing: once a satellite branch depends on one, changing it
 means updating every dependent branch. Propose contract changes as their own

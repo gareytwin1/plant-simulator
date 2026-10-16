@@ -71,15 +71,28 @@ def finish(client, scenario_id=QUICK):
 
 
 @pytest.fixture
-def client():
-    made = main.app.test_client()
+def browsers():
+    """Makes test clients, and ends each one's session however the test ends."""
+    made = []
+
+    def make():
+        browser = main.app.test_client()
+        made.append(browser)
+        return browser
+
+    yield make
+
+    for browser in made:
+        cookie = browser.get_cookie(main.SESSION_COOKIE)
+        if cookie is not None:
+            main.sessions.end(cookie.value)
+
+
+@pytest.fixture
+def client(browsers):
+    made = browsers()
     made.get("/")
-
-    yield made
-
-    cookie = made.get_cookie(main.SESSION_COOKIE)
-    if cookie is not None:
-        main.sessions.end(cookie.value)
+    return made
 
 
 def test_completing_a_run_stores_one_result_and_reading_or_replaying_it_stores_none(client, empty_score_store):
@@ -125,8 +138,8 @@ def test_history_lists_a_completed_run_by_title_and_its_best_by_key(client):
     assert body["best"] == {quick.key: {"title": quick.title, "total": pytest.approx(recent["total"])}}
 
 
-def test_history_is_only_the_callers_newest_first_and_capped(client, empty_score_store):
-    other = main.app.test_client()
+def test_history_is_only_the_callers_newest_first_and_capped(client, browsers, empty_score_store):
+    other = browsers()
     other.get("/")
     mine, theirs = operator_of(client), operator_of(other)
     assert mine != theirs
@@ -142,8 +155,6 @@ def test_history_is_only_the_callers_newest_first_and_capped(client, empty_score
     ]
     assert list(body["best"]) == [entry(QUICK).key]
     assert body["best"][entry(QUICK).key]["total"] == pytest.approx(config.HISTORY_RECENT_LIMIT + 1)
-
-    main.sessions.end(other.get_cookie(main.SESSION_COOKIE).value)
 
 
 def test_a_result_from_another_config_major_is_listed_but_is_never_a_best(client, tmp_path, monkeypatch):
@@ -175,8 +186,8 @@ def test_a_run_whose_scenario_file_is_gone_is_left_out(client, empty_score_store
 
 
 @pytest.mark.parametrize("cookie", [None, "", "not-an-id", "A" * 32, "0" * 31, "0" * 33, "g" * 32])
-def test_a_missing_or_malformed_operator_cookie_gets_a_fresh_id_and_an_empty_history(cookie, empty_score_store):
-    browser = main.app.test_client()
+def test_a_missing_or_malformed_operator_cookie_gets_a_fresh_id_and_an_empty_history(cookie, browsers, empty_score_store):
+    browser = browsers()
     if cookie is not None:
         browser.set_cookie(history.OPERATOR_COOKIE, cookie)
         # Whatever a malformed id would have named, nothing is filed under it.
@@ -195,12 +206,10 @@ def test_a_missing_or_malformed_operator_cookie_gets_a_fresh_id_and_an_empty_his
     assert attributes["samesite"].strip() == "SameSite=Lax"
     assert attributes["max-age"].strip() == f"Max-Age={config.OPERATOR_COOKIE_SECONDS}"
 
-    main.sessions.end(browser.get_cookie(main.SESSION_COOKIE).value)
 
-
-def test_a_valid_operator_cookie_is_kept_across_sessions(empty_score_store):
+def test_a_valid_operator_cookie_is_kept_across_sessions(browsers, empty_score_store):
     operator = "0123456789abcdef0123456789abcdef"
-    first = main.app.test_client()
+    first = browsers()
     first.set_cookie(history.OPERATOR_COOKIE, operator)
 
     response = first.get("/")
@@ -211,11 +220,10 @@ def test_a_valid_operator_cookie_is_kept_across_sessions(empty_score_store):
     main.sessions.end(first.get_cookie(main.SESSION_COOKIE).value)
 
     # A new session - the old one reclaimed, the browser restarted - keeps the id.
-    later = main.app.test_client()
+    later = browsers()
     later.set_cookie(history.OPERATOR_COOKIE, operator)
 
     assert [row["title"] for row in later.get("/api/history").get_json()["recent"]] == [entry(QUICK).title]
-    main.sessions.end(later.get_cookie(main.SESSION_COOKIE).value)
 
 
 def test_a_live_sessions_operator_wins_over_a_changed_cookie(client, empty_score_store):
@@ -304,9 +312,9 @@ def test_results_survive_an_app_restart_at_the_configured_path(tmp_path):
 
 
 
-def test_a_session_made_outside_a_request_still_gets_an_operator_id(empty_score_store):
+def test_a_session_made_outside_a_request_still_gets_an_operator_id(browsers, empty_score_store):
     main.sessions.create("made-outside")
-    browser = main.app.test_client()
+    browser = browsers()
     browser.set_cookie(main.SESSION_COOKIE, "made-outside")
 
     response = browser.get("/api/history")
@@ -314,4 +322,3 @@ def test_a_session_made_outside_a_request_still_gets_an_operator_id(empty_score_
     assert response.get_json() == {"recent": [], "best": {}}
     assert session_of(browser).operator_id is None
     assert history.valid_operator_id(operator_of(browser))
-    main.sessions.end("made-outside")

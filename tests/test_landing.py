@@ -154,6 +154,16 @@ def test_the_thumbnail_is_not_interactive(page):
     assert not re.search(r"<(a|button|input)\b", figure)
 
 
+def test_with_no_plant_graphic_at_all_the_hero_art_starts_hidden(client, monkeypatch):
+    monkeypatch.setattr(main, "thumbnail_url", lambda plant: None)
+
+    page = client.get("/").get_data(as_text=True)
+    figure = re.search(r'<figure class="hero-art"[^>]*>', page).group(0)
+
+    assert " hidden" in figure
+    assert 'data-thumbnail=""' in page
+
+
 def test_the_return_strip_shows_only_while_a_scenario_stands(client):
     free = client.get("/").get_data(as_text=True)
     assert 'id="standing"' not in free

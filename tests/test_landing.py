@@ -540,24 +540,57 @@ def test_choosing_a_scenario_on_another_plant_swaps_the_thumbnail_and_a_late_ans
           calls.push(url);
           return new Promise(resolve => { release[url] = () => resolve({ ok: true, status: 200, text: async () => "<svg>" + url + "</svg>" }); });
         };
+        const figure = el();
+        doc.ids["plant-thumb"].closest = () => figure;
         L.mount(doc, fetchImpl, () => {}, { storage: memory({}), refreshRibbon() {} });
         doc.choices[1].listeners.click();
+        const waiting = doc.ids["plant-thumb"].innerHTML || "";
         release["/two.svg"](); for (let i = 0; i < 4; i += 1) await tick();
         const second = doc.ids["plant-thumb"].innerHTML;
         release["/one.svg"](); for (let i = 0; i < 4; i += 1) await tick();
         const afterLate = doc.ids["plant-thumb"].innerHTML;
         doc.choices[2].listeners.click();
-        const none = doc.ids["plant-thumb"].innerHTML;
+        const none = { html: doc.ids["plant-thumb"].innerHTML, hidden: figure.hidden };
         doc.choices[1].listeners.click(); for (let i = 0; i < 4; i += 1) await tick();
-        return { second, afterLate, none, again: doc.ids["plant-thumb"].innerHTML, calls };
+        return { waiting, second, afterLate, none, again: doc.ids["plant-thumb"].innerHTML, shown: !figure.hidden, calls };
         """
     )
 
+    assert result["waiting"] == ""
     assert result["second"] == "<svg>/two.svg</svg>"
     assert result["afterLate"] == "<svg>/two.svg</svg>"
-    assert result["none"] == ""
+    assert result["none"] == {"html": "", "hidden": True}
     assert result["again"] == "<svg>/two.svg</svg>"
+    assert result["shown"]
     assert result["calls"] == ["/one.svg", "/two.svg"]
+
+
+@needs_node
+def test_a_graphic_that_failed_is_fetched_again_when_chosen_again():
+    result = run_page(
+        """
+        const doc = makePage("idle", ["a", "b"]);
+        doc.choices[0].attrs["data-thumbnail"] = "/one.svg";
+        doc.choices[1].attrs["data-thumbnail"] = "/one.svg";
+        doc.ids["plant-thumb"] = el();
+        let fail = true;
+        const calls = [];
+        const fetchImpl = async url => {
+          if (!url.endsWith(".svg")) return { ok: true, status: 200, json: async () => ({}) };
+          calls.push(url);
+          return fail ? { ok: false, status: 500 } : { ok: true, status: 200, text: async () => "<svg/>" };
+        };
+        L.mount(doc, fetchImpl, () => {}, { storage: memory({}), refreshRibbon() {} });
+        for (let i = 0; i < 6; i += 1) await tick();
+        const failed = doc.ids["plant-thumb"].innerHTML;
+        fail = false;
+        doc.choices[1].listeners.click();
+        for (let i = 0; i < 6; i += 1) await tick();
+        return { failed, after: doc.ids["plant-thumb"].innerHTML, calls };
+        """
+    )
+
+    assert result == {"failed": "", "after": "<svg/>", "calls": ["/one.svg", "/one.svg"]}
 
 
 @needs_node

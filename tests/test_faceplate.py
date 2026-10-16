@@ -856,7 +856,7 @@ def test_start_is_disabled_while_the_device_runs_and_stop_while_it_is_stopped(se
 
 
 @needs_node
-def test_start_pressed_by_keyboard_hands_focus_to_stop_once_the_device_runs(session, plant):
+def test_start_pressed_by_keyboard_keeps_focus_in_the_panel_but_never_on_stop(session, plant):
     stopped = json.loads(json.dumps(view(session)))
     stopped["equipment"]["P-101"]["running"] = False
 
@@ -867,15 +867,22 @@ def test_start_pressed_by_keyboard_hands_focus_to_stop_once_the_device_runs(sess
         panel.update(data.stopped);
         equip('start').focus();
         panel.update(data.running);
-        const afterStart = doc.activeElement.getAttribute('data-equip-action');
-        doc.body.focus();
+        const afterStart = doc.activeElement;
+        equip('stop').focus();
         panel.update(data.stopped);
-        return { afterStart, elsewhere: doc.activeElement === doc.body };
+        const afterStop = doc.activeElement;
+        doc.body.focus();
+        panel.update(data.running);
+        return {
+          afterStart: afterStart.getAttribute('aria-label'),
+          afterStop: afterStop.getAttribute('aria-label'),
+          elsewhere: doc.activeElement === doc.body,
+        };
         """,
         plant, running=view(session), stopped=stopped,
     )
 
-    assert result == {"afterStart": "stop", "elsewhere": True}
+    assert result == {"afterStart": "Close P-101 faceplate", "afterStop": "Close P-101 faceplate", "elsewhere": True}
 
 
 @needs_node

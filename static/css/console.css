@@ -401,6 +401,10 @@ body[data-page="console"] main {
   white-space: nowrap;
 }
 
+.tray:not([hidden]) ~ .canvas-hint {
+  display: none;
+}
+
 .workspace .connection-indicator {
   position: absolute;
   top: var(--space-3);

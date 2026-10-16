@@ -413,11 +413,14 @@
   }
 
   /* The graphic of the plant the selected scenario runs on, inert and with
-   * its live readouts hidden by the stylesheet. Each graphic is fetched once;
-   * only the latest selection is drawn, and one that cannot be fetched, or a
-   * scenario with no graphic, leaves the frame empty. */
+   * its live readouts hidden by the stylesheet. Each graphic is fetched once
+   * and only the latest selection is drawn; the old one stays until the new
+   * one arrives, so the hero does not jump. A scenario with no graphic, or
+   * one that cannot be fetched, hides the frame, and choosing it again tries
+   * again. */
   function thumbnailFrame(doc, doFetch) {
     var frame = doc.getElementById("plant-thumb");
+    var figure = frame && frame.closest ? frame.closest(".hero-art") : null;
     var shown = null;
     var cache = {};
 
@@ -437,16 +440,27 @@
       return cache[url];
     }
 
+    function empty() {
+      frame.innerHTML = "";
+      if (figure) figure.hidden = true;
+    }
+
     return {
       show: function (url) {
         if (!frame || url === shown) return;
         shown = url;
-        frame.innerHTML = "";
-        if (!url) return;
+        if (!url) {
+          empty();
+          return;
+        }
         fetchGraphic(url).then(function (markup) {
-          if (shown === url) frame.innerHTML = markup;
+          if (shown !== url) return;
+          frame.innerHTML = markup;
+          if (figure) figure.hidden = false;
         }, function () {
-          /* Decoration only. */
+          if (shown !== url) return;
+          shown = null;
+          empty();
         });
       },
     };

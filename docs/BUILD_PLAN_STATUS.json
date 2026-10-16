@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
-  "refreshed": "2026-10-15",
-  "main_sha": "832cfc2",
-  "tests_passing_on_main": 4210,
+  "refreshed": "2026-10-16",
+  "main_sha": "e952be3",
+  "tests_passing_on_main": 4277,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -118,13 +118,13 @@
     },
     "M20": {
       "name": "Console Redesign",
-      "complete": 19,
+      "complete": 20,
       "total": 21
     }
   },
   "totals": {
     "tasks": 154,
-    "complete": 147,
+    "complete": 148,
     "startable_now": 5
   },
   "tasks": [
@@ -3085,10 +3085,9 @@
         "tests/fixtures/config_version.json",
         "tests/test_scenario_pack.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true,
-      "note": ""
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged to main as e952be3 (PR #179); 4277 passed, mypy clean, roborev clean, no golden moved. C8 FLAGS allowlist (ControlValve signal_ok, stuck, action_reversed; bool value, step only) and the validator's type lists; XV-301 feed shutdown valve closed by LSHH-301 and PSHH-301 (FV-301 ignores a trip once its signal is lost); four separator scenarios (drain and vent restriction, feed and drain signal loss). The feed surge fails at the high alarm because the drum settles at level 0.876, short of the trip. Config 4.0.0. Not browser-checked (T20-19). Free play unchanged (user's call)."
     },
     {
       "id": "T20-19",
@@ -3108,10 +3107,7 @@
       "files": [],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "T20-18"
-      ],
+      "startable": true,
       "note": ""
     },
     {

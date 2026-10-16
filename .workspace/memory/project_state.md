@@ -73,7 +73,7 @@ standing lower-precedence RUN demand restart a machine the moment it releases.
 Permissives have no C3 config key yet. A loop overridden by a trip is not tracked, so
 its handback is not bumpless - also an unowned `Engine._control` change.
 
-## Known interim behaviour — do not "fix" these in passing
+## Known interim behaviour - do not "fix" these in passing
 
 Each is deliberate. Fixing one as a side effect of an unrelated task is out of
 scope, and item 1 in particular reads like a bug and is not.
@@ -83,7 +83,7 @@ scope, and item 1 in particular reads like a bug and is not.
    (750/750 psia, 50/50 psia). Flow reads above `max_flow` (compressor 331.7 vs
    120, pump 2236 vs 1200), the discharge valve strokes without changing flow,
    and spread equals the boundary difference, so temperature is flat. Equal
-   boundaries keep an idle machine at zero flow. Equipment does not clamp —
+   boundaries keep an idle machine at zero flow. Equipment does not clamp -
    envelopes and alarms own that later.
    *Status:* **T7-1 built the valve** and a plant that uses it
    (`liquid_valve_train.yaml`); the golden plants are not rewired onto one, and must
@@ -136,6 +136,13 @@ scope, and item 1 in particular reads like a bug and is not.
 - **A resistance-only valve cannot stop reverse flow and absorbs most of the
   drop** (107-139 of 150 psi, 70-93% of system drop vs 10-30% in a real plant).
   A pipe or line-loss resistance device is needed; **no task owns one.**
+- **`ReliefValve`'s design checks depend on key order.** Each of
+  `set_pressure` and `blowdown` checks `blowdown < set_pressure` against the
+  other's current value, and `_apply_design` sets keys one at a time, so a valid
+  pair far from the defaults (250/10) is refused at load: `{set_pressure: 8,
+  blowdown: 2}` or `{blowdown: 300, set_pressure: 400}`. No plant configures a
+  relief valve yet. The clean fix is the same design/configure hook as open
+  decision 2. Unowned.
 - **Contract-test discovery is import-order dependent**: `REGISTERED` in
   `tests/test_equipment_contract.py` is computed at import, so an `Equipment`
   subclass in a later-imported test module escapes the contract tests.
@@ -145,7 +152,7 @@ scope, and item 1 in particular reads like a bug and is not.
 
 ## Open decisions with no owner
 
-1. **Who owns a plant's RNG** — session, engine or plant? Undecided on purpose.
+1. **Who owns a plant's RNG** - session, engine or plant? Undecided on purpose.
    `SeededRNG` requires a seed and there is deliberately no global stream,
    because a process-wide generator would leak draws between browser sessions.
    **It belongs to the first task that needs randomness.** `SeededRNG` also has
@@ -154,7 +161,7 @@ scope, and item 1 in particular reads like a bug and is not.
    `tests/test_scenario_replay.py` fails the build once anything imports it.
 2. **`Equipment.reset()` drops design values.** The loader applies a config's
    `design` by setting attributes after construction, but `reset()` restores
-   state captured at the end of `__init__` — so a reset device returns to class
+   state captured at the end of `__init__` - so a reset device returns to class
    defaults, not its configured design. Fixing it needs a design/configure hook
    on C1, a **spine change**, before anything relies on `reset()` for a loaded
    plant. `restore_state` (T12-1) does not use `reset()`, so it is unaffected.

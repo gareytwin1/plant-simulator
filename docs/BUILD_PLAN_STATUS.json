@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "2026-10-15",
-  "main_sha": "4f80d36",
-  "tests_passing_on_main": 4165,
+  "main_sha": "832cfc2",
+  "tests_passing_on_main": 4210,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -118,14 +118,14 @@
     },
     "M20": {
       "name": "Console Redesign",
-      "complete": 18,
+      "complete": 19,
       "total": 21
     }
   },
   "totals": {
     "tasks": 154,
-    "complete": 146,
-    "startable_now": 6
+    "complete": 147,
+    "startable_now": 5
   },
   "tasks": [
     {
@@ -3035,10 +3035,9 @@
         "Dockerfile",
         "docker-compose.yml"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true,
-      "note": ""
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged to main as 832cfc2 (PR #177); 4210 passed, mypy clean, roborev clean, CI test and docker green, no golden moved. Anonymous plant_operator_id cookie (renewed on page loads); completed runs stored once in ScoreStore (PLANT_SCORE_DB, plant-data volume); GET /api/history by key and title; landing Recent scenarios card lists runs and bests. Only T20-18 and the T20-19 acceptance pass remain in M20."
     },
     {
       "id": "T20-17",
@@ -3111,7 +3110,6 @@
       "status_key": "todo",
       "startable": false,
       "blocked_by": [
-        "T20-16",
         "T20-18"
       ],
       "note": ""

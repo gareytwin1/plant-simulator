@@ -126,6 +126,18 @@
     return value !== null && typeof value === "object";
   }
 
+  function isNumber(value) {
+    return typeof value === "number" && isFinite(value);
+  }
+
+  function isBest(best) {
+    return isObject(best) && typeof best.title === "string" && isNumber(best.total);
+  }
+
+  function isRun(run) {
+    return isBest(run) && typeof run.difficulty === "string" && isNumber(run.recorded_at);
+  }
+
   /* What the Recent scenarios card shows of a GET /api/history body: the
    * recent runs as the server ordered them (newest first) and the bests by
    * title. Anything not shaped like a history, as a whole or one entry at a
@@ -134,12 +146,10 @@
     var recent = isObject(body) && Array.isArray(body.recent) ? body.recent : [];
     var best = isObject(body) && isObject(body.best) ? body.best : {};
     return {
-      recent: recent.filter(function (run) {
-        return isObject(run) && typeof run.recorded_at === "number" && isFinite(run.recorded_at);
-      }).map(function (run) {
+      recent: recent.filter(isRun).map(function (run) {
         return {
-          title: String(run.title),
-          difficulty: String(run.difficulty),
+          title: run.title,
+          difficulty: run.difficulty,
           outcome: api.outcomeLabel(run.outcome),
           outcomeKey: Object.prototype.hasOwnProperty.call(OUTCOMES, run.outcome) ? run.outcome : "unknown",
           score: api.formatScore(run.total),
@@ -147,8 +157,8 @@
           iso: new Date(run.recorded_at * 1000).toISOString(),
         };
       }),
-      best: Object.keys(best).filter(function (key) { return isObject(best[key]); }).map(function (key) {
-        return { title: String(best[key].title), score: api.formatScore(best[key].total) };
+      best: Object.keys(best).filter(function (key) { return isBest(best[key]); }).map(function (key) {
+        return { title: best[key].title, score: api.formatScore(best[key].total) };
       }).sort(function (a, b) { return a.title < b.title ? -1 : a.title > b.title ? 1 : 0; }),
     };
   };

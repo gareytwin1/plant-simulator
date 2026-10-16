@@ -829,8 +829,17 @@ def test_one_malformed_entry_never_hides_the_good_ones():
     view = run_js(
         "return L.historyView(data.history);",
         history={
-            "recent": [None, 3, {**good, "recorded_at": None}, {**good, "recorded_at": "soon"}, good],
-            "best": {"k": None, "j": 4, "g": {"title": "T", "total": 50}},
+            "recent": [
+                None,
+                3,
+                {**good, "recorded_at": None},
+                {**good, "recorded_at": "soon"},
+                {**good, "total": None},
+                {**good, "title": None},
+                {k: v for k, v in good.items() if k != "difficulty"},
+                good,
+            ],
+            "best": {"k": None, "j": 4, "n": {"title": "T", "total": None}, "u": {"total": 1}, "g": {"title": "T", "total": 50}},
         },
     )
 

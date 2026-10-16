@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 
 # Simulation timing
@@ -155,3 +156,17 @@ TREND_CAPACITY = 1800
 TREND_DEFAULT_POINTS = 500
 TREND_MAX_POINTS = 2000
 TREND_MAX_TAGS = 8
+
+
+# Run history
+#
+# Where ScoreStore keeps every completed run (T20-16): one SQLite file, opened
+# once per process; the single worker process (gunicorn.conf.py) keeps SQLite
+# single-writer. Env PLANT_SCORE_DB overrides it, and the container points it
+# at a mounted volume so results survive a rebuild. The landing page lists a
+# browser's latest HISTORY_RECENT_LIMIT runs. The operator cookie that files a
+# run under its browser lasts OPERATOR_COOKIE_SECONDS.
+
+SCORE_DB_PATH = os.environ.get("PLANT_SCORE_DB") or str(Path(__file__).resolve().parents[1] / "data" / "scores.sqlite3")
+HISTORY_RECENT_LIMIT = 5
+OPERATOR_COOKIE_SECONDS = 365 * 24 * 60 * 60

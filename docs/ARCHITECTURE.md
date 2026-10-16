@@ -427,6 +427,9 @@ app/
     action.py             T15-1: C5 POST /api/action; a target is a device or,
                           since T16-14, a loop (LOOP_ACTIONS); a device a
                           loop drives is commanded only through the loop
+    history.py            T20-16: GET /api/history - one browser's recent
+                          runs and bests from ScoreStore, filed under the
+                          plant_operator_id cookie; records completed runs
     plant.py              T20-2: C5 GET /api/plant - the shown plant's id,
                           its graphic (static/graphics/<id>.svg) and what a
                           faceplate needs per device, loop and interlock

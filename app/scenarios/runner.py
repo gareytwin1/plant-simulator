@@ -97,7 +97,7 @@ every action counts as relevant: `unnecessary_actions` is 0 and
 Not here: `seed` is carried into the result and drives nothing - the plant
 has no random source yet. Objective and trigger results are as
 `ObjectiveEvaluator` and `TriggerEvaluator` report them. Storing a score is
-T20-16's.
+`TrainingSession`'s, through `app/api/history.py` (T20-16).
 """
 
 from __future__ import annotations

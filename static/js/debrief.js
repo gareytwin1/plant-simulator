@@ -406,12 +406,13 @@
       // here (a poll took the run away meanwhile) goes to the ribbon's notice.
       if (accepted !== null) {
         if (settings.onRetry) settings.onRetry(accepted.status, accepted.body, refusal);
-      } else if (refusal !== "") {
-        if (panel.hidden && settings.onRefusal) settings.onRefusal(refusal);
-        // A request that did not finish may still have been applied, so the
-        // ribbon is asked to read the run again. A refusal is definite.
-        if (ambiguous && settings.onResync) settings.onResync();
+      } else if (refusal !== "" && panel.hidden && settings.onRefusal) {
+        settings.onRefusal(refusal);
       }
+      // A request that did not finish may still have been applied, so the
+      // ribbon is asked to read the run again, after it has adopted any load
+      // that was accepted. A refusal is definite and needs no read.
+      if (ambiguous && settings.onResync) settings.onResync();
     }
 
     close.addEventListener("click", function () { hide(true); });

@@ -289,8 +289,15 @@
     }
 
     /* Read the run again at once, waiting out a poll already in flight (it may
-     * have begun before something changed), as send() does after a refusal. */
+     * have begun before something changed), as send() does after a refusal.
+     * While a send is in flight the read is owed to the end of it. */
+    var readOwed = false;
+
     async function resync() {
+      if (state.busy) {
+        readOwed = true;
+        return;
+      }
       if (pollPromise) await pollPromise;
       await readNow();
     }
@@ -303,7 +310,7 @@
       epoch += 1;
       var mine = epoch;
       render();
-      var resync = false;
+      var needsRead = false;
       try {
         var result = await get(request);
         // adopt() put another run on the bar while this was in flight; its
@@ -311,15 +318,15 @@
         if (mine === epoch && result.status === 200) {
           notice("");
           apply(200, result.body);
-          resync = api.phaseOf(200, result.body) === null;
+          needsRead = api.phaseOf(200, result.body) === null;
         } else if (mine === epoch) {
           notice(api.refusalText(action, result.status));
-          resync = result.status !== 429;
+          needsRead = result.status !== 429;
         }
       } catch (error) {
         if (mine === epoch) {
           notice(api.refusalText(action, 0));
-          resync = true;
+          needsRead = true;
         }
       } finally {
         state.busy = false;
@@ -329,11 +336,11 @@
         render();
         refocus(owned);
       }
-      if (resync) {
+      if (needsRead || readOwed) {
         // A poll already in flight began before this refusal; wait it out and
         // ask again, or the bar stays stale for a whole interval.
-        if (pollPromise) await pollPromise;
-        await readNow();
+        readOwed = false;
+        await resync();
       }
     }
 

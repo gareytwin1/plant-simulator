@@ -823,3 +823,48 @@ def test_a_panel_that_loses_its_run_hands_focus_to_the_control_the_ribbon_offers
     )
 
     assert got == {"held": True, "panel": False, "focus": "scenario-start", "state": f"Scenario {DOT} Loaded, not started"}
+
+
+@needs_node
+def test_a_start_that_did_not_finish_after_an_accepted_load_adopts_the_load_then_asks_for_a_resync():
+    got = run_js(
+        PAGE
+        + """
+        const { panel } = page('complete');
+        const order = [];
+        const answers = [reply(200, { phase: 'loaded' }), null];
+        const debrief = D.mount(doc, { timeoutMs: 20,
+          fetch: () => { const next = answers.shift(); return next ? Promise.resolve(next) : new Promise(() => {}); },
+          onRetry: (s, b) => order.push(['retry', b.phase]), onResync: () => order.push(['resync']) });
+        debrief.result(200, data.done);
+        await button(panel, 'Try again').listeners.click[0]();
+        return order;
+        """,
+        done=finished("failed"),
+    )
+
+    assert got == [["retry", "loaded"], ["resync"]]
+
+
+@needs_node
+def test_a_resync_asked_for_during_a_send_is_read_when_the_send_ends(client, served):
+    client.post("/api/scenario/load", json={"scenario": KEY})
+
+    got = run_js(
+        PAGE
+        + HTTP
+        + """
+        page('loaded');
+        const ribbon = R.mount(doc, { fetch: http, pollMs: 0 });
+        await ribbon.ready;
+        calls.length = 0;
+        const sending = doc.getElementById('scenario-start').listeners.click[0]();
+        const early = ribbon.resync();
+        await Promise.all([sending, early]);
+        return calls;
+        """,
+        base=served,
+        cookie=cookie_of(client),
+    )
+
+    assert got == ["/api/scenario/start", "/api/scenario/result"]

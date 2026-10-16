@@ -437,7 +437,8 @@ app/
     trend.py              T17-3: C5 GET /api/trend and /api/trend/points
   disturbances/
     malfunction.py        T13-1/T13-2: C8 faults on devices and instrument
-                          bias; WRITABLE allowlist, MalfunctionRegistry
+                          bias; WRITABLE and FLAGS (T20-18) allowlists,
+                          MalfunctionRegistry
   historian/
     buffer.py             T17-1: ring-buffer per-tag history
     decimate.py           T17-2: peak-preserving decimation

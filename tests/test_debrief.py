@@ -655,3 +655,22 @@ def test_a_start_still_in_flight_when_a_run_is_adopted_does_not_overwrite_it():
         "notice": "Words from the panel",
         "disabled": False,
     }
+
+
+@needs_node
+def test_a_run_loaded_elsewhere_while_the_panel_has_focus_hands_focus_to_a_run_control():
+    got = run_js(
+        PAGE
+        + """
+        const { panel } = page('complete');
+        const debrief = D.mount(doc, { fetch: async () => reply(500, null) });
+        debrief.result(200, data.done);
+        const had = focusedId();
+        button(panel, 'Try again').focus();
+        debrief.result(200, Object.assign({}, data.done, { phase: 'loaded' }));
+        return { had, panel: !panel.hidden, focus: focusedId() };
+        """,
+        done=finished("failed"),
+    )
+
+    assert got == {"had": "debrief", "panel": False, "focus": "scenario-start"}

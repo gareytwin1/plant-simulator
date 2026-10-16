@@ -333,11 +333,22 @@
       opener = null;
     }
 
+    /* The panel went away under the keyboard (another tab loaded or started a
+     * run), so focus goes to the first run control the ribbon now offers. */
+    function focusRunControl() {
+      var offered = ["scenario-start", "scenario-abort", "scenario-choose"].map(function (id) {
+        return doc.getElementById(id);
+      }).filter(usable)[0];
+      if (offered) offered.focus();
+    }
+
     function result(status, body) {
       if (status !== 200 && status !== 409) return;
       var view = api.view(status, body);
       if (view === null) {
+        var heldFocus = !panel.hidden && panel.contains(doc.activeElement);
         hide(false);
+        if (heldFocus) focusRunControl();
         shown = null;
         opened = null;
         clear();

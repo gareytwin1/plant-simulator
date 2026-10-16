@@ -125,11 +125,14 @@ def test_the_hero_shows_the_time_limit_in_minutes(page):
     assert f"Time limit {first.time_limit_s / 60:g} min" in squash(page)
 
 
-def test_recent_scenarios_is_an_honest_empty_state(page):
-    flat = squash(page)
+def test_recent_scenarios_starts_with_nothing_shown_until_the_history_is_read(page):
+    card = re.search(r'<section class="card recent-card".*?</section>', page, re.S).group(0)
 
-    assert "Recent scenarios" in flat
-    assert "No finished runs to show yet" in flat
+    assert "Recent scenarios" in card
+    for element in ("recent-empty", "recent-runs", "best-section"):
+        tag = re.search(rf'<[^>]*id="{element}"[^>]*>', card).group(0)
+        assert " hidden" in tag, element
+    assert "not kept" not in card
 
 
 def test_the_thumbnail_is_the_plants_graphic_and_is_not_interactive(client, page):
@@ -747,3 +750,141 @@ def test_the_header_carries_the_toggle_and_every_page_loads_theme_js_early(page)
     assert 'id="theme-toggle"' in page
     assert page.index("js/theme.js") < page.index("</head>")
     assert page.index("Theme.apply(document)") < page.index("</head>")
+
+
+FAKE_DOM = (ROOT / "tests" / "fake_dom.js").read_text()
+
+# The Recent scenarios card on the fake DOM, fed `data.history` (a body, or a
+# status number to refuse with) by a fetch that answers only GET /api/history.
+HISTORY_CARD = FAKE_DOM + """
+const card = doc.createElement("section");
+doc.body.appendChild(card);
+const make = (tag, id) => { const n = doc.createElement(tag); n.setAttribute("id", id); n.hidden = true; card.appendChild(n); return n; };
+const empty = make("p", "recent-empty"), runs = make("ol", "recent-runs"), section = make("div", "best-section");
+const bests = doc.createElement("ul"); bests.setAttribute("id", "best-runs"); section.appendChild(bests);
+doc.getElementById = id => doc.body.all().find(n => n.getAttribute("id") === id) || null;
+const launch = doc.createElement("div"); launch.setAttribute("id", "launch");
+launch.setAttribute("data-phase-labels", "{}"); launch.setAttribute("data-phase", "idle"); card.appendChild(launch);
+["abort-confirm", "abort-confirm-yes", "abort-confirm-no", "free-play", "notice"].forEach(id => make("div", id));
+doc.querySelectorAll = () => [];
+const fetched = [];
+const fetchImpl = async url => {
+  fetched.push(url);
+  if (typeof data.history === "number") return { ok: false, status: data.history, json: async () => ({}) };
+  return { ok: true, status: 200, json: async () => data.history };
+};
+L.mount(doc, fetchImpl, () => {}, { storage: null, refreshRibbon() {} });
+await settle(); await settle();
+const text = n => n.textContent;
+return {
+  fetched,
+  empty: { hidden: empty.hidden, text: empty.textContent },
+  runsHidden: runs.hidden, bestHidden: section.hidden,
+  runs: runs.children.map(row => row.children.map(text)),
+  outcomes: runs.querySelectorAll("span.run-outcome").map(n => n.getAttribute("data-outcome")),
+  bests: bests.children.map(row => row.children.map(text)),
+  markup: runs.all().map(n => n.innerHTML).join(""),
+};
+"""
+
+
+def run_history_card(history):
+    return run_js(HISTORY_CARD, history=history)
+
+
+@needs_node
+def test_outcomes_are_words_and_an_unrecorded_one_says_so():
+    labels = run_js(
+        "return ['succeeded', 'failed', 'timed_out', 'unknown', 'constructor'].map(L.outcomeLabel);"
+    )
+
+    assert labels == ["Succeeded", "Failed", "Timed out", "Outcome not recorded", "Outcome not recorded"]
+
+
+@needs_node
+def test_a_score_is_shown_as_a_whole_number():
+    assert run_js("return [48.4, 48.5, 100, 0].map(L.formatScore);") == ["48", "49", "100", "0"]
+
+
+@needs_node
+def test_a_run_time_is_shown_in_the_browsers_time_zone():
+    from datetime import datetime
+
+    stamp = 1_792_000_000.0
+    local = datetime.fromtimestamp(stamp)
+
+    assert run_js("return L.formatWhen(data.t);", t=stamp) == local.strftime("%-d %b %Y, %H:%M")
+
+
+@needs_node
+def test_a_body_not_shaped_like_a_history_shows_as_no_history():
+    views = run_js("return [null, {}, {recent: 'x', best: 3}].map(L.historyView);")
+
+    assert views == [{"recent": [], "best": []}] * 3
+
+
+@needs_node
+def test_the_card_lists_the_live_apps_history_newest_first_with_bests_by_title(client):
+    from app.scoring.metrics import RunMetrics
+    from app.scoring.score import Score
+    from types import MappingProxyType
+
+    client.get("/")
+    operator = client.get_cookie("plant_operator_id").value
+    by_id = {entry.id: entry for entry in main.CATALOGUE}
+
+    def run(scenario, at, total, outcome):
+        metrics = RunMetrics(0, 0, None, None, MappingProxyType({}), 0.0, MappingProxyType({}), 0, outcome)
+        main.store.record(operator, scenario, at, Score(total, MappingProxyType({})), metrics)
+
+    run("pump_trip", 1_792_000_000.0, 48.4, "failed")
+    run("blocked_drain", 1_792_000_600.0, 97.6, "succeeded")
+    history = client.get("/api/history").get_json()
+
+    shown = run_history_card(history)
+
+    assert shown["fetched"] == ["/api/history"]
+    assert shown["empty"]["hidden"] and not shown["runsHidden"] and not shown["bestHidden"]
+    pump, blocked = by_id["pump_trip"], by_id["blocked_drain"]
+    assert [row[:3] for row in shown["runs"]] == [
+        [blocked.title, "Score 98", "Succeeded" + blocked.difficulty.capitalize()],
+        [pump.title, "Score 48", "Failed" + pump.difficulty.capitalize()],
+    ]
+    assert shown["outcomes"] == ["succeeded", "failed"]
+    assert shown["bests"] == sorted([[blocked.title, "98"], [pump.title, "48"]])
+    for path in SCENARIOS:
+        assert path.stem not in json.dumps(shown)
+
+
+@needs_node
+def test_an_empty_history_shows_the_empty_state_alone():
+    shown = run_history_card({"recent": [], "best": {}})
+
+    assert not shown["empty"]["hidden"]
+    assert shown["empty"]["text"] == ""  # the template's own words are left alone
+    assert shown["runsHidden"] and shown["bestHidden"]
+    assert shown["runs"] == [] and shown["bests"] == []
+
+
+@needs_node
+def test_a_history_that_cannot_be_read_says_so():
+    shown = run_history_card(500)
+
+    assert not shown["empty"]["hidden"]
+    assert shown["empty"]["text"] == "Your run history could not be read. Reload the page to try again."
+    assert shown["runs"] == []
+
+
+@needs_node
+def test_a_title_is_only_ever_text():
+    title = '<img src=x onerror="alert(1)">'
+    history = {
+        "recent": [{"title": title, "difficulty": "easy", "total": 50, "outcome": "failed", "recorded_at": 0}],
+        "best": {"k": {"title": title, "total": 50}},
+    }
+
+    shown = run_history_card(history)
+
+    assert shown["runs"][0][0] == title
+    assert shown["bests"][0][0] == title
+    assert shown["markup"] == ""

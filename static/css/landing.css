@@ -287,6 +287,85 @@ body[data-page="landing"] main {
   font-style: italic;
 }
 
+/* Run history (T20-16): one row per finished run, newest first. The outcome
+ * is a word, never a colour alone. */
+.run-list,
+.best-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.run-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
+}
+
+.run-row:last-child {
+  border-bottom: 0;
+}
+
+.run-title,
+.best-title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.run-title {
+  font-weight: 700;
+}
+
+.run-score {
+  justify-self: end;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.run-meta,
+.run-when {
+  color: var(--text-muted);
+  font-size: 0.88rem;
+}
+
+.run-difficulty::before {
+  content: "\00a0\00b7\00a0";
+}
+
+.run-outcome[data-outcome="succeeded"]::before {
+  content: "\2713\00a0";
+}
+
+.run-outcome[data-outcome="failed"]::before,
+.run-outcome[data-outcome="timed_out"]::before {
+  content: "\2717\00a0";
+}
+
+.run-when {
+  justify-self: end;
+  white-space: nowrap;
+}
+
+.best-section {
+  margin-top: var(--space-4);
+}
+
+.best-heading {
+  margin: 0 0 var(--space-1);
+  font-size: 0.95rem;
+}
+
+.best-row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-1) 0;
+}
+
 button {
   padding: 0.5rem 1rem;
   border: 2px solid var(--text);

@@ -22,7 +22,12 @@ COPY config ./config
 COPY static ./static
 COPY templates ./templates
 COPY gunicorn.conf.py ./
-RUN useradd --system --no-create-home plant
+# Run history (T20-16) lives in data/, which docker-compose.yml mounts as a
+# volume; created here so the volume starts owned by the serving user.
+ENV PLANT_SCORE_DB=/srv/plant-simulator/data/scores.sqlite3
+RUN useradd --system --no-create-home plant \
+    && mkdir data \
+    && chown plant data
 USER plant
 EXPOSE 8000
 # One worker process, threads for concurrency: see gunicorn.conf.py.

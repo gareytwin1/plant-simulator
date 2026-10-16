@@ -9,6 +9,9 @@
 # CIDRs (comma-separated) so the API rate limit is per client, not per proxy.
 # Unset, X-Forwarded-For is ignored and every client behind the proxy shares
 # one bucket. See API_TRUSTED_PROXIES in app/config.py.
+#
+# Run history is kept on the plant-data volume, so it survives a rebuild or a
+# new container. Remove the volume to clear every browser's history.
 services:
   plant-simulator:
     build:
@@ -19,4 +22,9 @@ services:
       - "8000:8000"
     environment:
       PLANT_TRUSTED_PROXIES: ${PLANT_TRUSTED_PROXIES:-}
+    volumes:
+      - plant-data:/srv/plant-simulator/data
     restart: unless-stopped
+
+volumes:
+  plant-data:

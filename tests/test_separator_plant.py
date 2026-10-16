@@ -276,13 +276,14 @@ def test_a_trip_shuts_in_the_feed_through_xv_301_while_fv_301_sits_wide_open_on_
     malfunction(rt, "LV-301", "capacity", 7.0)
 
     run_until(rt, lambda s: s.interlocks["LSHH-301"].state == "tripped", 900)
-    run_until(rt, lambda s: shutdown.position == shutdown.min_position, 60)
+    run_until(rt, lambda s: shutdown.position == pytest.approx(shutdown.min_position), 60)
 
     assert feed.signal_ok is False
     assert feed.position == pytest.approx(1.0)
 
     snapshot = run_until(rt, lambda s: not condition.is_met(drum(s)["level"]), 900)
     assert drum(snapshot)["level"] < 0.9
+    # The trip system sees the cleared level one step after the snapshot.
     rt.step(DT)
     rt.act("LSHH-301", "reset", None)
 

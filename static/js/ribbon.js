@@ -176,8 +176,9 @@
    * test can supply its own transport and timer; `options.onChange` is handed
    * to the run controls, and `options.onResult(status, body)` sees every
    * result they apply, after the ribbon has (the console's debrief panel,
-   * T20-22). Returns {update, refresh, poll, adopt, stop, ready}: `update`
-   * takes each snapshot the page receives, and `adopt` is the run controls'. */
+   * T20-22). Returns {update, refresh, poll, adopt, say, stop, ready}: `update`
+   * takes each snapshot the page receives, and `adopt` and `say` are the run
+   * controls'. */
   function mount(doc, options) {
     var settings = options || {};
     var doFetch = settings.fetch || root.fetch.bind(root);
@@ -307,6 +308,7 @@
       refresh: refresh,
       poll: run.poll,
       adopt: run.adopt,
+      say: run.say,
       update: function (snapshot) {
         if (!snapshot || typeof snapshot.sim_time !== "number") return;
         clock.snapshot(snapshot.sim_time);

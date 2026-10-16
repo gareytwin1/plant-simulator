@@ -33,6 +33,7 @@
 
   var LOAD_URL = "/api/scenario/load";
   var START_URL = "/api/scenario/start";
+  var FETCH_TIMEOUT_MS = 5000;
 
   var OUTCOMES = {
     succeeded: { text: "Succeeded", glyph: "\u2713" },
@@ -173,15 +174,19 @@
   }
 
   /* Builds the panel inside `doc`'s #debrief section. `options.fetch` exists
-   * so a test can supply its own transport; `options.onRetry(status, body,
-   * refusal)` is handed the last response Try again had accepted, so the
-   * ribbon can adopt it at once, with the words for a start that was then
-   * refused (the panel closes on a loaded run, so they are shown elsewhere).
+   * so a test can supply its own transport, and `options.timeoutMs` its own
+   * deadline for each request. `options.onRetry(status, body, refusal)` is
+   * handed the last response Try again had accepted, so the ribbon can adopt
+   * it at once, with the words for a start that was then refused (the panel
+   * closes on a loaded run, so they are shown elsewhere). `options.onRefusal(
+   * text)` gets a refusal when nothing was accepted and the panel is no longer
+   * showing, for the ribbon's notice.
    * Returns {result, open, close}: feed `result` every
    * (status, body) the ribbon's scenario poll applies. */
   function mount(doc, options) {
     var settings = options || {};
     var doFetch = settings.fetch || root.fetch.bind(root);
+    var timeoutMs = settings.timeoutMs === undefined ? FETCH_TIMEOUT_MS : settings.timeoutMs;
     var panel = doc.getElementById("debrief");
     var button = doc.getElementById("scenario-result");
     var status = doc.getElementById("debrief-status");
@@ -364,6 +369,29 @@
       }
     }
 
+    /* One request, with a deadline, so a request that never settles cannot
+     * leave Try again disabled for good: past it the request is aborted where
+     * the transport allows and counts as a failure (status 0). */
+    async function send(step) {
+      var controller = typeof AbortController === "function" ? new AbortController() : null;
+      var timerId;
+      var deadline = new Promise(function (resolve, reject) {
+        timerId = root.setTimeout(function () {
+          if (controller) controller.abort();
+          reject(new Error("timed out"));
+        }, timeoutMs);
+      });
+      var init = Object.assign({}, step.init);
+      if (controller) init.signal = controller.signal;
+      try {
+        var response = await Promise.race([doFetch(step.url, init), deadline]);
+        var body = response.ok ? await Promise.race([response.json(), deadline]) : null;
+        return { ok: response.ok, status: response.status, body: body };
+      } finally {
+        root.clearTimeout(timerId);
+      }
+    }
+
     async function tryAgain() {
       if (busy || shown === null) return;
       busy = true;
@@ -374,12 +402,12 @@
       try {
         var steps = api.retrySteps(shown.key);
         for (var i = 0; i < steps.length; i += 1) {
-          var response = await doFetch(steps[i].url, steps[i].init);
+          var response = await send(steps[i]);
           if (!response.ok) {
             refusal = api.refusalText(response.status);
             break;
           }
-          accepted = { status: response.status, body: await response.json() };
+          accepted = response;
         }
       } catch (error) {
         refusal = api.refusalText(0);
@@ -390,11 +418,11 @@
       notice.textContent = refusal;
       // A load that was accepted is a new run, even when its start was then
       // refused, so the console shows it. A refusal with nobody to read it
-      // here (a poll took the run away meanwhile) goes to the ribbon's notice
-      // as a status that carries no run.
-      if (settings.onRetry) {
-        if (accepted !== null) settings.onRetry(accepted.status, accepted.body, refusal);
-        else if (refusal !== "" && panel.hidden) settings.onRetry(0, null, refusal);
+      // here (a poll took the run away meanwhile) goes to the ribbon's notice.
+      if (accepted !== null) {
+        if (settings.onRetry) settings.onRetry(accepted.status, accepted.body, refusal);
+      } else if (refusal !== "" && panel.hidden && settings.onRefusal) {
+        settings.onRefusal(refusal);
       }
     }
 

@@ -123,7 +123,7 @@
    * `options.isPaused()` says whether the operator has paused the plant, read
    * at each render; call the returned `render` after it changes. The
    * buttons and the choose link are optional, so a page can show the run
-   * without offering them. Returns {poll, adopt, render, stop, state}. */
+   * without offering them. Returns {poll, adopt, say, render, stop, state}. */
   function mount(doc, options) {
     var settings = options || {};
     var doFetch = settings.fetch || root.fetch.bind(root);
@@ -336,6 +336,12 @@
       refocus(true);
     }
 
+    /* A message for the notice from another control on the page, with no run
+     * to apply: nothing in flight is made stale and focus stays where it is. */
+    function say(text) {
+      notice(text || "");
+    }
+
     function disarm() {
       state.armed = false;
       render();
@@ -381,6 +387,7 @@
     return {
       poll: poll,
       adopt: adopt,
+      say: say,
       render: render,
       state: state,
       stop: function () {

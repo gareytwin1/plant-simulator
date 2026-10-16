@@ -686,7 +686,7 @@ def test_a_refusal_the_panel_can_no_longer_show_goes_to_the_ribbon_as_a_notice()
         let release = null;
         const debrief = D.mount(doc, {
           fetch: () => new Promise(resolve => { release = () => resolve(reply(429, null)); }),
-          onRetry: (...args) => adopted.push(args) });
+          onRetry: (...args) => adopted.push(['retry', ...args]), onRefusal: text => adopted.push(['refusal', text]) });
         debrief.result(200, data.done);
         const sending = button(panel, 'Try again').listeners.click[0]();
         debrief.result(200, Object.assign({}, data.done, { phase: 'loaded' }));
@@ -697,4 +697,57 @@ def test_a_refusal_the_panel_can_no_longer_show_goes_to_the_ribbon_as_a_notice()
         done=finished("failed"),
     )
 
-    assert got == [[0, None, "Too many requests. Wait a moment and try again."]]
+    assert got == [["refusal", "Too many requests. Wait a moment and try again."]]
+
+
+@needs_node
+def test_a_request_that_never_settles_is_given_up_on_and_try_again_is_usable_again():
+    got = run_js(
+        PAGE
+        + """
+        const { panel } = page('complete');
+        const signals = [];
+        const debrief = D.mount(doc, { timeoutMs: 20,
+          fetch: (url, init) => { signals.push(!!init.signal); return new Promise(() => {}); } });
+        debrief.result(200, data.done);
+        const retry = button(panel, 'Try again');
+        const sending = retry.listeners.click[0]();
+        const during = retry.disabled;
+        await sending;
+        return { during, after: retry.disabled, notice: text(byClass(panel, 'debrief-notice')), signals };
+        """,
+        done=finished("failed"),
+    )
+
+    assert got["during"] is True
+    assert got["after"] is False
+    assert got["notice"].startswith("The request did not finish")
+    assert got["signals"] == [True]
+
+
+@needs_node
+def test_a_notice_only_message_leaves_a_send_in_flight_and_focus_alone(client, served):
+    client.post("/api/scenario/load", json={"scenario": KEY})
+
+    got = run_js(
+        PAGE
+        + HTTP
+        + """
+        const { bar } = page('loaded');
+        let ribbon = R.mount(doc, { fetch: http, pollMs: 0 });
+        await ribbon.ready;
+        const elsewhere = add('input', 'faceplate-entry');
+        const sending = doc.getElementById('scenario-start').listeners.click[0]();
+        elsewhere.focus();
+        ribbon.say('Too many requests. Wait a moment and try again.');
+        const during = { notice: text(doc.getElementById('scenario-notice')), focus: focusedId() };
+        await sending;
+        return { during, state: text(doc.getElementById('scenario-state')), focus: focusedId() };
+        """,
+        base=served,
+        cookie=cookie_of(client),
+    )
+
+    assert got["during"] == {"notice": "Too many requests. Wait a moment and try again.", "focus": "faceplate-entry"}
+    assert got["state"] == f"Scenario {DOT} Running"
+    assert got["focus"] == "faceplate-entry"

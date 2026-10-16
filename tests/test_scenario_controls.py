@@ -321,7 +321,9 @@ def test_the_console_renders_free_play_with_no_scenario_text(client):
     assert ">Plant running<" in page
     assert "js/scenario.js" in page
     # A scenario load or unload may change the plant: the graphic, the canvas and the trend windows follow it.
-    assert "onChange: function () { graphic.refresh(); canvas.refresh(); trends.reset(); }" in page.split("Ribbon.mount(document, {")[1]
+    mount = page.split("Ribbon.mount(document, {")[1].split("});")[0]
+    assert "onChange: function () { graphic.refresh(); canvas.refresh(); trends.reset(); }" in mount
+    assert "onResult: function (status, body) { if (debrief) debrief.result(status, body); }" in mount
     assert page.index("TrendWindows.mount") < page.index("Ribbon.mount(document, {")
 
 

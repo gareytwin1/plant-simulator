@@ -890,3 +890,37 @@ def test_only_a_5xx_start_after_an_accepted_load_asks_for_a_resync_after_adoptin
     )
 
     assert got == order
+
+
+@needs_node
+def test_a_resync_asked_for_while_a_poll_is_in_flight_is_still_read_if_a_send_starts_meanwhile():
+    got = run_js(
+        PAGE
+        + """
+        page('loaded');
+        const calls = [];
+        let releasePoll = null;
+        let releaseStart = null;
+        let held = true;
+        const fetch = url => {
+          calls.push(url);
+          if (url.endsWith('/result') && held) {
+            held = false;
+            return new Promise(resolve => { releasePoll = () => resolve(reply(200, { phase: 'loaded' })); });
+          }
+          if (url.endsWith('/start')) return new Promise(resolve => { releaseStart = () => resolve(reply(200, { phase: 'running' })); });
+          return Promise.resolve(reply(200, { phase: 'running' }));
+        };
+        const ribbon = R.mount(doc, { fetch, pollMs: 0 });
+        await settle();
+        const resyncing = ribbon.resync();
+        const sending = doc.getElementById('scenario-start').listeners.click[0]();
+        releasePoll();
+        await settle();
+        releaseStart();
+        await Promise.all([resyncing, sending]);
+        return calls.filter(u => !u.includes('history'));
+        """,
+    )
+
+    assert got == ["/api/scenario/result", "/api/scenario/start", "/api/scenario/result"]

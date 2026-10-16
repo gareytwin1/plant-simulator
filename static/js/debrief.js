@@ -414,7 +414,8 @@
       }
       // A request that did not finish may still have been applied, so the
       // ribbon is asked to read the run again, after it has adopted any load
-      // that was accepted. A refusal is definite and needs no read.
+      // that was accepted. A 4xx refusal is definite and needs no read; a 5xx
+      // or a request that did not finish is ambiguous.
       if (ambiguous && settings.onResync) settings.onResync();
     }
 

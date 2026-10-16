@@ -241,3 +241,25 @@ def test_finite_number_at_the_boundary_of_a_minimum_still_passes():
     errors = validate(config)
 
     assert errors == ["$.interlocks[0].delay_s: -1.0 is below the minimum of 0"]
+
+
+# A list of types (the scenario schema's malfunction value) is any one of them,
+# and the matched type's own checks still apply.
+EITHER = {"type": ["number", "boolean"], "minimum": 0}
+
+
+@pytest.mark.parametrize("value", [0.5, 3, True, False])
+def test_a_type_list_accepts_any_of_its_types(value):
+    assert validate(value, EITHER) == []
+
+
+def test_a_type_list_refuses_a_value_of_none_of_its_types():
+    assert validate("0.5", EITHER) == ["$: expected one of ['number', 'boolean'], got string"]
+
+
+@pytest.mark.parametrize("value, error", [
+    (-1.0, "$: -1.0 is below the minimum of 0"),
+    (float("nan"), "$: nan is not a finite number"),
+])
+def test_a_type_list_applies_the_matched_types_checks(value, error):
+    assert validate(value, EITHER) == [error]

@@ -3,5 +3,4 @@
 - [Model split](model-split.md) - Opus for task start + implementation, Sonnet for execution (git/PR/merge/close-out) and other work
 - [AGENTS.md no growth](agents-md-no-growth.md) - never add to AGENTS.md; route new rules to .claude/rules/, DEVELOPMENT.md, or project_state.md instead
 - [Keep toolkit plugins](keep-toolkit-plugins.md) - keep all toolkit plugins enabled; do not propose disabling them to save tokens
-
 - [Desktop first](desktop-first.md) - M20 console redesign: desktop browser first; phone-width work and checks deferred (user, 10 Oct 2026)

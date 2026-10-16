@@ -8,10 +8,10 @@ regrowth rule is in [.claude/rules/docs.md](../../.claude/rules/docs.md).
 
 ## Right now
 
-**Last state refresh:** 16 October 2026, at `d6a7ddd` (Merge T20-19, PR #180: desktop acceptance pass) - **this is a snapshot,
-not a live pointer.** Run `git log d6a7ddd..HEAD --oneline` to see what has
+**Last state refresh:** 16 October 2026, at `d8edf4a` (Merge T20-22, PR #181: result and debrief panel) - **this is a snapshot,
+not a live pointer.** Run `git log d8edf4a..HEAD --oneline` to see what has
 merged since.
-**Full suite as of this refresh:** **4284 passed** · `python -m mypy` clean over 89 source files · no golden trace movement
+**Full suite as of this refresh:** **4328 passed** · `python -m mypy` clean over 89 source files · no golden trace movement
 **In flight:** nothing. The spine lock and the `app/main.py` lock are free.
 No task is Blocked. CI runs on every PR, and `main` requires its
 `test` check before a merge.
@@ -21,12 +21,12 @@ No task is Blocked. CI runs on every PR, and `main` requires its
 
 | Task | SHA | What landed |
 |---|---|---|
+| **T20-22** | `d8edf4a` | Result and debrief panel on the console: `static/js/debrief.js` reads the ribbon's existing scenario poll (`onResult`, no second poll) and, once a run is complete or aborted, opens a non-modal dialog over the canvas with the outcome in words and a glyph, run time, the score and what counted against it ("in full", "partly", "a little", worded from a table keyed by `config/scoring.yaml`'s penalty names, which a test keeps in step), and the debrief. It opens itself once per finished run (keeping focus where an operator is typing), a ribbon Result button reopens it, Try again loads and starts the same scenario, and nothing of the outcome or score renders while a run is loaded or running. The run controls gain `adopt`, `say`, `resync` and a shared `timedFetch`. No golden moved. Built on Opus, review fixes on Sonnet (PR #181). Browser-checked one scenario per plant, pass and fail, before the review fixes |
 | **T20-19** | `d6a7ddd` | Redesign acceptance pass at desktop width (phone moved to T20-24): all ten scenarios played to a pass and to a fail in headless Firefox with real input events, one by keyboard only, an alarm marker seen on a trend. Fixes: each scenario shows its own plant on the Home page (`CatalogueEntry.plant`), keyboard focus after Start or Stop, a favicon, the prototype's canvas hint. The pass found that a finished run shows no result on the console (T20-22), and that alarms and trends show the plant clock (T20-23). Built on Opus (PR #180) |
 | **T20-18** | `e952be3` | Separator scenarios: drain and vent restriction (capacity malfunctions) and feed and drain signal loss, each a fault at 30 s the loops in AUTO cannot correct. A scenario can now set a valve's failure-mode flag: C8 `FLAGS` beside `WRITABLE` (`ControlValve` `signal_ok`, `stuck`, `action_reversed`; bool value, step only), and the validator accepts a list of types. XV-301 is a new feed shutdown valve that LSHH-301 and PSHH-301 close, because a valve with a lost signal ignores a trip (a lost LV-301 signal still defeats LSLL-301); the feed surge fails at the high alarm, as the drum settles short of the trip. `separator_normal.json` regenerated, `separator.svg` reworked. Config 4.0.0; no golden moved. Decided and built on Opus (PR #179). Not browser-checked |
 | **T20-16** | `832cfc2` | Run history per browser: an anonymous `plant_operator_id` cookie (uuid4 hex, HttpOnly, SameSite=Lax, one year, renewed on page loads; a live session's id wins over a changed cookie). `TrainingSession` records each completed run once through a recorder (errors logged, never stop the plant); `ScoreStore` at `config.SCORE_DB_PATH` (env `PLANT_SCORE_DB`, `plant-data` volume in compose) gains `recent`, `personal_bests` and a connection lock. `GET /api/history` returns recent runs (cap 5) and bests within the config major, by key and title, never id. The landing Recent scenarios card lists them. Built on Opus (PR #177). Docker image only covered by CI |
 | **T20-21** | `4f80d36` | Outcome and interlock trips in the score: `RunMetrics.outcome` (a plain string, so `app/scoring` never imports `app/scenarios`) and a ninth criterion, `outcome`, weighted 101 (one more than the other eight) with an `outcome_penalty` table, so every succeeded run scores strictly above every failed or timed-out one. `PlantRuntime` records a `TripRecord(sim_time, tag)` per interlock latch and `trip_count` is their number; a trip-rated band with no interlock (pump_trip's P-101 flow LOLO) still feeds alarms, peak severity and time outside the envelope but is no trip. Rows stored before the metric read back with outcome `unknown`. Config 3.0.0. Built on Sonnet (PR #176) |
 | **T20-15** | `8f123e4` | Score a finished run: `config/scoring.yaml` gains per-plant `plants` (excursion limits and throughput targets; olefins_lite and separator track drum level and pressure and liquid product at 50 GPM, not `P-101.flow`), read once at load and part of the run's fingerprint. `PlantRuntime` feeds the trackers from every published snapshot and refuses a point the plant lacks; `ScenarioRunner` computes `RunMetrics` and `Score` once at COMPLETE, and `public_result` shows them only beside the debrief (null when aborted). Every action counts as relevant for now. A malformed scoring file is a 400. Config 2.5.0; no golden moved. Built on Opus (PR #175). Backend only |
-| **T20-17** | `8e1e697` | Separator plant (`config/plants/separator.yaml`, beside an untouched olefins_lite): FV-301 a liquid feed carrying 0.2 SCFM/GPM into V-301, and FIC-301, LIC-301 and PIC-301 in AUTO (LIC and PIC retuned from the prototype's gains, which swing and hunt on this drum). LSHH-301 and PSHH-301 close FV-301, LSLL-301 closes LV-301; a lost valve signal defeats the trip on that valve (no separate shutdown valve). `separator_normal.json` saves the design point (new recipe in `scripts/initial_conditions.py`); `separator.svg` in the accepted style. Meets Checkpoint D's last gate. Config 2.4.0; no golden moved. Free play stays on olefins_lite until the user decides (asked, unanswered). Built on Opus (PR #174). Phone width unchecked |
 
 **ADRs on `main`:** [0001](../../docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md)
 (+ Amendment 1) and [0002](../../docs/ADR_0002_TYPED_PORTS.md) (+ Amendments
@@ -40,19 +40,18 @@ Complete: **M0-M9, M12-M18, MR**. Open:
 |---|---|---|
 | **M10** Alarms | 5/6 | T10-1, T10-2, T10-3, T10-5, T10-6; T10-4 startable (V1.1-deferred) |
 | **M11** Interlocks and Trips | 3/4 | T11-1, T11-2, T11-3; T11-4 startable (V1.1-deferred) |
-| **M20** Console Redesign | 21/24 | T20-1, T20-2, T20-3, T20-4, T20-5, T20-6, T20-7, T20-8, T20-9, T20-10, T20-11, T20-12, T20-13, T20-14, T20-15, T20-16, T20-17, T20-18, T20-19, T20-20, T20-21; startable T20-22; T20-23 and T20-24 after it |
+| **M20** Console Redesign | 22/24 | T20-1, T20-2, T20-3, T20-4, T20-5, T20-6, T20-7, T20-8, T20-9, T20-10, T20-11, T20-12, T20-13, T20-14, T20-15, T20-16, T20-17, T20-18, T20-19, T20-20, T20-21, T20-22; startable T20-23; T20-24 after it |
 | M19 | 0 | - |
 
-**149 of 157 tasks Complete.** Checkpoints A-D reached: T20-17 met D's last
+**150 of 157 tasks Complete.** Checkpoints A-D reached: T20-17 met D's last
 gate ("loops reject an injected disturbance") on the separator plant.
 
 ## The next task
 
-**Startable in M20:** **T20-22** (result and debrief panel on the console; a
-finished run shows only "Finished" today). **T20-23** (run time instead of the
-plant clock in alarms, trends and the Home strip) waits on it, since both edit
-ribbon.js and console.html. **T20-24** is the phone-width gameplay pass the
-user deferred (16 October 2026) and waits on both. Also startable but
+**Startable in M20:** **T20-23** (run time instead of the plant clock in
+alarms, trends and the Home strip; T20-22 is merged, so it is free to start).
+**T20-24** is the phone-width gameplay pass the user deferred (16 October 2026)
+and waits on it. Also startable but
 deferred: T10-4 and T11-4 (V1.1), T19-1 and T19-2 (V2).
 
 **CP-G passed for the current console** (user's browser pass, 9 October 2026). The console is about to be redesigned, so the full pass (all six scenarios, both themes, phone width, a real alarm marker) is an acceptance criterion of that redesign rather than repeated on this console.

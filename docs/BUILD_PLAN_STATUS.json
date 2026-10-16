@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "2026-10-16",
-  "main_sha": "d6a7ddd",
-  "tests_passing_on_main": 4284,
+  "main_sha": "d8edf4a",
+  "tests_passing_on_main": 4328,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -118,14 +118,14 @@
     },
     "M20": {
       "name": "Console Redesign",
-      "complete": 21,
+      "complete": 22,
       "total": 24
     }
   },
   "totals": {
     "tasks": 157,
-    "complete": 149,
-    "startable_now": 6
+    "complete": 150,
+    "startable_now": 5
   },
   "tasks": [
     {
@@ -3172,10 +3172,9 @@
         "static/js/ribbon.js",
         "tests/test_debrief.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true,
-      "note": ""
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged to main as d8edf4a (PR #181); 4328 passed, mypy clean over 89 files, roborev-refine clean on the full branch, no golden moved. Non-modal result panel on the console: outcome in words and a glyph, run time, score and what counted against it, the debrief, a Result button, Try again and Choose another scenario. Real-browser pass (one scenario per plant, pass and fail, light and dark) ran before the review-driven fixes. Adds adopt, say, resync and timedFetch to the run controls."
     },
     {
       "id": "T20-23",
@@ -3186,7 +3185,8 @@
       "depends_on": [
         "T20-11",
         "T20-12",
-        "T20-14"
+        "T20-14",
+        "T20-22"
       ],
       "files": [
         "app/api/scenario.py",
@@ -3224,7 +3224,6 @@
       "status_key": "todo",
       "startable": false,
       "blocked_by": [
-        "T20-22",
         "T20-23"
       ],
       "note": ""

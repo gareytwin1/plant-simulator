@@ -298,3 +298,91 @@ def test_upgrading_a_pre_versioning_database_keeps_rows_with_no_version(tmp_path
         assert legacy.metrics.outcome == "unknown"
         assert upgraded.get(legacy.id) == legacy
         assert upgraded.personal_best("op-1", "s1") is None
+
+
+def test_recent_is_one_operators_results_newest_first_and_capped():
+    with ScoreStore() as store:
+        oldest = store.record("op-1", "s1", 1.0, _score(40.0), _metrics())
+        middle = store.record("op-1", "s2", 2.0, _score(50.0), _metrics())
+        store.record("op-2", "s1", 3.0, _score(60.0), _metrics())
+        newest = store.record("op-1", "s1", 4.0, _score(30.0), _metrics())
+
+        assert store.recent("op-1", 10) == [newest, middle, oldest]
+        assert store.recent("op-1", 2) == [newest, middle]
+        assert store.recent("nobody", 10) == []
+
+
+def test_recent_breaks_a_time_tie_by_the_latest_stored():
+    with ScoreStore() as store:
+        first = store.record("op-1", "s1", 2.0, _score(40.0), _metrics())
+        second = store.record("op-1", "s2", 2.0, _score(50.0), _metrics())
+
+        assert store.recent("op-1", 10) == [second, first]
+
+
+def test_recent_lists_a_result_from_another_major(tmp_path):
+    path = tmp_path / "scores.db"
+
+    with _store(path, "1.0.0") as old:
+        recorded = old.record("op-1", "s1", 1.0, _score(90.0), _metrics())
+
+    with _store(path, "2.0.0") as new:
+        assert new.recent("op-1", 10) == [recorded]
+
+
+def test_personal_bests_are_personal_best_for_every_scenario_of_one_operator(tmp_path):
+    path = tmp_path / "scores.db"
+
+    with _store(path, "1.0.0") as old:
+        old.record("op-1", "s3", 1.0, _score(99.0), _metrics())
+
+    with _store(path, "1.0.0") as store:
+        store.record("op-1", "s1", 2.0, _score(40.0), _metrics())
+        store.record("op-1", "s1", 3.0, _score(80.0), _metrics())
+        store.record("op-1", "s1", 4.0, _score(80.0), _metrics())
+        store.record("op-1", "s2", 5.0, _score(20.0), _metrics())
+        store.record("op-2", "s1", 6.0, _score(95.0), _metrics())
+
+        bests = store.personal_bests("op-1")
+
+        assert bests == {scenario: store.personal_best("op-1", scenario) for scenario in ("s1", "s2", "s3")}
+        assert bests["s1"].recorded_at == pytest.approx(3.0)
+        assert store.personal_bests("nobody") == {}
+
+
+def test_personal_bests_skip_another_majors_results(tmp_path):
+    path = tmp_path / "scores.db"
+
+    with _store(path, "1.0.0") as old:
+        old.record("op-1", "s1", 1.0, _score(90.0), _metrics())
+
+    with _store(path, "2.0.0") as new:
+        assert new.personal_bests("op-1") == {}
+
+        weaker = new.record("op-1", "s1", 2.0, _score(10.0), _metrics())
+        assert new.personal_bests("op-1") == {"s1": weaker}
+
+
+def test_one_store_records_and_reads_from_many_threads(tmp_path):
+    import threading
+
+    store = ScoreStore(tmp_path / "scores.db")
+    errors = []
+
+    def work(n):
+        try:
+            for i in range(20):
+                store.record(f"op-{n}", "s1", float(i), _score(float(i)), _metrics())
+                store.recent(f"op-{n}", 5)
+        except Exception as error:  # noqa: BLE001 - reported below
+            errors.append(error)
+
+    threads = [threading.Thread(target=work, args=(n,)) for n in range(8)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    assert errors == []
+    assert len(store.recent("op-3", 100)) == 20
+    store.close()

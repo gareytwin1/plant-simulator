@@ -244,7 +244,7 @@ Check this before starting step 5 above.
 | `app/equipment/base.py` | **Spine** - under the spine lock, no satellite edits |
 | `app/engine/` | **Spine**, every module already on `main` - under the spine lock. A new module can be satellite work; see below. |
 | `app/plant/topology.py` | **Spine** - under the spine lock |
-| `app/main.py` | **Highest-conflict file.** Exactly one branch at a time until the C5 single action endpoint lands. Release it immediately after merging. |
+| `app/main.py` | **Highest-conflict file.** Exactly one branch at a time; release it immediately after merging. |
 | `app/config.py` | **Append-only** — add a clearly-headed section, never reorder |
 | `config/schema/plant.schema.json` | Shared — each top-level key has one owner |
 | `config/plants/*.yaml` | Shared — each top-level key has one owner |

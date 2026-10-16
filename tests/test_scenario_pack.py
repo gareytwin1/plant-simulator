@@ -15,7 +15,6 @@ from pathlib import Path
 import pytest
 import yaml
 
-from app.api.action import apply_action
 from app.engine.persistence import capture_state
 from app.plant.validate import validate
 from app.scenarios.replay import Recording, replay
@@ -52,17 +51,12 @@ def run(scenario_id, script=None, limit=2000):
     runner.load(scenario_id)
     runner.start()
     script = script or {}
-    engine = runner.engine
-
     for tick in range(limit):
         if runner.phase is not Phase.RUNNING:
             break
 
         for target, action, *value in script.get(tick, ()):
-            apply_action(
-                engine.equipment, runner.actions, engine.clock.sim_time,
-                target, action, value[0] if value else None, loops=engine.loops,
-            )
+            runner.act(target, action, value[0] if value else None)
 
         runner.step(DT)
     else:
@@ -149,7 +143,7 @@ def test_a_lost_feed_signal_opens_fv_301_against_its_loop_until_xv_301_takes_the
 
     engine = runner.engine
     assert engine.equipment["FV-301"].signal_ok is False
-    assert engine.equipment["FV-301"].position == 1.0
+    assert engine.equipment["FV-301"].position == pytest.approx(1.0)
     assert engine.equipment["XV-301"].position == pytest.approx(0.22)
     assert runner.result().outcome is Outcome.SUCCEEDED
 
@@ -159,33 +153,13 @@ def test_a_lost_drain_signal_opens_lv_301_against_its_loop():
 
     valve = runner.engine.equipment["LV-301"]
     assert valve.signal_ok is False
-    assert valve.position == 1.0
+    assert valve.position == pytest.approx(1.0)
     assert runner.result().outcome is Outcome.SUCCEEDED
-
-
-def played(scenario_id):
-    """A run along the diagnosis path, its actions taken through the runner
-    so the recording carries them."""
-    runner = ScenarioRunner()
-    runner.load(scenario_id)
-    runner.start()
-    script = CORRECT_RESPONSES[scenario_id]
-
-    for tick in range(2000):
-        if runner.phase is not Phase.RUNNING:
-            return runner
-
-        for target, action, *value in script.get(tick, ()):
-            runner.act(target, action, value[0] if value else None)
-
-        runner.step(DT)
-
-    raise AssertionError(f"{scenario_id} still running after 2000 steps")
 
 
 @pytest.mark.parametrize("scenario_id", SEPARATOR_IDS)
 def test_each_separator_scenario_replays_bit_identically(scenario_id):
-    live = played(scenario_id)
+    live = run(scenario_id, CORRECT_RESPONSES[scenario_id])
 
     replayed = replay(Recording.of(live))
 

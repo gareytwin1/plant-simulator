@@ -31,11 +31,11 @@ it:
    layers exist, and that is what stays guarded.
 2. **Allowlist vs. slow state** - derived structurally rather than
    hand-listed: for every device class in `WRITABLE` or `FLAGS`, none of its
-   allowlisted parameters or flags are among the attributes that class's own `integrate()` writes.
-   `integrate` is the only method allowed to move slow state (AGENTS.md); a
-   name it writes and either allowlist also lists would be a malfunction reaching
-   state through the front door that the allowlist was supposed to keep it
-   away from.
+   allowlisted parameters or flags are among the attributes that class's own
+   `integrate()` writes. `integrate` is the only method allowed to move slow
+   state (AGENTS.md); a name it writes and either allowlist also lists would
+   be a malfunction reaching state through the front door that the allowlist
+   was supposed to keep it away from.
 
 Written in the style of tests/test_random_source_guard.py and
 tests/test_port_name_guard.py.

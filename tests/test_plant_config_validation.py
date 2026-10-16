@@ -263,3 +263,9 @@ def test_a_type_list_refuses_a_value_of_none_of_its_types():
 ])
 def test_a_type_list_applies_the_matched_types_checks(value, error):
     assert validate(value, EITHER) == [error]
+
+
+def test_null_is_a_type_and_an_unknown_type_name_matches_nothing():
+    assert validate(None, {"type": ["string", "null"]}) == []
+    assert validate(3, {"type": ["string", "null"]}) == ["$: expected one of ['string', 'null'], got number"]
+    assert validate(3, {"type": "numbr"}) == ["$: expected numbr, got number"]

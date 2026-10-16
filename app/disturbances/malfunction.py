@@ -176,7 +176,7 @@ class Malfunction:
 
     def __post_init__(self) -> None:
         if isinstance(self.value, bool):
-            if not isinstance(self.profile, Step):
+            if type(self.profile) is not Step:
                 raise ValueError(
                     f"malfunction {self.target_tag}.{self.parameter} sets a flag, "
                     f"which only a step can do, got {self.profile!r}",

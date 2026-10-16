@@ -340,6 +340,32 @@ def test_a_malfunction_takes_effect_at_its_onset_and_abort_reverts_it():
     assert runner.engine.equipment["LV-101"].capacity == pytest.approx(20.0)
 
 
+def test_a_flag_malfunction_loads_from_config_and_abort_restores_it():
+    config = scenario(
+        malfunctions=[
+            {
+                "target_tag": "LV-101",
+                "parameter": "signal_ok",
+                "value": False,
+                "start_condition": {"type": "at_time", "sim_time": 5},
+            },
+        ],
+    )
+    runner = started(config)
+    valve = runner.engine.equipment["LV-101"]
+
+    for _ in range(4):
+        runner.step(DT)
+    assert valve.signal_ok is True
+
+    for _ in range(2):
+        runner.step(DT)
+    assert valve.signal_ok is False
+
+    runner.abort()
+    assert runner.engine.equipment["LV-101"].signal_ok is True
+
+
 def test_a_malfunction_due_at_time_zero_takes_effect_on_start():
     config = scenario(
         malfunctions=[{"target_tag": "LV-101", "parameter": "capacity", "value": 10.0}],
@@ -491,6 +517,30 @@ BAD_CONFIGS = {
         lambda: scenario(malfunctions=[{"target_tag": "LV-101", "parameter": "position", "value": 1}]),
         ValueError,
         "position",
+    ),
+    "a flag set on a ramp": (
+        lambda: scenario(
+            malfunctions=[
+                {
+                    "target_tag": "LV-101",
+                    "parameter": "signal_ok",
+                    "value": False,
+                    "profile": {"type": "ramp", "duration_s": 10},
+                },
+            ],
+        ),
+        ScenarioConfigError,
+        "only a step",
+    ),
+    "a flag written to a number": (
+        lambda: scenario(malfunctions=[{"target_tag": "LV-101", "parameter": "capacity", "value": True}]),
+        ValueError,
+        "capacity",
+    ),
+    "a number written to a flag": (
+        lambda: scenario(malfunctions=[{"target_tag": "LV-101", "parameter": "signal_ok", "value": 0}]),
+        ValueError,
+        "signal_ok",
     ),
     "ramp profile without a duration": (
         lambda: scenario(

@@ -332,17 +332,18 @@ body[data-page="landing"] main {
   font-size: 0.88rem;
 }
 
+/* Marks only: the empty alternative text keeps a screen reader on the words. */
 .run-difficulty::before {
-  content: "\00a0\00b7\00a0";
+  content: "\00a0\00b7\00a0" / "";
 }
 
 .run-outcome[data-outcome="succeeded"]::before {
-  content: "\2713\00a0";
+  content: "\2713\00a0" / "";
 }
 
 .run-outcome[data-outcome="failed"]::before,
 .run-outcome[data-outcome="timed_out"]::before {
-  content: "\2717\00a0";
+  content: "\2717\00a0" / "";
 }
 
 .run-when {

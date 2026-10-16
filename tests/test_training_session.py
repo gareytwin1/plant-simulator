@@ -422,7 +422,6 @@ def test_each_completed_run_is_recorded_and_an_aborted_one_is_not(recording):
     assert [result.scenario_id for _, result in records] == ["short-run", "short-run"]
 
 
-
 def test_a_recorder_that_raises_never_stops_the_plant(tmp_path):
     (tmp_path / "short-run.yaml").write_text(SHORT)
 

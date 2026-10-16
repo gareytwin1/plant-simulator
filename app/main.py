@@ -165,7 +165,9 @@ def persist_session_cookie(response: Response) -> Response:
     if "session_id" in g:
         response.set_cookie(SESSION_COOKIE, g.session_id, httponly=True)
 
-    if "operator_id" in g and request.cookies.get(history.OPERATOR_COOKIE) != g.operator_id:
+    # Re-sent on every page load as well, so a browser in use never ages out.
+    page = request.endpoint in ("landing", "console")
+    if "operator_id" in g and (page or request.cookies.get(history.OPERATOR_COOKIE) != g.operator_id):
         response.set_cookie(
             history.OPERATOR_COOKIE,
             g.operator_id,

@@ -824,6 +824,21 @@ def test_a_body_not_shaped_like_a_history_shows_as_no_history():
 
 
 @needs_node
+def test_one_malformed_entry_never_hides_the_good_ones():
+    good = {"title": "T", "difficulty": "easy", "total": 50, "outcome": "failed", "recorded_at": 0}
+    view = run_js(
+        "return L.historyView(data.history);",
+        history={
+            "recent": [None, 3, {**good, "recorded_at": None}, {**good, "recorded_at": "soon"}, good],
+            "best": {"k": None, "j": 4, "g": {"title": "T", "total": 50}},
+        },
+    )
+
+    assert [run["title"] for run in view["recent"]] == ["T"]
+    assert view["best"] == [{"title": "T", "score": "50"}]
+
+
+@needs_node
 def test_the_card_lists_the_live_apps_history_newest_first_with_bests_by_title(client):
     from app.scoring.metrics import RunMetrics
     from app.scoring.score import Score

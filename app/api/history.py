@@ -7,7 +7,8 @@ Run history (T20-16) - one browser's finished runs and personal bests.
 **Identity is a browser, never a person.** `app/main.py` files every run under
 an anonymous operator id: a random uuid4 hex in the `plant_operator_id` cookie
 (`OPERATOR_COOKIE`), HttpOnly, SameSite=Lax, lasting
-`config.OPERATOR_COOKIE_SECONDS`. It is not the session cookie, which goes
+`config.OPERATOR_COOKIE_SECONDS` from the last page load, so only a browser
+left unused that long loses its history. It is not the session cookie, which goes
 when a session is reclaimed, so a browser's history outlives its sessions and
 an app restart. A missing or malformed cookie gets a fresh id
 (`valid_operator_id`) and so an empty history; no request can name another

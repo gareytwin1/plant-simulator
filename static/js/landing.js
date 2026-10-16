@@ -122,14 +122,21 @@
       pad(when.getHours()) + ":" + pad(when.getMinutes());
   };
 
+  function isObject(value) {
+    return value !== null && typeof value === "object";
+  }
+
   /* What the Recent scenarios card shows of a GET /api/history body: the
    * recent runs as the server ordered them (newest first) and the bests by
-   * title. Anything not shaped like a history shows as no history. */
+   * title. Anything not shaped like a history, as a whole or one entry at a
+   * time, shows as no history, so one bad row never hides the good ones. */
   api.historyView = function (body) {
-    var recent = body && Array.isArray(body.recent) ? body.recent : [];
-    var best = body && body.best && typeof body.best === "object" ? body.best : {};
+    var recent = isObject(body) && Array.isArray(body.recent) ? body.recent : [];
+    var best = isObject(body) && isObject(body.best) ? body.best : {};
     return {
-      recent: recent.map(function (run) {
+      recent: recent.filter(function (run) {
+        return isObject(run) && typeof run.recorded_at === "number" && isFinite(run.recorded_at);
+      }).map(function (run) {
         return {
           title: String(run.title),
           difficulty: String(run.difficulty),
@@ -140,7 +147,7 @@
           iso: new Date(run.recorded_at * 1000).toISOString(),
         };
       }),
-      best: Object.keys(best).map(function (key) {
+      best: Object.keys(best).filter(function (key) { return isObject(best[key]); }).map(function (key) {
         return { title: String(best[key].title), score: api.formatScore(best[key].total) };
       }).sort(function (a, b) { return a.title < b.title ? -1 : a.title > b.title ? 1 : 0; }),
     };

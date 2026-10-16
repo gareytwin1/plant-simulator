@@ -165,18 +165,17 @@ def test_a_result_from_another_config_major_is_listed_but_is_never_a_best(client
     with ScoreStore(path, config_version=older) as old:
         old.record(operator_of(client), QUICK, 1.0, score(99.0), metrics())
 
-    store = ScoreStore(path)
-    monkeypatch.setattr(main, "store", store)
+    with ScoreStore(path) as store:
+        monkeypatch.setattr(main, "store", store)
 
-    body = client.get("/api/history").get_json()
+        body = client.get("/api/history").get_json()
 
-    assert [row["total"] for row in body["recent"]] == [pytest.approx(99.0)]
-    assert body["best"] == {}
+        assert [row["total"] for row in body["recent"]] == [pytest.approx(99.0)]
+        assert body["best"] == {}
 
-    store.record(operator_of(client), QUICK, 2.0, score(10.0), metrics())
-    best = client.get("/api/history").get_json()["best"]
-    assert best == {entry(QUICK).key: {"title": entry(QUICK).title, "total": pytest.approx(10.0)}}
-    store.close()
+        store.record(operator_of(client), QUICK, 2.0, score(10.0), metrics())
+        best = client.get("/api/history").get_json()["best"]
+        assert best == {entry(QUICK).key: {"title": entry(QUICK).title, "total": pytest.approx(10.0)}}
 
 
 def test_a_run_whose_scenario_file_is_gone_is_left_out(client, empty_score_store):
@@ -207,14 +206,18 @@ def test_a_missing_or_malformed_operator_cookie_gets_a_fresh_id_and_an_empty_his
     assert attributes["max-age"].strip() == f"Max-Age={config.OPERATOR_COOKIE_SECONDS}"
 
 
+def operator_headers(response):
+    return [h for h in response.headers.getlist("Set-Cookie") if h.startswith(history.OPERATOR_COOKIE + "=")]
+
+
 def test_a_valid_operator_cookie_is_kept_across_sessions(browsers, empty_score_store):
     operator = "0123456789abcdef0123456789abcdef"
     first = browsers()
     first.set_cookie(history.OPERATOR_COOKIE, operator)
 
-    response = first.get("/")
+    response = first.get("/api/history")
 
-    assert not [h for h in response.headers.getlist("Set-Cookie") if h.startswith(history.OPERATOR_COOKIE + "=")]
+    assert not operator_headers(response)
     assert session_of(first).operator_id == operator
     finish(first)
     main.sessions.end(first.get_cookie(main.SESSION_COOKIE).value)
@@ -311,7 +314,6 @@ def test_results_survive_an_app_restart_at_the_configured_path(tmp_path):
     assert (tmp_path / "nested" / "scores.sqlite3").is_file()
 
 
-
 def test_a_session_made_outside_a_request_still_gets_an_operator_id(browsers, empty_score_store):
     main.sessions.create("made-outside")
     browser = browsers()
@@ -322,3 +324,15 @@ def test_a_session_made_outside_a_request_still_gets_an_operator_id(browsers, em
     assert response.get_json() == {"recent": [], "best": {}}
     assert session_of(browser).operator_id is None
     assert history.valid_operator_id(operator_of(browser))
+
+
+@pytest.mark.parametrize("page", ["/", "/console"])
+def test_a_page_load_renews_a_valid_operator_cookie_for_another_year(page, client):
+    operator = operator_of(client)
+
+    response = client.get(page)
+
+    (header,) = operator_headers(response)
+    assert header.startswith(f"{history.OPERATOR_COOKIE}={operator};")
+    assert f"Max-Age={config.OPERATOR_COOKIE_SECONDS}" in header
+    assert not operator_headers(client.get("/api/history"))

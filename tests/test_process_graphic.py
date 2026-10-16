@@ -921,9 +921,9 @@ def test_every_loop_in_the_plant_has_exactly_one_balloon_with_one_mode(graphic, 
 
 @needs_node
 def test_the_separator_graphic_draws_a_full_drum_its_band_and_the_feed_valve_its_trip_holds():
-    """A restricted drain fills V-301 past LSHH-301, which shuts in FV-301:
+    """A restricted drain fills V-301 past LSHH-301, which shuts in XV-301:
     the drum reads its trip band and its gauge stands at the level, and the
-    feed valve draws as held while the other two valves do not."""
+    shutdown valve draws as held while the three control valves do not."""
     library = ScenarioLibrary()
     runtime = PlantRuntime.from_plant(load_plant(read_plant_config(library.plant_path("separator"))))
     runtime.engine.equipment["LV-301"].capacity = 7.0
@@ -941,6 +941,7 @@ def test_the_separator_graphic_draws_a_full_drum_its_band_and_the_feed_valve_its
     assert shown.bind("equipment.V-301.level")[0] == f"{view['equipment']['V-301']['level']:.0%}"
     gauge = shown.fill("equipment.V-301.level")
     assert float(gauge["height"]) == pytest.approx(float(gauge["data-h0"]) * view["equipment"]["V-301"]["level"])
-    assert [shown.state_text(tag) for tag in ("FV-301", "LV-301", "PV-301")] == ["✖ TRIP", "", ""]
+    assert [shown.state_text(tag) for tag in ("XV-301", "FV-301", "LV-301", "PV-301")] == ["✖ TRIP", "", "", ""]
+    assert shown.flow("streams.B-XV-301.flow") == {"forward"}
     assert shown.flow("streams.B-FV-301.flow") == {"forward"}
     assert {shown.mode(loop)["text"] for loop in ("FIC-301", "LIC-301", "PIC-301")} == {"AUTO"}

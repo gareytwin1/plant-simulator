@@ -856,6 +856,29 @@ def test_start_is_disabled_while_the_device_runs_and_stop_while_it_is_stopped(se
 
 
 @needs_node
+def test_start_pressed_by_keyboard_hands_focus_to_stop_once_the_device_runs(session, plant):
+    stopped = json.loads(json.dumps(view(session)))
+    stopped["equipment"]["P-101"]["running"] = False
+
+    result = run_panels(
+        """
+        const panel = device('P-101');
+        const equip = a => find(panel, n => n.getAttribute('data-equip-action') === a);
+        panel.update(data.stopped);
+        equip('start').focus();
+        panel.update(data.running);
+        const afterStart = doc.activeElement.getAttribute('data-equip-action');
+        doc.body.focus();
+        panel.update(data.stopped);
+        return { afterStart, elsewhere: doc.activeElement === doc.body };
+        """,
+        plant, running=view(session), stopped=stopped,
+    )
+
+    assert result == {"afterStart": "stop", "elsewhere": True}
+
+
+@needs_node
 def test_start_and_stop_post_their_action_and_read_accepted_never_done(session, plant):
     result = run_panels(
         """

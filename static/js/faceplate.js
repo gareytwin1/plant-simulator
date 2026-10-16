@@ -655,8 +655,15 @@
         });
       }
 
+      var holder = doc.activeElement;
       if (startButton) startButton.disabled = !m.canStart;
       if (stopButton) stopButton.disabled = !m.canStop;
+      // A button disabled under keyboard focus drops it to the page: Start
+      // pressed by keyboard hands focus to Stop once the device runs.
+      if (holder && holder.disabled && (holder === startButton || holder === stopButton)) {
+        var other = holder === startButton ? stopButton : startButton;
+        if (other && !other.disabled) other.focus();
+      }
 
       m.targets.forEach(function (t) {
         var cells = bars[t.action];

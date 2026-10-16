@@ -364,18 +364,15 @@ body[data-page="console"] main {
   height: 100%;
 }
 
-.workspace {
-  position: relative;
-  height: 100%;
-  min-height: 18rem;
-  overflow: hidden;
-}
-
 /* The bottom strip is kept for the hint, so it never sits on a reading: the
    strip is the hint's height, its offset and a small gap, from one place. */
 .workspace {
   --hint-height: 28px;
   --hint-strip: calc(var(--hint-height) + var(--space-3) + 4px);
+  position: relative;
+  height: 100%;
+  min-height: 18rem;
+  overflow: hidden;
 }
 
 .canvas {

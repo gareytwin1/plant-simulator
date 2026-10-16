@@ -115,6 +115,11 @@ body[data-page="landing"] main {
   box-shadow: var(--shadow-2);
 }
 
+/* A scenario with no graphic hides the art, and the copy takes the width. */
+.hero:has(> .hero-art[hidden]) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .hero-title {
   margin: var(--space-2) 0;
   font-size: 1.9rem;

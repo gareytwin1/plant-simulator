@@ -48,14 +48,14 @@ gate ("loops reject an injected disturbance") on the separator plant.
 
 ## The next task
 
-**In progress:** T20-19, the redesign acceptance pass (worktree
-`plant-simulator-redesign-acceptance`, branch `test/redesign-acceptance`),
-at desktop width only. Its browser pass found that a finished run shows no
-result on the console, so it waits on **T20-22** (result and debrief panel)
-before the user signs off. **T20-23** (run time instead of the plant clock
-in alarms, trends and the Home strip) is startable too. **T20-24** is the
-phone-width gameplay pass the user deferred (16 October 2026). Also
-startable but deferred: T10-4 and T11-4 (V1.1), T19-1 and T19-2 (V2).
+**In progress:** T20-19, the redesign acceptance pass at desktop width
+(PR #180, branch `test/redesign-acceptance`), going to review. Its browser
+pass found that a finished run shows no result on the console: that is
+**T20-22** (result and debrief panel, startable), the next task once #180
+merges. **T20-23** (run time instead of the plant clock in alarms, trends
+and the Home strip) is startable too. **T20-24** is the phone-width
+gameplay pass the user deferred (16 October 2026). Also startable but
+deferred: T10-4 and T11-4 (V1.1), T19-1 and T19-2 (V2).
 
 **CP-G passed for the current console** (user's browser pass, 9 October 2026). The console is about to be redesigned, so the full pass (all six scenarios, both themes, phone width, a real alarm marker) is an acceptance criterion of that redesign rather than repeated on this console.
 

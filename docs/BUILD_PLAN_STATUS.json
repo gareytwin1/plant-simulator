@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
-  "refreshed": "2026-10-16",
-  "main_sha": "d8edf4a",
-  "tests_passing_on_main": 4328,
+  "refreshed": "2026-10-17",
+  "main_sha": "cc078a7",
+  "tests_passing_on_main": 4353,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -118,13 +118,13 @@
     },
     "M20": {
       "name": "Console Redesign",
-      "complete": 22,
+      "complete": 23,
       "total": 24
     }
   },
   "totals": {
     "tasks": 157,
-    "complete": 150,
+    "complete": 151,
     "startable_now": 5
   },
   "tasks": [
@@ -3203,10 +3203,9 @@
         "tests/test_trend_windows.py",
         "tests/test_landing.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true,
-      "note": ""
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged to main as cc078a7 (PR #182); 4353 passed, mypy clean over 89 files, roborev-refine clean on the full branch (one low docstring finding fixed), no golden moved. public_result gains started_at (plant clock at run time zero, every phase but idle; C5 additive, kept out of as_dict so the end-state digest is unchanged). New static/js/clock.js formats times as run time from that origin; the alarm list's Raised column, trend windows (axis, labels, markers, request window) and the Home strip's Run time read through it, and free play is unchanged. Standing now carries elapsed_s and started_at. Browser-checked on pump_trip (ribbon, alarm row, trend axis and marker, Home strip, free play axis); the debrief panel's Escape, focus and failed Try again were not re-checked."
     },
     {
       "id": "T20-24",
@@ -3222,10 +3221,7 @@
       "files": [],
       "status": "Not Started",
       "status_key": "todo",
-      "startable": false,
-      "blocked_by": [
-        "T20-23"
-      ],
+      "startable": true,
       "note": ""
     }
   ]

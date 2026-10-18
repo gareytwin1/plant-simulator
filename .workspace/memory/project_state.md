@@ -8,10 +8,10 @@ regrowth rule is in [.claude/rules/docs.md](../../.claude/rules/docs.md).
 
 ## Right now
 
-**Last state refresh:** 16 October 2026, at `d8edf4a` (Merge T20-22, PR #181: result and debrief panel) - **this is a snapshot,
-not a live pointer.** Run `git log d8edf4a..HEAD --oneline` to see what has
+**Last state refresh:** 17 October 2026, at `cc078a7` (Merge T20-23, PR #182: run time instead of the plant clock) - **this is a snapshot,
+not a live pointer.** Run `git log cc078a7..HEAD --oneline` to see what has
 merged since.
-**Full suite as of this refresh:** **4328 passed** · `python -m mypy` clean over 89 source files · no golden trace movement
+**Full suite as of this refresh:** **4353 passed** · `python -m mypy` clean over 89 source files · no golden trace movement
 **In flight:** nothing. The spine lock and the `app/main.py` lock are free.
 No task is Blocked. CI runs on every PR, and `main` requires its
 `test` check before a merge.
@@ -21,12 +21,12 @@ No task is Blocked. CI runs on every PR, and `main` requires its
 
 | Task | SHA | What landed |
 |---|---|---|
+| **T20-23** | `cc078a7` | Run time, not the plant clock, while a scenario stands: `public_result` gains `started_at` (the plant clock at run time zero, every phase but idle; C5 additive, kept out of `as_dict` so the replay end-state digest is unchanged), and `static/js/clock.js` formats a time from that one origin, which the console seeds from the page and the ribbon's scenario poll moves. The alarm list's Raised column, the trend windows (axis, labels, markers, request window; ticks on round run times; negative before the run) and the Home strip's "Run time mm:ss" read through it; free play is unchanged. `Standing` carries `elapsed_s` and `started_at` instead of `sim_time`. No golden moved. Built on Opus (PR #182). Browser-checked on pump_trip; the debrief panel's Escape, focus and failed Try again were not re-checked |
 | **T20-22** | `d8edf4a` | Result and debrief panel on the console: `static/js/debrief.js` reads the ribbon's existing scenario poll (`onResult`, no second poll) and, once a run is complete or aborted, opens a non-modal dialog over the canvas with the outcome in words and a glyph, run time, the score and what counted against it ("in full", "partly", "a little", worded from a table keyed by `config/scoring.yaml`'s penalty names, which a test keeps in step), and the debrief. It opens itself once per finished run (keeping focus where an operator is typing), a ribbon Result button reopens it, Try again loads and starts the same scenario, and nothing of the outcome or score renders while a run is loaded or running. The run controls gain `adopt`, `say`, `resync` and a shared `timedFetch`. No golden moved. Built on Opus, review fixes on Sonnet (PR #181). Browser-checked one scenario per plant, pass and fail, before the review fixes |
 | **T20-19** | `d6a7ddd` | Redesign acceptance pass at desktop width (phone moved to T20-24): all ten scenarios played to a pass and to a fail in headless Firefox with real input events, one by keyboard only, an alarm marker seen on a trend. Fixes: each scenario shows its own plant on the Home page (`CatalogueEntry.plant`), keyboard focus after Start or Stop, a favicon, the prototype's canvas hint. The pass found that a finished run shows no result on the console (T20-22), and that alarms and trends show the plant clock (T20-23). Built on Opus (PR #180) |
 | **T20-18** | `e952be3` | Separator scenarios: drain and vent restriction (capacity malfunctions) and feed and drain signal loss, each a fault at 30 s the loops in AUTO cannot correct. A scenario can now set a valve's failure-mode flag: C8 `FLAGS` beside `WRITABLE` (`ControlValve` `signal_ok`, `stuck`, `action_reversed`; bool value, step only), and the validator accepts a list of types. XV-301 is a new feed shutdown valve that LSHH-301 and PSHH-301 close, because a valve with a lost signal ignores a trip (a lost LV-301 signal still defeats LSLL-301); the feed surge fails at the high alarm, as the drum settles short of the trip. `separator_normal.json` regenerated, `separator.svg` reworked. Config 4.0.0; no golden moved. Decided and built on Opus (PR #179). Not browser-checked |
 | **T20-16** | `832cfc2` | Run history per browser: an anonymous `plant_operator_id` cookie (uuid4 hex, HttpOnly, SameSite=Lax, one year, renewed on page loads; a live session's id wins over a changed cookie). `TrainingSession` records each completed run once through a recorder (errors logged, never stop the plant); `ScoreStore` at `config.SCORE_DB_PATH` (env `PLANT_SCORE_DB`, `plant-data` volume in compose) gains `recent`, `personal_bests` and a connection lock. `GET /api/history` returns recent runs (cap 5) and bests within the config major, by key and title, never id. The landing Recent scenarios card lists them. Built on Opus (PR #177). Docker image only covered by CI |
 | **T20-21** | `4f80d36` | Outcome and interlock trips in the score: `RunMetrics.outcome` (a plain string, so `app/scoring` never imports `app/scenarios`) and a ninth criterion, `outcome`, weighted 101 (one more than the other eight) with an `outcome_penalty` table, so every succeeded run scores strictly above every failed or timed-out one. `PlantRuntime` records a `TripRecord(sim_time, tag)` per interlock latch and `trip_count` is their number; a trip-rated band with no interlock (pump_trip's P-101 flow LOLO) still feeds alarms, peak severity and time outside the envelope but is no trip. Rows stored before the metric read back with outcome `unknown`. Config 3.0.0. Built on Sonnet (PR #176) |
-| **T20-15** | `8f123e4` | Score a finished run: `config/scoring.yaml` gains per-plant `plants` (excursion limits and throughput targets; olefins_lite and separator track drum level and pressure and liquid product at 50 GPM, not `P-101.flow`), read once at load and part of the run's fingerprint. `PlantRuntime` feeds the trackers from every published snapshot and refuses a point the plant lacks; `ScenarioRunner` computes `RunMetrics` and `Score` once at COMPLETE, and `public_result` shows them only beside the debrief (null when aborted). Every action counts as relevant for now. A malformed scoring file is a 400. Config 2.5.0; no golden moved. Built on Opus (PR #175). Backend only |
 
 **ADRs on `main`:** [0001](../../docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md)
 (+ Amendment 1) and [0002](../../docs/ADR_0002_TYPED_PORTS.md) (+ Amendments
@@ -40,18 +40,16 @@ Complete: **M0-M9, M12-M18, MR**. Open:
 |---|---|---|
 | **M10** Alarms | 5/6 | T10-1, T10-2, T10-3, T10-5, T10-6; T10-4 startable (V1.1-deferred) |
 | **M11** Interlocks and Trips | 3/4 | T11-1, T11-2, T11-3; T11-4 startable (V1.1-deferred) |
-| **M20** Console Redesign | 22/24 | T20-1, T20-2, T20-3, T20-4, T20-5, T20-6, T20-7, T20-8, T20-9, T20-10, T20-11, T20-12, T20-13, T20-14, T20-15, T20-16, T20-17, T20-18, T20-19, T20-20, T20-21, T20-22; startable T20-23; T20-24 after it |
+| **M20** Console Redesign | 23/24 | T20-1 to T20-23; T20-24 (phone width, deferred by the user) is startable |
 | M19 | 0 | - |
 
-**150 of 157 tasks Complete.** Checkpoints A-D reached: T20-17 met D's last
+**151 of 157 tasks Complete.** Checkpoints A-D reached: T20-17 met D's last
 gate ("loops reject an injected disturbance") on the separator plant.
 
 ## The next task
 
-**Startable in M20:** **T20-23** (run time instead of the plant clock in
-alarms, trends and the Home strip; T20-22 is merged, so it is free to start).
-**T20-24** is the phone-width gameplay pass the user deferred (16 October 2026)
-and waits on it. Also startable but
+**Startable in M20:** **T20-24**, the phone-width gameplay pass the user
+deferred (16 October 2026) until desktop is right. Also startable but
 deferred: T10-4 and T11-4 (V1.1), T19-1 and T19-2 (V2).
 
 **CP-G passed for the current console** (user's browser pass, 9 October 2026). The console is about to be redesigned, so the full pass (all six scenarios, both themes, phone width, a real alarm marker) is an acceptance criterion of that redesign rather than repeated on this console.

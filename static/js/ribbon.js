@@ -31,6 +31,7 @@
   var node = typeof module !== "undefined" && module.exports;
   var Alarms = node ? require("./alarms.js") : root.AlarmConsole;
   var Scenario = node ? require("./scenario.js") : root.ScenarioBar;
+  var Clock = node ? require("./clock.js") : root.SimClock;
 
   var PRIORITIES = ["critical", "high", "low"];
   var PRIORITY_LABEL = { critical: "CRIT", high: "HIGH", low: "LOW" };
@@ -111,9 +112,10 @@
     return "Something went wrong, so nothing was changed. Try again.";
   };
 
+  /* Run time, which every time shown during a scenario reads in
+   * (static/js/clock.js); the ribbon's own clock never shows one below zero. */
   api.formatClock = function (seconds) {
-    var whole = Math.max(0, Math.floor(seconds));
-    return String(Math.floor(whole / 60)).padStart(2, "0") + ":" + String(whole % 60).padStart(2, "0");
+    return Clock.run(Math.max(0, seconds));
   };
 
   /* The run's elapsed time and limit from a result response, or null when it

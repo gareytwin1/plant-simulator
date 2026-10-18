@@ -747,6 +747,46 @@ def test_a_scenario_alarm_shows_on_its_points_window_only(session, client):  # n
 
 
 @needs_node
+def test_during_a_run_the_axis_and_markers_read_run_time_and_free_play_the_plant_clock(session, client):  # noqa: F811
+    session.load("pump-trip")
+    session.start()
+    snapshot = step(session, 120)
+    origin = session.result().started_at
+    recorded = {"snapshot": snapshot, **record(client)}
+    raised = [e["sim_time"] for e in recorded["alarms"] if e["type"] == "alarm" and e["tag"] == "V-101"]
+    assert raised and origin > 3600
+
+    result = run_scene(
+        f"""
+        let origin = data.origin;
+        const s = await boot({{ origin: () => origin }});
+        await open(s, '{LEVEL}');
+        const chart = () => part(win(s, '{LEVEL}'), 'tw-chart').innerHTML;
+        const axis = () => [...chart().matchAll(/class="trend-tick"[^>]*text-anchor="middle">([^<]*)</g)].map(m => m[1]);
+        const markers = () => [...chart().matchAll(new RegExp("<title>([^<]*)</title>", "g"))].map(m => m[1]);
+        const request = calls.find(u => u.startsWith('/api/trend?'));
+        const during = {{ axis: axis(), markers: markers(), from: Number(new URLSearchParams(request.split('?')[1]).get('from')) }};
+        origin = null;
+        s.tw.redraw();
+        return {{ during, free: {{ axis: axis(), markers: markers() }} }};
+        """,
+        recorded,
+        origin=origin,
+    )
+
+    during, free_play = result["during"], result["free"]
+    # Two minutes in, the window and its request start at run time zero, not
+    # ten minutes of plant clock back.
+    assert during["from"] == origin
+    assert during["axis"] and all(re.fullmatch(r"\d{2}:\d{2}", tick) for tick in during["axis"])
+    first = int(min(raised) - origin)
+    assert any(f"alarm at {first // 60:02d}:{first % 60:02d}:" in label for label in during["markers"])
+    # The same history once the run is gone reads on the plant clock again.
+    assert free_play["axis"] and all(re.fullmatch(r"\d{2}:\d{2}:\d{2}", tick) for tick in free_play["axis"])
+    assert free_play["markers"] and all(re.search(r"alarm at \d{2}:\d{2}:\d{2}:", label) for label in free_play["markers"])
+
+
+@needs_node
 def test_a_window_whose_point_the_plant_no_longer_publishes_closes(free):
     gone = json.loads(json.dumps(served(free)))
     gone["points"]["points"] = [p for p in gone["points"]["points"] if p != NODE]

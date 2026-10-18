@@ -210,11 +210,18 @@ def test_the_page_starts_in_free_play_with_nothing_to_return_to(page):
     assert "Plant not started" in page
 
 
-def test_the_return_strip_shows_the_plants_own_time(client):
+def test_the_return_strip_shows_run_time_as_the_ribbon_does_not_the_plant_clock(client):
     client.post("/api/scenario/load", json={"scenario": scenario_key("pump_trip")})
-    snapshot = client.get("/api/snapshot").get_json()
+    assert "Run time <span id=\"standing-time\">00:00</span>" in client.get("/").get_data(as_text=True)
 
-    assert f'id="standing-time">{snapshot["sim_time"]:.0f}<' in client.get("/").get_data(as_text=True)
+    client.post("/api/scenario/start")
+    session = main.sessions.get(client.get_cookie(main.SESSION_COOKIE).value)
+    for _ in range(125):
+        session.runner.step(1.0)
+    page = client.get("/").get_data(as_text=True)
+
+    assert "Run time <span id=\"standing-time\">02:05</span>" in page
+    assert "Plant time" not in page
 
 
 def test_the_page_follows_a_loaded_scenario_and_free_play_unloads_it(client):
@@ -371,7 +378,7 @@ function makePage(phase, keys) {
   const ids = {};
   const add = (id, attrs) => (ids[id] = el(attrs));
   add("launch", { "data-phase-labels": '{"idle": "", "running": "Running", "aborted": "Aborted"}', "data-phase": phase });
-  ["standing", "standing-phase", "notice", "free-play", "choose-another", "scenario-picker", "hero-actions",
+  ["standing", "standing-phase", "standing-time", "notice", "free-play", "choose-another", "scenario-picker", "hero-actions",
    "abort-confirm", "abort-confirm-yes", "abort-confirm-no", "hero-title", "hero-briefing", "hero-limit", "hero-difficulty"].forEach(id => add(id));
   ids["abort-confirm"].hidden = true;
   ids["scenario-picker"].hidden = true;
@@ -402,6 +409,28 @@ const memory = (store) => ({ getItem: k => (k in store ? store[k] : null), setIt
 
 def run_page(body, **data):
     return run_js(PAGE_STUB + body, **data)
+
+
+@needs_node
+def test_the_strip_follows_the_run_time_each_response_carries():
+    result = run_page(
+        """
+        const doc = makePage("idle", ["a"]);
+        const bodies = { "/api/scenario/load": { phase: "loaded", elapsed_s: 0 }, "/api/scenario/start": { phase: "running", elapsed_s: 65.4 } };
+        const seen = [];
+        const fetchImpl = async url => {
+          seen.push(doc.ids["standing-time"].textContent);
+          return { ok: true, status: 200, json: async () => bodies[url] };
+        };
+        L.mount(doc, fetchImpl, () => {}, { storage: memory({}), refreshRibbon() {} });
+        doc.ids["hero-start"].listeners.click();
+        await tick(); await tick(); await tick();
+        seen.push(doc.ids["standing-time"].textContent);
+        return seen;
+        """
+    )
+
+    assert result == ["", "00:00", "01:05"]
 
 
 @needs_node

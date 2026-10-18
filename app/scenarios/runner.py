@@ -413,7 +413,10 @@ class ScenarioResult:
     """Where a run stands, and how it ended once it has.
 
     Every time is scenario time: seconds since the run began, not the plant
-    clock the initial condition was saved at.
+    clock the initial condition was saved at. `started_at` is the one
+    exception: the plant clock at scenario time zero, fixed for the run, so a
+    page can show the plant's own times (alarms, trends) as scenario time
+    too. It is not in `as_dict`, whose digest `RunInputs.end_state` pins.
 
     `metrics` and `score` are set once the run is COMPLETE, never before and
     never for an aborted run.
@@ -429,6 +432,7 @@ class ScenarioResult:
     objectives: tuple[ObjectiveResult, ...]
     triggers_fired: Mapping[str, float]
     actions: tuple[Mapping[str, Any], ...]
+    started_at: float
     metrics: RunMetrics | None = None
     score: Score | None = None
 
@@ -961,6 +965,7 @@ class ScenarioRunner:
             objectives=run.results,
             triggers_fired=dict(run.fired),
             actions=_actions(run),
+            started_at=run.origin,
             metrics=run.metrics,
             score=run.score,
         )

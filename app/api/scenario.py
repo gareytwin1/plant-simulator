@@ -25,8 +25,8 @@ is rendered: while loaded or running it carries the key, title, phase, times,
 objectives as status only and the operator's own actions; once complete or
 aborted it carries all of `ScenarioResult.as_dict` plus the title and the
 scenario's description as the `debrief`. Inside the server nothing changes.
-Every phase also carries `started_at` (T20-23), the plant clock at run time
-zero, so a console shows the plant's own times as run time without
+Every phase but idle also carries `started_at` (T20-23), the plant clock at
+run time zero, so a console shows the plant's own times as run time without
 subtracting two times it fetched apart.
 A score and its metrics (T20-15) are part of the debrief: `score` (the total
 and each penalty) and `metrics` are in the body only once the run is over,

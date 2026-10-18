@@ -474,7 +474,7 @@ def test_a_real_scenarios_alarm_reads_the_run_time_the_ribbon_showed_when_it_was
 
 # Every element the overlay touches, a document that takes key listeners, and
 # focus that is recorded.
-STUB = """
+STUB = r"""
 const focusLog = [];
 const mk = (id, extra) => Object.assign({ id, hidden: false, disabled: false, checked: true, value: '',
   textContent: '', innerHTML: '', attrs: {}, listeners: {}, controls: [],

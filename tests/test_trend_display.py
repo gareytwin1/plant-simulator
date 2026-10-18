@@ -125,6 +125,32 @@ def test_the_window_never_starts_before_simulated_time_zero():
 
 
 @needs_node
+def test_during_a_run_the_window_never_starts_before_run_time_zero():
+    assert run_js("return T.windowFor(14800, 10, 14770);") == {"from": 14770, "to": 14800}
+    assert run_js("return T.windowFor(15400, 5, 14770);") == {"from": 15100, "to": 15400}
+    # An origin past the latest time (a poll ahead of the snapshot) never inverts the window.
+    assert run_js("return T.windowFor(14760, 10, 14770);") == {"from": 14760, "to": 14760}
+    assert run_js("return T.windowFor(90, 10, null);") == {"from": 0, "to": 90}
+
+
+@needs_node
+def test_with_an_origin_the_axis_ticks_fall_on_round_run_times_and_read_as_run_time():
+    origin = 14770.4  # not a round plant time, so round plant ticks would not be round run ticks
+    pen = {"point": "X.p", "samples": [[origin, 1], [origin + 120, 2]]}
+    marker = {"time": origin + 12, "priority": "high", "tag": "V-101", "message": "V-101 level LO"}
+
+    run = render([pen], window={"from": origin, "to": origin + 120}, markers=[marker], origin=origin)
+    plant = render([pen], window={"from": origin, "to": origin + 120}, markers=[marker])
+
+    ticks = lambda svg: re.findall(r'class="trend-tick"[^>]*text-anchor="middle">([^<]*)<', svg)
+    assert ticks(run) and all(re.fullmatch(r"\d{2}:\d{2}", t) and int(t[-2:]) % 10 == 0 for t in ticks(run))
+    assert ticks(plant) and all(re.fullmatch(r"\d{2}:\d{2}:\d{2}", t) for t in ticks(plant))
+    assert 'aria-label="high alarm at 00:12: V-101 level LO"' in run
+    assert 'aria-label="high alarm at 04:06:22: V-101 level LO"' in plant
+    assert "Trend of X.p from 00:00 to 02:00" in run
+
+
+@needs_node
 def test_the_request_the_display_builds_is_accepted_by_the_real_endpoint(session, client):
     step(session, 90)
     sim_time = session.training_scheduler.snapshot().sim_time
@@ -304,9 +330,10 @@ def svg_numbers(svg, element, attribute):
 def render(pens, **extra):
     return run_js(
         "return T.renderChart({width: data.width, height: 260, window: data.window, pens: data.pens,"
-        " limits: data.limits, focus: data.focus, markers: data.markers, scales: data.scales, label: data.label});",
+        " limits: data.limits, focus: data.focus, markers: data.markers, scales: data.scales, label: data.label,"
+        " origin: data.origin});",
         **{"width": 640, "window": {"from": 0, "to": 100}, "limits": {}, "focus": pens[0]["point"],
-           "markers": [], "pens": pens, "scales": None, "label": None, **extra},
+           "markers": [], "pens": pens, "scales": None, "label": None, "origin": None, **extra},
     )
 
 

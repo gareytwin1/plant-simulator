@@ -9,7 +9,9 @@
  * A pen is a trend point (`<id>.<field>`); the server publishes every point,
  * the evaluated envelope bounds of the ones that have them, and the pen bound,
  * so none of that is copied here. Time is simulated seconds, the same clock as
- * the stream's sim_time.
+ * the stream's sim_time; it is shown through static/js/clock.js, as run time
+ * when the caller passes an `origin` (a scenario's run time zero) and as the
+ * plant clock when it passes none.
  *
  * Every pen is scaled to its own range, so a pressure and a level share one
  * plot. The focused pen gives the y-axis and the envelope bands behind it; a
@@ -24,6 +26,8 @@
  */
 (function (root) {
   "use strict";
+
+  var Clock = typeof module !== "undefined" && module.exports ? require("./clock.js") : root.SimClock;
 
   var POINTS_URL = "/api/trend/points";
   var TREND_URL = "/api/trend";
@@ -89,12 +93,8 @@
     return String(Number(value.toPrecision(4)));
   }
 
-  function formatClock(seconds) {
-    var whole = Math.max(0, Math.floor(seconds));
-    var pad = function (n) {
-      return String(n).padStart(2, "0");
-    };
-    return pad(Math.floor(whole / 3600)) + ":" + pad(Math.floor(whole / 60) % 60) + ":" + pad(whole % 60);
+  function formatClock(seconds, origin) {
+    return Clock.format(seconds, origin);
   }
 
   /* ---- spans and requests ---------------------------------------------- */
@@ -104,9 +104,11 @@
   }
 
   /* The window ends at the latest simulated time and reaches `span` minutes
-   * back, but never before simulated time zero. */
-  function windowFor(simTime, spanMinutes) {
-    return { from: Math.max(0, simTime - spanMinutes * 60), to: simTime };
+   * back, but never before time zero of the clock shown: simulated time zero,
+   * or a run's start when `origin` is one. */
+  function windowFor(simTime, spanMinutes, origin) {
+    var zero = isNumber(origin) ? Math.min(origin, simTime) : 0;
+    return { from: Math.max(zero, simTime - spanMinutes * 60), to: simTime };
   }
 
   /* The plot's pixel width, kept within 2 and the server's `max_points`. */
@@ -291,6 +293,7 @@
    *   input.markers              markersFor(...)
    *   input.scales               optional point -> {lo, hi}, a held scale
    *   input.label                optional accessible name of the drawing
+   *   input.origin               optional run time zero; times then read as run time
    */
   function renderChart(input) {
     var width = input.width;
@@ -328,7 +331,7 @@
     svg.push(
       '<svg class="trend-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + width + " " + height +
       '" width="' + width + '" height="' + height + '" role="group" aria-label="' +
-      escapeHtml(input.label || chartLabel(input.pens, win)) + '">'
+      escapeHtml(input.label || chartLabel(input.pens, win, input.origin)) + '">'
     );
 
     svg.push(
@@ -351,13 +354,16 @@
         escapeHtml(formatValue(tick)) + "</text>");
     });
 
-    var xTicks = ticksFor(win.from, win.to, Math.max(2, Math.round(plotW / 90)));
-    xTicks.forEach(function (tick) {
+    // Ticks fall on round numbers of the clock shown, not of the plant's.
+    var shift = isNumber(input.origin) ? input.origin : 0;
+    var xTicks = ticksFor(win.from - shift, win.to - shift, Math.max(2, Math.round(plotW / 90)));
+    xTicks.forEach(function (shown) {
+      var tick = shown + shift;
       var x = round(toX(tick));
       if (x < TICK_HALF || x > width - TICK_HALF) return;
       svg.push('<line class="trend-grid" x1="' + x + '" x2="' + x + '" y1="' + top + '" y2="' + (top + plotH) + '"/>');
       svg.push('<text class="trend-tick" x="' + x + '" y="' + (top + plotH + 16) + '" text-anchor="middle">' +
-        formatClock(tick) + "</text>");
+        formatClock(tick, input.origin) + "</text>");
     });
 
     shading.rules.forEach(function (rule) {
@@ -418,7 +424,7 @@
 
     (input.markers || []).forEach(function (marker) {
       var x = round(toX(marker.time));
-      var label = marker.priority + " alarm at " + formatClock(marker.time) + ": " + marker.message;
+      var label = marker.priority + " alarm at " + formatClock(marker.time, input.origin) + ": " + marker.message;
       svg.push(
         '<g class="trend-marker" data-priority="' + escapeHtml(marker.priority) + '" role="img" aria-label="' +
         escapeHtml(label) + '"><title>' + escapeHtml(label) + "</title>" +
@@ -432,12 +438,12 @@
     return svg.join("");
   }
 
-  function chartLabel(pens, win) {
+  function chartLabel(pens, win, origin) {
     if (!pens.length) return "Trend: no pens selected";
     return (
       "Trend of " + pens.map(function (pen) {
         return pen.point;
-      }).join(", ") + " from " + formatClock(win.from) + " to " + formatClock(win.to)
+      }).join(", ") + " from " + formatClock(win.from, origin) + " to " + formatClock(win.to, origin)
     );
   }
 

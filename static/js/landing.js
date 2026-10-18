@@ -13,6 +13,8 @@
 (function (root) {
   "use strict";
 
+  var Clock = typeof module !== "undefined" && module.exports ? require("./clock.js") : root.SimClock;
+
   var LOAD_URL = "/api/scenario/load";
   var START_URL = "/api/scenario/start";
   var ABORT_URL = "/api/scenario/abort";
@@ -195,6 +197,7 @@
     var phase = launch.getAttribute("data-phase");
     var strip = doc.getElementById("standing");
     var phaseEl = doc.getElementById("standing-phase");
+    var timeEl = doc.getElementById("standing-time");
     var noticeEl = doc.getElementById("notice");
     var buttons = Array.prototype.slice.call(doc.querySelectorAll("main button"));
     var freePlay = doc.getElementById("free-play");
@@ -227,6 +230,7 @@
       if (!body || typeof body.phase !== "string") return;
       phase = body.phase;
       if (phaseEl) phaseEl.textContent = api.phaseLabel(labels, phase);
+      if (timeEl && typeof body.elapsed_s === "number") timeEl.textContent = Clock.run(Math.max(0, body.elapsed_s));
       if (strip && phase === "idle") strip.hidden = true;
     }
 

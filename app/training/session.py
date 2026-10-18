@@ -72,12 +72,15 @@ logger = logging.getLogger(__name__)
 class Standing:
     """Where the session's plant stands, as the landing page shows it: free
     play, or a scenario in some phase. `scenario_id` is the loaded scenario's
-    id, for a caller to look its title up: it is never sent to a page."""
+    id, for a caller to look its title up: it is never sent to a page.
+    `elapsed_s` and `started_at` are the scenario's run time and the plant
+    clock at its zero (`ScenarioResult`'s), and None in free play."""
 
     mode: str
     phase: str
-    sim_time: float
     scenario_id: str | None
+    elapsed_s: float | None = None
+    started_at: float | None = None
 
 
 Recorder = Callable[[str, ScenarioResult], None]
@@ -233,12 +236,13 @@ class TrainingSession:
         Never starts the scheduler."""
         with self.training_scheduler.step_lock:
             phase = self.runner.phase
-            sim_time = self.snapshot().sim_time
 
             if phase is Phase.IDLE:
-                return Standing("free_play", phase.value, sim_time, None)
+                return Standing("free_play", phase.value, None)
 
-            return Standing("scenario", phase.value, sim_time, self.runner.result().scenario_id)
+            result = self.runner.result()
+
+            return Standing("scenario", phase.value, result.scenario_id, result.elapsed_s, result.started_at)
 
     def _set_paused(self, paused: bool) -> bool:
         if self.runner.phase is not Phase.IDLE:

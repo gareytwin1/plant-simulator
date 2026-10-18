@@ -403,6 +403,73 @@ def test_acknowledge_round_trips_through_the_real_endpoint(plant):
     assert 'data-row-action="ack"' not in after
 
 
+# ---- Raised reads run time during a scenario (T20-23) -----------------------
+
+RIBBON_JS = ROOT / "static" / "js" / "ribbon.js"
+
+
+def raised(html):
+    """The Raised column of each row, in order."""
+    return re.findall(r'</span></td><td class="num">([^<]*)</td>', html)
+
+
+@needs_node
+def test_an_alarm_raised_twelve_seconds_into_a_run_reads_00_12_and_free_play_reads_the_plant_clock(plant):
+    origin = 14770.0  # 04:06:10, where pump_trip's initial condition was saved
+    plant.set_band("V-101", "level", Severity.ALARM, side="lo", at=origin + 12)
+    plant.set_band("K-101", "discharge pressure", Severity.WARNING, at=origin - 5)
+
+    got = run_js(
+        """
+        const shown = A.shownAlarms(A.deriveAlarms(data.entries), {});
+        return [A.renderRows(shown, data.origin), A.renderRows(shown, null)];
+        """,
+        entries=plant.entries(),
+        origin=origin,
+    )
+
+    # High first, then low: a time before the run began reads as negative.
+    assert raised(got[0]) == ["00:12", "-00:05"]
+    assert raised(got[1]) == ["04:06:22", "04:06:05"]
+
+
+@needs_node
+def test_a_real_scenarios_alarm_reads_the_run_time_the_ribbon_showed_when_it_was_raised():
+    from app.scenarios.runner import ScenarioLibrary
+    from app.training.session import TrainingSession
+
+    session = TrainingSession(ScenarioLibrary())
+    try:
+        session.load("separator_vent_restriction")
+        session.start()
+        origin = session.result().started_at
+        # Its first alarm is the vent restriction showing, minutes in.
+        for _ in range(600):
+            session.training_scheduler.step_once()
+            if any(entry.sim_time > origin for entry in session.alarm_entries()):
+                break
+        elapsed = session.result().elapsed_s
+        app = Flask(__name__)
+        app.register_blueprint(create_alarm_blueprint(session.alarm_entries, session.acknowledge))
+        entries = app.test_client().get("/api/alarms/history").get_json()
+    finally:
+        session.end()
+
+    got = run_js(
+        f"const R = require({json.dumps(str(RIBBON_JS))});"
+        """
+        const alarms = A.deriveAlarms(data.entries).filter(a => a.raisedAt > data.origin);
+        return { rows: A.renderRows(alarms, data.origin), ribbon: R.formatClock(data.elapsed) };
+        """,
+        entries=entries,
+        origin=origin,
+        elapsed=elapsed,
+    )
+
+    assert origin > 0 and elapsed > 60
+    assert raised(got["rows"]) == [got["ribbon"]]
+
+
 # ---- The mounted overlay, against a stand-in page ---------------------------
 
 # Every element the overlay touches, a document that takes key listeners, and
@@ -482,6 +549,28 @@ def test_opening_moves_focus_in_makes_the_workspace_inert_and_closing_gives_both
         "sub": "1 active \u00b7 1 not acknowledged \u00b7 showing 1",
     }
     assert got["closed"] == {"hidden": True, "inert": None, "expanded": "false", "focus": "ribbon-alarms"}
+
+
+@needs_node
+def test_the_overlay_reads_its_origin_at_each_draw_and_redraw_follows_a_change(plant):
+    plant.set_band("V-101", "level", Severity.ALARM, side="lo", at=14782.0)
+
+    got = mounted(
+        """
+        let origin = 14770;
+        const overlay = A.mount(doc, { fetch: async () => reply(data.entries), opener: els['ribbon-alarms'],
+          origin: () => origin });
+        els['ribbon-alarms'].fire('click');
+        await overlay.ready;
+        const during = els['alarm-rows'].innerHTML;
+        origin = null;
+        overlay.redraw();
+        return [during, els['alarm-rows'].innerHTML];
+        """,
+        entries=plant.entries(),
+    )
+
+    assert [raised(html) for html in got] == [["00:12"], ["04:06:22"]]
 
 
 @needs_node

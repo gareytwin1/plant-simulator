@@ -323,7 +323,9 @@ def test_the_console_renders_free_play_with_no_scenario_text(client):
     # A scenario load or unload may change the plant: the graphic, the canvas and the trend windows follow it.
     mount = page.split("Ribbon.mount(document, {")[1].split("});")[0]
     assert "onChange: function () { graphic.refresh(); canvas.refresh(); trends.reset(); }" in mount
-    assert "onResult: function (status, body) { if (debrief) debrief.result(status, body); }" in mount
+    # Each result moves the run clock's origin (T20-23) before the debrief panel sees it.
+    on_result = mount.split("onResult: function (status, body) {")[1]
+    assert on_result.index("origin.result(status, body)") < on_result.index("if (debrief) debrief.result(status, body);")
     assert page.index("TrendWindows.mount") < page.index("Ribbon.mount(document, {")
 
 

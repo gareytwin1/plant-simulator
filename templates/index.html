@@ -21,7 +21,9 @@
     <p class="standing-line session-text">
       <span class="standing-mode" id="standing-mode">Scenario{% if title %}: {{ title }}{% endif %}</span>
       <span class="standing-phase" id="standing-phase">{{ phase_labels[standing.phase] }}</span>
-      <span class="standing-time">Plant time <span id="standing-time">{{ "%.0f"|format(standing.sim_time) }}</span> s</span>
+      {# Run time, as the ribbon's clock reads it (static/js/clock.js), not the plant clock. #}
+      {% set run_s = ((standing.elapsed_s or 0) + 0.000001)|int %}
+      <span class="standing-time">Run time <span id="standing-time">{{ "%02d:%02d"|format(run_s // 60, run_s % 60) }}</span></span>
     </p>
     <a class="btn btn-quiet" id="back-to-console" href="{{ url_for('console') }}">Return to console</a>
   </section>

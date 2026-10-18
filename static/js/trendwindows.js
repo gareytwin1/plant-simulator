@@ -147,15 +147,16 @@
   /* One request for every shown window: `shown` is [{point, span, width}]
    * (width the chart's in pixels). It reaches back the widest span, and asks
    * for enough points that the narrowest span, sliced out of it, still has a
-   * point per pixel - within the server's bound. */
-  function fetchPlan(shown, simTime, maxPoints) {
+   * point per pixel - within the server's bound. `origin` is
+   * static/js/clock.js's, so the request starts no earlier than the chart. */
+  function fetchPlan(shown, simTime, maxPoints, origin) {
     var widest = Math.max.apply(null, shown.map(function (w) {
       return w.span;
     }));
     var wanted = Math.max.apply(null, shown.map(function (w) {
       return Math.max(1, w.width - PLOT_MARGIN) * (widest / w.span);
     }));
-    var win = T.windowFor(simTime, widest);
+    var win = T.windowFor(simTime, widest, origin);
     var tags = shown.map(function (w) {
       return w.point;
     });
@@ -242,9 +243,12 @@
    *   obstacles  function returning [{rect, weight}] a new window stays clear
    *              of, in workspace coordinates (the open faceplate)
    *   onChange   called when a window opens, closes, minimises or restores
+   *   origin     called at each draw for static/js/clock.js's origin, so the
+   *              axis and markers read run time during a scenario
    *   fetch, storage, pollMs, timeoutMs   for a page or a test
    * Returns {open, close, minimise, restore, isOpen, obstacles, update,
-   * refresh, poll, stop}: call update with every snapshot. */
+   * refresh, reset, redraw, poll, stop}: call update with every snapshot, and
+   * redraw when the origin changes. */
   function mount(options) {
     var settings = options || {};
     var workspace = settings.workspace;
@@ -258,6 +262,10 @@
     var F = lib("Faceplates", "./faceplate.js");
     var G = lib("ProcessGraphic", "./graphic.js");
     var C = lib("Canvas", "./canvas.js");
+
+    function origin() {
+      return settings.origin ? settings.origin() : null;
+    }
 
     var state = {
       listing: null, // {points, limits, descriptors, units, maxTags, maxPoints}
@@ -379,7 +387,7 @@
 
       var point = win.point;
       var unit = unitOf(point);
-      var range = T.windowFor(state.fetched.to, win.span);
+      var range = T.windowFor(state.fetched.to, win.span, origin());
       var samples = displaySamples(sliceTo(state.data[point], range), unit);
       var limits = displayLimits(state.listing && state.listing.limits[point], unit);
       win.hold = T.holdScale(win.hold, samples, limits);
@@ -400,6 +408,7 @@
         focus: point,
         markers: pointMarkers(state.alarms, point, descriptor, range),
         scales: held,
+        origin: origin(),
         label: "Trend of " + nameOf(point) + (shownUnit ? " in " + shownUnit : "") + ", the last " + win.span +
           " minute" + (win.span > 1 ? "s" : ""),
       });
@@ -775,7 +784,7 @@
         if (state.simTime !== null && shown.length) {
           var plan = fetchPlan(shown.map(function (point) {
             return { point: point, span: windows[point].span, width: chartSize(windows[point]).w };
-          }), state.simTime, listing.maxPoints);
+          }), state.simTime, listing.maxPoints, origin());
           var results = await Promise.all([get(plan.url), get(T.ALARMS_URL)]);
           if (mine !== ticket) return;
           // Simulated time that went back is another history: hold nothing over.
@@ -861,6 +870,11 @@
           windows[point].hold = null;
         });
         return refresh();
+      },
+      redraw: function () {
+        order.forEach(function (point) {
+          draw(windows[point]);
+        });
       },
       poll: poll,
       stop: function () {

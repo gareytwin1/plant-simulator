@@ -11,7 +11,7 @@
 {% endblock %}
 
 {% block content %}
-<div id="console" class="console" data-connection="connecting" data-interval-seconds="{{ stream_interval_seconds }}">
+<div id="console" class="console" data-connection="connecting" data-interval-seconds="{{ stream_interval_seconds }}" data-started-at="{{ standing.started_at if standing.started_at is not none else '' }}">
   <h1 class="visually-hidden">Console</h1>
   {# The workspace fills the page under the ribbon. The alarm overlay opens
      over it from the ribbon's alarm summary and makes it inert meanwhile. #}
@@ -93,8 +93,12 @@
     // The shown plant names its graphic; a scenario load or unload swaps it.
     var graphic = ProcessGraphic.follow(document.getElementById("process-graphic"));
     var canvas = null;
+    // Run time zero on the plant clock while a scenario stands, null in free
+    // play: the alarm list and the trend windows show every time through it.
+    var origin = SimClock.follow(consoleEl.getAttribute("data-started-at"));
     // A trend window and the faceplate each keep clear of the other.
     var trends = TrendWindows.mount({
+      origin: origin.get,
       workspace: document.querySelector(".workspace"),
       layer: document.getElementById("window-layer"),
       tray: document.getElementById("trend-tray"),
@@ -112,8 +116,9 @@
       trends: trends
     });
     // Opened from the ribbon's alarm summary; Show trend and Locate act on the canvas.
-    AlarmConsole.mount(document, {
+    var alarmList = AlarmConsole.mount(document, {
       opener: document.getElementById("ribbon-alarms"),
+      origin: origin.get,
       inert: document.querySelector(".workspace"),
       pollMs: Number(consoleEl.getAttribute("data-interval-seconds")) * 1000,
       // The ribbon polls on its own; an acknowledgement should not wait for it.
@@ -145,7 +150,13 @@
     try {
       ribbon = Ribbon.mount(document, {
         onChange: function () { graphic.refresh(); canvas.refresh(); trends.reset(); },
-        onResult: function (status, body) { if (debrief) debrief.result(status, body); }
+        onResult: function (status, body) {
+          if (origin.result(status, body)) {
+            try { alarmList.redraw(); } catch (error) { console.error(error); }
+            try { trends.redraw(); } catch (error) { console.error(error); }
+          }
+          if (debrief) debrief.result(status, body);
+        }
       });
     } catch (error) { console.error(error); }
   })();

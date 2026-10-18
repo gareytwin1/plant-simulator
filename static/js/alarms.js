@@ -15,6 +15,8 @@
 (function (root) {
   "use strict";
 
+  var Clock = typeof module !== "undefined" && module.exports ? require("./clock.js") : root.SimClock;
+
   var HISTORY_URL = "/api/alarms/history";
   var ACKNOWLEDGE_URL = "/api/alarms/acknowledge";
 
@@ -122,14 +124,6 @@
       .replace(/'/g, "&#39;");
   }
 
-  function formatSimTime(seconds) {
-    var whole = Math.max(0, Math.floor(seconds));
-    var pad = function (n) {
-      return String(n).padStart(2, "0");
-    };
-    return pad(Math.floor(whole / 3600)) + ":" + pad(Math.floor(whole / 60) % 60) + ":" + pad(whole % 60);
-  }
-
   function countsByPriority(alarms) {
     var counts = { critical: 0, high: 0, low: 0 };
     alarms.forEach(function (alarm) {
@@ -229,8 +223,10 @@
   }
 
   /* The table body for `shown`. Show trend is offered only for an alarm that
-   * names its point; Acknowledge only where it would change something. */
-  function renderRows(shown) {
+   * names its point; Acknowledge only where it would change something.
+   * `origin` is static/js/clock.js's: run time zero on the plant clock, or
+   * null to show the plant clock. */
+  function renderRows(shown, origin) {
     return shown.map(function (alarm) {
       var actions = "";
       if (needsAcknowledge(alarm)) {
@@ -246,7 +242,7 @@
         '<tr class="alarm-row" data-priority="' + escapeHtml(alarm.priority) +
         '" data-state="' + escapeHtml(alarm.state) + '">' +
         "<td>" + badge(alarm.priority) + "</td>" +
-        '<td class="num">' + formatSimTime(alarm.raisedAt) + "</td>" +
+        '<td class="num">' + Clock.format(alarm.raisedAt, origin) + "</td>" +
         '<td class="num">' + escapeHtml(alarm.tag) + "</td>" +
         "<td>" + escapeHtml(alarm.message) + "</td>" +
         '<td><span class="alarm-condition" data-condition="' + (returned ? "returned" : "active") + '">' +
@@ -298,12 +294,16 @@
    *                  overlay, and focus returns to it
    *   inert          the element made inert behind the overlay (the workspace)
    *   fetch, pollMs  a transport and the refresh period while open, for a page or test
+   *   origin         called at each draw for static/js/clock.js's origin, so the
+   *                  Raised column reads run time during a scenario
    *   onAcknowledge  called after an acknowledgement is recorded
    *   onShowTrend    called with the alarm (tag, point) after the overlay closes;
    *   onLocate       likewise. Each returns false when it had nothing to show,
    *                  and the overlay then opens again saying so.
-   * Returns {ready, refresh, open, close, isOpen, stop}. The history is fetched
-   * on opening and then every `pollMs` while open; nothing polls while closed. */
+   * Returns {ready, refresh, redraw, open, close, isOpen, stop}; `redraw`
+   * draws again from what it has, as after the origin changes. The history
+   * is fetched on opening and then every `pollMs` while open; nothing polls
+   * while closed. */
   function mount(doc, options) {
     var settings = options || {};
     var doFetch = settings.fetch || root.fetch.bind(root);
@@ -367,7 +367,7 @@
 
       // A redraw that changes nothing is skipped, so a click is never lost to a
       // button replaced between its press and its release.
-      var html = renderRows(shown);
+      var html = renderRows(shown, settings.origin ? settings.origin() : null);
       if (html === drawnRows) return;
       drawnRows = html;
 
@@ -551,6 +551,7 @@
         return ready;
       },
       refresh: refresh,
+      redraw: draw,
       open: openOverlay,
       close: function () {
         closeOverlay(true);

@@ -66,6 +66,7 @@
     {% block content %}{% endblock %}
   </main>
   <script>Theme.mount(document);</script>
+  <script src="{{ url_for('static', filename='js/clock.js') }}"></script>
   <script src="{{ url_for('static', filename='js/alarms.js') }}"></script>
   <script src="{{ url_for('static', filename='js/scenario.js') }}"></script>
   <script src="{{ url_for('static', filename='js/ribbon.js') }}"></script>

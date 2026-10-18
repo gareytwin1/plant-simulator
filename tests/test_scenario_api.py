@@ -266,3 +266,45 @@ def test_an_aborted_run_answers_with_no_score(api):
 
     assert body["phase"] == "aborted"
     assert body["score"] is None and body["metrics"] is None
+
+
+# ---- run time zero on the plant clock (T20-23) ----
+
+
+def test_every_phase_but_idle_carries_the_plant_clock_at_run_time_zero_and_it_never_moves(api):
+    client, runner = api
+
+    loaded = client.post("/api/scenario/load", json={"scenario": KEY}).get_json()
+    origin = runner.engine.snapshot().sim_time
+    # The initial condition was saved part way through a plant's day, so run
+    # time zero is not plant time zero: otherwise this test proves nothing.
+    assert origin > 0
+
+    bodies = [loaded, client.post("/api/scenario/start").get_json()]
+    for _ in range(3):
+        runner.step(1.0)
+        body = client.get("/api/scenario/result").get_json()
+        assert runner.engine.snapshot().sim_time - body["started_at"] == pytest.approx(body["elapsed_s"])
+        bodies.append(body)
+    while runner.phase is Phase.RUNNING:
+        runner.step(1.0)
+    bodies.append(client.get("/api/scenario/result").get_json())
+
+    assert [body["phase"] for body in bodies] == ["loaded", "running", "running", "running", "running", "complete"]
+    assert {body["started_at"] for body in bodies} == {origin}
+
+    # Free play has no run, so nothing to measure run time from.
+    assert client.post("/api/scenario/unload").get_json() == {"phase": "idle"}
+    assert client.get("/api/scenario/result").status_code == 409
+
+
+def test_an_aborted_run_keeps_its_run_time_zero(api):
+    client, runner = api
+    origin = client.post("/api/scenario/load", json={"scenario": KEY}).get_json()["started_at"]
+    client.post("/api/scenario/start")
+    runner.step(1.0)
+
+    body = client.post("/api/scenario/abort").get_json()
+
+    assert body["phase"] == "aborted"
+    assert body["started_at"] == origin

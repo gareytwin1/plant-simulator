@@ -381,6 +381,8 @@
     async function tryAgain() {
       if (busy || shown === null) return;
       busy = true;
+      // A disabled button loses focus, so note it now and give it back.
+      var held = doc.activeElement === retry;
       retry.disabled = true;
       notice.textContent = "";
       var accepted = null;
@@ -404,6 +406,8 @@
       } finally {
         busy = false;
         retry.disabled = false;
+        // Only when focus was dropped: the operator may have moved it meanwhile.
+        if (held && !panel.hidden && (!doc.activeElement || doc.activeElement === doc.body)) retry.focus();
       }
       notice.textContent = refusal;
       // A load that was accepted is a new run, even when its start was then

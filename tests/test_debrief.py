@@ -788,6 +788,32 @@ def test_a_refused_try_again_clicked_by_mouse_does_not_move_focus_to_it():
 
 
 @needs_node
+def test_a_refused_try_again_does_not_take_focus_back_from_a_control_the_operator_moved_to_meanwhile():
+    got = run_js(
+        PAGE
+        + DISABLING_DROPS_FOCUS
+        + """
+        const { panel } = page('complete');
+        let release;
+        const debrief = D.mount(doc, { fetch: () => new Promise(resolve => { release = () => resolve(reply(503, null)); }) });
+        debrief.result(200, data.done);
+        const retry = button(panel, 'Try again');
+        const close = button(panel, '\u2715') || panel.all().find(n => n.tagName === 'BUTTON' && n !== retry);
+        dropFocusWhenDisabled(retry);
+        retry.focus();
+        const sending = retry.listeners.click[0]();
+        close.focus();
+        release();
+        await sending;
+        return { onClose: doc.activeElement === close, onRetry: doc.activeElement === retry };
+        """,
+        done=finished("failed"),
+    )
+
+    assert got == {"onClose": True, "onRetry": False}
+
+
+@needs_node
 def test_an_accepted_try_again_leaves_focus_to_the_ribbons_handoff_not_the_closed_panel():
     got = run_js(
         PAGE

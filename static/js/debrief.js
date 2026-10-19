@@ -406,7 +406,8 @@
       } finally {
         busy = false;
         retry.disabled = false;
-        if (held && !panel.hidden) retry.focus();
+        // Only when focus was dropped: the operator may have moved it meanwhile.
+        if (held && !panel.hidden && (!doc.activeElement || doc.activeElement === doc.body)) retry.focus();
       }
       notice.textContent = refusal;
       // A load that was accepted is a new run, even when its start was then

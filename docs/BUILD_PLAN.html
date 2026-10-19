@@ -2192,7 +2192,13 @@ Scenario(initial_condition, malfunctions[], triggers[],
    d:["T20-19","T20-22","T20-23"],f:[],b:"test/phone-gameplay",
    w:["Every scenario played to a pass and to a fail at phone width","Each defect found is fixed in its own commit or recorded as a task"],
    t:["Each of the ten scenarios completed and failed at phone width in a real browser, from the console alone","Both themes checked on the landing page and the console at phone width","The pass recorded in the PR with screenshots"],
-   x:"Deferred by the user until the desktop console is right. Scope is decided when it starts."}
+   x:"Deferred by the user until the desktop console is right. Scope is decided when it starts."},
+  {id:"T20-25",m:"M20",cat:"dep",n:"Keep keyboard focus on Try again after a refusal",
+   p:"Try again disables its button for the length of its request, and a disabled button loses focus, so when the request is refused or does not finish, focus falls to the page body. Escape then reaches the canvas's listener instead of the panel's, and closes an open faceplate while the result panel stays open: the double close the panel's own Escape handler exists to prevent. Found in the desktop re-check of T20-22's panel on 2026-10-18 (Firefox, keyboard only, server stopped).",
+   d:["T20-22"],f:["static/js/debrief.js","tests/test_debrief.py"],b:"fix/debrief-retry-focus",
+   w:["After a refused or unfinished Try again, keyboard focus is on Try again if it was there when the request began","Escape after that closes the result panel only, never a faceplate behind it"],
+   t:["Try again pressed by keyboard and refused: focus is on Try again afterwards, and Escape closes the panel and leaves an open faceplate open","Try again clicked by mouse and refused: focus is not moved to a button the pointer user did not have it on","An accepted Try again leaves focus where the ribbon's own handoff puts it","Checked in a real browser at desktop width, keyboard only, with the server stopped and with a faceplate open"],
+   x:"No design decision is open; Sonnet implements. Capture whether the retry button held focus before it is disabled in tryAgain, and restore it in the finally block once it is re-enabled, only when the panel is still open. Keep the change inside static/js/debrief.js. The rest of the 2026-10-18 re-check found nothing: auto-open focus, Escape and focus return, a run ending under a focused faceplate, and the failed-request notice all behaved as T20-22 states."}
   ];
 
   var CHECKPOINTS = [

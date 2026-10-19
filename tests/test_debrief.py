@@ -726,6 +726,95 @@ def test_a_request_that_never_settles_is_given_up_on_and_try_again_is_usable_aga
     assert got["signals"] == [True]
 
 
+# A browser drops focus from a button the moment it is disabled; the fake DOM
+# does not, so a test that needs it says so.
+DISABLING_DROPS_FOCUS = """
+function dropFocusWhenDisabled(node) {
+  let off = false;
+  Object.defineProperty(node, 'disabled', {
+    get: () => off,
+    set: value => { off = value; if (value && doc.activeElement === node) doc.activeElement = doc.body; },
+  });
+}
+"""
+
+
+@needs_node
+@pytest.mark.parametrize("reply_status", [503, 409])
+def test_a_refused_try_again_pressed_by_keyboard_keeps_focus_on_it_so_escape_still_closes_only_the_panel(reply_status):
+    got = run_js(
+        PAGE
+        + DISABLING_DROPS_FOCUS
+        + """
+        const { panel } = page('complete');
+        const debrief = D.mount(doc, { fetch: async () => reply(data.status, null) });
+        const reached = [];
+        doc.addEventListener('keydown', event => reached.push(event.key));
+        debrief.result(200, data.done);
+        const retry = button(panel, 'Try again');
+        dropFocusWhenDisabled(retry);
+        retry.focus();
+        await retry.listeners.click[0]();
+        const focused = doc.activeElement === retry;
+        doc.activeElement.fire('keydown', { key: 'Escape' });
+        return { focused, reached, open: !panel.hidden };
+        """,
+        status=reply_status,
+        done=finished("failed"),
+    )
+
+    assert got == {"focused": True, "reached": [], "open": False}
+
+
+@needs_node
+def test_a_refused_try_again_clicked_by_mouse_does_not_move_focus_to_it():
+    got = run_js(
+        PAGE
+        + DISABLING_DROPS_FOCUS
+        + """
+        const { panel } = page('complete');
+        const debrief = D.mount(doc, { fetch: async () => reply(503, null) });
+        debrief.result(200, data.done);
+        const retry = button(panel, 'Try again');
+        dropFocusWhenDisabled(retry);
+        doc.activeElement = doc.body;
+        await retry.listeners.click[0]();
+        return { onRetry: doc.activeElement === retry, body: doc.activeElement === doc.body };
+        """,
+        done=finished("failed"),
+    )
+
+    assert got == {"onRetry": False, "body": True}
+
+
+@needs_node
+def test_an_accepted_try_again_leaves_focus_to_the_ribbons_handoff_not_the_closed_panel():
+    got = run_js(
+        PAGE
+        + DISABLING_DROPS_FOCUS
+        + """
+        const { panel } = page('complete');
+        let debrief;
+        debrief = D.mount(doc, {
+          fetch: async () => reply(200, data.loaded),
+          onRetry: () => debrief.result(200, data.loaded) });
+        debrief.result(200, data.done);
+        const retry = button(panel, 'Try again');
+        dropFocusWhenDisabled(retry);
+        retry.focus();
+        await retry.listeners.click[0]();
+        await Promise.resolve();
+        return { panel: !panel.hidden, onRetry: doc.activeElement === retry, focus: focusedId() };
+        """,
+        done=finished("failed"),
+        loaded={"phase": "loaded", "key": KEY, "title": "Falling vessel level"},
+    )
+
+    assert got["panel"] is False
+    assert got["onRetry"] is False
+    assert got["focus"] == "scenario-start"
+
+
 @needs_node
 def test_a_notice_only_message_leaves_a_send_in_flight_and_focus_alone(client, served):
     client.post("/api/scenario/load", json={"scenario": KEY})

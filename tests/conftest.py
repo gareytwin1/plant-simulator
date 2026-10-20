@@ -2,6 +2,7 @@ import pytest
 
 from app.api import validate
 from app.scoring.store import ScoreStore
+from tests.free_play import pin_olefins_free_play
 
 
 def unlimited():
@@ -29,3 +30,13 @@ def empty_score_store(monkeypatch):
     yield store
 
     store.close()
+
+
+@pytest.fixture(scope="module")
+def olefins_free_play():
+    """Free play on olefins_lite, for the tests that read its tags through a
+    plain `TrainingSession` or a fresh console cookie. Module scope, so a
+    module-scoped fixture that builds a session sees it."""
+    with pytest.MonkeyPatch.context() as patch:
+        pin_olefins_free_play(patch)
+        yield

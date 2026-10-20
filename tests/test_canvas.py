@@ -19,6 +19,8 @@ import pytest
 
 from app import main
 
+pytestmark = pytest.mark.usefixtures("olefins_free_play")
+
 ROOT = Path(__file__).resolve().parent.parent
 CANVAS_JS = ROOT / "static" / "js" / "canvas.js"
 FACEPLATE_JS = ROOT / "static" / "js" / "faceplate.js"

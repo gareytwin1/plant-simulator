@@ -15,6 +15,8 @@ from app.training.runtime import PlantRuntime
 from app.training.session import TrainingSession
 from tests.test_loop_execution import vessel_config
 
+pytestmark = pytest.mark.usefixtures("olefins_free_play")
+
 
 def runtime_of(config):
     plant = load_plant(config)
@@ -23,7 +25,7 @@ def runtime_of(config):
 
 
 @pytest.fixture(scope="module")
-def free_play():
+def free_play(olefins_free_play):
     session = TrainingSession()
 
     yield session.trend_units(), session.trend_points()

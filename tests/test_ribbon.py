@@ -27,6 +27,8 @@ from app.api.alarms import create_alarm_blueprint
 from app.envelope.evaluator import Severity
 from app.scenarios.runner import scenario_key
 
+pytestmark = pytest.mark.usefixtures("olefins_free_play")
+
 ROOT = Path(__file__).resolve().parent.parent
 RIBBON_JS = ROOT / "static" / "js" / "ribbon.js"
 CONSOLE_CSS = ROOT / "static" / "css" / "console.css"

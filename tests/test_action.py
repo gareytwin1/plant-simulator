@@ -14,6 +14,8 @@ from app.scoring.actionlog import ActionLog
 from app.training.session import TrainingSession
 from tests.test_loop_execution import vessel_config
 
+pytestmark = pytest.mark.usefixtures("olefins_free_play")
+
 
 # ---- apply_action: the pure core, no Flask involved ----
 

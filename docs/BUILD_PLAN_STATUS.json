@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
-  "refreshed": "2026-10-18",
-  "main_sha": "098f867",
-  "tests_passing_on_main": 4358,
+  "refreshed": "2026-10-19",
+  "main_sha": "bdecfae",
+  "tests_passing_on_main": 4359,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -118,13 +118,13 @@
     },
     "M20": {
       "name": "Console Redesign",
-      "complete": 24,
-      "total": 25
+      "complete": 25,
+      "total": 26
     }
   },
   "totals": {
-    "tasks": 158,
-    "complete": 152,
+    "tasks": 159,
+    "complete": 153,
     "startable_now": 5
   },
   "tasks": [
@@ -3240,6 +3240,26 @@
       "status": "Complete",
       "status_key": "done",
       "note": "Merged to main as 098f867 (PR #183); 4358 passed, mypy clean over 89 files, roborev-refine clean (one low finding fixed), no golden moved. A disabled Try again lost keyboard focus after a refusal, so Escape closed a faceplate instead of the result panel; focus is now given back only when it was dropped and the panel is still open, so a mouse click and a control the operator moved to meanwhile are unaffected. Browser-checked at desktop width, keyboard only, server stopped, faceplate open. Found in the desktop re-check of T20-22's panel."
+    },
+    {
+      "id": "T20-26",
+      "milestone": "M20",
+      "name": "Run free play on the separator",
+      "category": "dep",
+      "branch": "feature/free-play-separator",
+      "depends_on": [
+        "T20-17",
+        "T20-18"
+      ],
+      "files": [
+        "app/config.py",
+        "tests/conftest.py",
+        "tests/test_training_session.py",
+        "docs/ARCHITECTURE.md"
+      ],
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged to main as bdecfae (PR #184). Free play runs the separator at separator_normal with FIC-301, LIC-301 and PIC-301 in AUTO. Tests that read olefins_lite tags through free play pin it with an olefins_free_play fixture (tests/free_play.py helper). 4359 passed, mypy clean, no golden moved. Checked in headless Firefox at desktop width. Built on Opus, merged on Sonnet."
     }
   ]
 }

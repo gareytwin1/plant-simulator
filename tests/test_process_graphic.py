@@ -33,6 +33,8 @@ pytestmark = pytest.mark.usefixtures("olefins_free_play")
 ROOT = Path(__file__).resolve().parent.parent
 GRAPHIC_JS = ROOT / "static" / "js" / "graphic.js"
 GRAPHICS_DIR = ROOT / "static" / "graphics"
+# The configured free-play plant, read before olefins_free_play pins olefins_lite.
+FREE_PLAY_PLANT = config.FREE_PLAY_PLANT
 # olefins_lite's graphic, which the behaviour tests below bind against.
 PLANT_SVG = GRAPHICS_DIR / "olefins_lite.svg"
 
@@ -712,7 +714,7 @@ def test_a_graphic_replaced_before_its_svg_arrives_does_not_overwrite_its_succes
 
 def shown_plants():
     library = ScenarioLibrary()
-    return sorted({config.FREE_PLAY_PLANT} | {library.scenario(entry.id)["plant"] for entry in library.catalogue()})
+    return sorted({FREE_PLAY_PLANT} | {library.scenario(entry.id)["plant"] for entry in library.catalogue()})
 
 
 GRAPHICS = sorted(GRAPHICS_DIR.glob("*.svg"))

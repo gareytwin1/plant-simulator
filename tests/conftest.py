@@ -2,6 +2,7 @@ import pytest
 
 from app.api import validate
 from app.scoring.store import ScoreStore
+from tests.free_play import pin_olefins_free_play
 
 
 def unlimited():
@@ -29,14 +30,6 @@ def empty_score_store(monkeypatch):
     yield store
 
     store.close()
-
-
-def pin_olefins_free_play(patch):
-    """Point free play at olefins_lite, at normal_operation, through `patch`."""
-    from app import config
-
-    patch.setattr(config, "FREE_PLAY_PLANT", "olefins_lite")
-    patch.setattr(config, "FREE_PLAY_CONDITION", "normal_operation")
 
 
 @pytest.fixture(scope="module")

@@ -10,7 +10,7 @@ from app.engine.scheduler import Scheduler
 from app.scenarios.runner import Phase, ScenarioLibrary, ScenarioStateError
 from app.training.runtime import PlantRuntime
 from app.training.session import TrainingSession
-from tests.conftest import pin_olefins_free_play
+from tests.free_play import pin_olefins_free_play
 
 
 SCENARIO = (

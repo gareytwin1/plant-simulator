@@ -125,8 +125,8 @@ ALARM_HISTORY_CAPACITY = 1000
 # restored to this initial condition. Both resolve through ScenarioLibrary, so
 # free play reads the same files a scenario of the plant does. See T16-8.
 
-FREE_PLAY_PLANT = "olefins_lite"
-FREE_PLAY_CONDITION = "normal_operation"
+FREE_PLAY_PLANT = "separator"
+FREE_PLAY_CONDITION = "separator_normal"
 
 
 # Console stream

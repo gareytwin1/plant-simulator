@@ -92,9 +92,27 @@ def test_a_new_session_runs_free_play_on_the_configured_plant_and_starts_no_thre
 
         snapshot = published(made)
 
-        # normal_operation: the feed pump is running at full speed.
-        assert snapshot.equipment["P-101"]["running"] is True
+        assert made.plant_description()[0] == config.FREE_PLAY_PLANT
         assert snapshot.sim_time == made.free.snapshot().sim_time
+    finally:
+        made.end()
+
+
+def test_free_play_is_the_separator_at_its_normal_condition_with_every_loop_in_auto():
+    made = TrainingSession()
+
+    try:
+        snapshot = published(made)
+
+        assert made.plant_description()[0] == "separator"
+        # separator_normal: the drum half full at its pressure setpoint.
+        assert snapshot.equipment["V-301"]["level"] == pytest.approx(0.5)
+        assert snapshot.equipment["V-301"]["pressure"] == pytest.approx(200.0)
+        assert {tag: row["mode"] for tag, row in snapshot.controllers.items()} == {
+            "FIC-301": "AUTO",
+            "LIC-301": "AUTO",
+            "PIC-301": "AUTO",
+        }
     finally:
         made.end()
 

@@ -33,7 +33,10 @@ def scheduler_workers():
 
 
 @pytest.fixture
-def session(olefins_free_play, tmp_path):
+def session(monkeypatch, tmp_path):
+    # Function scope, so a test without this fixture still sees the configured plant.
+    monkeypatch.setattr(config, "FREE_PLAY_PLANT", "olefins_lite")
+    monkeypatch.setattr(config, "FREE_PLAY_CONDITION", "normal_operation")
     (tmp_path / "pump-trip.yaml").write_text(SCENARIO)
     made = TrainingSession(ScenarioLibrary(scenarios=tmp_path))
 

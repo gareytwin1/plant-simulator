@@ -31,14 +31,19 @@ def empty_score_store(monkeypatch):
     store.close()
 
 
-@pytest.fixture(scope="module")
-def olefins_free_play():
-    """Free play on olefins_lite at normal_operation, for the tests that read
-    its tags through a plain `TrainingSession` or a fresh console cookie.
-    Module scope, so a module-scoped fixture that builds a session sees it."""
+def pin_olefins_free_play(patch):
+    """Point free play at olefins_lite, at normal_operation, through `patch`."""
     from app import config
 
+    patch.setattr(config, "FREE_PLAY_PLANT", "olefins_lite")
+    patch.setattr(config, "FREE_PLAY_CONDITION", "normal_operation")
+
+
+@pytest.fixture(scope="module")
+def olefins_free_play():
+    """Free play on olefins_lite, for the tests that read its tags through a
+    plain `TrainingSession` or a fresh console cookie. Module scope, so a
+    module-scoped fixture that builds a session sees it."""
     with pytest.MonkeyPatch.context() as patch:
-        patch.setattr(config, "FREE_PLAY_PLANT", "olefins_lite")
-        patch.setattr(config, "FREE_PLAY_CONDITION", "normal_operation")
+        pin_olefins_free_play(patch)
         yield

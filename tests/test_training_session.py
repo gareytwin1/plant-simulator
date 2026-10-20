@@ -10,6 +10,7 @@ from app.engine.scheduler import Scheduler
 from app.scenarios.runner import Phase, ScenarioLibrary, ScenarioStateError
 from app.training.runtime import PlantRuntime
 from app.training.session import TrainingSession
+from tests.conftest import pin_olefins_free_play
 
 
 SCENARIO = (
@@ -35,8 +36,7 @@ def scheduler_workers():
 @pytest.fixture
 def session(monkeypatch, tmp_path):
     # Function scope, so a test without this fixture still sees the configured plant.
-    monkeypatch.setattr(config, "FREE_PLAY_PLANT", "olefins_lite")
-    monkeypatch.setattr(config, "FREE_PLAY_CONDITION", "normal_operation")
+    pin_olefins_free_play(monkeypatch)
     (tmp_path / "pump-trip.yaml").write_text(SCENARIO)
     made = TrainingSession(ScenarioLibrary(scenarios=tmp_path))
 

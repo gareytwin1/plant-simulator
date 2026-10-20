@@ -29,3 +29,16 @@ def empty_score_store(monkeypatch):
     yield store
 
     store.close()
+
+
+@pytest.fixture(scope="module")
+def olefins_free_play():
+    """Free play on olefins_lite at normal_operation, for the tests that read
+    its tags through a plain `TrainingSession` or a fresh console cookie.
+    Module scope, so a module-scoped fixture that builds a session sees it."""
+    from app import config
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(config, "FREE_PLAY_PLANT", "olefins_lite")
+        patch.setattr(config, "FREE_PLAY_CONDITION", "normal_operation")
+        yield

@@ -18,6 +18,8 @@ from app.scenarios.runner import ScenarioLibrary, scenario_key
 from app.training.session import TrainingSession
 from tests.test_training_session import scheduler_workers
 
+pytestmark = pytest.mark.usefixtures("olefins_free_play")
+
 ROOT = Path(__file__).resolve().parent.parent
 GRAPHICS = ROOT / "static" / "graphics"
 PLANTS = ROOT / "config" / "plants"

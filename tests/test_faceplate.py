@@ -24,6 +24,8 @@ from app import main
 from app.api.action import create_action_blueprint
 from app.training.session import TrainingSession
 
+pytestmark = pytest.mark.usefixtures("olefins_free_play")
+
 ROOT = Path(__file__).resolve().parent.parent
 FACEPLATE_JS = ROOT / "static" / "js" / "faceplate.js"
 FACEPLATE_CSS = ROOT / "static" / "css" / "faceplate.css"

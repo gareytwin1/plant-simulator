@@ -33,7 +33,7 @@ def scheduler_workers():
 
 
 @pytest.fixture
-def session(tmp_path):
+def session(olefins_free_play, tmp_path):
     (tmp_path / "pump-trip.yaml").write_text(SCENARIO)
     made = TrainingSession(ScenarioLibrary(scenarios=tmp_path))
 

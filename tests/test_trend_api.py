@@ -13,6 +13,8 @@ from app.scenarios.runner import ScenarioLibrary
 from app.training.session import TrainingSession
 from tests.test_training_session import SCENARIO, scheduler_workers
 
+pytestmark = pytest.mark.usefixtures("olefins_free_play")
+
 
 POINT = "V-101.level"
 

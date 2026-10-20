@@ -5,6 +5,8 @@ import pytest
 from app import main
 from app.training.session import TrainingSession
 
+pytestmark = pytest.mark.usefixtures("olefins_free_play")
+
 
 def session_for(client):
     return main.sessions.get(client.get_cookie(main.SESSION_COOKIE).value)

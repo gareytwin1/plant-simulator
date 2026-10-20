@@ -14,6 +14,8 @@ from app.engine.sessions import SessionRegistry
 from app.scenarios.runner import Phase, scenario_key
 from app.training.session import TrainingSession
 
+pytestmark = pytest.mark.usefixtures("olefins_free_play")
+
 
 WAIT = 5.0
 

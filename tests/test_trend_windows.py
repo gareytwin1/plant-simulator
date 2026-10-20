@@ -22,6 +22,8 @@ from tests.test_trend_display import LEVEL, record, step
 from tests.test_trend_display import client as client  # noqa: F401 - fixtures used by name
 from tests.test_trend_display import session as session  # noqa: F401
 
+pytestmark = pytest.mark.usefixtures("olefins_free_play")
+
 ROOT = Path(__file__).resolve().parent.parent
 WINDOWS_JS = ROOT / "static" / "js" / "trendwindows.js"
 TRENDS_CSS = ROOT / "static" / "css" / "trends.css"

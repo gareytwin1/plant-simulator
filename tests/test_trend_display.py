@@ -27,6 +27,8 @@ from tests.test_alarm_console import Plant
 from tests.test_console_tokens import THEMES, contrast, load_symbols, load_tokens
 from tests.test_training_session import SCENARIO
 
+pytestmark = pytest.mark.usefixtures("olefins_free_play")
+
 ROOT = Path(__file__).resolve().parent.parent
 TRENDS_JS = ROOT / "static" / "js" / "trends.js"
 TRENDS_CSS = ROOT / "static" / "css" / "trends.css"

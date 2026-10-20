@@ -28,11 +28,13 @@ from app.scenarios.runner import ScenarioLibrary
 from app.training.runtime import PlantRuntime
 from app.training.session import TrainingSession
 
+pytestmark = pytest.mark.usefixtures("olefins_free_play")
+
 ROOT = Path(__file__).resolve().parent.parent
 GRAPHIC_JS = ROOT / "static" / "js" / "graphic.js"
 GRAPHICS_DIR = ROOT / "static" / "graphics"
-# The free-play plant's graphic, which the behaviour tests below bind against.
-PLANT_SVG = GRAPHICS_DIR / f"{config.FREE_PLAY_PLANT}.svg"
+# olefins_lite's graphic, which the behaviour tests below bind against.
+PLANT_SVG = GRAPHICS_DIR / "olefins_lite.svg"
 
 BOUND = (
     "data-tag",
@@ -148,7 +150,7 @@ def render(snapshot, svg_text=None):
 
 
 @pytest.fixture(scope="module")
-def views():
+def views(olefins_free_play):
     """Operator views of the plant: free play as it starts, then the
     pump_trip scenario at the first band on V-101's level (`lo`, a warning) and at
     its trip band (`lololo`). P-101.flow sits in its own trip band from the
@@ -288,7 +290,7 @@ def test_a_valve_shows_a_trip_label_only_while_an_interlock_holds_it(views):
 @needs_node
 def test_a_pshh_101_trip_draws_k_101_as_trip_in_the_next_published_snapshot():
     library = ScenarioLibrary()
-    runtime = PlantRuntime.from_plant(load_plant(read_plant_config(library.plant_path(config.FREE_PLAY_PLANT))))
+    runtime = PlantRuntime.from_plant(load_plant(read_plant_config(library.plant_path("olefins_lite"))))
     runtime.engine.start()
     for tag in ("P-101", "K-101"):
         runtime.act(tag, "start", None)

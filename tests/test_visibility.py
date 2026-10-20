@@ -24,6 +24,8 @@ from app.equipment import (
 from app.equipment.base import Equipment
 from app.training.session import TrainingSession
 
+pytestmark = pytest.mark.usefixtures("olefins_free_play")
+
 
 FAULT_FIELDS = {"stuck", "action_reversed", "signal_ok", "effective_capacity"}
 

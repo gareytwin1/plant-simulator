@@ -285,6 +285,73 @@ def test_a_scored_run_that_lost_nothing_says_so():
     assert got == ["Nothing counted against the score."]
 
 
+# ---- the actions that were not needed (T15-6) -------------------------------
+
+
+UNNEEDED = [
+    {"sim_time": 75.2, "tag": "PIC-101", "action": "set_setpoint", "value": 200.0},
+    {"sim_time": 130.0, "tag": "FV-201", "action": "set_position_target", "value": 0.4},
+    {"sim_time": 140.0, "tag": "K-101", "action": "stop", "value": None},
+]
+
+
+@needs_node
+def test_the_view_names_each_unnecessary_action_at_its_run_time_in_the_faceplates_words():
+    got = run_js(
+        """
+        const rows = { 'PIC-101': { pv_unit: 'kPa' } };
+        return [D.view(200, data.body, tag => rows[tag] || null).unneeded, D.view(200, data.body).unneeded];
+        """,
+        body=finished("failed", unnecessary_actions=UNNEEDED),
+    )
+
+    assert got[0] == [
+        {"time": "01:15", "text": "Setpoint 200 kPa for PIC-101"},
+        {"time": "02:10", "text": "Position target 40.0 % for FV-201"},
+        {"time": "02:20", "text": "Stop K-101"},
+    ]
+    assert got[1][0] == {"time": "01:15", "text": "Setpoint 200 for PIC-101"}
+
+
+@needs_node
+def test_a_row_that_is_not_an_action_is_skipped_and_an_unscored_run_names_none():
+    got = run_js(
+        """
+        return [D.unneeded(data.rows), D.view(200, data.aborted).unneeded, D.view(200, data.missing).unneeded];
+        """,
+        rows=[None, {"tag": "P-101"}, {"sim_time": 3.0, "tag": "P-101", "action": "start", "value": None}],
+        aborted=finished("aborted", unnecessary_actions=UNNEEDED),
+        missing=finished("failed"),
+    )
+
+    assert got == [[{"time": "00:03", "text": "Start P-101"}], [], []]
+
+
+@needs_node
+def test_the_panel_lists_the_unnecessary_actions_and_hides_the_list_when_there_are_none():
+    got = run_js(
+        PAGE
+        + """
+        const { panel } = page('complete');
+        const debrief = D.mount(doc, { fetch: async () => reply(500, null), loopRow: () => ({ pv_unit: 'kPa' }) });
+        const seen = () => {
+          const list = byClass(panel, 'debrief-unneeded');
+          const heading = panel.all().find(n => n.tagName === 'H3' && n.textContent === 'Actions that were not needed');
+          return { heading: !heading.hidden, list: !list.hidden, items: list.children.map(text) };
+        };
+        debrief.result(200, data.some);
+        const some = seen();
+        debrief.result(200, data.none);
+        return [some, seen()];
+        """,
+        some=finished("failed", unnecessary_actions=UNNEEDED[:1]),
+        none=finished("succeeded", elapsed_s=400.0, unnecessary_actions=[]),
+    )
+
+    assert got[0] == {"heading": True, "list": True, "items": ["01:15, Setpoint 200 kPa for PIC-101"]}
+    assert got[1] == {"heading": False, "list": False, "items": []}
+
+
 # ---- opening, closing and focus ------------------------------------------------
 
 

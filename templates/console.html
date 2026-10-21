@@ -93,6 +93,8 @@
     // The shown plant names its graphic; a scenario load or unload swaps it.
     var graphic = ProcessGraphic.follow(document.getElementById("process-graphic"));
     var canvas = null;
+    // The newest snapshot, for the debrief's words for a loop command.
+    var latest = null;
     // Run time zero on the plant clock while a scenario stands, null in free
     // play: the alarm list and the trend windows show every time through it.
     var origin = SimClock.follow(consoleEl.getAttribute("data-started-at"));
@@ -131,6 +133,7 @@
       // Each consumer is isolated: connection.js does not guard this callback,
       // so a graphic that throws must not leave the controls on a stale snapshot.
       onSnapshot: function (snapshot) {
+        latest = snapshot;
         try { graphic.update(snapshot); } catch (error) { console.error(error); }
         try { canvas.update(snapshot); } catch (error) { console.error(error); }
         try { trends.update(snapshot); } catch (error) { console.error(error); }
@@ -141,6 +144,10 @@
     var debrief = null;
     try {
       debrief = Debrief.mount(document, {
+        loopRow: function (tag) {
+          var rows = latest && latest.controllers;
+          return rows && typeof rows === "object" && Object.prototype.hasOwnProperty.call(rows, tag) ? rows[tag] : null;
+        },
         onRetry: function (status, body, refusal) { if (ribbon) ribbon.adopt(status, body, refusal); },
         onRefusal: function (text) { if (ribbon) ribbon.say(text); },
         onResync: function () { if (ribbon) ribbon.resync(); }

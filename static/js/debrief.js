@@ -6,8 +6,14 @@
  * its own, and shows something only once the phase is complete or aborted:
  * while a run is loaded or running nothing of its outcome, score or debrief is
  * rendered, whatever the body carries. What it shows comes from that body
- * alone: outcome, elapsed_s, time_limit_s, score.total, score.penalties and
- * debrief.
+ * alone: outcome, elapsed_s, time_limit_s, score.total, score.penalties,
+ * unnecessary_actions and debrief.
+ *
+ * Each unnecessary action (T15-6) is listed under the costs at its run time,
+ * in the faceplate's own words for the command (faceplate.js's
+ * describeCommand). `options.loopRow(tag)` hands over a loop's latest
+ * controllers row, so a setpoint or output reads in the units the faceplate
+ * entered it in; without one it reads as the value the server took.
  *
  * A criterion is worded from CRITERIA, keyed by the penalty names in
  * config/scoring.yaml; a name the table lacks shows as itself, and
@@ -31,6 +37,7 @@
   var node = typeof module !== "undefined" && module.exports;
   var Ribbon = node ? require("./ribbon.js") : root.Ribbon;
   var Scenario = node ? require("./scenario.js") : root.ScenarioBar;
+  var Faceplates = node ? require("./faceplate.js") : root.Faceplates;
 
   var LOAD_URL = "/api/scenario/load";
   var START_URL = "/api/scenario/start";
@@ -107,6 +114,20 @@
     });
   };
 
+  /* The actions that counted as unnecessary, each at its run time and in the
+   * faceplate's words, in the order the body gave. `loopRow(tag)` may give a
+   * loop's controllers row; a row that is not an action is skipped. */
+  api.unneeded = function (actions, loopRow) {
+    if (!Array.isArray(actions)) return [];
+    return actions.filter(function (action) {
+      return isObject(action) && isNumber(action.sim_time) && typeof action.tag === "string" && typeof action.action === "string";
+    }).map(function (action) {
+      var row = loopRow ? loopRow(action.tag) : null;
+      var words = Faceplates.describeCommand(action.tag, action.action, action.value, row);
+      return { time: Ribbon.formatClock(action.sim_time), text: words.charAt(0).toUpperCase() + words.slice(1) };
+    });
+  };
+
   /* Blank lines separate paragraphs; a folded description is one. */
   api.paragraphs = function (text) {
     if (typeof text !== "string") return [];
@@ -125,7 +146,7 @@
 
   /* The panel's view model from a result response, or null when the run is
    * not over (or the response is not a result), when nothing may be shown. */
-  api.view = function (status, body) {
+  api.view = function (status, body, loopRow) {
     if (!api.isFinished(status, body)) return null;
     var outcome = own(OUTCOMES, body.outcome) ? OUTCOMES[body.outcome] : UNKNOWN_OUTCOME;
     var scored = isObject(body.score) && isNumber(body.score.total);
@@ -142,6 +163,7 @@
       total: scored ? String(Math.round(body.score.total)) : "",
       unscored: scored ? "" : body.outcome === "aborted" ? "Not scored, because the run was aborted." : "Not scored.",
       costs: scored ? api.costs(body.score.penalties) : [],
+      unneeded: scored ? api.unneeded(body.unnecessary_actions, loopRow) : [],
       debrief: api.paragraphs(body.debrief),
     };
   };
@@ -221,6 +243,10 @@
     summary.appendChild(score);
     summary.appendChild(costsHeading);
     summary.appendChild(costs);
+    var unneededHeading = el(doc, "h3", "debrief-label", "Actions that were not needed");
+    var unneeded = el(doc, "ul", "debrief-unneeded");
+    summary.appendChild(unneededHeading);
+    summary.appendChild(unneeded);
     var story = el(doc, "div", "debrief-story");
     story.appendChild(el(doc, "h3", "debrief-label", "Debrief"));
     var text = el(doc, "div", "debrief-text");
@@ -268,6 +294,7 @@
       time.textContent = "";
       score.textContent = "";
       costs.textContent = "";
+      unneeded.textContent = "";
       text.textContent = "";
       notice.textContent = "";
     }
@@ -296,6 +323,15 @@
         item.appendChild(el(doc, "span", "visually-hidden", ", "));
         item.appendChild(el(doc, "span", "debrief-extent", cost.extent));
         costs.appendChild(item);
+      });
+      unneededHeading.hidden = !view.unneeded.length;
+      unneeded.hidden = !view.unneeded.length;
+      view.unneeded.forEach(function (action) {
+        var item = el(doc, "li");
+        item.appendChild(el(doc, "span", "debrief-when", action.time));
+        item.appendChild(el(doc, "span", "visually-hidden", ", "));
+        item.appendChild(el(doc, "span", "", action.text));
+        unneeded.appendChild(item);
       });
       (view.debrief.length ? view.debrief : ["There is no debrief for this scenario."]).forEach(function (words) {
         text.appendChild(el(doc, "p", "", words));
@@ -355,7 +391,7 @@
 
     function result(status, body) {
       if (status !== 200 && status !== 409) return;
-      var view = api.view(status, body);
+      var view = api.view(status, body, settings.loopRow);
       if (view === null) {
         var heldFocus = !panel.hidden && panel.contains(doc.activeElement);
         hide(false);

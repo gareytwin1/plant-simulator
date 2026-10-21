@@ -11,11 +11,11 @@ A session owns a background Scheduler, so a browser's plant keeps running on
 the server's own clock instead of a browser's setInterval. Constructing a
 session starts nothing; only the route serving a page that displays the plant
 starts it, and only the session's end() (called directly, by
-SessionRegistry.end(), or by LRU eviction) stops it. It closes it, so a request
+SessionRegistry.end(), or by capacity eviction) stops it. It closes it, so a request
 still holding an ended session cannot start a worker the registry no longer
 counts. SessionRegistry bounds how many sessions - and so how many worker
-threads - stay alive at once: past config.MAX_SESSIONS, create ends the
-least-recently-touched session first, and a session idle for
+threads - stay alive at once: past config.MAX_SESSIONS, create ends a session
+of the owner with the most first (T18-11), and a session idle for
 config.SESSION_IDLE_SECONDS is reclaimed (T18-5). See
 docs/T2-6_SCHEDULER_OWNERSHIP.md for the design this implements.
 
@@ -25,6 +25,7 @@ open stream - is using it (T16-8).
 
 import threading
 import time
+from collections import Counter
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from typing import Protocol
@@ -47,18 +48,30 @@ class SessionRegistry[S: Endable]:
     reclaim_idle() ends every session last touched `idle_seconds` or more ago,
     and get() and create() run it under `_lock` before they look anything up,
     so there is no reaper thread and the sweep follows the injected clock.
-    Capacity: past max_sessions, create() ends the least-recently-touched
-    session (stopping and joining its workers) before admitting a new one. On
-    a server that receives no requests at all, abandoned workers wait for the
-    next one.
+    Capacity: past max_sessions, create() ends one session (stopping and
+    joining its workers) before admitting a new one. On a server that receives
+    no requests at all, abandoned workers wait for the next one.
+
+    Which session goes is a fair share (T18-11). Every session has an owner, a
+    plain string the caller names at creation - main.py passes the client
+    address - and keeps for the session's life. The victim comes from the
+    owner that would hold the most sessions once the new one is counted;
+    on a tie the creator is that owner if it holds any session, else the
+    tied owners are taken together. So an address that keeps minting
+    sessions ends one other owner's session at most until it holds as many
+    as they do, then only its own. With a single owner - a classroom behind
+    one address - the victim is exactly the least-recently-touched session,
+    as before.
 
     A session in use is leased (T16-8). `lease(session_id)` counts a hold
     under `_lock`: reclaim_idle() skips a held session, and releasing the
     last hold touches it, so its idle clock starts at the release. Capacity is
-    the backstop: create() prefers the least-recently-touched session that is
-    not held, and ends a held one only when every session is, so the
-    registry never exceeds max_sessions. The holder then finds its session
-    ended.
+    the backstop: create() prefers a session that is not held, and ends a
+    held one only when every candidate is, so the registry never exceeds
+    max_sessions. The holder then finds its session
+    ended. A lease never moves the victim to another owner: within the
+    owner chosen, its least-recently-touched unleased session goes first,
+    else its least-recently-touched leased one.
 
     Admission is atomic. create() builds its session outside `_lock`, then
     under it either returns the entry another thread already admitted
@@ -92,13 +105,18 @@ class SessionRegistry[S: Endable]:
         self._sessions: dict[str, S] = {}
         self._touched: dict[str, float] = {}
         self._holds: dict[str, int] = {}
+        self._owners: dict[str, str] = {}
         self._factory = factory
         self._max_sessions = max_sessions
         self.idle_seconds = idle_seconds
         self._monotonic = monotonic
         self._lock = threading.Lock()
 
-    def create(self, session_id: str) -> S:
+    def create(self, session_id: str, owner: str = "") -> S:
+        """The session for `session_id`, built now unless another thread
+        admitted one first. `owner` counts it toward that owner's share of
+        a full registry; the default is one owner shared by every session
+        made outside a request."""
         session: S = self._factory()
 
         with self._lock:
@@ -111,9 +129,10 @@ class SessionRegistry[S: Endable]:
                 return existing
 
             if len(self._sessions) >= self._max_sessions:
-                self._evict_least_recently_touched()
+                self._evict_for(owner)
 
             self._sessions[session_id] = session
+            self._owners[session_id] = owner
             self._touch(session_id)
             return session
 
@@ -136,10 +155,10 @@ class SessionRegistry[S: Endable]:
         with self._lock:
             return self._sessions.get(session_id)
 
-    def get_or_create(self, session_id: str) -> S:
+    def get_or_create(self, session_id: str, owner: str = "") -> S:
         session = self.get(session_id)
 
-        return session if session is not None else self.create(session_id)
+        return session if session is not None else self.create(session_id, owner)
 
     @contextmanager
     def lease(self, session_id: str) -> Iterator[None]:
@@ -206,6 +225,7 @@ class SessionRegistry[S: Endable]:
         session = self._sessions.pop(session_id, None)
         self._touched.pop(session_id, None)
         self._holds.pop(session_id, None)
+        self._owners.pop(session_id, None)
 
         if session is not None:
             session.end()
@@ -223,7 +243,15 @@ class SessionRegistry[S: Endable]:
 
         return len(idle)
 
-    def _evict_least_recently_touched(self) -> None:
-        candidates = [session_id for session_id in self._touched if session_id not in self._holds]
-        lru_id = min(candidates or self._touched, key=self._touched.__getitem__)
-        self._end(lru_id)
+    def _evict_for(self, creator: str) -> None:
+        counts = Counter(self._owners.values())
+
+        def weight(owner: str) -> int:
+            return counts[owner] + (owner == creator)
+
+        top = max(weight(owner) for owner in counts)
+        tied = {owner for owner in counts if weight(owner) == top}
+        owners = {creator} if creator in tied else tied
+        candidates = [session_id for session_id, owner in self._owners.items() if owner in owners]
+        unheld = [session_id for session_id in candidates if session_id not in self._holds]
+        self._end(min(unheld or candidates, key=self._touched.__getitem__))

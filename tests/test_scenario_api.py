@@ -240,6 +240,27 @@ def test_no_live_response_carries_a_score_or_a_metric(api):
     assert [body["phase"] for body in live] == ["loaded", "loaded", "running", "running"]
     for body in live:
         assert "score" not in body and "metrics" not in body
+        assert "unnecessary_actions" not in body
+
+
+def test_a_completed_run_names_its_unnecessary_actions_over_http(api):
+    client, runner = api
+    client.post("/api/scenario/load", json={"scenario": KEY})
+    client.post("/api/scenario/start")
+    for command in (
+        {"target": "PIC-101", "action": "set_setpoint", "value": 200.0},
+        {"target": "P-101", "action": "start"},
+        {"target": "P-101", "action": "set_speed_target", "value": 1.0},
+    ):
+        assert client.post("/api/action", json=command).status_code == 200
+
+    while runner.phase is Phase.RUNNING:
+        runner.step(1.0)
+
+    body = client.get("/api/scenario/result").get_json()
+    assert body["metrics"]["unnecessary_actions"] == 1
+    assert body["unnecessary_actions"] == [body["actions"][0]]
+    assert body["actions"][0]["tag"] == "PIC-101"
 
 
 def test_a_completed_run_answers_with_its_score_beside_the_debrief(api):
@@ -267,6 +288,7 @@ def test_an_aborted_run_answers_with_no_score(api):
 
     assert body["phase"] == "aborted"
     assert body["score"] is None and body["metrics"] is None
+    assert body["unnecessary_actions"] is None
 
 
 # ---- run time zero on the plant clock (T20-23) ----

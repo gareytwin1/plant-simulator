@@ -30,7 +30,9 @@ run time zero, so a console shows the plant's own times as run time without
 subtracting two times it fetched apart.
 A score and its metrics (T20-15) are part of the debrief: `score` (the total
 and each penalty) and `metrics` are in the body only once the run is over,
-and are null for an aborted run, which is not scored.
+and are null for an aborted run, which is not scored. So is
+`unnecessary_actions` (T15-6), the actions that criterion counted, each as
+`actions` has it.
 
 A refusal is one of three, so a client can tell them apart:
 

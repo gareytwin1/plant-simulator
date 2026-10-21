@@ -2235,10 +2235,10 @@ Scenario(initial_condition, malfunctions[], triggers[],
 
   {id:"T15-6",m:"M15",cat:"dep",n:"Name the unnecessary actions in the debrief",
    p:"Once T15-5 makes unnecessary_actions real, the debrief says only how much the criterion cost (\"Actions that were not needed\", partly or in full), not which actions they were. A trainee cannot learn from a penalty they cannot trace to a move.",
-   d:["T15-5","T20-22"],f:["app/scenarios/runner.py","static/js/debrief.js","tests/test_scenario_api.py","tests/test_debrief.py"],b:"feature/debrief-unnecessary-actions",
+   d:["T15-5","T20-22"],f:["app/scenarios/runner.py","app/api/scenario.py","static/js/debrief.js","static/css/debrief.css","templates/console.html","tests/test_scenario_runner.py","tests/test_scenario_api.py","tests/test_debrief.py"],b:"feature/debrief-unnecessary-actions",
    w:["A finished run's debrief lists each action that counted as unnecessary, with its run time, tag and action","A run with none shows no list"],
    t:["The run result carries the unnecessary actions in log order, each with run time, tag, action and value","The debrief renders that list and hides it when empty","Checked in a real browser at desktop width on a scenario run with one deliberate unnecessary action"],
-   x:"Recorded as T15-5's follow-up on 2026-10-21; shape not yet decided. Open: whether the result carries the actions themselves or their ids into the action list it already returns, and whether a stored ScoreStore row keeps them. Decide with Opus before starting."}
+   x:"Recorded as T15-5's follow-up on 2026-10-21. Shape decided by Opus on 2026-10-21: ScenarioResult gains unnecessary_actions, the action rows (as actions has them) that metrics.unnecessary_actions counts, captured at completion with the same predicate so list and count are one reading; null until scored, so live and aborted results never carry it. Rejected: a relevance flag on each actions row (actions is also a replay input) and indexes into actions (the client would re-derive). Not stored: ScoreStore rows keep no actions at all, and the history page shows counts. The debrief words each action with faceplate.js's describeCommand, given the loop's latest controllers row from the console so a setpoint reads in the loop's units. An additive C5 field; no config change, no VERSION bump. Opus implements, per the user's model split."}
   ];
 
   var CHECKPOINTS = [
@@ -2386,7 +2386,7 @@ Scenario(initial_condition, malfunctions[], triggers[],
     "T6-1":"Opus",
     "T13-1":"Opus","T13-5":"Sonnet",
     "T14-5":"Opus",
-    "T15-4":"Sonnet","T15-5":"Opus",
+    "T15-4":"Sonnet","T15-5":"Opus","T15-6":"Opus",
     "T16-5":"Sonnet","T16-8":"Sonnet","T16-10":"Sonnet","T16-13":"Sonnet","T16-14":"Opus","T16-15":"Sonnet",
     "T17-1":"Sonnet",
     "T18-2":"Sonnet",

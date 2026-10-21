@@ -4,6 +4,10 @@
 > `decompose` step decomposes this into milestones/issues without asking the user
 > anything. Every section must be verifiable. No TODO/??? placeholders.
 
+**Status:** implemented and merged (T15-5, PR #188, merge `91e6703`). This
+spec records the pre-implementation contract; "Why" and "Environment"
+describe `main` as it was before the merge.
+
 ## Objective
 
 Every scenario declares the set of tags whose operation bears on its fault, and
@@ -12,8 +16,8 @@ against that set instead of treating every action as relevant.
 
 ## Why
 
-Today `app/scenarios/runner.py::_every_action_relevant` returns `True` for every
-action, so `unnecessary_actions` is always 0 and `time_to_recognise_s` runs to
+Before T15-5, `app/scenarios/runner.py::_every_action_relevant` returned `True`
+for every action, so `unnecessary_actions` was always 0 and `time_to_recognise_s` ran to
 the first action of any kind. A trainee who works every control in the plant
 scores the same on these two criteria (weights 10 and 5 of 101 + 100 in
 `config/scoring.yaml`) as one who makes only the right moves, and the debrief's
@@ -97,7 +101,9 @@ liquid feed (XV-301, FV-301, FIC-301).
    `test_each_scenario_fails_with_no_response` does), collects the interlock
    tags that latched (`PlantRuntime.trip_records()`), and asserts each is in
    that scenario's declared list. The declared lists include exactly those
-   interlocks and no others.
+   interlocks and no others. Outcome: no interlock latches in any of the ten
+   no-response runs (each fails on an objective first), so no shipped list
+   names an interlock.
 5. **Correct play is clean.** For every scenario in
    `tests/test_scenario_pack.py::CORRECT_RESPONSES`, the scripted run still
    succeeds and its `RunMetrics.unnecessary_actions == 0`.
@@ -175,8 +181,8 @@ liquid feed (XV-301, FV-301, FIC-301).
   already takes the predicate and feeds both `unnecessary_actions` and
   `_time_to_recognise`.
 - `app/training/runtime.py::PlantRuntime.metrics(is_relevant, outcome)` passes
-  it through; `runner.py:947` is the single call site, passing
-  `_every_action_relevant` (`runner.py:999`).
+  it through; `ScenarioRunner` was the single call site, passing
+  `_every_action_relevant`.
 - `app/scoring/actionlog.py::ActionEvent.tag` is the field relevance reads.
   Only accepted actions are logged (`app/api/action.py:240`,
   `PlantRuntime.act` for interlock resets), so a refused action is never

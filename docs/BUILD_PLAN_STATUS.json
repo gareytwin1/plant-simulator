@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
   "refreshed": "2026-10-21",
-  "main_sha": "91e6703",
-  "tests_passing_on_main": 4410,
+  "main_sha": "5e4651d",
+  "tests_passing_on_main": 4418,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -93,7 +93,7 @@
     },
     "M15": {
       "name": "Action Log and Scoring",
-      "complete": 5,
+      "complete": 6,
       "total": 6
     },
     "M16": {
@@ -124,8 +124,8 @@
   },
   "totals": {
     "tasks": 164,
-    "complete": 157,
-    "startable_now": 6
+    "complete": 158,
+    "startable_now": 5
   },
   "tasks": [
     {
@@ -3347,10 +3347,13 @@
         "config/scenarios/*.yaml",
         "app/scenarios/runner.py",
         "app/scoring/metrics.py",
+        "app/plant/validate.py",
         "config/VERSION",
+        "tests/fixtures/config_version.json",
         "tests/test_scenario_pack.py",
         "tests/test_scenario_schema.py",
-        "tests/test_scenario_runner.py"
+        "tests/test_scenario_runner.py",
+        "tests/test_plant_config_validation.py"
       ],
       "status": "Complete",
       "status_key": "done",
@@ -3368,14 +3371,17 @@
       ],
       "files": [
         "app/scenarios/runner.py",
+        "app/api/scenario.py",
         "static/js/debrief.js",
+        "static/css/debrief.css",
+        "templates/console.html",
+        "tests/test_scenario_runner.py",
         "tests/test_scenario_api.py",
         "tests/test_debrief.py"
       ],
-      "status": "Not Started",
-      "status_key": "todo",
-      "startable": true,
-      "note": ""
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged 5e4651d (PR #189), 4418 passed on main"
     }
   ]
 }

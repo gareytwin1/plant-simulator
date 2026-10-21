@@ -8,10 +8,10 @@ regrowth rule is in [.claude/rules/docs.md](../../.claude/rules/docs.md).
 
 ## Right now
 
-**Last state refresh:** 21 October 2026, at `91e6703` (Merge T15-5, PR #188: scenarios declare their relevant tags) - **this is a snapshot,
-not a live pointer.** Run `git log 91e6703..HEAD --oneline` to see what has
+**Last state refresh:** 21 October 2026, at `5e4651d` (Merge T15-6, PR #189: the debrief names the unnecessary actions) - **this is a snapshot,
+not a live pointer.** Run `git log 5e4651d..HEAD --oneline` to see what has
 merged since.
-**Full suite as of this refresh:** **4410 passed** · `python -m mypy` clean over 89 source files · no golden trace movement
+**Full suite as of this refresh:** **4418 passed** · `python -m mypy` clean over 89 source files · no golden trace movement
 **In flight:** nothing. The spine lock and the `app/main.py` lock are free.
 No task is Blocked. CI runs on every PR, and `main` requires its
 `test` check before a merge.
@@ -21,12 +21,12 @@ No task is Blocked. CI runs on every PR, and `main` requires its
 
 | Task | SHA | What landed |
 |---|---|---|
+| **T15-6** | `5e4651d` | A scored run's result carries `unnecessary_actions`: the action rows `metrics.unnecessary_actions` counts, in log order, built with the same `is_relevant` function as the count; null until scored, so live and aborted results never carry it. The debrief lists each at its run time in the faceplate's own words (`describeCommand`, `capitalised` now exported), redrawing when the first snapshot supplies loop rows. Not stored: `ScoreStore` rows keep no actions. Additive C5 field, no config bump, no golden moved. Built on Opus, merged on Sonnet (PR #189). Browser-checked at desktop width, light theme only |
 | **T15-5** | `91e6703` | Each scenario file declares `relevant_tags` (required, C8): the devices, loops and interlocks that bear on its fault. A completed run counts an action on any other tag as unnecessary and times recognition to the first listed action after the first alarm; `_every_action_relevant` is gone. A load refuses a tag the plant lacks and a loop-driven device without its loop. `uniqueItems` added to the schema validator. Config MAJOR 4.0.0 to 5.0.0. The C8 text in `BUILD_PLAN.html` lists the field. No golden moved. Built on Opus, merged on Sonnet (PR #188). Real-server checked |
 | **T18-10** | `84e5c49` | The rate limit keys on the live session the cookie names (`sessions.peek`, no create or touch), else the client address, so trainees behind one NAT stop sharing a bucket. A session-keyed request granted by its own bucket also draws from a per-address ceiling (10x, `API_ADDRESS_RATE_*`), so minting sessions does not multiply an address's allowance. Known gap: one address can still churn others' sessions via the global LRU (technical debt). Opus design, Sonnet refine and merge (PR #187). No golden moved |
 | **T20-28** | `c5063a0` | The ribbon's run clock reads the later of the poll's `elapsed_s` and the latest snapshot's `sim_time - started_at`, capped at the limit, so it never runs ahead of the plant (it was up to a second ahead, 3 of 25 samples in headless Firefox). Anchor and ratchet removed from `createRunClock`; `runTimes` carries `startedAt`. Known gap: after Try again on the same scenario a stale in-flight snapshot can show the old time for one snapshot; the fix is a run id in the snapshot (C4), unowned. No golden moved. Built on Opus, merged on Sonnet (PR #186). Browser-checked at desktop width |
 | **T20-27** | `7029111` | Escape from inside a trend window (title bar, Minimise, Close, span buttons) closes it and returns focus to its opener; the key stops at the window, so the canvas's page-wide listener does not also close a faceplate behind it. Reproduced in headless Firefox first. No golden moved. Built on Opus, merged on Sonnet (PR #185). Browser-checked at desktop width |
 | **T20-26** | `bdecfae` | Free play runs the separator at `separator_normal` (`config.FREE_PLAY_PLANT`/`FREE_PLAY_CONDITION`), with FIC-301, LIC-301 and PIC-301 in AUTO: the user's decision of 19 October 2026. The 182 tests that read olefins_lite tags through free play pin it with a module-scoped `olefins_free_play` fixture (helper in `tests/free_play.py`). No golden moved. Built on Opus, merged on Sonnet (PR #184). Browser-checked at desktop width |
-| **T20-25** | `098f867` | Try again keeps keyboard focus after a refusal: the button is disabled during its request, which drops focus to the page body, so Escape closed a faceplate instead of the result panel. `tryAgain` now gives focus back when it was dropped and the panel is still open. Found in the desktop re-check of T20-22's panel. Built on Sonnet (PR #183) |
 
 **ADRs on `main`:** [0001](../../docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md)
 (+ Amendment 1) and [0002](../../docs/ADR_0002_TYPED_PORTS.md) (+ Amendments
@@ -34,22 +34,21 @@ No task is Blocked. CI runs on every PR, and `main` requires its
 
 ## Milestone progress
 
-Complete: **M0-M9, M12-M14, M16-M18, MR**. Open:
+Complete: **M0-M9, M12-M18, MR**. Open:
 
 | Milestone | Done | Complete / startable |
 |---|---|---|
 | **M10** Alarms | 5/6 | T10-1, T10-2, T10-3, T10-5, T10-6; T10-4 startable (V1.1-deferred) |
 | **M11** Interlocks and Trips | 3/4 | T11-1, T11-2, T11-3; T11-4 startable (V1.1-deferred) |
-| **M15** Action Log and Scoring | 5/6 | T15-1 to T15-5; T15-6 (name the unnecessary actions in the debrief) is startable, needs a short design call first |
 | **M20** Console Redesign | 27/28 | T20-1 to T20-23 and T20-25 to T20-28; T20-24 (phone width, deferred by the user) is startable |
 | M19 | 0 | - |
 
-**157 of 164 tasks Complete.** Checkpoints A-D reached: T20-17 met D's last
+**158 of 164 tasks Complete.** Checkpoints A-D reached: T20-17 met D's last
 gate ("loops reject an injected disturbance") on the separator plant.
 
 ## The next task
 
-**Startable:** **T15-6** (M15; shape not yet decided, Opus first). In M20: **T20-24**, the phone-width gameplay pass the user
+**Startable:** in M20, **T20-24**, the phone-width gameplay pass the user
 deferred (16 October 2026) until desktop is right. Also startable but
 deferred: T10-4 and T11-4 (V1.1), T19-1 and T19-2 (V2).
 

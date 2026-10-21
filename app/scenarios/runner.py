@@ -99,6 +99,8 @@ relevant exactly when its tag is listed: an action on any other tag counts in
 at or after the first alarm. Nothing is derived from the plant. Loading only
 refuses a list that cannot be right - a tag the plant lacks, or a loop-driven
 device without its loop, which the operator can only command through it.
+The result names the actions that counted (`unnecessary_actions`, T15-6),
+taken when the metrics are, so the list and the count are one reading.
 
 Not here: `seed` is carried into the result and drives nothing - the plant
 has no random source yet. Objective and trigger results are as
@@ -139,7 +141,7 @@ from app.plant.loader import CONFIG_SUFFIXES, Plant, load_plant, read_plant_conf
 from app.plant.validate import validate
 from app.scenarios.objectives import ObjectiveEvaluator, ObjectiveResult, ObjectiveStatus
 from app.scenarios.triggers import TriggerEvaluator
-from app.scoring.actionlog import ActionLog
+from app.scoring.actionlog import ActionEvent, ActionLog
 from app.scoring.metrics import RunMetrics
 from app.scoring.score import PlantScoring, Score, ScoringConfig, score_run, scoring_config_from_yaml
 from app.statetypes import JSONValue
@@ -425,7 +427,8 @@ class ScenarioResult:
     too. It is not in `as_dict`, whose digest `RunInputs.end_state` pins.
 
     `metrics` and `score` are set once the run is COMPLETE, never before and
-    never for an aborted run.
+    never for an aborted run. So is `unnecessary_actions`: the rows of
+    `actions` that `metrics.unnecessary_actions` counts, in log order.
     """
 
     scenario_id: str
@@ -441,6 +444,7 @@ class ScenarioResult:
     started_at: float
     metrics: RunMetrics | None = None
     score: Score | None = None
+    unnecessary_actions: tuple[Mapping[str, Any], ...] | None = None
 
     def as_dict(self) -> dict[str, Any]:
         # Any: a JSON document for the API, whose values are all JSON-safe.
@@ -460,6 +464,11 @@ class ScenarioResult:
             "actions": [dict(action) for action in self.actions],
             "score": self.score.as_dict() if self.score is not None else None,
             "metrics": self.metrics.as_dict() if self.metrics is not None else None,
+            "unnecessary_actions": (
+                [dict(action) for action in self.unnecessary_actions]
+                if self.unnecessary_actions is not None
+                else None
+            ),
         }
 
 
@@ -573,6 +582,7 @@ class _Run:
     journal: list[Tick] = field(default_factory=list)
     metrics: RunMetrics | None = None
     score: Score | None = None
+    unnecessary: tuple[Mapping[str, Any], ...] | None = None
 
     @property
     def engine(self) -> Engine:
@@ -953,7 +963,14 @@ class ScenarioRunner:
         run.phase = Phase.COMPLETE
         run.ended_at = view.sim_time
         run.outcome = _outcome(run.results)
-        run.metrics = run.runtime.metrics(lambda action: action.tag in run.relevant, run.outcome.value)
+
+        def is_relevant(action: ActionEvent) -> bool:
+            return action.tag in run.relevant
+
+        run.metrics = run.runtime.metrics(is_relevant, run.outcome.value)
+        run.unnecessary = tuple(
+            row for event, row in zip(run.actions, _actions(run), strict=True) if not is_relevant(event)
+        )
         run.score = score_run(run.metrics, run.scoring)
 
     @staticmethod
@@ -977,6 +994,7 @@ class ScenarioRunner:
             started_at=run.origin,
             metrics=run.metrics,
             score=run.score,
+            unnecessary_actions=run.unnecessary,
         )
 
 

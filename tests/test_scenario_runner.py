@@ -978,6 +978,46 @@ def test_an_action_on_an_unlisted_tag_is_unnecessary_and_one_on_a_listed_tag_is_
     assert runner.result().metrics.unnecessary_actions == 1
 
 
+def test_the_result_names_each_unnecessary_action_in_log_order():
+    runner = started()
+    run_for(runner, 2)
+    first = runner.act("PIC-101", "set_setpoint", 200.0)
+    runner.act("P-101", "start", None)
+    second = runner.act("PIC-101", "manual", None)
+    runner.act("P-101", "set_speed_target", 1.0)
+    run_out(runner)
+
+    result = runner.result()
+    assert result.unnecessary_actions == (
+        {"sim_time": first, "tag": "PIC-101", "action": "set_setpoint", "value": 200.0},
+        {"sim_time": second, "tag": "PIC-101", "action": "manual", "value": None},
+    )
+    assert len(result.unnecessary_actions) == result.metrics.unnecessary_actions
+    body = json.loads(json.dumps(result.as_dict()))
+    assert body["unnecessary_actions"] == [dict(row) for row in result.unnecessary_actions]
+
+
+def test_a_run_with_only_listed_actions_names_none():
+    runner = started()
+    recover(runner)
+    run_out(runner)
+
+    assert runner.result().unnecessary_actions == ()
+    assert runner.result().as_dict()["unnecessary_actions"] == []
+
+
+def test_no_unnecessary_actions_are_named_before_the_run_is_scored():
+    runner = started()
+    runner.act("PIC-101", "set_setpoint", 200.0)
+
+    assert runner.result().unnecessary_actions is None
+    assert runner.result().as_dict()["unnecessary_actions"] is None
+
+    runner.abort()
+
+    assert runner.result().as_dict()["unnecessary_actions"] is None
+
+
 def test_recognition_waits_for_the_first_action_on_a_listed_tag():
     runner = started()
     run_for(runner, 5)

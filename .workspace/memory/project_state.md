@@ -8,10 +8,10 @@ regrowth rule is in [.claude/rules/docs.md](../../.claude/rules/docs.md).
 
 ## Right now
 
-**Last state refresh:** 20 October 2026, at `7029111` (Merge T20-27, PR #185: Escape closes a trend window) - **this is a snapshot,
-not a live pointer.** Run `git log 7029111..HEAD --oneline` to see what has
+**Last state refresh:** 20 October 2026, at `c5063a0` (Merge T20-28, PR #186: ribbon run clock from `started_at`) - **this is a snapshot,
+not a live pointer.** Run `git log c5063a0..HEAD --oneline` to see what has
 merged since.
-**Full suite as of this refresh:** **4359 passed** · `python -m mypy` clean over 89 source files · no golden trace movement
+**Full suite as of this refresh:** **4364 passed** · `python -m mypy` clean over 89 source files · no golden trace movement
 **In flight:** nothing. The spine lock and the `app/main.py` lock are free.
 No task is Blocked. CI runs on every PR, and `main` requires its
 `test` check before a merge.
@@ -21,12 +21,12 @@ No task is Blocked. CI runs on every PR, and `main` requires its
 
 | Task | SHA | What landed |
 |---|---|---|
+| **T20-28** | `c5063a0` | The ribbon's run clock reads the later of the poll's `elapsed_s` and the latest snapshot's `sim_time - started_at`, capped at the limit, so it never runs ahead of the plant (it was up to a second ahead, 3 of 25 samples in headless Firefox). Anchor and ratchet removed from `createRunClock`; `runTimes` carries `startedAt`. Known gap: after Try again on the same scenario a stale in-flight snapshot can show the old time for one snapshot; the fix is a run id in the snapshot (C4), unowned. No golden moved. Built on Opus, merged on Sonnet (PR #186). Browser-checked at desktop width |
 | **T20-27** | `7029111` | Escape from inside a trend window (title bar, Minimise, Close, span buttons) closes it and returns focus to its opener; the key stops at the window, so the canvas's page-wide listener does not also close a faceplate behind it. Reproduced in headless Firefox first. No golden moved. Built on Opus, merged on Sonnet (PR #185). Browser-checked at desktop width |
 | **T20-26** | `bdecfae` | Free play runs the separator at `separator_normal` (`config.FREE_PLAY_PLANT`/`FREE_PLAY_CONDITION`), with FIC-301, LIC-301 and PIC-301 in AUTO: the user's decision of 19 October 2026. The 182 tests that read olefins_lite tags through free play pin it with a module-scoped `olefins_free_play` fixture (helper in `tests/free_play.py`). No golden moved. Built on Opus, merged on Sonnet (PR #184). Browser-checked at desktop width |
 | **T20-25** | `098f867` | Try again keeps keyboard focus after a refusal: the button is disabled during its request, which drops focus to the page body, so Escape closed a faceplate instead of the result panel. `tryAgain` now gives focus back when it was dropped and the panel is still open. Found in the desktop re-check of T20-22's panel. Built on Sonnet (PR #183) |
 | **T20-23** | `cc078a7` | Run time, not the plant clock, while a scenario stands: `public_result` gains `started_at` (the plant clock at run time zero, every phase but idle; C5 additive, kept out of `as_dict` so the replay end-state digest is unchanged), and `static/js/clock.js` formats a time from that one origin, which the console seeds from the page and the ribbon's scenario poll moves. The alarm list's Raised column, the trend windows (axis, labels, markers, request window; ticks on round run times; negative before the run) and the Home strip's "Run time mm:ss" read through it; free play is unchanged. `Standing` carries `elapsed_s` and `started_at` instead of `sim_time`. No golden moved. Built on Opus (PR #182). Browser-checked on pump_trip; the debrief panel's Escape, focus and failed Try again were not re-checked |
 | **T20-22** | `d8edf4a` | Result and debrief panel on the console: `static/js/debrief.js` reads the ribbon's existing scenario poll (`onResult`, no second poll) and, once a run is complete or aborted, opens a non-modal dialog over the canvas with the outcome in words and a glyph, run time, the score and what counted against it ("in full", "partly", "a little", worded from a table keyed by `config/scoring.yaml`'s penalty names, which a test keeps in step), and the debrief. It opens itself once per finished run (keeping focus where an operator is typing), a ribbon Result button reopens it, Try again loads and starts the same scenario, and nothing of the outcome or score renders while a run is loaded or running. The run controls gain `adopt`, `say`, `resync` and a shared `timedFetch`. No golden moved. Built on Opus, review fixes on Sonnet (PR #181). Browser-checked one scenario per plant, pass and fail, before the review fixes |
-| **T20-19** | `d6a7ddd` | Redesign acceptance pass at desktop width (phone moved to T20-24): all ten scenarios played to a pass and to a fail in headless Firefox with real input events, one by keyboard only, an alarm marker seen on a trend. Fixes: each scenario shows its own plant on the Home page (`CatalogueEntry.plant`), keyboard focus after Start or Stop, a favicon, the prototype's canvas hint. The pass found that a finished run shows no result on the console (T20-22), and that alarms and trends show the plant clock (T20-23). Built on Opus (PR #180) |
 
 **ADRs on `main`:** [0001](../../docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md)
 (+ Amendment 1) and [0002](../../docs/ADR_0002_TYPED_PORTS.md) (+ Amendments
@@ -40,10 +40,10 @@ Complete: **M0-M9, M12-M18, MR**. Open:
 |---|---|---|
 | **M10** Alarms | 5/6 | T10-1, T10-2, T10-3, T10-5, T10-6; T10-4 startable (V1.1-deferred) |
 | **M11** Interlocks and Trips | 3/4 | T11-1, T11-2, T11-3; T11-4 startable (V1.1-deferred) |
-| **M20** Console Redesign | 26/27 | T20-1 to T20-23 and T20-25 to T20-27; T20-24 (phone width, deferred by the user) is startable |
+| **M20** Console Redesign | 27/28 | T20-1 to T20-23 and T20-25 to T20-28; T20-24 (phone width, deferred by the user) is startable |
 | M19 | 0 | - |
 
-**153 of 159 tasks Complete.** Checkpoints A-D reached: T20-17 met D's last
+**155 of 161 tasks Complete.** Checkpoints A-D reached: T20-17 met D's last
 gate ("loops reject an injected disturbance") on the separator plant.
 
 ## The next task

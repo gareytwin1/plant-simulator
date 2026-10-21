@@ -19,6 +19,7 @@ from app.engine.persistence import capture_state
 from app.plant.validate import validate
 from app.scenarios.replay import Recording, replay
 from app.scenarios.runner import Outcome, Phase, ScenarioRunner
+from app.scoring.score import load_scoring_config
 
 
 CONFIG = Path(__file__).resolve().parent.parent / "config"
@@ -150,7 +151,9 @@ def test_each_scenario_counts_one_action_on_an_unlisted_tag_as_unnecessary(scena
 
     assert result.outcome is Outcome.SUCCEEDED
     assert result.metrics.unnecessary_actions == 1
-    assert result.score.penalties["unnecessary_actions"] == pytest.approx(1 / 5)
+    assert result.score.penalties["unnecessary_actions"] == pytest.approx(
+        1 / load_scoring_config().scales["unnecessary_actions"]
+    )
 
 
 @pytest.mark.parametrize("scenario_id", IDS)

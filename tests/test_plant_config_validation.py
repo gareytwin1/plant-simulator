@@ -281,3 +281,19 @@ def test_unique_items_refuses_a_repeated_item_and_names_it():
 
     assert validate(["a", "b"], unique) == []
     assert validate(["a", "b", "a"], unique) == ["$: item 'a' appears more than once"]
+
+
+def test_unique_items_tells_a_boolean_from_the_number_it_equals():
+    unique = {"type": "array", "uniqueItems": True}
+
+    assert validate([1, True, 0, False], unique) == []
+    assert validate([True, True], unique) == ["$: item True appears more than once"]
+
+
+def test_unique_items_compares_mappings_and_lists_by_value():
+    unique = {"type": "array", "uniqueItems": True}
+
+    assert validate([{"a": 1, "b": [1, 2]}, {"b": [1, 2], "a": 1}], unique) == [
+        "$: item {'b': [1, 2], 'a': 1} appears more than once",
+    ]
+    assert validate([{"a": 1}, {"a": True}, [1], [True]], unique) == []

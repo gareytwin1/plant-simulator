@@ -6,7 +6,8 @@
  * minutes, its limit bands and alarm markers, on a vertical scale that widens
  * but never narrows while the span is unchanged. A window moves and resizes by
  * pointer and by keyboard, minimises to a tray that shows its value, and
- * closes. Opening a point that is already open raises its window.
+ * closes from its Close button or on Escape from inside it. Opening a point
+ * that is already open raises its window.
  *
  * One timer tick serves every open window. It asks for the trend listing, the
  * history of all their points at the widest open span (one /api/trend
@@ -527,6 +528,15 @@
       });
       node.addEventListener("pointerdown", function () {
         raise(win);
+      });
+      // Escape belongs to whatever has focus: from inside a window it closes
+      // that window only, so no page-wide listener (the canvas's, closing a
+      // faceplate) acts on it too.
+      node.addEventListener("keydown", function (event) {
+        if (event.key !== "Escape") return;
+        event.preventDefault();
+        event.stopPropagation();
+        closeWindow(win.point, true);
       });
       bar.addEventListener("keydown", function (event) {
         // An arrow on the Minimise or Close button is not a move.

@@ -512,6 +512,55 @@ def test_closing_a_window_returns_focus_to_what_opened_it(free):
 
 
 @needs_node
+def test_escape_from_inside_a_window_closes_it_and_returns_focus_to_its_opener(free):
+    result = run_scene(
+        f"""
+        const s = await boot();
+        const reading = make('text', {{ tabindex: '0' }}, s.workspace);
+        const out = {{}};
+        for (const target of ['.tw-bar', '[data-tw="minimise"]', '[data-tw="close"]', '[data-span="5"]']) {{
+          await open(s, '{LEVEL}', reading);
+          const event = win(s, '{LEVEL}').querySelector(target).fire('keydown', {{ key: 'Escape' }});
+          out[target] = {{ open: s.tw.isOpen('{LEVEL}'), windows: s.layer.children.length,
+                          focus: doc.activeElement === reading, prevented: event.defaultPrevented }};
+        }}
+        return out;
+        """,
+        free,
+    )
+
+    closed = {"open": False, "windows": 0, "focus": True, "prevented": True}
+    assert result == {
+        ".tw-bar": closed,
+        '[data-tw="minimise"]': closed,
+        '[data-tw="close"]': closed,
+        '[data-span="5"]': closed,
+    }
+
+
+@needs_node
+def test_escape_closes_only_the_window_holding_focus_and_reaches_no_other_listener(free):
+    result = run_scene(
+        f"""
+        const s = await boot();
+        let reached = 0;
+        // Stands in for the canvas's page-wide listener, which would close a faceplate.
+        doc.addEventListener('keydown', event => {{ if (event.key === 'Escape') reached++; }});
+        await open(s, '{LEVEL}');
+        await open(s, '{NODE}');
+        part(win(s, '{LEVEL}'), 'tw-bar').fire('keydown', {{ key: 'Escape' }});
+        const after = {{ level: s.tw.isOpen('{LEVEL}'), node: s.tw.isOpen('{NODE}'), reached }};
+        // Escape from outside every window leaves the open one alone.
+        s.workspace.fire('keydown', {{ key: 'Escape' }});
+        return {{ after, outside: {{ node: s.tw.isOpen('{NODE}'), reached }} }};
+        """,
+        free,
+    )
+
+    assert result == {"after": {"level": False, "node": True, "reached": 0}, "outside": {"node": True, "reached": 1}}
+
+
+@needs_node
 def test_each_points_geometry_and_span_come_back_in_the_same_session(free):
     stored = {LEVEL: {"x": 120, "y": 90, "w": 380, "h": 250, "span": 30}}
     result = run_scene(

@@ -55,7 +55,7 @@ import threading
 import time
 from collections.abc import Callable, Collection, Iterable
 
-from flask import Flask, Response, jsonify, request
+from flask import Flask, Response, g, jsonify, request
 from flask.typing import ResponseReturnValue
 from werkzeug.exceptions import HTTPException
 
@@ -287,19 +287,23 @@ def install(
     `live_session` returns the id of the live session the request's cookie
     names, or None; it must neither create a session nor touch one.
     `address_ceiling`, when given, is also drawn from by every session-keyed
-    request, keyed by the client address.
+    request, keyed by the client address. Every request leaves that address
+    in `g.client_address`, so a later hook names the same client without
+    reading the proxy headers again.
     """
     app.config["MAX_CONTENT_LENGTH"] = config.API_MAX_BODY_BYTES
     proxies = parse_trusted_proxies(trusted_proxies)
 
     @app.before_request
     def enforce_rate_limit() -> ResponseReturnValue | None:
+        forwarded = request.headers.getlist("X-Forwarded-For")
+        address = client_key(request.remote_addr, ",".join(forwarded) if forwarded else None, proxies)
+        g.client_address = address
+
         # A probe that is throttled cannot tell a busy server from a dead one.
         if request.endpoint == "static" or request.blueprint == "health":
             return None
 
-        forwarded = request.headers.getlist("X-Forwarded-For")
-        address = client_key(request.remote_addr, ",".join(forwarded) if forwarded else None, proxies)
         session_id = live_session()
 
         if session_id is None:

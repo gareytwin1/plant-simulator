@@ -79,18 +79,25 @@ MAX_SESSIONS = 32
 
 # API boundary
 #
-# The rate limit is per client address. A console polls once a second and
-# sends at most ten slider updates a second. Behind a reverse proxy, list the
-# proxy's addresses or CIDRs in API_TRUSTED_PROXIES (env PLANT_TRUSTED_PROXIES,
-# comma-separated) and each client behind it gets its own bucket, read from
-# X-Forwarded-For. Empty trusts no one: every request keys on its peer address
-# and the header is ignored. Clients behind a shared NAT still share a bucket.
-# Forwarded entries may carry a port (1.2.3.4:5678, [::1]:5678). See T18-8.
+# The rate limit is per live session, else per client address (T18-10). A
+# console polls once a second and sends at most ten slider updates a second.
+# A request without a live session - a first page load, an unknown cookie -
+# keys on its address. A session-keyed request also draws from the address
+# ceiling, ten times the per-session numbers (200 requests a second against
+# about 2 for an open console, so about 100 consoles fit), so one address
+# cannot multiply its allowance by minting sessions. Behind a reverse proxy,
+# list the proxy's addresses or CIDRs in API_TRUSTED_PROXIES (env
+# PLANT_TRUSTED_PROXIES, comma-separated) and each client behind it gets its
+# own address, read from X-Forwarded-For. Empty trusts no one: every request
+# keys on its peer address and the header is ignored. Forwarded entries may
+# carry a port (1.2.3.4:5678, [::1]:5678). See T18-8.
 
 API_MAX_BODY_BYTES = 4096
 API_MAX_MAGNITUDE = 1_000_000.0
 API_RATE_PER_SECOND = 20.0
 API_RATE_BURST = 100.0
+API_ADDRESS_RATE_PER_SECOND = 10 * API_RATE_PER_SECOND
+API_ADDRESS_RATE_BURST = 10 * API_RATE_BURST
 
 
 def trusted_proxies_from_env(value: str) -> tuple[str, ...]:

@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from flask import Flask
+from flask import Flask, request
 
 from app import config, main
 from app.alarms.acknowledge import Acknowledged
@@ -523,7 +523,8 @@ from app import main, config
 from app.api import validate
 
 main.rate_limiter = validate.RateLimiter(rate=1.0, burst=1.0, clock=lambda: 0.0)
-client = main.app.test_client()
+# No cookies: a live session would take the request out of its address's bucket.
+client = main.app.test_client(use_cookies=False)
 
 
 def get(peer, forwarded_for):
@@ -565,7 +566,7 @@ def test_the_live_app_rate_limits_and_refuses_before_creating_a_session(monkeypa
     created = []
     real_create = main.sessions.create
     monkeypatch.setattr(main.sessions, "create", lambda sid: created.append(sid) or real_create(sid))
-    client = main.app.test_client()
+    client = main.app.test_client(use_cookies=False)
 
     first = client.get("/api/snapshot")
     second = client.get("/api/snapshot")
@@ -573,3 +574,159 @@ def test_the_live_app_rate_limits_and_refuses_before_creating_a_session(monkeypa
     assert first.status_code == 200
     assert second.status_code == 429
     assert len(created) == 1
+
+
+# ---- per-session buckets (T18-10) ----
+
+
+def session_client(live, burst=1.0, ceiling_burst=None):
+    """An app whose live sessions are the ids in `live`, keyed from a `sid` cookie."""
+    app = Flask(__name__)
+    clock = FakeClock()
+    limiter = validate.RateLimiter(rate=1.0, burst=burst, clock=clock)
+    ceiling = None if ceiling_burst is None else validate.RateLimiter(rate=1.0, burst=ceiling_burst, clock=clock)
+
+    def live_session():
+        session_id = request.cookies.get("sid")
+        return session_id if session_id in live else None
+
+    validate.install(
+        app,
+        lambda: limiter,
+        live_session=live_session,
+        address_ceiling=None if ceiling is None else (lambda: ceiling),
+    )
+
+    @app.get("/api/ping")
+    def ping():
+        return {"ok": True}
+
+    client = app.test_client(use_cookies=False)
+
+    def get(session_id=None, peer="192.0.2.1"):
+        headers = {"Cookie": f"sid={session_id}"} if session_id else {}
+        return client.get("/api/ping", headers=headers, environ_base={"REMOTE_ADDR": peer}).status_code
+
+    return get
+
+
+def test_live_sessions_behind_one_address_are_limited_independently():
+    get = session_client(live={"a", "b"})
+
+    assert get("a") == 200
+    assert get("a") == 429
+    assert get("b") == 200
+    assert get() == 200
+
+
+def test_a_request_without_a_live_session_draws_from_its_address():
+    get = session_client(live={"a"})
+
+    assert get("unknown") == 200
+    assert get() == 429
+    assert get(peer="192.0.2.2") == 200
+    assert get("a") == 200
+
+
+def test_rotating_invented_cookies_earns_no_fresh_bucket():
+    get = session_client(live=set())
+
+    statuses = [get(f"forged-{n}") for n in range(4)]
+
+    assert statuses == [200, 429, 429, 429]
+
+
+def test_a_session_id_cannot_share_an_address_bucket():
+    get = session_client(live={"192.0.2.1"})
+
+    assert get() == 200
+    assert get("192.0.2.1") == 200
+
+
+def test_sessions_behind_one_address_share_its_ceiling():
+    get = session_client(live={"a", "b", "c"}, burst=5.0, ceiling_burst=3.0)
+
+    assert [get(sid) for sid in ("a", "b", "c")] == [200, 200, 200]
+    assert [get(sid) for sid in ("a", "b", "c")] == [429, 429, 429]
+    assert get(peer="192.0.2.2") == 200
+    assert get("a", peer="192.0.2.2") == 200
+
+
+def test_a_session_refused_by_its_own_bucket_does_not_drain_the_ceiling():
+    get = session_client(live={"a", "b"}, burst=1.0, ceiling_burst=3.0)
+
+    assert [get("a") for _ in range(6)] == [200, 429, 429, 429, 429, 429]
+    assert get("b") == 200
+
+
+def test_a_request_over_the_address_ceiling_is_refused_with_retry_after():
+    app = Flask(__name__)
+    clock = FakeClock()
+    session_limiter = validate.RateLimiter(rate=1.0, burst=5.0, clock=clock)
+    ceiling = validate.RateLimiter(rate=1.0, burst=1.0, clock=clock)
+    validate.install(
+        app,
+        lambda: session_limiter,
+        live_session=lambda: "a",
+        address_ceiling=lambda: ceiling,
+    )
+
+    @app.get("/api/ping")
+    def ping():
+        return {"ok": True}
+
+    client = app.test_client()
+    first = client.get("/api/ping")
+    refused = client.get("/api/ping")
+
+    assert first.status_code == 200
+    assert refused.status_code == 429
+    assert refused.headers["Retry-After"] == "1"
+    assert "rate limit exceeded" in refused.get_json()["error"]
+
+
+def test_the_live_app_caps_an_address_that_mints_sessions(monkeypatch):
+    monkeypatch.setattr(main, "rate_limiter", validate.RateLimiter(rate=1.0, burst=1000.0, clock=FakeClock()))
+    monkeypatch.setattr(main, "address_ceiling", validate.RateLimiter(rate=1.0, burst=3.0, clock=FakeClock()))
+    minted = []
+    for _ in range(3):
+        response = main.app.test_client(use_cookies=False).get("/api/snapshot")
+        assert response.status_code == 200
+        minted.append(response.headers["Set-Cookie"].split(";")[0])
+    client = main.app.test_client(use_cookies=False)
+
+    statuses = [client.get("/api/snapshot", headers={"Cookie": minted[n % 3]}).status_code for n in range(6)]
+
+    assert statuses == [200, 200, 200, 429, 429, 429]
+
+
+def test_the_live_app_gives_each_session_its_own_bucket(monkeypatch):
+    monkeypatch.setattr(main, "rate_limiter", validate.RateLimiter(rate=1.0, burst=2.0, clock=FakeClock()))
+    first, second = main.app.test_client(), main.app.test_client()
+
+    # Each first request draws from the shared address bucket and earns a session.
+    assert first.get("/api/snapshot").status_code == 200
+    assert second.get("/api/snapshot").status_code == 200
+
+    assert [first.get("/api/snapshot").status_code for _ in range(3)] == [200, 200, 429]
+    assert [second.get("/api/snapshot").status_code for _ in range(3)] == [200, 200, 429]
+    assert main.app.test_client().get("/api/snapshot").status_code == 429
+
+
+def test_the_live_app_keys_on_a_session_without_creating_or_touching_one(monkeypatch):
+    monkeypatch.setattr(main, "rate_limiter", validate.RateLimiter(rate=1.0, burst=1.0, clock=FakeClock()))
+    client = main.app.test_client()
+    assert client.get("/api/snapshot").status_code == 200
+    session_id = client.get_cookie(main.SESSION_COOKIE).value
+    calls = []
+    monkeypatch.setattr(main.sessions, "get", lambda sid: calls.append(("get", sid)))
+    monkeypatch.setattr(main.sessions, "create", lambda sid: calls.append(("create", sid)))
+
+    with main.app.test_request_context(headers={"Cookie": f"{main.SESSION_COOKIE}={session_id}"}):
+        assert main._live_session_id() == session_id
+    with main.app.test_request_context(headers={"Cookie": f"{main.SESSION_COOKIE}=forged"}):
+        assert main._live_session_id() is None
+    with main.app.test_request_context():
+        assert main._live_session_id() is None
+
+    assert calls == []

@@ -21,13 +21,30 @@ before it can create a session.
 per process, which matches the one-worker deployment `SessionRegistry`
 already assumes.
 
-`client_key` names the bucket (T18-8). X-Forwarded-For is client-supplied, so
-it is read only when the peer itself is a configured trusted proxy, and then
-only right to left past trusted hops: everything left of the first untrusted
-entry was written by whoever that client is. With no trusted proxy the key is
-the peer address, as before. An allow-list of addresses rather than werkzeug's
-ProxyFix hop count, because a hop count trusts the header from any peer, and
-the Gunicorn port may be reachable without the proxy.
+A request whose session cookie names a live session draws from that
+session's bucket (T18-10), so trainees behind one shared address do not
+throttle each other. Any other request - no cookie, or one naming no live
+session - draws from its address's bucket, so inventing a cookie earns no
+fresh bucket. A session can still be minted for the price of one address
+token, so a session-keyed request also draws from the address ceiling, a
+looser bucket sized for a classroom: an address cannot multiply its
+allowance by holding many sessions. The ceiling is drawn only by a request
+its session bucket granted, so one session hammering its own bucket cannot
+drain the ceiling its neighbours share. A request the ceiling then refuses
+has already drawn its session token, which only costs that session.
+
+A session counts as live for keying until the registry sweeps it, so a
+request carrying an idle-expired cookie that is not yet swept is charged to
+that session's bucket, not the address's.
+
+`client_key` names the address bucket (T18-8). X-Forwarded-For is
+client-supplied, so it is read only when the peer itself is a configured
+trusted proxy, and then only right to left past trusted hops: everything left
+of the first untrusted entry was written by whoever that client is. With no
+trusted proxy the key is the peer address, as before. An allow-list of
+addresses rather than werkzeug's ProxyFix hop count, because a hop count
+trusts the header from any peer, and the Gunicorn port may be reachable
+without the proxy.
 """
 
 from __future__ import annotations
@@ -259,12 +276,18 @@ def install(
     app: Flask,
     limiter: Callable[[], RateLimiter],
     trusted_proxies: Iterable[str] = (),
+    live_session: Callable[[], str | None] = lambda: None,
+    address_ceiling: Callable[[], RateLimiter] | None = None,
 ) -> None:
     """Add the body cap, JSON API errors and rate limit to `app`.
 
     `limiter` is resolved on every request, so a caller can swap the live
     limiter without re-registering the hook. `trusted_proxies` are the peers
     whose X-Forwarded-For is believed; a bad entry raises here, at startup.
+    `live_session` returns the id of the live session the request's cookie
+    names, or None; it must neither create a session nor touch one.
+    `address_ceiling`, when given, is also drawn from by every session-keyed
+    request, keyed by the client address.
     """
     app.config["MAX_CONTENT_LENGTH"] = config.API_MAX_BODY_BYTES
     proxies = parse_trusted_proxies(trusted_proxies)
@@ -276,9 +299,17 @@ def install(
             return None
 
         forwarded = request.headers.getlist("X-Forwarded-For")
-        key = client_key(request.remote_addr, ",".join(forwarded) if forwarded else None, proxies)
+        address = client_key(request.remote_addr, ",".join(forwarded) if forwarded else None, proxies)
+        session_id = live_session()
 
-        wait = limiter().acquire(key)
+        if session_id is None:
+            wait = limiter().acquire(address)
+        else:
+            # Namespaced, so no session id can share an address's bucket.
+            wait = limiter().acquire(f"session:{session_id}")
+            if wait == 0.0 and address_ceiling is not None:
+                wait = address_ceiling().acquire(address)
+
         if wait == 0.0:
             return None
 

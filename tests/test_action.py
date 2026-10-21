@@ -660,6 +660,7 @@ def test_a_scenario_run_with_loop_actions_replays_bit_for_bit():
             "plant": "olefins_lite",
             "initial_condition": {"condition": "normal_operation"},
             "objectives": [{"id": "hold", "success": {"condition": "V-101.level >= 0.0", "hold_duration_s": 60}}],
+            "relevant_tags": ["PIC-101"],
             "time_limit_s": 120,
             "difficulty": "easy",
             "seed": 3,

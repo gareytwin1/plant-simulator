@@ -558,6 +558,7 @@ class _Run:
     triggers: TriggerEvaluator
     objectives: ObjectiveEvaluator
     objective_ids: tuple[str, ...]
+    relevant: frozenset[str]
     phase: Phase = Phase.LOADED
     outcome: Outcome | None = None
     ended_at: float | None = None
@@ -887,6 +888,7 @@ class ScenarioRunner:
         malfunctions.validate(armed)
         triggers.validate(armed)
         objectives.validate(armed)
+        relevant = _relevant_tags(config["relevant_tags"], runtime)
 
         return _Run(
             config=copy.deepcopy(config),
@@ -904,6 +906,7 @@ class ScenarioRunner:
             triggers=triggers,
             objectives=objectives,
             objective_ids=tuple(entry["id"] for entry in config.get("objectives", [])),
+            relevant=relevant,
         )
 
     def _end_state(self, run: _Run) -> str:
@@ -994,6 +997,29 @@ def _actions(run: _Run) -> tuple[Mapping[str, Any], ...]:
         }
         for event in run.actions
     )
+
+
+def _relevant_tags(tags: Sequence[str], runtime: PlantRuntime) -> frozenset[str]:
+    """`tags` as the run's relevant set, once each names a device, loop or
+    interlock on the plant and every loop-driven device in it comes with its
+    loop. Nothing is added: the scenario's list is the whole set."""
+    engine = runtime.engine
+    known = set(engine.equipment) | set(engine.loops) | set(runtime.trips.interlocks)
+
+    unknown = [tag for tag in tags if tag not in known]
+    if unknown:
+        raise ScenarioConfigError(
+            f"relevant_tags {unknown} are not devices, loops or interlocks on this plant, only {sorted(known)}",
+        )
+
+    for loop, binding in engine.loops.items():
+        if binding.out_tag in tags and loop not in tags:
+            raise ScenarioConfigError(
+                f"relevant_tags: {binding.out_tag} is driven by loop {loop}, which is commanded in its place; "
+                f"list {loop} too",
+            )
+
+    return frozenset(tags)
 
 
 def _every_action_relevant(action: ActionEvent) -> bool:

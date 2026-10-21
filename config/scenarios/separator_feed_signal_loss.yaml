@@ -31,6 +31,7 @@ objectives:
   - id: hold-drum-level
     success: {condition: V-301.level <= 0.55, hold_duration_s: 300}
     failure: {condition: V-301.level >= 0.8}
+relevant_tags: [FV-301, FIC-301, XV-301, LV-301, LIC-301]
 time_limit_s: 900
 difficulty: medium
 seed: 109

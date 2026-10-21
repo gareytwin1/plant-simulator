@@ -3,7 +3,7 @@
   "$id": "https://plant-simulator/config/schema/scenario.schema.json",
   "title": "Scenario file (contract C8)",
   "type": "object",
-  "required": ["id", "plant", "initial_condition", "time_limit_s", "difficulty", "seed"],
+  "required": ["id", "plant", "initial_condition", "relevant_tags", "time_limit_s", "difficulty", "seed"],
   "additionalProperties": false,
   "properties": {
     "id": {"type": "string", "minLength": 1},
@@ -112,6 +112,13 @@
           }
         }
       }
+    },
+    "relevant_tags": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1},
+      "description": "The devices, loops and interlocks whose operation bears on this scenario's fault. An action on any other tag counts as unnecessary in the score. List the faulted device, every tag the documented recovery operates, every final control element that directly changes a variable the objectives name, and every interlock the fault latches if left alone - each loop-driven device together with its loop, since the device is commanded only through it. Every tag must be on the scenario's plant."
     },
     "time_limit_s": {"type": "number", "minimum": 0},
     "difficulty": {"type": "string", "enum": ["easy", "medium", "hard"]},

@@ -268,7 +268,7 @@ def test_the_catalogue_is_easiest_first_and_carries_no_description():
 def test_the_catalogue_falls_back_to_the_id_without_a_title(tmp_path):
     (tmp_path / "plain.yaml").write_text(
         "id: plain\nplant: olefins_lite\ninitial_condition: {condition: normal_operation}\n"
-        "time_limit_s: 60\ndifficulty: easy\nseed: 1\n",
+        "relevant_tags: [P-101]\ntime_limit_s: 60\ndifficulty: easy\nseed: 1\n",
     )
 
     (entry,) = ScenarioLibrary(scenarios=tmp_path).catalogue()
@@ -279,7 +279,7 @@ def test_the_catalogue_falls_back_to_the_id_without_a_title(tmp_path):
 def test_the_catalogue_refuses_an_id_that_is_not_the_file_name(tmp_path):
     (tmp_path / "plain.yaml").write_text(
         "id: other\nplant: olefins_lite\ninitial_condition: {condition: normal_operation}\n"
-        "time_limit_s: 60\ndifficulty: easy\nseed: 1\n",
+        "relevant_tags: [P-101]\ntime_limit_s: 60\ndifficulty: easy\nseed: 1\n",
     )
 
     with pytest.raises(ScenarioConfigError, match="plain.yaml"):

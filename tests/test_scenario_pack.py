@@ -130,6 +130,17 @@ def test_each_scenario_fails_with_no_response(scenario_id):
     assert result.elapsed_s < result.time_limit_s
 
 
+@pytest.mark.parametrize("scenario_id", IDS)
+def test_the_interlocks_a_scenario_lists_are_the_ones_its_fault_latches_if_left_alone(scenario_id):
+    runner = run(scenario_id)
+
+    interlocks = set(runner._run.runtime.trips.interlocks)
+    latched = {record.tag for record in runner._run.runtime.trip_records()}
+    listed = set(yaml.safe_load((SCENARIOS / f"{scenario_id}.yaml").read_text())["relevant_tags"])
+
+    assert listed & interlocks == latched
+
+
 def test_a_stuck_valve_ignores_the_demand_to_close():
     runner = run("stuck_drain_valve", CORRECT_RESPONSES["stuck_drain_valve"])
 

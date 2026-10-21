@@ -59,6 +59,7 @@ def scenario(**changes):
                 "failure": {"condition": "V-101.level <= 0.1"},
             },
         ],
+        "relevant_tags": ["P-101", "LV-101"],
         "time_limit_s": 900,
         "difficulty": "easy",
         "seed": 7,
@@ -579,6 +580,26 @@ BAD_CONFIGS = {
         ValueError,
         "nope",
     ),
+    "no relevant tags": (
+        lambda: {key: value for key, value in scenario().items() if key != "relevant_tags"},
+        ScenarioConfigError,
+        "relevant_tags",
+    ),
+    "a relevant tag the plant lacks": (
+        lambda: scenario(relevant_tags=["P-101", "X-999"]),
+        ScenarioConfigError,
+        "X-999",
+    ),
+    "a point named as a relevant tag": (
+        lambda: scenario(relevant_tags=["V-101.level"]),
+        ScenarioConfigError,
+        "V-101.level",
+    ),
+    "a loop-driven device without its loop": (
+        lambda: scenario(relevant_tags=["P-101", "PV-101"]),
+        ScenarioConfigError,
+        "PV-101 is driven by loop PIC-101",
+    ),
 }
 
 
@@ -593,6 +614,14 @@ def test_a_bad_scenario_is_refused_and_leaves_the_loaded_run_untouched(make, err
 
     assert runner.result().scenario_id == "first"
     assert capture_state(runner.engine) == armed
+
+
+def test_a_relevant_tag_may_be_a_device_a_loop_or_an_interlock():
+    runner = ScenarioRunner()
+
+    runner.load_config(scenario(relevant_tags=["P-101", "PV-101", "PIC-101", "LSLL-101"]))
+
+    assert runner.phase is Phase.LOADED
 
 
 def test_a_condition_for_another_plant_is_refused():
@@ -629,6 +658,7 @@ def test_a_scenario_is_read_from_the_library_by_id(tmp_path):
         "id: pump-trip\n"
         "plant: olefins_lite\n"
         "initial_condition: {condition: feed_pump_trip}\n"
+        "relevant_tags: [P-101, LV-101]\n"
         "time_limit_s: 60\n"
         "difficulty: easy\n"
         "seed: 1\n",

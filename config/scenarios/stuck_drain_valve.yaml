@@ -22,6 +22,7 @@ objectives:
   - id: refill-vessel
     success: {condition: V-101.level >= 0.25, hold_duration_s: 20}
     failure: {condition: V-101.level <= 0.1}
+relevant_tags: [LV-101, P-101]
 time_limit_s: 600
 difficulty: hard
 seed: 106

@@ -42,6 +42,7 @@ def valid_scenario():
                 "failure": {"condition": "K-101.tripped"},
             },
         ],
+        "relevant_tags": ["K-101"],
         "time_limit_s": 1800.0,
         "difficulty": "medium",
         "seed": 42,
@@ -70,6 +71,26 @@ def test_missing_required_top_level_key_fails():
     errors = validate(scenario, SCHEMA)
 
     assert errors == ["$: missing required property 'seed'"]
+
+
+def test_relevant_tags_are_required():
+    scenario = valid_scenario()
+    del scenario["relevant_tags"]
+
+    assert validate(scenario, SCHEMA) == ["$: missing required property 'relevant_tags'"]
+
+
+@pytest.mark.parametrize("tags, error", [
+    ([], "$.relevant_tags: has 0 items, fewer than the minimum of 1"),
+    (["K-101", "K-101"], "$.relevant_tags: item 'K-101' appears more than once"),
+    ([""], "$.relevant_tags[0]: length 0 is below the minimum of 1"),
+    ("K-101", "$.relevant_tags: expected array, got string"),
+])
+def test_relevant_tags_are_a_non_empty_list_of_distinct_tags(tags, error):
+    scenario = valid_scenario()
+    scenario["relevant_tags"] = tags
+
+    assert validate(scenario, SCHEMA) == [error]
 
 
 def test_unknown_top_level_key_rejected():

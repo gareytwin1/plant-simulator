@@ -584,12 +584,12 @@ def test_the_clock_reads_whole_minutes_and_seconds(seconds, text):
 
 
 @needs_node
-def test_between_polls_the_clock_follows_the_plants_sim_time_and_stops_at_the_limit():
+def test_while_running_the_clock_reads_the_latest_snapshot_from_the_runs_start_and_stops_at_the_limit():
     got = run_js(
         """
         const clock = R.createRunClock();
         clock.snapshot(1000);
-        clock.result("running", { elapsed: 10, limit: 30 });
+        clock.result("running", { elapsed: 10, limit: 30, startedAt: 990 });
         const seen = [clock.read()];
         clock.snapshot(1005); seen.push(clock.read());
         clock.snapshot(1100); seen.push(clock.read());
@@ -601,22 +601,61 @@ def test_between_polls_the_clock_follows_the_plants_sim_time_and_stops_at_the_li
 
 
 @needs_node
-def test_a_poll_that_lands_behind_the_last_snapshot_holds_the_clock_rather_than_rewinding_it():
+def test_a_poll_answering_after_a_snapshot_never_carries_the_clock_past_the_plant():
+    # The poll measured elapsed_s at plant time 1004 and answered while the
+    # page's last snapshot was 1003; the snapshot at 1004 is the same moment.
     got = run_js(
         """
         const clock = R.createRunClock();
-        clock.snapshot(1000);
-        clock.result("running", { elapsed: 10, limit: 900 });
+        clock.result("running", { elapsed: 12, limit: 900, startedAt: 990 });
         clock.snapshot(1003);
         const before = clock.read();
-        clock.result("running", { elapsed: 12, limit: 900 });
+        clock.result("running", { elapsed: 14, limit: 900, startedAt: 990 });
+        const polled = clock.read();
+        clock.snapshot(1004);
+        const same = clock.read();
+        clock.snapshot(1005);
+        return { before, polled, same, after: clock.read() };
+        """,
+    )
+
+    assert got == pytest.approx({"before": 13, "polled": 14, "same": 14, "after": 15})
+
+
+@needs_node
+def test_a_poll_that_lands_behind_the_last_snapshot_neither_rewinds_the_clock_nor_moves_it_on():
+    got = run_js(
+        """
+        const clock = R.createRunClock();
+        clock.result("running", { elapsed: 10, limit: 900, startedAt: 990 });
+        clock.snapshot(1003);
+        const before = clock.read();
+        clock.result("running", { elapsed: 12, limit: 900, startedAt: 990 });
         const held = clock.read();
         clock.snapshot(1005);
         return { before, held, after: clock.read() };
         """,
     )
 
-    assert got == pytest.approx({"before": 13, "held": 13, "after": 14})
+    assert got == pytest.approx({"before": 13, "held": 13, "after": 15})
+
+
+@needs_node
+def test_before_any_snapshot_after_a_result_the_clock_shows_that_results_elapsed_time():
+    got = run_js(
+        """
+        const clock = R.createRunClock();
+        clock.snapshot(400);
+        clock.result("running", { elapsed: 7, limit: 900, startedAt: 990 });
+        const first = clock.read();
+        const noOrigin = R.createRunClock();
+        noOrigin.result("running", { elapsed: 7, limit: 900, startedAt: null });
+        noOrigin.snapshot(2000);
+        return { first, noOrigin: noOrigin.read() };
+        """,
+    )
+
+    assert got == pytest.approx({"first": 7, "noOrigin": 7})
 
 
 @needs_node
@@ -625,13 +664,13 @@ def test_outside_a_running_run_the_clock_shows_exactly_what_the_server_says():
         """
         const clock = R.createRunClock();
         clock.snapshot(1000);
-        clock.result("running", { elapsed: 40, limit: 900 });
+        clock.result("running", { elapsed: 40, limit: 900, startedAt: 960 });
         clock.snapshot(1010);
         const running = clock.read();
-        clock.result("aborted", { elapsed: 45, limit: 900 });
+        clock.result("aborted", { elapsed: 45, limit: 900, startedAt: 960 });
         clock.snapshot(1020);
         const aborted = clock.read();
-        clock.result("loaded", { elapsed: 0, limit: 600 });
+        clock.result("loaded", { elapsed: 0, limit: 600, startedAt: 500 });
         clock.snapshot(1030);
         return { running, aborted, loaded: clock.read(), text: R.clockText(clock.read(), clock.times()),
           free: R.clockText(null, null) };
@@ -643,27 +682,38 @@ def test_outside_a_running_run_the_clock_shows_exactly_what_the_server_says():
 
 @needs_node
 def test_a_new_run_between_two_polls_restarts_the_clock_rather_than_holding_the_old_one():
+    # Try again on the same scenario starts from the same saved plant clock,
+    # so the new run's started_at can equal the old one's.
     got = run_js(
         """
         const clock = R.createRunClock();
-        clock.snapshot(1000);
-        clock.result("running", { elapsed: 300, limit: 900 });
+        clock.result("running", { elapsed: 300, limit: 900, startedAt: 500 });
+        clock.snapshot(800);
         const old = clock.read();
-        clock.result("running", { elapsed: 4, limit: 900 });
+        clock.result("running", { elapsed: 4, limit: 900, startedAt: 500 });
         const restarted = clock.read();
-        clock.result("running", { elapsed: 5, limit: 600 });
-        return { old, restarted, other: clock.read() };
+        clock.snapshot(505);
+        const following = clock.read();
+        clock.result("running", { elapsed: 5, limit: 600, startedAt: 2000 });
+        const other = clock.read();
+        clock.snapshot(1990);
+        return { old, restarted, following, other, early: clock.read() };
         """,
     )
 
-    assert got == pytest.approx({"old": 300, "restarted": 4, "other": 5})
+    assert got == pytest.approx({"old": 300, "restarted": 4, "following": 5, "other": 5, "early": 5})
 
 
 @needs_node
 @pytest.mark.parametrize(
     ("status", "body", "expected"),
     [
-        (200, {"phase": "running", "elapsed_s": 12.5, "time_limit_s": 900}, {"elapsed": 12.5, "limit": 900}),
+        (
+            200,
+            {"phase": "running", "elapsed_s": 12.5, "time_limit_s": 900, "started_at": 500.0},
+            {"elapsed": 12.5, "limit": 900, "startedAt": 500.0},
+        ),
+        (200, {"phase": "running", "elapsed_s": 12.5, "time_limit_s": 900}, {"elapsed": 12.5, "limit": 900, "startedAt": None}),
         (409, None, None),
         (500, None, None),
         (200, {"phase": "running"}, None),

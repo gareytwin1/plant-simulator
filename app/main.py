@@ -68,8 +68,21 @@ def _request_sim_time() -> float | None:
 plant_logging.configure(sim_time=_request_sim_time)
 plant_logging.log_requests(app, _request_sim_time)
 
+
+def _live_session_id() -> str | None:
+    # peek(), so keying the rate limit neither creates a session nor keeps one alive.
+    session_id = request.cookies.get(SESSION_COOKIE)
+
+    return session_id if session_id and sessions.peek(session_id) is not None else None
+
+
 # First, so a refused request never reaches the session hook below.
-validate.install(app, lambda: rate_limiter, trusted_proxies=config.API_TRUSTED_PROXIES)
+validate.install(
+    app,
+    lambda: rate_limiter,
+    trusted_proxies=config.API_TRUSTED_PROXIES,
+    live_session=_live_session_id,
+)
 
 
 def _health_schedulers() -> dict[str, Scheduler]:

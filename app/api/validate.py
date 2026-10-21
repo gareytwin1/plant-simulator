@@ -21,10 +21,16 @@ before it can create a session.
 per process, which matches the one-worker deployment `SessionRegistry`
 already assumes.
 
-`client_key` names the bucket (T18-8). X-Forwarded-For is client-supplied, so
-it is read only when the peer itself is a configured trusted proxy, and then
-only right to left past trusted hops: everything left of the first untrusted
-entry was written by whoever that client is. With no trusted proxy the key is
+A request whose session cookie names a live session draws from that
+session's bucket (T18-10), so trainees behind one shared address do not
+throttle each other. Any other request - no cookie, or one naming no live
+session - draws from its address's bucket, so inventing or rotating cookies
+earns no fresh bucket, and a new session is only ever made from that one.
+
+`client_key` names the address bucket (T18-8). X-Forwarded-For is
+client-supplied, so it is read only when the peer itself is a configured
+trusted proxy, and then only right to left past trusted hops: everything left
+of the first untrusted entry was written by whoever that client is. With no trusted proxy the key is
 the peer address, as before. An allow-list of addresses rather than werkzeug's
 ProxyFix hop count, because a hop count trusts the header from any peer, and
 the Gunicorn port may be reachable without the proxy.
@@ -259,12 +265,15 @@ def install(
     app: Flask,
     limiter: Callable[[], RateLimiter],
     trusted_proxies: Iterable[str] = (),
+    live_session: Callable[[], str | None] = lambda: None,
 ) -> None:
     """Add the body cap, JSON API errors and rate limit to `app`.
 
     `limiter` is resolved on every request, so a caller can swap the live
     limiter without re-registering the hook. `trusted_proxies` are the peers
     whose X-Forwarded-For is believed; a bad entry raises here, at startup.
+    `live_session` returns the id of the live session the request's cookie
+    names, or None; it must neither create a session nor touch one.
     """
     app.config["MAX_CONTENT_LENGTH"] = config.API_MAX_BODY_BYTES
     proxies = parse_trusted_proxies(trusted_proxies)
@@ -275,8 +284,13 @@ def install(
         if request.endpoint == "static" or request.blueprint == "health":
             return None
 
-        forwarded = request.headers.getlist("X-Forwarded-For")
-        key = client_key(request.remote_addr, ",".join(forwarded) if forwarded else None, proxies)
+        session_id = live_session()
+        if session_id is not None:
+            # Namespaced, so no session id can share an address's bucket.
+            key = f"session:{session_id}"
+        else:
+            forwarded = request.headers.getlist("X-Forwarded-For")
+            key = client_key(request.remote_addr, ",".join(forwarded) if forwarded else None, proxies)
 
         wait = limiter().acquire(key)
         if wait == 0.0:

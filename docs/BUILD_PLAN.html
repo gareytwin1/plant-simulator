@@ -827,6 +827,7 @@ states: NORM -> UNACK_ACTIVE -> ACK_ACTIVE -> NORM
 <pre>Malfunction(target_tag, parameter, value, profile, start_condition)
 Scenario(initial_condition, malfunctions[], triggers[],
          objectives[], time_limit_s, difficulty, seed)</pre>
+      <p><strong>A scenario declares which tags bear on its fault</strong> (decided 2026-10-21, built by T15-5): <code>relevant_tags</code> is required, a non-empty list of distinct devices, loops and interlocks on its plant. An operator action on any other tag counts as unnecessary in the score, and time to recognise runs to the first listed action after the first alarm. A loop-driven device is listed together with its loop. Nothing is derived from the plant.</p>
       <p><strong>A malfunction may only write parameters an engineer could change</strong> &mdash; a valve position limit, a heat transfer coefficient, a line resistance, an instrument bias. It may never write a solver output. A stuck valve sets a position limit; it does not set flow. Task <span class="path">T13-5</span> enforces this with a test.</p>
     </div>
   </details>

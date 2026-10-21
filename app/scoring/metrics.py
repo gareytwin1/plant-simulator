@@ -44,10 +44,9 @@ weighs or grades.
                            caller's label, in that variable's own unit times
                            seconds. Never summed across variables.
     unnecessary_actions    ActionLog: actions the caller's `is_relevant`
-                           rejects. Relevance ("moved a relevant variable
-                           toward target") needs the scenario's targets and
-                           a device's direction of effect, which none of the
-                           three inputs carry, so the scenario supplies it.
+                           rejects. None of the inputs knows which tags bear
+                           on a fault, so the caller supplies it: a scenario
+                           run passes its own `relevant_tags` (T15-5).
 
 **In a live run (T20-15)** `PlantRuntime` records the alarm history (clear
 records included) and a `TripRecord` for each interlock that latches. It

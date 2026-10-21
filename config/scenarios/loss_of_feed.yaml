@@ -25,6 +25,7 @@ objectives:
   - id: protect-level
     success: {condition: V-101.level >= 0.4, hold_duration_s: 900}
     failure: {condition: V-101.level <= 0.3}
+relevant_tags: [P-101, LV-101]
 time_limit_s: 1200
 difficulty: medium
 seed: 103

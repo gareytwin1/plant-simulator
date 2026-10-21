@@ -333,6 +333,7 @@ def test_arming_a_scenario_refuses_feed_gas_the_plant_cannot_release(tmp_path):
         "plant": "feed",
         "initial_condition": {"condition": "fresh"},
         "malfunctions": [{"target_tag": "V-301", "parameter": "feed_gas_ratio", "value": RATIO}],
+        "relevant_tags": ["V-301"],
         "time_limit_s": 60,
         "difficulty": "easy",
         "seed": 1,

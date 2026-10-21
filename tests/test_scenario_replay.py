@@ -54,6 +54,7 @@ def scenario(**changes):
                 "failure": {"condition": "V-101.level <= 0.1"},
             },
         ],
+        "relevant_tags": ["P-101", "LV-101"],
         "time_limit_s": 900,
         "difficulty": "easy",
         "seed": 7,

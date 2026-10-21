@@ -35,6 +35,7 @@ SCENARIO = (
     "objectives:\n"
     "  - id: recover-level\n"
     "    success: {condition: 'V-101.level >= 0.25', hold_duration_s: 20}\n"
+    "relevant_tags: [P-101, LV-101]\n"
     "time_limit_s: 900\n"
     "difficulty: easy\n"
     "seed: 7\n"

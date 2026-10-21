@@ -19,6 +19,7 @@ from app.engine.persistence import capture_state
 from app.plant.validate import validate
 from app.scenarios.replay import Recording, replay
 from app.scenarios.runner import Outcome, Phase, ScenarioRunner
+from app.scoring.score import load_scoring_config
 
 
 CONFIG = Path(__file__).resolve().parent.parent / "config"
@@ -40,6 +41,21 @@ CORRECT_RESPONSES = {
     "separator_vent_restriction": {60: [("FIC-301", "set_setpoint", 25.0)]},
     "separator_feed_signal_loss": {60: [("XV-301", "set_position_target", 0.22)]},
     "separator_drain_signal_loss": {60: [("FIC-301", "set_setpoint", 70.0)]},
+}
+
+# An accepted action on a tag the scenario does not list, which leaves the
+# plant where it was: a setpoint or position moved to the value it already has.
+UNLISTED = {
+    "pump_trip": ("PIC-101", "set_setpoint", 200.0),
+    "loss_of_feed": ("PIC-101", "set_setpoint", 200.0),
+    "blocked_drain": ("PIC-101", "set_setpoint", 200.0),
+    "stuck_drain_valve": ("PIC-101", "set_setpoint", 200.0),
+    "compressor_trip": ("LV-101", "set_position_target", 0.5),
+    "restricted_discharge": ("LV-101", "set_position_target", 0.5),
+    "separator_drain_restriction": ("PIC-301", "set_setpoint", 200.0),
+    "separator_feed_signal_loss": ("PIC-301", "set_setpoint", 200.0),
+    "separator_drain_signal_loss": ("PIC-301", "set_setpoint", 200.0),
+    "separator_vent_restriction": ("LIC-301", "set_setpoint", 0.5),
 }
 
 IDS = sorted(CORRECT_RESPONSES)
@@ -118,6 +134,26 @@ def test_each_scenario_runs_to_completion_under_the_correct_response(scenario_id
     assert result.phase is Phase.COMPLETE
     assert result.outcome is Outcome.SUCCEEDED
     assert result.elapsed_s < result.time_limit_s
+    assert result.metrics.unnecessary_actions == 0
+
+
+@pytest.mark.parametrize("scenario_id", IDS)
+def test_each_scenario_counts_one_action_on_an_unlisted_tag_as_unnecessary(scenario_id):
+    listed = yaml.safe_load((SCENARIOS / f"{scenario_id}.yaml").read_text())["relevant_tags"]
+    target, *_ = UNLISTED[scenario_id]
+    assert target not in listed
+
+    script = dict(CORRECT_RESPONSES[scenario_id])
+    (tick,) = script
+    script[tick] = script[tick] + [UNLISTED[scenario_id]]
+
+    result = run(scenario_id, script).result()
+
+    assert result.outcome is Outcome.SUCCEEDED
+    assert result.metrics.unnecessary_actions == 1
+    assert result.score.penalties["unnecessary_actions"] == pytest.approx(
+        1 / load_scoring_config().scales["unnecessary_actions"]
+    )
 
 
 @pytest.mark.parametrize("scenario_id", IDS)
@@ -128,6 +164,17 @@ def test_each_scenario_fails_with_no_response(scenario_id):
     assert result.phase is Phase.COMPLETE
     assert result.outcome is Outcome.FAILED
     assert result.elapsed_s < result.time_limit_s
+
+
+@pytest.mark.parametrize("scenario_id", IDS)
+def test_the_interlocks_a_scenario_lists_are_the_ones_its_fault_latches_if_left_alone(scenario_id):
+    runner = run(scenario_id)
+
+    interlocks = set(runner._run.runtime.trips.interlocks)
+    latched = {record.tag for record in runner._run.runtime.trip_records()}
+    listed = set(yaml.safe_load((SCENARIOS / f"{scenario_id}.yaml").read_text())["relevant_tags"])
+
+    assert listed & interlocks == latched
 
 
 def test_a_stuck_valve_ignores_the_demand_to_close():

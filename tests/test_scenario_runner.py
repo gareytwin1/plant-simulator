@@ -59,6 +59,7 @@ def scenario(**changes):
                 "failure": {"condition": "V-101.level <= 0.1"},
             },
         ],
+        "relevant_tags": ["P-101", "LV-101"],
         "time_limit_s": 900,
         "difficulty": "easy",
         "seed": 7,
@@ -579,6 +580,26 @@ BAD_CONFIGS = {
         ValueError,
         "nope",
     ),
+    "no relevant tags": (
+        lambda: {key: value for key, value in scenario().items() if key != "relevant_tags"},
+        ScenarioConfigError,
+        "relevant_tags",
+    ),
+    "a relevant tag the plant lacks": (
+        lambda: scenario(relevant_tags=["P-101", "X-999"]),
+        ScenarioConfigError,
+        "X-999",
+    ),
+    "a point named as a relevant tag": (
+        lambda: scenario(relevant_tags=["V-101.level"]),
+        ScenarioConfigError,
+        "V-101.level",
+    ),
+    "a loop-driven device without its loop": (
+        lambda: scenario(relevant_tags=["P-101", "PV-101"]),
+        ScenarioConfigError,
+        "PV-101 is driven by loop PIC-101",
+    ),
 }
 
 
@@ -593,6 +614,14 @@ def test_a_bad_scenario_is_refused_and_leaves_the_loaded_run_untouched(make, err
 
     assert runner.result().scenario_id == "first"
     assert capture_state(runner.engine) == armed
+
+
+def test_a_relevant_tag_may_be_a_device_a_loop_or_an_interlock():
+    runner = ScenarioRunner()
+
+    runner.load_config(scenario(relevant_tags=["P-101", "PV-101", "PIC-101", "LSLL-101"]))
+
+    assert runner.phase is Phase.LOADED
 
 
 def test_a_condition_for_another_plant_is_refused():
@@ -629,6 +658,7 @@ def test_a_scenario_is_read_from_the_library_by_id(tmp_path):
         "id: pump-trip\n"
         "plant: olefins_lite\n"
         "initial_condition: {condition: feed_pump_trip}\n"
+        "relevant_tags: [P-101, LV-101]\n"
         "time_limit_s: 60\n"
         "difficulty: easy\n"
         "seed: 1\n",
@@ -854,7 +884,7 @@ def test_a_completed_run_is_scored_from_its_own_log_history_and_trackers(recover
         runner.actions,
         SimpleNamespace(entries=runner.alarm_entries),
         excursions,
-        lambda action: True,
+        lambda action: action.tag in scenario()["relevant_tags"],
         throughput,
         trips=runner._run.runtime.trip_records(),
         outcome=runner.result().outcome.value,
@@ -927,6 +957,51 @@ def test_the_score_is_in_the_json_result():
     assert body["score"]["total"] == runner.result().score.total
     assert set(body["score"]["penalties"]) == set(load_scoring_config().weights)
     assert body["metrics"]["production_lost"]["LV-101.flow"] > 0.0
+
+
+# ---- which actions were relevant (T15-5) ----
+
+
+def first_alarm(runner):
+    """The run's first alarm, in scenario time."""
+    return min(entry.sim_time for entry in runner.alarm_entries()) - runner.result().started_at
+
+
+def test_an_action_on_an_unlisted_tag_is_unnecessary_and_one_on_a_listed_tag_is_not():
+    runner = started()
+    runner.act("PIC-101", "set_setpoint", 200.0)
+    runner.act("P-101", "start", None)
+    runner.act("P-101", "set_speed_target", 1.0)
+    run_out(runner)
+
+    assert runner.result().outcome is Outcome.SUCCEEDED
+    assert runner.result().metrics.unnecessary_actions == 1
+
+
+def test_recognition_waits_for_the_first_action_on_a_listed_tag():
+    runner = started()
+    run_for(runner, 5)
+    runner.act("PIC-101", "set_setpoint", 200.0)
+    run_for(runner, 5)
+    relevant_at = runner.act("P-101", "start", None)
+    runner.act("P-101", "set_speed_target", 1.0)
+    run_out(runner)
+
+    alarmed_at = first_alarm(runner)
+    assert alarmed_at < 5.0
+    assert runner.result().metrics.time_to_recognise_s == pytest.approx(relevant_at - alarmed_at)
+
+
+def test_a_run_with_only_unlisted_actions_after_the_alarm_was_never_recognised():
+    runner = started()
+    run_for(runner, 5)
+    runner.act("PIC-101", "set_setpoint", 200.0)
+    run_out(runner)
+
+    metrics = runner.result().metrics
+    assert metrics.alarm_count > 0
+    assert metrics.unnecessary_actions == 1
+    assert metrics.time_to_recognise_s is None
 
 
 # ---- the outcome and the run's own trips (T20-21) ----

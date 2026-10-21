@@ -5,9 +5,11 @@ Walks the schema generically rather than hard-coding plant fields, so a
 schema-only change (new equipment type, new limit field) never requires a
 validator change. Supports the subset of JSON Schema the plant config
 actually uses: type (one name, or a list of them), enum, properties,
-required, additionalProperties, items, minItems, minLength, minimum,
-minProperties, and additionalProperties given as a subschema. A type name it
-does not know matches nothing, so a typo fails loudly instead of passing.
+required, additionalProperties, items, minItems, uniqueItems, minLength,
+minimum, minProperties, and additionalProperties given as a subschema. A type
+name it does not know matches nothing, so a typo fails loudly instead of
+passing. Items under uniqueItems are equal when their JSON text is, so 1 and
+true differ and 1 and 1.0 do too.
 
 Both the schema and the config it checks are decoded JSON of a shape
 nothing knows until it is walked — discovering that shape is the whole
@@ -114,6 +116,20 @@ def _check_object(value: Any, schema: Schema, path: str, errors: list[str]) -> N
 def _check_array(value: Any, schema: Schema, path: str, errors: list[str]) -> None:
     if "minItems" in schema and len(value) < schema["minItems"]:
         errors.append(f"{path}: has {len(value)} items, fewer than the minimum of {schema['minItems']}")
+
+    if schema.get("uniqueItems"):
+        seen: set[str] = set()
+        reported: set[str] = set()
+
+        for item in value:
+            # Keyed by JSON text, so True is not 1 and a mapping needs no hash.
+            key = json.dumps(item, sort_keys=True, default=repr)
+
+            if key in seen and key not in reported:
+                errors.append(f"{path}: item {item!r} appears more than once")
+                reported.add(key)
+
+            seen.add(key)
 
     items_schema = schema.get("items")
     if items_schema:

@@ -25,6 +25,7 @@ objectives:
   - id: restore-line-flow
     success: {condition: B-FV-201.flow <= -9.5, hold_duration_s: 120}
     failure: {condition: V-101.pressure <= 199.6}
+relevant_tags: [FV-201, K-101, PV-101, PIC-101]
 time_limit_s: 600
 difficulty: medium
 seed: 105

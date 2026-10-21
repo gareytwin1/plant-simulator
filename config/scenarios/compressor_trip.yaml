@@ -23,6 +23,7 @@ objectives:
   - id: restore-discharge
     success: {condition: N-204.pressure >= 300.0, hold_duration_s: 120}
     failure: {condition: V-101.pressure >= 215.0}
+relevant_tags: [K-101, FV-201, PV-101, PIC-101]
 time_limit_s: 1200
 difficulty: easy
 seed: 102

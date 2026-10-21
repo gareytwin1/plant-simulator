@@ -90,9 +90,15 @@ from every snapshot it publishes. When the last objective ends (or the time
 limit runs out) the run computes its `RunMetrics` from its own action log,
 alarm history and trackers, and its `Score` with `score_run`, once; the
 result carries both from then on. An aborted run is an attempt, not a
-result, and has neither. No scenario says which actions were relevant, so
-every action counts as relevant: `unnecessary_actions` is 0 and
-`time_to_recognise_s` runs to the first action of any kind.
+result, and has neither.
+
+**Relevance is the scenario's own list (T15-5).** `relevant_tags` names the
+devices, loops and interlocks that bear on the fault, and an action is
+relevant exactly when its tag is listed: an action on any other tag counts in
+`unnecessary_actions`, and `time_to_recognise_s` runs to the first listed one
+at or after the first alarm. Nothing is derived from the plant. Loading only
+refuses a list that cannot be right - a tag the plant lacks, or a loop-driven
+device without its loop, which the operator can only command through it.
 
 Not here: `seed` is carried into the result and drives nothing - the plant
 has no random source yet. Objective and trigger results are as
@@ -133,7 +139,7 @@ from app.plant.loader import CONFIG_SUFFIXES, Plant, load_plant, read_plant_conf
 from app.plant.validate import validate
 from app.scenarios.objectives import ObjectiveEvaluator, ObjectiveResult, ObjectiveStatus
 from app.scenarios.triggers import TriggerEvaluator
-from app.scoring.actionlog import ActionEvent, ActionLog
+from app.scoring.actionlog import ActionLog
 from app.scoring.metrics import RunMetrics
 from app.scoring.score import PlantScoring, Score, ScoringConfig, score_run, scoring_config_from_yaml
 from app.statetypes import JSONValue
@@ -947,7 +953,7 @@ class ScenarioRunner:
         run.phase = Phase.COMPLETE
         run.ended_at = view.sim_time
         run.outcome = _outcome(run.results)
-        run.metrics = run.runtime.metrics(_every_action_relevant, run.outcome.value)
+        run.metrics = run.runtime.metrics(lambda action: action.tag in run.relevant, run.outcome.value)
         run.score = score_run(run.metrics, run.scoring)
 
     @staticmethod
@@ -1020,11 +1026,6 @@ def _relevant_tags(tags: Sequence[str], runtime: PlantRuntime) -> frozenset[str]
             )
 
     return frozenset(tags)
-
-
-def _every_action_relevant(action: ActionEvent) -> bool:
-    """No scenario names which actions bear on its fault, so every one does."""
-    return True
 
 
 def _outcome(results: tuple[ObjectiveResult, ...]) -> Outcome:

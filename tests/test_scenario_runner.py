@@ -884,7 +884,7 @@ def test_a_completed_run_is_scored_from_its_own_log_history_and_trackers(recover
         runner.actions,
         SimpleNamespace(entries=runner.alarm_entries),
         excursions,
-        lambda action: True,
+        lambda action: action.tag in scenario()["relevant_tags"],
         throughput,
         trips=runner._run.runtime.trip_records(),
         outcome=runner.result().outcome.value,
@@ -957,6 +957,51 @@ def test_the_score_is_in_the_json_result():
     assert body["score"]["total"] == runner.result().score.total
     assert set(body["score"]["penalties"]) == set(load_scoring_config().weights)
     assert body["metrics"]["production_lost"]["LV-101.flow"] > 0.0
+
+
+# ---- which actions were relevant (T15-5) ----
+
+
+def first_alarm(runner):
+    """The run's first alarm, in scenario time."""
+    return min(entry.sim_time for entry in runner.alarm_entries()) - runner.result().started_at
+
+
+def test_an_action_on_an_unlisted_tag_is_unnecessary_and_one_on_a_listed_tag_is_not():
+    runner = started()
+    runner.act("PIC-101", "set_setpoint", 200.0)
+    runner.act("P-101", "start", None)
+    runner.act("P-101", "set_speed_target", 1.0)
+    run_out(runner)
+
+    assert runner.result().outcome is Outcome.SUCCEEDED
+    assert runner.result().metrics.unnecessary_actions == 1
+
+
+def test_recognition_waits_for_the_first_action_on_a_listed_tag():
+    runner = started()
+    run_for(runner, 5)
+    runner.act("PIC-101", "set_setpoint", 200.0)
+    run_for(runner, 5)
+    relevant_at = runner.act("P-101", "start", None)
+    runner.act("P-101", "set_speed_target", 1.0)
+    run_out(runner)
+
+    alarmed_at = first_alarm(runner)
+    assert alarmed_at < 5.0
+    assert runner.result().metrics.time_to_recognise_s == pytest.approx(relevant_at - alarmed_at)
+
+
+def test_a_run_with_only_unlisted_actions_after_the_alarm_was_never_recognised():
+    runner = started()
+    run_for(runner, 5)
+    runner.act("PIC-101", "set_setpoint", 200.0)
+    run_out(runner)
+
+    metrics = runner.result().metrics
+    assert metrics.alarm_count > 0
+    assert metrics.unnecessary_actions == 1
+    assert metrics.time_to_recognise_s is None
 
 
 # ---- the outcome and the run's own trips (T20-21) ----

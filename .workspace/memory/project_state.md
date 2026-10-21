@@ -144,6 +144,13 @@ scope, and item 1 in particular reads like a bug and is not.
   clock's new-run check. The fix is a run id in the snapshot, a C4 change, so
   it needs its own Opus task. A time-window heuristic would hide real lag; do
   not add one (roborev 1148, T20-28). Unowned.
+- **One address can churn other trainees' sessions.** A request with no
+  cookie draws only from its address bucket (20/s) and then mints a real
+  session; past `MAX_SESSIONS` each mint evicts the least recently used one
+  through the global LRU. True before T18-10 and still true: the per-address
+  ceiling bounds an address's request allowance, not its session minting. The
+  fix is a per-address live-session cap in `SessionRegistry` or a stricter
+  bucket charged per mint (roborev 1153, T18-10). Unowned.
 - **Contract-test discovery is import-order dependent**: `REGISTERED` in
   `tests/test_equipment_contract.py` is computed at import, so an `Equipment`
   subclass in a later-imported test module escapes the contract tests.

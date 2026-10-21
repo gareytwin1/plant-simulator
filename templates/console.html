@@ -133,7 +133,11 @@
       // Each consumer is isolated: connection.js does not guard this callback,
       // so a graphic that throws must not leave the controls on a stale snapshot.
       onSnapshot: function (snapshot) {
+        var hadRows = !!(latest && latest.controllers);
         latest = snapshot;
+        if (!hadRows && snapshot && snapshot.controllers && debrief) {
+          try { debrief.refresh(); } catch (error) { console.error(error); }
+        }
         try { graphic.update(snapshot); } catch (error) { console.error(error); }
         try { canvas.update(snapshot); } catch (error) { console.error(error); }
         try { trends.update(snapshot); } catch (error) { console.error(error); }

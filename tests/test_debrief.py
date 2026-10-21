@@ -328,6 +328,38 @@ def test_a_row_that_is_not_an_action_is_skipped_and_an_unscored_run_names_none()
 
 
 @needs_node
+def test_a_result_drawn_before_the_first_snapshot_is_reworded_once_loop_rows_exist():
+    got = run_js(
+        PAGE
+        + """
+        const { panel } = page('complete');
+        let rows = {};
+        const debrief = D.mount(doc, { fetch: async () => reply(500, null), loopRow: tag => rows[tag] || null });
+        const items = () => byClass(panel, 'debrief-unneeded').children.map(text);
+        debrief.refresh();
+        debrief.result(200, data.body);
+        const before = items();
+        rows = { 'LIC-101': { pv_unit: 'fraction' } };
+        debrief.refresh();
+        const after = items();
+        // A refresh with nothing new, or after the run is gone, changes nothing.
+        debrief.refresh();
+        debrief.result(409, null);
+        debrief.refresh();
+        return [before, after, items()];
+        """,
+        body=finished(
+            "failed",
+            unnecessary_actions=[{"sim_time": 5.0, "tag": "LIC-101", "action": "set_setpoint", "value": 0.5}],
+        ),
+    )
+
+    assert got[0] == ["00:05, Setpoint 0.5 for LIC-101"]
+    assert got[1] == ["00:05, Setpoint 50.0 % for LIC-101"]
+    assert got[2] == []
+
+
+@needs_node
 def test_the_panel_lists_the_unnecessary_actions_and_hides_the_list_when_there_are_none():
     got = run_js(
         PAGE

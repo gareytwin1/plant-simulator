@@ -359,6 +359,7 @@
     parseEntry: parseEntry,
     buildActionRequest: buildActionRequest,
     describeCommand: describeCommand,
+    capitalised: capitalised,
     acceptedText: acceptedText,
     pointValue: pointValue,
     readingLabel: readingLabel,

@@ -141,7 +141,7 @@ from app.plant.loader import CONFIG_SUFFIXES, Plant, load_plant, read_plant_conf
 from app.plant.validate import validate
 from app.scenarios.objectives import ObjectiveEvaluator, ObjectiveResult, ObjectiveStatus
 from app.scenarios.triggers import TriggerEvaluator
-from app.scoring.actionlog import ActionLog
+from app.scoring.actionlog import ActionEvent, ActionLog
 from app.scoring.metrics import RunMetrics
 from app.scoring.score import PlantScoring, Score, ScoringConfig, score_run, scoring_config_from_yaml
 from app.statetypes import JSONValue
@@ -963,8 +963,14 @@ class ScenarioRunner:
         run.phase = Phase.COMPLETE
         run.ended_at = view.sim_time
         run.outcome = _outcome(run.results)
-        run.metrics = run.runtime.metrics(lambda action: action.tag in run.relevant, run.outcome.value)
-        run.unnecessary = tuple(row for row in _actions(run) if row["tag"] not in run.relevant)
+
+        def is_relevant(action: ActionEvent) -> bool:
+            return action.tag in run.relevant
+
+        run.metrics = run.runtime.metrics(is_relevant, run.outcome.value)
+        run.unnecessary = tuple(
+            row for event, row in zip(run.actions, _actions(run), strict=True) if not is_relevant(event)
+        )
         run.score = score_run(run.metrics, run.scoring)
 
     @staticmethod

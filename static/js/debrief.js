@@ -124,7 +124,7 @@
     }).map(function (action) {
       var row = loopRow ? loopRow(action.tag) : null;
       var words = Faceplates.describeCommand(action.tag, action.action, action.value, row);
-      return { time: Ribbon.formatClock(action.sim_time), text: words.charAt(0).toUpperCase() + words.slice(1) };
+      return { time: Ribbon.formatClock(action.sim_time), text: Faceplates.capitalised(words) };
     });
   };
 
@@ -205,8 +205,9 @@
    * text)` gets a refusal when nothing was accepted and the panel is no longer
    * showing, for the ribbon's notice, and `options.onResync()` is called
    * when a request did not finish, so the ribbon can read the run again.
-   * Returns {result, open, close}: feed `result` every
-   * (status, body) the ribbon's scenario poll applies. */
+   * Returns {result, refresh, open, close}: feed `result` every
+   * (status, body) the ribbon's scenario poll applies, and call `refresh`
+   * when `options.loopRow` can first answer. */
   function mount(doc, options) {
     var settings = options || {};
     var doFetch = settings.fetch || root.fetch.bind(root);
@@ -276,6 +277,7 @@
     panel.appendChild(foot);
 
     var shown = null;
+    var lastBody = null;
     var opened = null;
     var opener = null;
     var busy = false;
@@ -297,6 +299,19 @@
       unneeded.textContent = "";
       text.textContent = "";
       notice.textContent = "";
+    }
+
+    function drawUnneeded(view) {
+      unneeded.textContent = "";
+      unneededHeading.hidden = !view.unneeded.length;
+      unneeded.hidden = !view.unneeded.length;
+      view.unneeded.forEach(function (action) {
+        var item = el(doc, "li");
+        item.appendChild(el(doc, "span", "debrief-when", action.time));
+        item.appendChild(el(doc, "span", "visually-hidden", ", "));
+        item.appendChild(el(doc, "span", "", action.text));
+        unneeded.appendChild(item);
+      });
     }
 
     function draw(view) {
@@ -324,15 +339,7 @@
         item.appendChild(el(doc, "span", "debrief-extent", cost.extent));
         costs.appendChild(item);
       });
-      unneededHeading.hidden = !view.unneeded.length;
-      unneeded.hidden = !view.unneeded.length;
-      view.unneeded.forEach(function (action) {
-        var item = el(doc, "li");
-        item.appendChild(el(doc, "span", "debrief-when", action.time));
-        item.appendChild(el(doc, "span", "visually-hidden", ", "));
-        item.appendChild(el(doc, "span", "", action.text));
-        unneeded.appendChild(item);
-      });
+      drawUnneeded(view);
       (view.debrief.length ? view.debrief : ["There is no debrief for this scenario."]).forEach(function (words) {
         text.appendChild(el(doc, "p", "", words));
       });
@@ -407,11 +414,24 @@
       }
       if (shown === null || shown.identity !== view.identity) draw(view);
       shown = view;
+      lastBody = body;
       if (button) button.hidden = false;
       if (opened !== view.identity) {
         opened = view.identity;
         open(null);
       }
+    }
+
+    /* The loop rows `settings.loopRow` reads arrive with the snapshots, so a
+     * result drawn before the first one worded a loop's command from the
+     * value alone: the console calls this once rows exist, and only the
+     * list is redrawn. */
+    function refresh() {
+      if (shown === null || lastBody === null) return;
+      var view = api.view(200, lastBody, settings.loopRow);
+      if (view === null || view.identity !== shown.identity) return;
+      shown = view;
+      drawUnneeded(view);
     }
 
     async function tryAgain() {
@@ -481,7 +501,7 @@
     setOpen(false);
     if (button) button.hidden = true;
 
-    return { result: result, open: open, close: function () { hide(true); } };
+    return { result: result, refresh: refresh, open: open, close: function () { hide(true); } };
   }
 
   api.mount = mount;

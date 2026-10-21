@@ -41,8 +41,8 @@ Flask routes  ·  app/main.py
 SessionRegistry[TrainingSession]  ·  app/engine/sessions.py
   │   one TrainingSession per cookie; end() stops and joins its worker,
   │   called directly, by SessionRegistry.end(), by idle-age reclaim
-  │   (config.SESSION_IDLE_SECONDS, T18-5) or by capacity-bounded LRU
-  │   eviction at config.MAX_SESSIONS
+  │   (config.SESSION_IDLE_SECONDS, T18-5) or by fair-share eviction
+  │   at config.MAX_SESSIONS (T18-11)
   ▼
 TrainingSession  ·  app/training/session.py     (below)
   ▼

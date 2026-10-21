@@ -48,7 +48,7 @@ gate ("loops reject an injected disturbance") on the separator plant.
 
 ## The next task
 
-**Startable:** in M20, **T20-24**, the phone-width gameplay pass the user
+**Startable:** **T18-11** (M18, Opus, spine and `app/main.py` locks): session creation evicts by fair share, aligned with the user 21 October 2026. In M20, **T20-24**, the phone-width gameplay pass the user
 deferred (16 October 2026) until desktop is right. Also startable but
 deferred: T10-4 and T11-4 (V1.1), T19-1 and T19-2 (V2).
 
@@ -150,7 +150,8 @@ scope, and item 1 in particular reads like a bug and is not.
   through the global LRU. True before T18-10 and still true: the per-address
   ceiling bounds an address's request allowance, not its session minting. The
   fix is a per-address live-session cap in `SessionRegistry` or a stricter
-  bucket charged per mint (roborev 1153, T18-10). Unowned.
+  bucket charged per mint (roborev 1153, T18-10). Owned by **T18-11**
+  (fair-share eviction; spec `.workspace/work/session-churn/spec.md`).
 - **Contract-test discovery is import-order dependent**: `REGISTERED` in
   `tests/test_equipment_contract.py` is computed at import, so an `Equipment`
   subclass in a later-imported test module escapes the contract tests.

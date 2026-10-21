@@ -7,10 +7,10 @@
  * clock and the alarm summary.
  *
  * The run clock is scenario time, never a wall clock: GET /api/scenario/result
- * gives the run's elapsed time and limit at each poll, and between polls the
- * console's snapshots carry it forward by how far the plant's own sim_time has
- * moved. While running it never steps backwards, so a poll that lands a moment
- * behind the last snapshot holds the clock rather than rewinding it.
+ * gives the run's elapsed time, limit and started_at at each poll, and while
+ * running the console's snapshots read it as sim_time minus started_at, the
+ * same origin the alarm list and trend windows use (static/js/clock.js), so
+ * the ribbon never shows a time the plant has not reached.
  *
  * Pause and Resume freeze and unfreeze the plant the session shows
  * (POST /api/simulation/pause and /resume, T20-14). They follow the snapshot's
@@ -118,12 +118,14 @@
     return Clock.run(Math.max(0, seconds));
   };
 
-  /* The run's elapsed time and limit from a result response, or null when it
-   * carries none (free play, a failure). */
+  /* The run's elapsed time, limit and start on the plant clock from a result
+   * response, or null when it carries no times (free play, a failure).
+   * `startedAt` is null when the body has none. */
   api.runTimes = function (status, body) {
     if (status !== 200 || body === null || typeof body !== "object") return null;
     if (typeof body.elapsed_s !== "number" || typeof body.time_limit_s !== "number") return null;
-    return { elapsed: body.elapsed_s, limit: body.time_limit_s };
+    var startedAt = typeof body.started_at === "number" ? body.started_at : null;
+    return { elapsed: body.elapsed_s, limit: body.time_limit_s, startedAt: startedAt };
   };
 
   api.clockText = function (elapsed, times) {
@@ -136,33 +138,32 @@
   api.createRunClock = function () {
     var phase = "idle";
     var times = null;
-    var anchor = null;
     var latest = null;
-    var shown = null;
 
     return {
       result: function (nextPhase, nextTimes) {
-        // A new phase, or a run that went back in time or changed its limit,
-        // is a different run: what the old one showed means nothing to it.
+        // A new phase, or a run that went back in time or changed its limit
+        // or start, is a different run: a snapshot seen before it belongs to
+        // the old one.
         var restarted = times !== null && nextTimes !== null &&
-          (nextTimes.elapsed < times.elapsed || nextTimes.limit !== times.limit);
-        if (nextPhase !== phase || restarted) shown = null;
+          (nextTimes.elapsed < times.elapsed || nextTimes.limit !== times.limit ||
+            nextTimes.startedAt !== times.startedAt);
+        if (nextPhase !== phase || restarted) latest = null;
         phase = nextPhase;
         times = nextTimes;
-        anchor = latest;
       },
       snapshot: function (simTime) {
         latest = simTime;
-        if (anchor === null) anchor = simTime;
       },
       read: function () {
         if (times === null) return null;
         var elapsed = times.elapsed;
-        if (phase === "running") {
-          if (anchor !== null && latest !== null) elapsed += Math.max(0, latest - anchor);
-          elapsed = Math.min(elapsed, times.limit);
-          if (shown !== null) elapsed = Math.max(elapsed, shown);
-          shown = elapsed;
+        // Both are times the plant has reached: the poll's, measured on the
+        // server, and the latest snapshot's from the run's start. The later
+        // one wins, so a poll answering after a snapshot neither rewinds the
+        // clock nor carries it past the plant.
+        if (phase === "running" && latest !== null && times.startedAt !== null) {
+          elapsed = Math.min(Math.max(elapsed, latest - times.startedAt), times.limit);
         }
         return elapsed;
       },

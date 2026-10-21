@@ -138,6 +138,12 @@ scope, and item 1 in particular reads like a bug and is not.
   blowdown: 2}` or `{blowdown: 300, set_pressure: 400}`. No plant configures a
   relief valve yet. The clean fix is the same design/configure hook as open
   decision 2. Unowned.
+- **The ribbon can show the old run's time for one snapshot after Try again
+  on the same scenario**: `started_at` is the loaded initial condition's plant
+  clock, so it repeats across reruns and a stale in-flight snapshot passes the
+  clock's new-run check. The fix is a run id in the snapshot, a C4 change, so
+  it needs its own Opus task. A time-window heuristic would hide real lag; do
+  not add one (roborev 1148, T20-28). Unowned.
 - **Contract-test discovery is import-order dependent**: `REGISTERED` in
   `tests/test_equipment_contract.py` is computed at import, so an `Equipment`
   subclass in a later-imported test module escapes the contract tests.

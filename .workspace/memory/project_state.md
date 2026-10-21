@@ -8,8 +8,8 @@ regrowth rule is in [.claude/rules/docs.md](../../.claude/rules/docs.md).
 
 ## Right now
 
-**Last state refresh:** 19 October 2026, at `bdecfae` (Merge T20-26, PR #184: free play runs on the separator) - **this is a snapshot,
-not a live pointer.** Run `git log bdecfae..HEAD --oneline` to see what has
+**Last state refresh:** 20 October 2026, at `7029111` (Merge T20-27, PR #185: Escape closes a trend window) - **this is a snapshot,
+not a live pointer.** Run `git log 7029111..HEAD --oneline` to see what has
 merged since.
 **Full suite as of this refresh:** **4359 passed** · `python -m mypy` clean over 89 source files · no golden trace movement
 **In flight:** nothing. The spine lock and the `app/main.py` lock are free.
@@ -21,12 +21,12 @@ No task is Blocked. CI runs on every PR, and `main` requires its
 
 | Task | SHA | What landed |
 |---|---|---|
+| **T20-27** | `7029111` | Escape from inside a trend window (title bar, Minimise, Close, span buttons) closes it and returns focus to its opener; the key stops at the window, so the canvas's page-wide listener does not also close a faceplate behind it. Reproduced in headless Firefox first. No golden moved. Built on Opus, merged on Sonnet (PR #185). Browser-checked at desktop width |
 | **T20-26** | `bdecfae` | Free play runs the separator at `separator_normal` (`config.FREE_PLAY_PLANT`/`FREE_PLAY_CONDITION`), with FIC-301, LIC-301 and PIC-301 in AUTO: the user's decision of 19 October 2026. The 182 tests that read olefins_lite tags through free play pin it with a module-scoped `olefins_free_play` fixture (helper in `tests/free_play.py`). No golden moved. Built on Opus, merged on Sonnet (PR #184). Browser-checked at desktop width |
 | **T20-25** | `098f867` | Try again keeps keyboard focus after a refusal: the button is disabled during its request, which drops focus to the page body, so Escape closed a faceplate instead of the result panel. `tryAgain` now gives focus back when it was dropped and the panel is still open. Found in the desktop re-check of T20-22's panel. Built on Sonnet (PR #183) |
 | **T20-23** | `cc078a7` | Run time, not the plant clock, while a scenario stands: `public_result` gains `started_at` (the plant clock at run time zero, every phase but idle; C5 additive, kept out of `as_dict` so the replay end-state digest is unchanged), and `static/js/clock.js` formats a time from that one origin, which the console seeds from the page and the ribbon's scenario poll moves. The alarm list's Raised column, the trend windows (axis, labels, markers, request window; ticks on round run times; negative before the run) and the Home strip's "Run time mm:ss" read through it; free play is unchanged. `Standing` carries `elapsed_s` and `started_at` instead of `sim_time`. No golden moved. Built on Opus (PR #182). Browser-checked on pump_trip; the debrief panel's Escape, focus and failed Try again were not re-checked |
 | **T20-22** | `d8edf4a` | Result and debrief panel on the console: `static/js/debrief.js` reads the ribbon's existing scenario poll (`onResult`, no second poll) and, once a run is complete or aborted, opens a non-modal dialog over the canvas with the outcome in words and a glyph, run time, the score and what counted against it ("in full", "partly", "a little", worded from a table keyed by `config/scoring.yaml`'s penalty names, which a test keeps in step), and the debrief. It opens itself once per finished run (keeping focus where an operator is typing), a ribbon Result button reopens it, Try again loads and starts the same scenario, and nothing of the outcome or score renders while a run is loaded or running. The run controls gain `adopt`, `say`, `resync` and a shared `timedFetch`. No golden moved. Built on Opus, review fixes on Sonnet (PR #181). Browser-checked one scenario per plant, pass and fail, before the review fixes |
 | **T20-19** | `d6a7ddd` | Redesign acceptance pass at desktop width (phone moved to T20-24): all ten scenarios played to a pass and to a fail in headless Firefox with real input events, one by keyboard only, an alarm marker seen on a trend. Fixes: each scenario shows its own plant on the Home page (`CatalogueEntry.plant`), keyboard focus after Start or Stop, a favicon, the prototype's canvas hint. The pass found that a finished run shows no result on the console (T20-22), and that alarms and trends show the plant clock (T20-23). Built on Opus (PR #180) |
-| **T20-18** | `e952be3` | Separator scenarios: drain and vent restriction (capacity malfunctions) and feed and drain signal loss, each a fault at 30 s the loops in AUTO cannot correct. A scenario can now set a valve's failure-mode flag: C8 `FLAGS` beside `WRITABLE` (`ControlValve` `signal_ok`, `stuck`, `action_reversed`; bool value, step only), and the validator accepts a list of types. XV-301 is a new feed shutdown valve that LSHH-301 and PSHH-301 close, because a valve with a lost signal ignores a trip (a lost LV-301 signal still defeats LSLL-301); the feed surge fails at the high alarm, as the drum settles short of the trip. `separator_normal.json` regenerated, `separator.svg` reworked. Config 4.0.0; no golden moved. Decided and built on Opus (PR #179). Not browser-checked |
 
 **ADRs on `main`:** [0001](../../docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md)
 (+ Amendment 1) and [0002](../../docs/ADR_0002_TYPED_PORTS.md) (+ Amendments
@@ -40,7 +40,7 @@ Complete: **M0-M9, M12-M18, MR**. Open:
 |---|---|---|
 | **M10** Alarms | 5/6 | T10-1, T10-2, T10-3, T10-5, T10-6; T10-4 startable (V1.1-deferred) |
 | **M11** Interlocks and Trips | 3/4 | T11-1, T11-2, T11-3; T11-4 startable (V1.1-deferred) |
-| **M20** Console Redesign | 25/26 | T20-1 to T20-23, T20-25 and T20-26; T20-24 (phone width, deferred by the user) is startable |
+| **M20** Console Redesign | 26/27 | T20-1 to T20-23 and T20-25 to T20-27; T20-24 (phone width, deferred by the user) is startable |
 | M19 | 0 | - |
 
 **153 of 159 tasks Complete.** Checkpoints A-D reached: T20-17 met D's last

@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
-  "refreshed": "2026-10-19",
-  "main_sha": "bdecfae",
-  "tests_passing_on_main": 4359,
+  "refreshed": "2026-10-20",
+  "main_sha": "7029111",
+  "tests_passing_on_main": 4361,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -118,13 +118,13 @@
     },
     "M20": {
       "name": "Console Redesign",
-      "complete": 25,
-      "total": 26
+      "complete": 26,
+      "total": 27
     }
   },
   "totals": {
-    "tasks": 159,
-    "complete": 153,
+    "tasks": 160,
+    "complete": 154,
     "startable_now": 5
   },
   "tasks": [
@@ -3274,6 +3274,23 @@
       "status": "Complete",
       "status_key": "done",
       "note": "Merged to main as bdecfae (PR #184). Free play runs the separator at separator_normal with FIC-301, LIC-301 and PIC-301 in AUTO. Tests that read olefins_lite tags through free play pin it with an olefins_free_play fixture (tests/free_play.py helper). 4359 passed, mypy clean, no golden moved. Checked in headless Firefox at desktop width. Built on Opus, merged on Sonnet."
+    },
+    {
+      "id": "T20-27",
+      "milestone": "M20",
+      "name": "Close a trend window with Escape",
+      "category": "dep",
+      "branch": "fix/trend-window-escape",
+      "depends_on": [
+        "T20-11"
+      ],
+      "files": [
+        "static/js/trendwindows.js",
+        "tests/test_trend_windows.py"
+      ],
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged to main as 7029111 (PR #185). Escape from inside a trend window (title bar, Minimise, Close, span buttons) closes it and returns focus to its opener; the key stops at the window, so a faceplate behind stays open. 4361 passed, mypy clean, no golden moved. Checked in headless Firefox at desktop width. Built on Opus, merged on Sonnet."
     }
   ]
 }

@@ -274,3 +274,10 @@ def test_null_is_a_type():
 
 def test_an_unknown_type_name_matches_nothing():
     assert validate(3, {"type": "numbr"}) == ["$: expected numbr, got number"]
+
+
+def test_unique_items_refuses_a_repeated_item_and_names_it():
+    unique = {"type": "array", "uniqueItems": True}
+
+    assert validate(["a", "b"], unique) == []
+    assert validate(["a", "b", "a"], unique) == ["$: item 'a' appears more than once"]

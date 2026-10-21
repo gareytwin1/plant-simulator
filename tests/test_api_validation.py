@@ -652,6 +652,13 @@ def test_sessions_behind_one_address_share_its_ceiling():
     assert get("a", peer="192.0.2.2") == 200
 
 
+def test_a_session_refused_by_its_own_bucket_does_not_drain_the_ceiling():
+    get = session_client(live={"a", "b"}, burst=1.0, ceiling_burst=3.0)
+
+    assert [get("a") for _ in range(6)] == [200, 429, 429, 429, 429, 429]
+    assert get("b") == 200
+
+
 def test_a_request_over_the_address_ceiling_is_refused_with_retry_after():
     app = Flask(__name__)
     clock = FakeClock()

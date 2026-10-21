@@ -83,12 +83,13 @@ MAX_SESSIONS = 32
 # console polls once a second and sends at most ten slider updates a second.
 # A request without a live session - a first page load, an unknown cookie -
 # keys on its address. A session-keyed request also draws from the address
-# ceiling, ten times the per-session numbers, so one address cannot multiply
-# its allowance by minting sessions; about 100 consoles fit under it. Behind a reverse proxy, list the proxy's addresses or
-# CIDRs in API_TRUSTED_PROXIES (env PLANT_TRUSTED_PROXIES, comma-separated)
-# and each client behind it gets its own address, read from X-Forwarded-For.
-# Empty trusts no one: every request keys on its peer address and the header
-# is ignored. Forwarded entries may carry a port (1.2.3.4:5678, [::1]:5678).
+# ceiling, ten times the per-session numbers (200 requests a second against
+# about 2 for an open console, so about 100 consoles fit), so one address
+# cannot multiply its allowance by minting sessions. Behind a reverse proxy,
+# list the proxy's addresses or CIDRs in API_TRUSTED_PROXIES (env
+# PLANT_TRUSTED_PROXIES, comma-separated) and each client behind it gets its
+# own address, read from X-Forwarded-For. Empty trusts no one: every request
+# keys on its peer address and the header is ignored. Forwarded entries may carry a port (1.2.3.4:5678, [::1]:5678).
 # See T18-8.
 
 API_MAX_BODY_BYTES = 4096

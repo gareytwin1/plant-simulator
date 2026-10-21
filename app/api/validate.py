@@ -28,7 +28,9 @@ session - draws from its address's bucket, so inventing a cookie earns no
 fresh bucket. A session can still be minted for the price of one address
 token, so a session-keyed request also draws from the address ceiling, a
 looser bucket sized for a classroom: an address cannot multiply its
-allowance by holding many sessions.
+allowance by holding many sessions. A request the ceiling refuses has
+already drawn its session token; that is deliberate, so a client held at the
+ceiling cannot also spend tokens it is not served for.
 
 `client_key` names the address bucket (T18-8). X-Forwarded-For is
 client-supplied, so it is read only when the peer itself is a configured

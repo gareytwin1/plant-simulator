@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
-  "refreshed": "2026-10-20",
-  "main_sha": "c5063a0",
-  "tests_passing_on_main": 4364,
+  "refreshed": "2026-10-21",
+  "main_sha": "84e5c49",
+  "tests_passing_on_main": 4374,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -108,8 +108,8 @@
     },
     "M18": {
       "name": "Deployment and Operations",
-      "complete": 9,
-      "total": 9
+      "complete": 10,
+      "total": 10
     },
     "M19": {
       "name": "Shared Features",
@@ -123,8 +123,8 @@
     }
   },
   "totals": {
-    "tasks": 161,
-    "complete": 155,
+    "tasks": 162,
+    "complete": 156,
     "startable_now": 5
   },
   "tasks": [
@@ -3309,6 +3309,26 @@
       "status": "Complete",
       "status_key": "done",
       "note": "Merged c5063a0 (PR #186); 4364 passed on main, mypy clean, no golden moved"
+    },
+    {
+      "id": "T18-10",
+      "milestone": "M18",
+      "name": "Rate limit per session, not per address",
+      "category": "dep",
+      "branch": "feature/rate-limit-per-session",
+      "depends_on": [
+        "T18-3",
+        "T18-8"
+      ],
+      "files": [
+        "app/api/validate.py",
+        "app/config.py",
+        "app/main.py",
+        "tests/test_api_validation.py"
+      ],
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged 84e5c49 (PR #187), 4374 passed on main"
     }
   ]
 }

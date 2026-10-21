@@ -52,6 +52,7 @@ def _new_session() -> TrainingSession:
 sessions = SessionRegistry(factory=_new_session)
 
 rate_limiter = validate.RateLimiter(config.API_RATE_PER_SECOND, config.API_RATE_BURST)
+address_ceiling = validate.RateLimiter(config.API_ADDRESS_RATE_PER_SECOND, config.API_ADDRESS_RATE_BURST)
 
 
 def _request_sim_time() -> float | None:
@@ -82,6 +83,7 @@ validate.install(
     lambda: rate_limiter,
     trusted_proxies=config.API_TRUSTED_PROXIES,
     live_session=_live_session_id,
+    address_ceiling=lambda: address_ceiling,
 )
 
 

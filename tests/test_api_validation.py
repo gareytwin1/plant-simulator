@@ -579,16 +579,23 @@ def test_the_live_app_rate_limits_and_refuses_before_creating_a_session(monkeypa
 # ---- per-session buckets (T18-10) ----
 
 
-def session_client(live, burst=1.0):
+def session_client(live, burst=1.0, ceiling_burst=None):
     """An app whose live sessions are the ids in `live`, keyed from a `sid` cookie."""
     app = Flask(__name__)
-    limiter = validate.RateLimiter(rate=1.0, burst=burst, clock=FakeClock())
+    clock = FakeClock()
+    limiter = validate.RateLimiter(rate=1.0, burst=burst, clock=clock)
+    ceiling = None if ceiling_burst is None else validate.RateLimiter(rate=1.0, burst=ceiling_burst, clock=clock)
 
     def live_session():
         session_id = request.cookies.get("sid")
         return session_id if session_id in live else None
 
-    validate.install(app, lambda: limiter, live_session=live_session)
+    validate.install(
+        app,
+        lambda: limiter,
+        live_session=live_session,
+        address_ceiling=None if ceiling is None else (lambda: ceiling),
+    )
 
     @app.get("/api/ping")
     def ping():
@@ -634,6 +641,56 @@ def test_a_session_id_cannot_share_an_address_bucket():
 
     assert get() == 200
     assert get("192.0.2.1") == 200
+
+
+def test_sessions_behind_one_address_share_its_ceiling():
+    get = session_client(live={"a", "b", "c"}, burst=5.0, ceiling_burst=3.0)
+
+    assert [get(sid) for sid in ("a", "b", "c")] == [200, 200, 200]
+    assert [get(sid) for sid in ("a", "b", "c")] == [429, 429, 429]
+    assert get(peer="192.0.2.2") == 200
+    assert get("a", peer="192.0.2.2") == 200
+
+
+def test_a_request_over_the_address_ceiling_is_refused_with_retry_after():
+    app = Flask(__name__)
+    clock = FakeClock()
+    session_limiter = validate.RateLimiter(rate=1.0, burst=5.0, clock=clock)
+    ceiling = validate.RateLimiter(rate=1.0, burst=1.0, clock=clock)
+    validate.install(
+        app,
+        lambda: session_limiter,
+        live_session=lambda: "a",
+        address_ceiling=lambda: ceiling,
+    )
+
+    @app.get("/api/ping")
+    def ping():
+        return {"ok": True}
+
+    client = app.test_client()
+    first = client.get("/api/ping")
+    refused = client.get("/api/ping")
+
+    assert first.status_code == 200
+    assert refused.status_code == 429
+    assert refused.headers["Retry-After"] == "1"
+    assert "rate limit exceeded" in refused.get_json()["error"]
+
+
+def test_the_live_app_caps_an_address_that_mints_sessions(monkeypatch):
+    monkeypatch.setattr(main, "rate_limiter", validate.RateLimiter(rate=1.0, burst=1000.0, clock=FakeClock()))
+    monkeypatch.setattr(main, "address_ceiling", validate.RateLimiter(rate=1.0, burst=3.0, clock=FakeClock()))
+    minted = []
+    for _ in range(3):
+        response = main.app.test_client(use_cookies=False).get("/api/snapshot")
+        assert response.status_code == 200
+        minted.append(response.headers["Set-Cookie"].split(";")[0])
+    client = main.app.test_client(use_cookies=False)
+
+    statuses = [client.get("/api/snapshot", headers={"Cookie": minted[n % 3]}).status_code for n in range(6)]
+
+    assert statuses == [200, 200, 200, 429, 429, 429]
 
 
 def test_the_live_app_gives_each_session_its_own_bucket(monkeypatch):

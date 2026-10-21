@@ -24,8 +24,11 @@ already assumes.
 A request whose session cookie names a live session draws from that
 session's bucket (T18-10), so trainees behind one shared address do not
 throttle each other. Any other request - no cookie, or one naming no live
-session - draws from its address's bucket, so inventing or rotating cookies
-earns no fresh bucket, and a new session is only ever made from that one.
+session - draws from its address's bucket, so inventing a cookie earns no
+fresh bucket. A session can still be minted for the price of one address
+token, so a session-keyed request also draws from the address ceiling, a
+looser bucket sized for a classroom: an address cannot multiply its
+allowance by holding many sessions.
 
 `client_key` names the address bucket (T18-8). X-Forwarded-For is
 client-supplied, so it is read only when the peer itself is a configured
@@ -266,6 +269,7 @@ def install(
     limiter: Callable[[], RateLimiter],
     trusted_proxies: Iterable[str] = (),
     live_session: Callable[[], str | None] = lambda: None,
+    address_ceiling: Callable[[], RateLimiter] | None = None,
 ) -> None:
     """Add the body cap, JSON API errors and rate limit to `app`.
 
@@ -274,6 +278,8 @@ def install(
     whose X-Forwarded-For is believed; a bad entry raises here, at startup.
     `live_session` returns the id of the live session the request's cookie
     names, or None; it must neither create a session nor touch one.
+    `address_ceiling`, when given, is also drawn from by every session-keyed
+    request, keyed by the client address.
     """
     app.config["MAX_CONTENT_LENGTH"] = config.API_MAX_BODY_BYTES
     proxies = parse_trusted_proxies(trusted_proxies)
@@ -284,15 +290,18 @@ def install(
         if request.endpoint == "static" or request.blueprint == "health":
             return None
 
+        forwarded = request.headers.getlist("X-Forwarded-For")
+        address = client_key(request.remote_addr, ",".join(forwarded) if forwarded else None, proxies)
         session_id = live_session()
-        if session_id is not None:
-            # Namespaced, so no session id can share an address's bucket.
-            key = f"session:{session_id}"
-        else:
-            forwarded = request.headers.getlist("X-Forwarded-For")
-            key = client_key(request.remote_addr, ",".join(forwarded) if forwarded else None, proxies)
 
-        wait = limiter().acquire(key)
+        if session_id is None:
+            wait = limiter().acquire(address)
+        else:
+            # Namespaced, so no session id can share an address's bucket.
+            wait = limiter().acquire(f"session:{session_id}")
+            if address_ceiling is not None:
+                wait = max(wait, address_ceiling().acquire(address))
+
         if wait == 0.0:
             return None
 

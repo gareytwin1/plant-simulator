@@ -82,7 +82,9 @@ MAX_SESSIONS = 32
 # The rate limit is per live session, else per client address (T18-10). A
 # console polls once a second and sends at most ten slider updates a second.
 # A request without a live session - a first page load, an unknown cookie -
-# keys on its address. Behind a reverse proxy, list the proxy's addresses or
+# keys on its address. A session-keyed request also draws from the address
+# ceiling, ten times the per-session numbers, so one address cannot multiply
+# its allowance by minting sessions; about 100 consoles fit under it. Behind a reverse proxy, list the proxy's addresses or
 # CIDRs in API_TRUSTED_PROXIES (env PLANT_TRUSTED_PROXIES, comma-separated)
 # and each client behind it gets its own address, read from X-Forwarded-For.
 # Empty trusts no one: every request keys on its peer address and the header
@@ -93,6 +95,8 @@ API_MAX_BODY_BYTES = 4096
 API_MAX_MAGNITUDE = 1_000_000.0
 API_RATE_PER_SECOND = 20.0
 API_RATE_BURST = 100.0
+API_ADDRESS_RATE_PER_SECOND = 10 * API_RATE_PER_SECOND
+API_ADDRESS_RATE_BURST = 10 * API_RATE_BURST
 
 
 def trusted_proxies_from_env(value: str) -> tuple[str, ...]:

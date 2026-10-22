@@ -11,9 +11,9 @@ A session owns a background Scheduler, so a browser's plant keeps running on
 the server's own clock instead of a browser's setInterval. Constructing a
 session starts nothing; only the route serving a page that displays the plant
 starts it, and only the session's end() (called directly, by
-SessionRegistry.end(), or by capacity eviction) stops it. It closes it, so a request
-still holding an ended session cannot start a worker the registry no longer
-counts. SessionRegistry bounds how many sessions - and so how many worker
+SessionRegistry.end(), or by capacity eviction) stops it. It closes it, so a
+request still holding an ended session cannot start a worker the registry no
+longer counts. SessionRegistry bounds how many sessions - and so how many worker
 threads - stay alive at once: past config.MAX_SESSIONS, create ends a session
 of the owner with the most first (T18-11), and a session idle for
 config.SESSION_IDLE_SECONDS is reclaimed (T18-5). See
@@ -68,10 +68,10 @@ class SessionRegistry[S: Endable]:
     last hold touches it, so its idle clock starts at the release. Capacity is
     the backstop: create() prefers a session that is not held, and ends a
     held one only when every candidate is, so the registry never exceeds
-    max_sessions. The holder then finds its session
-    ended. A lease never moves the victim to another owner: within the
-    owner chosen, its least-recently-touched unleased session goes first,
-    else its least-recently-touched leased one.
+    max_sessions. The holder then finds its session ended. A lease never
+    moves the victim to another owner: within the owner chosen, its
+    least-recently-touched unleased session goes first, else its
+    least-recently-touched leased one.
 
     Admission is atomic. create() builds its session outside `_lock`, then
     under it either returns the entry another thread already admitted

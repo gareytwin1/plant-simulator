@@ -72,7 +72,8 @@ TAG_PREFIXES = {
 # An operational guardrail, not a simulation constant: it bounds how many
 # live sessions (and therefore how many background scheduler workers, one per
 # session) SessionRegistry keeps at once. Beyond capacity a session of the
-# client address holding the most is ended to make room. See T2-6 and T18-11.
+# client address that would hold the most, counting the new one (the creator
+# on a tie), is ended to make room. See T2-6 and T18-11.
 
 MAX_SESSIONS = 32
 

@@ -12,7 +12,9 @@ regrowth rule is in [.claude/rules/docs.md](../../.claude/rules/docs.md).
 not a live pointer.** Run `git log 5e4651d..HEAD --oneline` to see what has
 merged since.
 **Full suite as of this refresh:** **4418 passed** · `python -m mypy` clean over 89 source files · no golden trace movement
-**In flight:** nothing. The spine lock and the `app/main.py` lock are free.
+**In flight:** T18-11 (session fair-share eviction) on
+`fix/session-fair-share-eviction`. It holds the spine lock and the
+`app/main.py` lock.
 No task is Blocked. CI runs on every PR, and `main` requires its
 `test` check before a merge.
 
@@ -34,30 +36,33 @@ No task is Blocked. CI runs on every PR, and `main` requires its
 
 ## Milestone progress
 
-Complete: **M0-M9, M12-M18, MR**. Open:
+Complete: **M0-M9, M12-M17, MR**. Open:
 
 | Milestone | Done | Complete / startable |
 |---|---|---|
 | **M10** Alarms | 5/6 | T10-1, T10-2, T10-3, T10-5, T10-6; T10-4 startable (V1.1-deferred) |
 | **M11** Interlocks and Trips | 3/4 | T11-1, T11-2, T11-3; T11-4 startable (V1.1-deferred) |
+| **M18** Deployment and Operations | 10/11 | T18-1 to T18-10; T18-11 (fair-share session eviction) is in flight |
 | **M20** Console Redesign | 27/28 | T20-1 to T20-23 and T20-25 to T20-28; T20-24 (phone width, deferred by the user) is startable |
 | M19 | 0 | - |
 
-**158 of 164 tasks Complete.** Checkpoints A-D reached: T20-17 met D's last
+**158 of 165 tasks Complete.** Checkpoints A-D reached: T20-17 met D's last
 gate ("loops reject an injected disturbance") on the separator plant.
 
 ## The next task
 
-**Startable:** **T18-11** (M18, Opus, spine and `app/main.py` locks): session creation evicts by fair share, aligned with the user 21 October 2026. In M20, **T20-24**, the phone-width gameplay pass the user
-deferred (16 October 2026) until desktop is right. Also startable but
+**In flight:** **T18-11** (M18, Opus, spine and `app/main.py` locks):
+session creation evicts by fair share, aligned with the user 21 October
+2026. **Startable:** in M20, **T20-24**, the phone-width gameplay pass the
+user deferred (16 October 2026) until desktop is right. Also startable but
 deferred: T10-4 and T11-4 (V1.1), T19-1 and T19-2 (V2).
 
 **CP-G passed for the current console** (user's browser pass, 9 October 2026). The console is about to be redesigned, so the full pass (all six scenarios, both themes, phone width, a real alarm marker) is an acceptance criterion of that redesign rather than repeated on this console.
 
-**Next by leverage:** **M20 Console Redesign** (added 9 October 2026, see [BUILD_PLAN.html](../../docs/BUILD_PLAN.html)). The accepted design is frozen in [prototype/console-redesign/](../../prototype/console-redesign/index.html): every M20 task ports from it, and it is never edited to follow production. **User priority (10 October 2026): the new design replaces the old pages first.** T20-6, T20-7 (schematic), T20-8 (ribbon and console shell), T20-9 (landing page), T20-10 (faceplates on the canvas), T20-11 (floating trend windows), T20-12 (alarm overlay), T20-13 (equipment actions), T20-14 (pause and resume) and T20-20 (units agree at load) are merged, so the old pages are replaced. The user is working desktop first: phone-width checks are deferred. T20-1 (units per point), T20-2 (plant description and a graphic per plant), T20-3 (interlock state in C4), T20-4 (loops on any point) and T20-6 (alarm palette and limit names) are merged. T20-5 (two-phase feed) is merged too, so every contract task is done. T20-17 (separator plant) is merged and met Checkpoint D's last gate, with PIC-101 left in MANUAL because olefins_lite stays untouched. `app/main.py` and `app/config.py` are free.
+**Next by leverage:** **M20 Console Redesign** (added 9 October 2026, see [BUILD_PLAN.html](../../docs/BUILD_PLAN.html)). The accepted design is frozen in [prototype/console-redesign/](../../prototype/console-redesign/index.html): every M20 task ports from it, and it is never edited to follow production. **User priority (10 October 2026): the new design replaces the old pages first.** T20-6, T20-7 (schematic), T20-8 (ribbon and console shell), T20-9 (landing page), T20-10 (faceplates on the canvas), T20-11 (floating trend windows), T20-12 (alarm overlay), T20-13 (equipment actions), T20-14 (pause and resume) and T20-20 (units agree at load) are merged, so the old pages are replaced. The user is working desktop first: phone-width checks are deferred. T20-1 (units per point), T20-2 (plant description and a graphic per plant), T20-3 (interlock state in C4), T20-4 (loops on any point) and T20-6 (alarm palette and limit names) are merged. T20-5 (two-phase feed) is merged too, so every contract task is done. T20-17 (separator plant) is merged and met Checkpoint D's last gate, with PIC-101 left in MANUAL because olefins_lite stays untouched. `app/config.py` is free; `app/main.py` is held by T18-11.
 
 **Scheduling notes.** The spine lock is one global lock
-([DEVELOPMENT.md](../../DEVELOPMENT.md#file-ownership)); it is free. **The container runs
+([DEVELOPMENT.md](../../DEVELOPMENT.md#file-ownership)); T18-11 holds it. **The container runs
 exactly one Gunicorn worker** (T18-1) - `SessionRegistry` is per-process (R7); never scale it.
 **Trips and alarms run in `TrainingSession` (T16-8), which `/console` (T16-9) now serves**:
 `PlantRuntime` (T16-6) runs both around the engine step, `ScenarioRunner` (T16-7)

@@ -56,9 +56,11 @@ server with a misbehaving or malicious client feel it.
    `SessionRegistry` with an injected clock:
    - Weight(A) is Count(A) for every owner A with a live session, plus 1 for X.
    - The victim owner is the owner with the highest weight among owners that
-     hold a live session. On a tie, X is the victim owner if X holds a live
-     session; otherwise the victim is the least-recently-touched session among
-     the tied owners' sessions, chosen by the same lease rule below.
+     hold a live session. On a tie, X is the victim owner if X is among the
+     tied owners; otherwise the victim is the least-recently-touched session
+     among the tied owners' sessions, chosen by the same lease rule below. A
+     test covers X holding sessions yet outside the tie (X weight 2, Y and Z
+     weight 3): Y or Z pays, never X.
    - Within the victim owner, the victim is its least-recently-touched
      unleased session, else its least-recently-touched leased session. A lease
      never moves the victim to another owner.
@@ -89,9 +91,9 @@ server with a misbehaving or malicious client feel it.
    returns the existing session without evicting. Existing tests in
    `tests/test_sessions.py`, `tests/test_session_isolation.py`,
    `tests/test_session_load.py` and the rate-limit tests pass unmodified, except
-   where a test constructs the registry or calls `create` in a way the new
-   owner parameter requires a mechanical update; any such edit is listed in the
-   PR.
+   where a test calls `create` in a way the new owner parameter requires a
+   mechanical update; any such edit is listed in the PR. `owner` defaults to
+   the shared owner, so `tests/test_session_load.py` needs no edit.
 8. **Atomicity.** A create never ends a session and then fails to admit the
    new one: if choosing the victim or building the session raises, no session
    has been ended and the registry's contents are unchanged. Victim choice and
@@ -107,9 +109,11 @@ server with a misbehaving or malicious client feel it.
   the rule above, in `app/engine/sessions.py`.
 - Passing the creating request's `client_key` into session creation from
   `app/main.py`'s `load_session`.
-- Updating the `SessionRegistry` docstring and the `app/config.py` session
+- Updating the `SessionRegistry` docstring, the `app/config.py` session
   comment (append-only file: edit the comment in place only if the text
-  becomes false; otherwise leave it).
+  becomes false; otherwise leave it), and the eviction descriptions in
+  `README.md`, `docs/ARCHITECTURE.md` and the `tests/test_scheduler_ownership.py`
+  module docstring, which name the old LRU rule.
 - Removing the technical-debt entry from `project_state.md` at close-out and
   adding T18-11 to `docs/BUILD_PLAN.html` and the live artifact.
 

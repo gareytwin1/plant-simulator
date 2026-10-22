@@ -8,13 +8,11 @@ regrowth rule is in [.claude/rules/docs.md](../../.claude/rules/docs.md).
 
 ## Right now
 
-**Last state refresh:** 21 October 2026, at `5e4651d` (Merge T15-6, PR #189: the debrief names the unnecessary actions) - **this is a snapshot,
-not a live pointer.** Run `git log 5e4651d..HEAD --oneline` to see what has
+**Last state refresh:** 22 October 2026, at `5a7f08a` (Merge T18-11, PR #190: fair-share session eviction) - **this is a snapshot,
+not a live pointer.** Run `git log 5a7f08a..HEAD --oneline` to see what has
 merged since.
-**Full suite as of this refresh:** **4418 passed** · `python -m mypy` clean over 89 source files · no golden trace movement
-**In flight:** T18-11 (session fair-share eviction) on
-`fix/session-fair-share-eviction`. It holds the spine lock and the
-`app/main.py` lock.
+**Full suite as of this refresh:** **4436 passed** · `python -m mypy` clean over 89 source files · no golden trace movement
+**In flight:** nothing. The spine lock and the `app/main.py` lock are free.
 No task is Blocked. CI runs on every PR, and `main` requires its
 `test` check before a merge.
 
@@ -23,12 +21,12 @@ No task is Blocked. CI runs on every PR, and `main` requires its
 
 | Task | SHA | What landed |
 |---|---|---|
+| **T18-11** | `5a7f08a` | A full `SessionRegistry` ends a session of the owner that would hold the most once the new one is counted (ties against the creator; unleased before leased within that owner; a lease never moves the victim to another owner), so one address cannot churn others' sessions beyond its fair share. Each session is owned by the creating request's `client_key` (`g.client_address`, set in `validate.install`), fixed for life; a lone address evicts exactly as the old global LRU did. No config change, no golden moved. Built on Opus, merged on Sonnet (PR #190) |
 | **T15-6** | `5e4651d` | A scored run's result carries `unnecessary_actions`: the action rows `metrics.unnecessary_actions` counts, in log order, built with the same `is_relevant` function as the count; null until scored, so live and aborted results never carry it. The debrief lists each at its run time in the faceplate's own words (`describeCommand`, `capitalised` now exported), redrawing when the first snapshot supplies loop rows. Not stored: `ScoreStore` rows keep no actions. Additive C5 field, no config bump, no golden moved. Built on Opus, merged on Sonnet (PR #189). Browser-checked at desktop width, light and dark themes |
 | **T15-5** | `91e6703` | Each scenario file declares `relevant_tags` (required, C8): the devices, loops and interlocks that bear on its fault. A completed run counts an action on any other tag as unnecessary and times recognition to the first listed action after the first alarm; `_every_action_relevant` is gone. A load refuses a tag the plant lacks and a loop-driven device without its loop. `uniqueItems` added to the schema validator. Config MAJOR 4.0.0 to 5.0.0. The C8 text in `BUILD_PLAN.html` lists the field. No golden moved. Built on Opus, merged on Sonnet (PR #188). Real-server checked |
-| **T18-10** | `84e5c49` | The rate limit keys on the live session the cookie names (`sessions.peek`, no create or touch), else the client address, so trainees behind one NAT stop sharing a bucket. A session-keyed request granted by its own bucket also draws from a per-address ceiling (10x, `API_ADDRESS_RATE_*`), so minting sessions does not multiply an address's allowance. Known gap: one address can still churn others' sessions via the global LRU (technical debt). Opus design, Sonnet refine and merge (PR #187). No golden moved |
+| **T18-10** | `84e5c49` | The rate limit keys on the live session the cookie names (`sessions.peek`, no create or touch), else the client address, so trainees behind one NAT stop sharing a bucket. A session-keyed request granted by its own bucket also draws from a per-address ceiling (10x, `API_ADDRESS_RATE_*`), so minting sessions does not multiply an address's allowance. The churn gap it left was closed by T18-11. Opus design, Sonnet refine and merge (PR #187). No golden moved |
 | **T20-28** | `c5063a0` | The ribbon's run clock reads the later of the poll's `elapsed_s` and the latest snapshot's `sim_time - started_at`, capped at the limit, so it never runs ahead of the plant (it was up to a second ahead, 3 of 25 samples in headless Firefox). Anchor and ratchet removed from `createRunClock`; `runTimes` carries `startedAt`. Known gap: after Try again on the same scenario a stale in-flight snapshot can show the old time for one snapshot; the fix is a run id in the snapshot (C4), unowned. No golden moved. Built on Opus, merged on Sonnet (PR #186). Browser-checked at desktop width |
 | **T20-27** | `7029111` | Escape from inside a trend window (title bar, Minimise, Close, span buttons) closes it and returns focus to its opener; the key stops at the window, so the canvas's page-wide listener does not also close a faceplate behind it. Reproduced in headless Firefox first. No golden moved. Built on Opus, merged on Sonnet (PR #185). Browser-checked at desktop width |
-| **T20-26** | `bdecfae` | Free play runs the separator at `separator_normal` (`config.FREE_PLAY_PLANT`/`FREE_PLAY_CONDITION`), with FIC-301, LIC-301 and PIC-301 in AUTO: the user's decision of 19 October 2026. The 182 tests that read olefins_lite tags through free play pin it with a module-scoped `olefins_free_play` fixture (helper in `tests/free_play.py`). No golden moved. Built on Opus, merged on Sonnet (PR #184). Browser-checked at desktop width |
 
 **ADRs on `main`:** [0001](../../docs/ADR_0001_FLOW_DOMAIN_SEPARATION.md)
 (+ Amendment 1) and [0002](../../docs/ADR_0002_TYPED_PORTS.md) (+ Amendments
@@ -36,33 +34,30 @@ No task is Blocked. CI runs on every PR, and `main` requires its
 
 ## Milestone progress
 
-Complete: **M0-M9, M12-M17, MR**. Open:
+Complete: **M0-M9, M12-M18, MR**. Open:
 
 | Milestone | Done | Complete / startable |
 |---|---|---|
 | **M10** Alarms | 5/6 | T10-1, T10-2, T10-3, T10-5, T10-6; T10-4 startable (V1.1-deferred) |
 | **M11** Interlocks and Trips | 3/4 | T11-1, T11-2, T11-3; T11-4 startable (V1.1-deferred) |
-| **M18** Deployment and Operations | 10/11 | T18-1 to T18-10; T18-11 (fair-share session eviction) is in flight |
 | **M20** Console Redesign | 27/28 | T20-1 to T20-23 and T20-25 to T20-28; T20-24 (phone width, deferred by the user) is startable |
 | M19 | 0 | - |
 
-**158 of 165 tasks Complete.** Checkpoints A-D reached: T20-17 met D's last
+**159 of 165 tasks Complete.** Checkpoints A-D reached: T20-17 met D's last
 gate ("loops reject an injected disturbance") on the separator plant.
 
 ## The next task
 
-**In flight:** **T18-11** (M18, Opus, spine and `app/main.py` locks):
-session creation evicts by fair share, aligned with the user 21 October
-2026. **Startable:** in M20, **T20-24**, the phone-width gameplay pass the
+**Startable:** in M20, **T20-24**, the phone-width gameplay pass the
 user deferred (16 October 2026) until desktop is right. Also startable but
 deferred: T10-4 and T11-4 (V1.1), T19-1 and T19-2 (V2).
 
 **CP-G passed for the current console** (user's browser pass, 9 October 2026). The console is about to be redesigned, so the full pass (all six scenarios, both themes, phone width, a real alarm marker) is an acceptance criterion of that redesign rather than repeated on this console.
 
-**Next by leverage:** **M20 Console Redesign** (added 9 October 2026, see [BUILD_PLAN.html](../../docs/BUILD_PLAN.html)). The accepted design is frozen in [prototype/console-redesign/](../../prototype/console-redesign/index.html): every M20 task ports from it, and it is never edited to follow production. **User priority (10 October 2026): the new design replaces the old pages first.** T20-6, T20-7 (schematic), T20-8 (ribbon and console shell), T20-9 (landing page), T20-10 (faceplates on the canvas), T20-11 (floating trend windows), T20-12 (alarm overlay), T20-13 (equipment actions), T20-14 (pause and resume) and T20-20 (units agree at load) are merged, so the old pages are replaced. The user is working desktop first: phone-width checks are deferred. T20-1 (units per point), T20-2 (plant description and a graphic per plant), T20-3 (interlock state in C4), T20-4 (loops on any point) and T20-6 (alarm palette and limit names) are merged. T20-5 (two-phase feed) is merged too, so every contract task is done. T20-17 (separator plant) is merged and met Checkpoint D's last gate, with PIC-101 left in MANUAL because olefins_lite stays untouched. `app/config.py` is free; `app/main.py` is held by T18-11.
+**Next by leverage:** **M20 Console Redesign** (added 9 October 2026, see [BUILD_PLAN.html](../../docs/BUILD_PLAN.html)). The accepted design is frozen in [prototype/console-redesign/](../../prototype/console-redesign/index.html): every M20 task ports from it, and it is never edited to follow production. **User priority (10 October 2026): the new design replaces the old pages first.** T20-6, T20-7 (schematic), T20-8 (ribbon and console shell), T20-9 (landing page), T20-10 (faceplates on the canvas), T20-11 (floating trend windows), T20-12 (alarm overlay), T20-13 (equipment actions), T20-14 (pause and resume) and T20-20 (units agree at load) are merged, so the old pages are replaced. The user is working desktop first: phone-width checks are deferred. T20-1 (units per point), T20-2 (plant description and a graphic per plant), T20-3 (interlock state in C4), T20-4 (loops on any point) and T20-6 (alarm palette and limit names) are merged. T20-5 (two-phase feed) is merged too, so every contract task is done. T20-17 (separator plant) is merged and met Checkpoint D's last gate, with PIC-101 left in MANUAL because olefins_lite stays untouched. `app/main.py` and `app/config.py` are free.
 
 **Scheduling notes.** The spine lock is one global lock
-([DEVELOPMENT.md](../../DEVELOPMENT.md#file-ownership)); T18-11 holds it. **The container runs
+([DEVELOPMENT.md](../../DEVELOPMENT.md#file-ownership)); it is free. **The container runs
 exactly one Gunicorn worker** (T18-1) - `SessionRegistry` is per-process (R7); never scale it.
 **Trips and alarms run in `TrainingSession` (T16-8), which `/console` (T16-9) now serves**:
 `PlantRuntime` (T16-6) runs both around the engine step, `ScenarioRunner` (T16-7)
@@ -149,14 +144,6 @@ scope, and item 1 in particular reads like a bug and is not.
   clock's new-run check. The fix is a run id in the snapshot, a C4 change, so
   it needs its own Opus task. A time-window heuristic would hide real lag; do
   not add one (roborev 1148, T20-28). Unowned.
-- **One address can churn other trainees' sessions.** A request with no
-  cookie draws only from its address bucket (20/s) and then mints a real
-  session; past `MAX_SESSIONS` each mint evicts the least recently used one
-  through the global LRU. True before T18-10 and still true: the per-address
-  ceiling bounds an address's request allowance, not its session minting. The
-  fix is a per-address live-session cap in `SessionRegistry` or a stricter
-  bucket charged per mint (roborev 1153, T18-10). Owned by **T18-11**
-  (fair-share eviction; spec `.workspace/work/session-churn/spec.md`).
 - **Contract-test discovery is import-order dependent**: `REGISTERED` in
   `tests/test_equipment_contract.py` is computed at import, so an `Equipment`
   subclass in a later-imported test module escapes the contract tests.

@@ -1,8 +1,8 @@
 {
   "_comment": "Durable snapshot of the master build plan's per-task status. The live artifact linked from DEVELOPMENT.md is the interactive authority; this file exists so the plan's state survives if that artifact becomes unavailable. Regenerate whenever task status changes materially. 'Complete' means merged to main and nothing else. 'planned_files_not_on_main' flags a Complete task whose planned file paths are absent from main - usually a harmless rename (e.g. docs/units.md shipped as docs/UNITS_CONVENTION.md) or an intentional deletion (T0-1 removed app/simulator.py), but worth checking.",
-  "refreshed": "2026-10-21",
-  "main_sha": "5e4651d",
-  "tests_passing_on_main": 4418,
+  "refreshed": "2026-10-22",
+  "main_sha": "5a7f08a",
+  "tests_passing_on_main": 4436,
   "status_vocabulary": {
     "Not Started": "No work begun",
     "In Progress": "Implementation underway; code may exist on a branch",
@@ -108,8 +108,8 @@
     },
     "M18": {
       "name": "Deployment and Operations",
-      "complete": 10,
-      "total": 10
+      "complete": 11,
+      "total": 11
     },
     "M19": {
       "name": "Shared Features",
@@ -123,8 +123,8 @@
     }
   },
   "totals": {
-    "tasks": 164,
-    "complete": 158,
+    "tasks": 165,
+    "complete": 159,
     "startable_now": 5
   },
   "tasks": [
@@ -3382,6 +3382,33 @@
       "status": "Complete",
       "status_key": "done",
       "note": "Merged 5e4651d (PR #189), 4418 passed on main"
+    },
+    {
+      "id": "T18-11",
+      "milestone": "M18",
+      "name": "Session creation evicts by fair share, not global LRU",
+      "category": "dep",
+      "branch": "fix/session-fair-share-eviction",
+      "depends_on": [
+        "T18-5",
+        "T18-10",
+        "T16-8"
+      ],
+      "files": [
+        "app/engine/sessions.py",
+        "app/main.py",
+        "app/api/validate.py",
+        "app/config.py",
+        "docs/ARCHITECTURE.md",
+        "README.md",
+        "tests/test_sessions.py",
+        "tests/test_session_isolation.py",
+        "tests/test_api_validation.py",
+        "tests/test_scheduler_ownership.py"
+      ],
+      "status": "Complete",
+      "status_key": "done",
+      "note": "Merged 5a7f08a (PR #190), 4436 passed on main"
     }
   ]
 }

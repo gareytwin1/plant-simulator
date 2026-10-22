@@ -1,6 +1,7 @@
 import pytest
 
 from app import main
+from app.api import validate
 from app.engine.sessions import SessionRegistry
 
 
@@ -95,3 +96,24 @@ def test_a_session_stays_owned_by_the_address_that_created_it(monkeypatch):
         other.get("/api/snapshot", environ_base={"REMOTE_ADDR": "10.0.0.9"})
 
     assert registry.peek(cookie) is not None
+
+
+def test_a_session_behind_a_trusted_proxy_is_owned_by_the_forwarded_client(monkeypatch):
+    # Every request here reaches the app from the proxy's address; if the owner
+    # were that peer, all clients would be one owner and eviction plain LRU.
+    proxies = validate.parse_trusted_proxies(["10.0.0.0/24"])
+    real_client_key = validate.client_key
+    monkeypatch.setattr(validate, "client_key", lambda remote, forwarded, _: real_client_key(remote, forwarded, proxies))
+    registry = SessionRegistry(factory=main._new_session, max_sessions=4)
+    monkeypatch.setattr(main, "sessions", registry)
+    peer = {"REMOTE_ADDR": "10.0.0.5"}
+    trainee = main.app.test_client()
+    trainee.get("/api/snapshot", environ_base=peer, headers={"X-Forwarded-For": "203.0.113.1"})
+    cookie = trainee.get_cookie(main.SESSION_COOKIE).value
+    churner = main.app.test_client(use_cookies=False)
+
+    for _ in range(4):
+        churner.get("/api/snapshot", environ_base=peer, headers={"X-Forwarded-For": "203.0.113.2"})
+
+    assert registry.peek(cookie) is not None
+    assert len(registry) == 4

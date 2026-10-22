@@ -656,6 +656,22 @@ def test_an_owner_one_short_of_the_top_pays_for_its_own_new_session():
     assert ended == ["a1"]
 
 
+def test_a_creator_holding_sessions_outside_the_tie_leaves_the_tied_owners_to_pay():
+    registry, _, ended, create = logged_registry(max_sessions=7)
+    create("x1", "X")
+    create("y1", "Y")
+    create("y2", "Y")
+    create("y3", "Y")
+    create("z1", "Z")
+    create("z2", "Z")
+    create("z3", "Z")
+
+    # X would hold 2 against Y's 3 and Z's 3: Y and Z tie, X is not among them.
+    create("x2", "X")
+
+    assert ended == ["y1"]
+
+
 def test_a_creator_holding_nothing_takes_the_oldest_session_among_the_tied_owners():
     registry, _, ended, create = logged_registry(max_sessions=3)
     create("a1", "A")
@@ -807,10 +823,11 @@ def test_with_one_owner_eviction_matches_the_global_least_recently_touched_rule(
 def test_a_session_made_outside_a_request_shares_one_owner_with_every_other_such_session():
     registry, _, ended, create = logged_registry(max_sessions=3)
     create("a1", "A")
-    registry.create("n1").id = "n1"
-    registry.create("n2").id = "n2"
+    create("n1")
+    create("n2")
 
-    registry.create("n3").id = "n3"
+    # n1 is strictly older than a1 and n2, and only owner "" holds two.
+    create("n3")
 
     assert ended == ["n1"]
 

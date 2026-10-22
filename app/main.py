@@ -114,7 +114,9 @@ def load_session() -> None:
 
     if session is None:
         session_id = uuid.uuid4().hex
-        session = sessions.create(session_id)
+        # Owned by the client address, so past capacity it costs this
+        # client's share of the registry before anyone else's (T18-11).
+        session = sessions.create(session_id, g.client_address)
 
     g.session_id = session_id
     g.plant = session

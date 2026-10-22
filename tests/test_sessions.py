@@ -5,6 +5,7 @@ import weakref
 import pytest
 
 from app import config
+from app.engine.rng import SeededRNG
 from app.engine.sessions import SessionRegistry
 
 
@@ -580,3 +581,283 @@ def test_ending_a_leased_session_by_id_ends_it():
 
     assert session.ended == 1
     assert len(registry) == 0
+
+
+# ---- fair-share eviction (T18-11) ----
+
+
+class LoggedSession(FakeSession):
+    """A FakeSession that records, in `log`, the id it was admitted under once it ends."""
+
+    def __init__(self, log):
+        super().__init__()
+        self.log = log
+        self.id = None
+
+    def end(self):
+        super().end()
+        self.log.append(self.id)
+
+
+def logged_registry(max_sessions, idle_seconds=1e9):
+    clock = FakeClock()
+    ended = []
+    registry = SessionRegistry(
+        factory=lambda: LoggedSession(ended),
+        max_sessions=max_sessions,
+        monotonic=clock,
+        idle_seconds=idle_seconds,
+    )
+
+    def create(session_id, owner=""):
+        clock.advance(1.0)
+        session = registry.create(session_id, owner)
+        session.id = session_id
+        return session
+
+    return registry, clock, ended, create
+
+
+def test_a_full_registry_evicts_from_the_owner_holding_the_most():
+    registry, _, ended, create = logged_registry(max_sessions=4)
+    create("a1", "A")
+    create("b1", "B")
+    create("b2", "B")
+    create("b3", "B")
+
+    # a1 is the oldest, but B holds the most.
+    create("c1", "C")
+
+    assert ended == ["b1"]
+
+
+def test_the_new_session_counts_toward_its_creator_so_a_tie_costs_the_creator():
+    registry, _, ended, create = logged_registry(max_sessions=4)
+    create("b1", "B")
+    create("a1", "A")
+    create("b2", "B")
+    create("a2", "A")
+
+    # A would hold 3 against B's 2, so A pays even though b1 is older.
+    create("a3", "A")
+
+    assert ended == ["a1"]
+
+
+def test_an_owner_one_short_of_the_top_pays_for_its_own_new_session():
+    registry, _, ended, create = logged_registry(max_sessions=3)
+    create("b1", "B")
+    create("b2", "B")
+    create("a1", "A")
+
+    # A would hold 2, tying B: a tie goes against the creator.
+    create("a2", "A")
+
+    assert ended == ["a1"]
+
+
+def test_a_creator_holding_sessions_outside_the_tie_leaves_the_tied_owners_to_pay():
+    registry, _, ended, create = logged_registry(max_sessions=7)
+    create("x1", "X")
+    create("y1", "Y")
+    create("y2", "Y")
+    create("y3", "Y")
+    create("z1", "Z")
+    create("z2", "Z")
+    create("z3", "Z")
+
+    # X would hold 2 against Y's 3 and Z's 3: Y and Z tie, X is not among them.
+    create("x2", "X")
+
+    assert ended == ["y1"]
+
+
+def test_a_creator_holding_nothing_takes_the_oldest_session_among_the_tied_owners():
+    registry, _, ended, create = logged_registry(max_sessions=3)
+    create("a1", "A")
+    create("b1", "B")
+    create("c1", "C")
+    registry.get("a1")
+
+    create("d1", "D")
+
+    assert ended == ["b1"]
+
+
+def test_a_creator_holding_nothing_prefers_an_unleased_session_among_the_tied_owners():
+    registry, _, ended, create = logged_registry(max_sessions=2)
+    create("a1", "A")
+    create("b1", "B")
+
+    with registry.lease("a1"):
+        create("c1", "C")
+
+    assert ended == ["b1"]
+
+
+def test_within_the_chosen_owner_an_unleased_session_goes_before_a_leased_one():
+    registry, _, ended, create = logged_registry(max_sessions=3)
+    create("a1", "A")
+    create("a2", "A")
+    create("b1", "B")
+
+    with registry.lease("a1"):
+        create("a3", "A")
+
+    assert ended == ["a2"]
+
+
+def test_a_lease_never_moves_the_victim_to_another_owner():
+    registry, _, ended, create = logged_registry(max_sessions=3)
+    create("b1", "B")
+    create("a1", "A")
+    create("a2", "A")
+
+    with registry.lease("a1"), registry.lease("a2"):
+        create("a3", "A")
+
+    assert ended == ["a1"]
+    assert registry.peek("b1") is not None
+
+
+def test_a_churner_among_single_session_owners_ends_one_other_session_then_only_its_own():
+    registry, _, ended, create = logged_registry(max_sessions=32)
+    for i in range(32):
+        create(f"t{i}", f"10.0.0.{i}")
+
+    for i in range(100):
+        create(f"x{i}", "10.0.1.1")
+
+    assert len(registry) == 32
+    assert [session_id for session_id in ended if session_id.startswith("t")] == ["t0"]
+    assert sum(registry.peek(f"t{i}") is not None for i in range(32)) == 31
+
+
+def test_a_one_session_owner_creating_against_a_big_one_levels_off_at_an_even_split():
+    registry, _, ended, create = logged_registry(max_sessions=32)
+    for i in range(31):
+        create(f"b{i}", "B")
+    create("x0", "X")
+
+    for i in range(1, 51):
+        create(f"x{i}", "X")
+        x_count = sum(registry.peek(f"x{j}") is not None for j in range(i + 1))
+        b_count = sum(registry.peek(f"b{j}") is not None for j in range(31))
+        assert b_count >= x_count
+
+    assert (x_count, b_count) == (16, 16)
+
+
+def test_no_create_ends_a_session_of_an_owner_holding_no_more_than_the_creator_will():
+    rng = SeededRNG(1811)
+    registry, _, ended, create = logged_registry(max_sessions=12)
+    owners = ["A", "B", "C", "D", "E"]
+    owner_of = {}
+
+    for n in range(2000):
+        owner = rng.choice(owners)
+        live = [session_id for session_id in owner_of if registry.peek(session_id) is not None]
+        before = {o: sum(owner_of[s] == o for s in live) for o in owners}
+        ended.clear()
+
+        create(f"s{n}", owner)
+        owner_of[f"s{n}"] = owner
+
+        for victim in ended:
+            victim_owner = owner_of[victim]
+            if victim_owner != owner:
+                assert before[owner] == 0 or before[victim_owner] > before[owner] + 1, (n, before, owner, victim)
+
+
+def test_with_one_owner_eviction_matches_the_global_least_recently_touched_rule():
+    # The rule before T18-11, as a model: the least-recently-touched unleased
+    # session, or the least-recently-touched one when every session is leased.
+    registry, clock, ended, create = logged_registry(max_sessions=4)
+    touched = {}
+    holds = {}
+    expected = []
+    leases = {}
+    rng = SeededRNG(7)
+
+    for n in range(400):
+        live = list(touched)
+        step = rng.randint(0, 3)
+
+        if step == 0 or not live:
+            if len(touched) >= 4:
+                unheld = [s for s in touched if not holds.get(s)]
+                victim = min(unheld or touched, key=touched.__getitem__)
+                expected.append(victim)
+                del touched[victim]
+                holds.pop(victim, None)
+                for lease in leases.pop(victim, []):
+                    lease.__exit__(None, None, None)
+            create(f"s{n}", "only")
+            touched[f"s{n}"] = clock()
+        elif step == 1:
+            session_id = rng.choice(live)
+            clock.advance(1.0)
+            registry.get(session_id)
+            touched[session_id] = clock()
+        elif step == 2:
+            session_id = rng.choice(live)
+            lease = registry.lease(session_id)
+            lease.__enter__()
+            leases.setdefault(session_id, []).append(lease)
+            holds[session_id] = holds.get(session_id, 0) + 1
+        else:
+            held = [s for s in live if holds.get(s)]
+            if held:
+                session_id = rng.choice(held)
+                clock.advance(1.0)
+                leases[session_id].pop().__exit__(None, None, None)
+                holds[session_id] -= 1
+                if holds[session_id] == 0:
+                    del holds[session_id]
+                    touched[session_id] = clock()
+
+    assert ended == expected
+    assert len(expected) > 50
+
+
+def test_a_session_made_outside_a_request_shares_one_owner_with_every_other_such_session():
+    registry, _, ended, create = logged_registry(max_sessions=3)
+    create("a1", "A")
+    create("n1")
+    create("n2")
+
+    # n1 is strictly older than a1 and n2, and only owner "" holds two.
+    create("n3")
+
+    assert ended == ["n1"]
+
+
+def test_a_failed_create_ends_nothing():
+    calls = []
+
+    def factory():
+        calls.append(1)
+        if len(calls) > 2:
+            raise RuntimeError("factory failed")
+        return FakeSession()
+
+    registry = SessionRegistry(factory=factory, max_sessions=2)
+    first = registry.create("a", "A")
+    second = registry.create("b", "B")
+
+    with pytest.raises(RuntimeError):
+        registry.create("c", "C")
+
+    assert (first.ended, second.ended) == (0, 0)
+    assert len(registry) == 2
+
+
+def test_concurrent_creates_from_many_owners_never_exceed_capacity():
+    ids = [f"s{i}" for i in range(8)]
+    factory, built = constructing_together(len(ids))
+    registry = SessionRegistry(factory=factory, max_sessions=3)
+
+    run_together(registry.create, [(session_id, f"owner{i}") for i, session_id in enumerate(ids)])
+
+    assert len(registry) == 3
+    assert sum(session.ended == 0 for session in built) == 3

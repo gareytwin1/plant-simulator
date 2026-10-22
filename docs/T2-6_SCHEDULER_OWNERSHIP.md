@@ -93,6 +93,13 @@ threads are genuinely dead — which is what the teardown test asserts.
 **Today: nothing.** Settled: bound `SessionRegistry` by **capacity with
 least-recently-used eviction**, swept inside `create`/`get_or_create`.
 
+> **Amended by T18-11.** Eviction is no longer one global LRU: past capacity,
+> `create` ends a session of the owner (client address) that would hold the
+> most once the new one is counted, least-recently-used within that owner.
+> With a single owner that is exactly the LRU rule below. The text in this
+> document records the original T2-6 decision; the rule now in force is the
+> `SessionRegistry` docstring in `app/engine/sessions.py`.
+
 - The registry stamps each session with a monotonic last-touched time, refreshed
   on lookup.
 - On create at capacity, it ends the least-recently-touched session first —

@@ -565,7 +565,7 @@ def test_the_live_app_rate_limits_and_refuses_before_creating_a_session(monkeypa
     monkeypatch.setattr(main, "rate_limiter", validate.RateLimiter(rate=1.0, burst=1.0, clock=clock))
     created = []
     real_create = main.sessions.create
-    monkeypatch.setattr(main.sessions, "create", lambda sid: created.append(sid) or real_create(sid))
+    monkeypatch.setattr(main.sessions, "create", lambda sid, owner: created.append(sid) or real_create(sid, owner))
     client = main.app.test_client(use_cookies=False)
 
     first = client.get("/api/snapshot")
@@ -720,7 +720,7 @@ def test_the_live_app_keys_on_a_session_without_creating_or_touching_one(monkeyp
     session_id = client.get_cookie(main.SESSION_COOKIE).value
     calls = []
     monkeypatch.setattr(main.sessions, "get", lambda sid: calls.append(("get", sid)))
-    monkeypatch.setattr(main.sessions, "create", lambda sid: calls.append(("create", sid)))
+    monkeypatch.setattr(main.sessions, "create", lambda sid, owner: calls.append(("create", sid)))
 
     with main.app.test_request_context(headers={"Cookie": f"{main.SESSION_COOKIE}={session_id}"}):
         assert main._live_session_id() == session_id

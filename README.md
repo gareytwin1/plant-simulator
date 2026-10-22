@@ -64,7 +64,7 @@ drive equipment it has never seen before.
   read back as the net signed flow at each attachment.
 - **Background scheduler** — each browser's `TrainingSession` owns one
   `Scheduler`, started by the page render and stopped by the session's `end()` or by
-  capacity-bounded LRU eviction. It advances the plant on its own cadence
+  capacity-bounded fair-share eviction. It advances the plant on its own cadence
   whether or not a browser is polling; the frontend is a pure consumer of
   published snapshots and steps nothing.
 - **State snapshot (C4)** — one frozen, JSON-safe read contract for every

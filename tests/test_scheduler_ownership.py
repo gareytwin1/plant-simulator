@@ -2,8 +2,8 @@
 Whole-stack coverage for T2-6: a rendered page starts its own background
 scheduler, a browser that never comes back does not stop it, and nothing
 short of the session's end() (direct, registry.end(), or capacity
-eviction) does. See docs/T2-6_SCHEDULER_OWNERSHIP.md for the design these tests hold the
-application to.
+eviction) does. See docs/T2-6_SCHEDULER_OWNERSHIP.md for the design these
+tests hold the application to.
 """
 
 import threading
